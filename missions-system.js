@@ -3332,7 +3332,66 @@
     { id: 'seek_tw_pinpoint', label: 'Pinpoint Weakness', group: 'teamwork', subclass: 'Seeker', detail: 'Teamwork. When you successfully hit your Quarry, generate 1 Teamwork Point (exposing weaknesses for the team to exploit).', cost: 1, requires: ['seek_quarry'], requiresAny: [] },
     { id: 'seek_tw_covering_fire', label: 'Covering Fire', group: 'teamwork', subclass: 'Seeker', detail: 'Teamwork. If your ranged attack prevents an enemy from moving or making Opportunity Attacks, generate 1 Teamwork Point.', cost: 1, requires: ['seek_stick_around'], requiresAny: [] },
     { id: 'seek_tw_shared_quarry', label: 'Shared Quarry', group: 'teamwork', subclass: 'Seeker', detail: 'Teamwork. When an ally attacks your Quarry, generate 1 Teamwork Point (guiding allies toward critical threats).', cost: 1, requires: ['seek_tw_pinpoint'], requiresAny: [] },
-    { id: 'seek_tw_guided_assault', label: 'Guided Assault', group: 'teamwork', subclass: 'Seeker', detail: 'Teamwork. If you reposition an enemy (push/pull/manipulate) and an ally attacks that enemy on the same turn, generate 1 Teamwork Point.', cost: 1, requires: ['seek_tw_eyes', 'seek_tw_covering_fire'], requiresAny: [] }
+    { id: 'seek_tw_guided_assault', label: 'Guided Assault', group: 'teamwork', subclass: 'Seeker', detail: 'Teamwork. If you reposition an enemy (push/pull/manipulate) and an ally attacks that enemy on the same turn, generate 1 Teamwork Point.', cost: 1, requires: ['seek_tw_eyes', 'seek_tw_covering_fire'], requiresAny: [] },
+
+    // ── EXILE CORE ─────────────────────────────────────────────────────────
+    { id: 'exile_root_control_d20', label: 'Exile Core: Control d20', group: 'root', subclass: 'Exile', detail: 'Set your Control die to d20. Foundational Exile precision and flow control.', cost: 1, requires: [], requiresAny: [] },
+    { id: 'exile_passive_feature', label: 'Passive Feature', group: 'passive', subclass: 'Exile', detail: '+1 to Defend rolls and +1 to Control checks in raid scenes.', cost: 1, requires: ['exile_root_control_d20'], requiresAny: [] },
+    { id: 'exile_dual_wielder', label: 'Dual-Wielder', group: 'passive', subclass: 'Exile', detail: 'If wielding 2 daggers, you can strike with both for 1 AP.', cost: 1, requires: ['exile_passive_feature'], requiresAny: [] },
+    { id: 'exile_shadow_strike', label: 'Shadow Strike', group: 'passive', subclass: 'Exile', detail: 'Gain Advantage d8 on attack rolls against surprised or unaware enemies.', cost: 1, requires: ['exile_passive_feature'], requiresAny: [] },
+    { id: 'exile_agile_escape', label: 'Agile Escape', group: 'passive', subclass: 'Exile', detail: 'Gain Advantage d8 on defend rolls when dodging incoming attacks.', cost: 1, requires: ['exile_shadow_strike'], requiresAny: [] },
+    { id: 'exile_cloak_of_shadows', label: 'Cloak of Shadows', group: 'passive', subclass: 'Exile', detail: 'Gain Advantage d8 on Control stealth checks when sneaking past observers.', cost: 1, requires: ['exile_agile_escape'], requiresAny: [] },
+    { id: 'exile_lock_mastery', label: 'Lock Mastery', group: 'passive', subclass: 'Exile', detail: 'Gain Advantage d8 on Control lockpicking attempts.', cost: 1, requires: ['exile_cloak_of_shadows'], requiresAny: [] },
+    { id: 'exile_master_of_deception', label: 'Master of Deception', group: 'passive', subclass: 'Exile', detail: 'Gain Advantage d8 on Lead deception checks to deceive, disorient, or distract foes.', cost: 1, requires: ['exile_cloak_of_shadows'], requiresAny: [] },
+    { id: 'exile_evasive_maneuvers', label: 'Evasive Maneuvers', group: 'passive', subclass: 'Exile', detail: 'Once per encounter, when you would take damage, reduce that damage by 1.', cost: 1, requires: ['exile_slippery_target'], requiresAny: [] },
+    { id: 'exile_artful_dodger', label: 'Artful Dodger', group: 'passive', subclass: 'Exile', detail: '+1 bonus on Control checks involving precision and nimbleness.', cost: 1, requires: ['exile_dual_wielder'], requiresAny: [] },
+    { id: 'exile_master_of_shadows', label: 'Master of Shadows', group: 'passive', subclass: 'Exile', detail: 'In dim light or shadows, enemies take -1 on Lead checks to detect you.', cost: 1, requires: ['exile_cloak_of_shadows', 'exile_master_of_deception'], requiresAny: [] },
+    { id: 'exile_slippery_target', label: 'Slippery Target', group: 'passive', subclass: 'Exile', detail: 'Enemies suffer -1 on rolls to hit you.', cost: 1, requires: ['exile_agile_escape', 'exile_artful_dodger'], requiresAny: [] },
+    { id: 'exile_assassins_strike', label: "Assassin's Strike", group: 'action', subclass: 'Exile', detail: 'Reaction · 1 AP. If an enemy is not engaged with you and you attack from behind or cover, make Strike or Shoot with +2.', cost: 1, requires: ['exile_master_of_deception', 'exile_slippery_target'], requiresAny: [], actionId: 'exile_assassins_strike' },
+    { id: 'exile_teamwork_sync_strike', label: 'Synchronized Strike', group: 'teamwork', subclass: 'Exile', detail: 'Teamwork. After 7 Teamwork Points are accrued, spend all remaining AP to deal bonus damage equal to your Strike die and impose Disadvantage d8 on the enemy\'s next roll.', cost: 1, requires: ['exile_assassins_strike', 'exile_evasive_maneuvers'], requiresAny: [] },
+
+    // ── BREEZE ─────────────────────────────────────────────────────────────
+    // ── BREEZE ─────────────────────────────────────────────────────────────
+    { id: 'breeze_root', label: 'Breeze Mastery', group: 'root', subclass: 'Breeze', detail: '1 RP. Breeze unlocked. Breezes are Rogues as elusive as the wind — stealth and evasion masters, nearly impossible to pin down. Gain Ad10 against traps, hazards, and barriers.', cost: 1, requires: ['exile_teamwork_sync_strike'], requiresAny: [] },
+    { id: 'breeze_dust_in_wind', label: 'Dust in the Wind', group: 'passive', subclass: 'Breeze', detail: 'Passive. Apply the Hidden condition (cannot be seen or heard, Ad10 on next Combat Roll) to yourself. This condition lasts until your next move or attack.', cost: 1, requires: ['breeze_root'], requiresAny: [] },
+    { id: 'breeze_wind_dancer', label: 'Wind Dancer', group: 'passive', subclass: 'Breeze', detail: 'Passive. You can move without expending any action.', cost: 1, requires: ['breeze_root'], requiresAny: [] },
+    { id: 'breeze_storms_approach', label: "Storm's Approach", group: 'action', subclass: 'Breeze', detail: '1 AP. You gather the bones of the dead that float around you, dealing 1 damage to any enemy that is engaged to you per round.', cost: 1, requires: ['breeze_dust_in_wind'], requiresAny: [], actionId: 'breeze_storms_approach' },
+    { id: 'breeze_lasting_breeze', label: 'Lasting Breeze', group: 'action', subclass: 'Breeze', detail: '1 AP. Use your Stealth to hide an ally in the same Zone, applying the Hidden condition to them (cannot be seen or heard, Ad10 on next Combat Roll) until your next turn or until they perform an Action.', cost: 1, requires: ['breeze_dust_in_wind'], requiresAny: [], actionId: 'breeze_lasting_breeze' },
+    { id: 'breeze_gale_force', label: 'Gale Force', group: 'action', subclass: 'Breeze', detail: '3 AP. Summon a gust of wind to push all enemies in the zone 1 bracket back (Engaged→Close, Close→Nearby, Nearby→Far, Far→Out of Reach).', cost: 1, requires: ['breeze_wind_dancer'], requiresAny: [], actionId: 'breeze_gale_force' },
+    { id: 'breeze_here_take_it', label: "Here, You Take It!", group: 'passive', subclass: 'Breeze', detail: 'Passive. When you are about to be hit, you can apply the damage to another engaged enemy instead.', cost: 1, requires: ['breeze_wind_dancer'], requiresAny: [] },
+    { id: 'breeze_not_who_you_want', label: "I'm Not Who You Want", group: 'passive', subclass: 'Breeze', detail: 'Passive. Either in social or combat, you can temporarily divert the anger of a target away from you.', cost: 1, requires: ['breeze_here_take_it'], requiresAny: [] },
+    { id: 'breeze_shadowed_assault', label: 'Shadowed Assault', group: 'teamwork', subclass: 'Breeze', detail: 'Teamwork. If you successfully attack from the Hidden condition in a turn, generate 1 Teamwork Point — coordinating stealthy strikes with allies increases their combined lethality.', cost: 1, requires: ['breeze_lasting_breeze'], requiresAny: [] },
+    { id: 'breeze_confounding_maneuvers', label: 'Confounding Maneuvers', group: 'teamwork', subclass: 'Breeze', detail: 'Teamwork. If you successfully apply a condition (like Hidden or Confusion) to an enemy in a turn, generate 1 Teamwork Point — coordinating confusing tactics with allies to disorient enemies.', cost: 1, requires: ['breeze_lasting_breeze'], requiresAny: [] },
+
+    // ── STALKER ────────────────────────────────────────────────────────────
+    { id: 'stalker_root', label: 'Stalker Mastery', group: 'root', subclass: 'Stalker', detail: '1 RP. Stalker unlocked. Stalkers are Rogues who excel in tracking and ambush tactics — experts at staying hidden and striking when enemies least expect it. Ad10 on Lead Tracking checks.', cost: 1, requires: ['exile_teamwork_sync_strike'], requiresAny: [] },
+    { id: 'stalker_marked_prey', label: 'Marked Prey', group: 'passive', subclass: 'Stalker', detail: 'Passive (Alpha — must use at start of your Action Turn). Select a target as your quarry, gaining advantage on tracking, understanding, interacting with, and attacking this creature.', cost: 1, requires: ['stalker_root'], requiresAny: [] },
+    { id: 'stalker_echoes_dark', label: 'Echoes in the Dark', group: 'passive', subclass: 'Stalker', detail: 'Passive. Use sound to understand the layout of the next 2–3 rooms in a cavern or enclosed space. Gain advantage on any checks related to navigating or understanding these spaces.', cost: 1, requires: ['stalker_root'], requiresAny: [] },
+    { id: 'stalker_monster_hunter', label: 'Monster Hunter', group: 'passive', subclass: 'Stalker', detail: 'Passive. Choose 2 creature types (Dragons, Undead, Fey, Giants, Beasts, Demons, Elementals, Golems, Aliens, Robots, Mutants, Cyborgs, A.I. Horrors). Deal increased damage and gain advantages vs. those types. Attacks have d12 Advantage against them. Additional types can be purchased for +2 AP.', cost: 1, requires: ['stalker_marked_prey'], requiresAny: [] },
+    { id: 'stalker_silent_predator', label: 'Silent Predator', group: 'action', subclass: 'Stalker', detail: '3 AP. Utilize stealth and initiative to surprise enemies, dealing increased damage on the first round of combat. Your surprise attack has a Step Up Advantage if attacking from Hidden or if an ally is near an enemy.', cost: 1, requires: ['stalker_marked_prey'], requiresAny: [], actionId: 'stalker_silent_predator' },
+    { id: 'stalker_escape_artist', label: 'Escape Artist', group: 'action', subclass: 'Stalker', detail: '2 AP. After killing a foe, make a Control stealth check vs. Dread d8. If successful, you become Hidden from enemies until you attack or perform a distracting action.', cost: 1, requires: ['stalker_silent_predator'], requiresAny: [], actionId: 'stalker_escape_artist' },
+    { id: 'stalker_quick_kill', label: 'Quick Kill', group: 'action', subclass: 'Stalker', detail: '4 AP. Deliver a swift and lethal strike dealing increased damage. Cannot be used in consecutive rounds. If successful, the target dies in 2 Rounds.', cost: 1, requires: ['stalker_silent_predator'], requiresAny: [], actionId: 'stalker_quick_kill' },
+    { id: 'stalker_crippling_strike', label: 'Crippling Strike', group: 'action', subclass: 'Stalker', detail: '1 AP. Aim your attack at your enemy\'s weak points to hinder them. If successful, the enemy loses 1 AP on their turn.', cost: 1, requires: ['stalker_echoes_dark'], requiresAny: [], actionId: 'stalker_crippling_strike' },
+    { id: 'stalker_ruthless_precision', label: 'Ruthless Precision', group: 'action', subclass: 'Stalker', detail: '1 AP. Aim for vital points on your enemy — your next attack deals increased damage and potentially stuns your opponent. If successful, the target becomes Stunned (loses their next turn).', cost: 1, requires: ['stalker_crippling_strike'], requiresAny: [], actionId: 'stalker_ruthless_precision' },
+    { id: 'stalker_stealthy_ambush', label: 'Stealthy Ambush', group: 'teamwork', subclass: 'Stalker', detail: 'Teamwork. If you and an ally both attack from a Hidden or Surprise condition in the same turn, generate 1 Teamwork Point — showcasing coordinated stealthy kills.', cost: 1, requires: ['stalker_escape_artist'], requiresAny: [] },
+    { id: 'stalker_monster_knowledge', label: 'Monster Knowledge Share', group: 'teamwork', subclass: 'Stalker', detail: 'Teamwork. If you use Monster Hunter to gain advantage on a creature and an ally also attacks that creature in the same turn, generate 1 Teamwork Point — sharing specialized knowledge increases combined effectiveness.', cost: 1, requires: ['stalker_monster_hunter'], requiresAny: [] },
+
+    // ── MUSE ───────────────────────────────────────────────────────────────
+    { id: 'muse_root', label: 'Muse Mastery', group: 'root', subclass: 'Muse', detail: '1 RP. Muse unlocked. Muses are Rogues who use charm and wit to manipulate others — skilled at persuasion and deception, often getting what they want without violence. Spirit Die is now at d20.', cost: 1, requires: ['exile_teamwork_sync_strike'], requiresAny: [] },
+    { id: 'muse_effortless_communication', label: 'Effortless Communication', group: 'passive', subclass: 'Muse', detail: 'Passive. You are able to communicate your intentions to anyone who is not Out of Range, facilitating better coordination and strategy.', cost: 1, requires: ['muse_root'], requiresAny: [] },
+    { id: 'muse_center_of_attention', label: 'Center of Attention', group: 'action', subclass: 'Muse', detail: 'Control | 2 AP | 2 IM/Stress. You become the focal point of the encounter, reducing the Dread die for the zone by a step (e.g. d6→d4) until the start of your next turn. You become the target of all attacks.', cost: 1, requires: ['muse_root'], requiresAny: [], actionId: 'muse_center_of_attention' },
+    { id: 'muse_witty_repartee', label: 'Witty Repartee', group: 'action', subclass: 'Muse', detail: 'Mind | 1 AP | 1 IM/Stress. Engage an enemy in a battle of wits, distracting them with clever retorts and dazzling wordplay. This enemy suffers the Confused status and a Step Down Disadvantage on their next turn.', cost: 1, requires: ['muse_root'], requiresAny: [], actionId: 'muse_witty_repartee' },
+    { id: 'muse_i_know_you_can', label: 'I Know You Can Do This', group: 'action', subclass: 'Muse', detail: 'Leadership | Free | 2 IM/Stress. Inspire an ally, giving them a Focus condition. They maintain this condition until they make a skill check.', cost: 1, requires: ['muse_effortless_communication'], requiresAny: [], actionId: 'muse_i_know_you_can' },
+    { id: 'muse_bolstering_inspiration', label: 'Bolstering Inspiration', group: 'action', subclass: 'Muse', detail: 'Leadership | 1 AP | 2 IM/Stress. Inspire an ally, giving them a Bolster condition. They maintain this condition until they make a skill check.', cost: 1, requires: ['muse_i_know_you_can'], requiresAny: [], actionId: 'muse_bolstering_inspiration' },
+    { id: 'muse_whats_that', label: "What's That!", group: 'action', subclass: 'Muse', detail: 'Control | Free | 2 IM/Stress. Keep an enemy Confused and inactive until your next turn, provided the Pressure die in that Zone is d6 or lower.', cost: 1, requires: ['muse_witty_repartee'], requiresAny: [], actionId: 'muse_whats_that' },
+    { id: 'muse_you_can_do_better', label: 'You Can Do Better Than That!', group: 'action', subclass: 'Muse', detail: 'Defend | Free | N/A. In a crucial moment, shake off the stress from a single attack. Usable once per encounter.', cost: 1, requires: ['muse_center_of_attention'], requiresAny: [], actionId: 'muse_you_can_do_better' },
+    { id: 'muse_grace_under_pressure', label: 'Grace Under Pressure', group: 'action', subclass: 'Muse', detail: 'Defend | 1 AP | 1 IM/Stress. Maintain calm and poise even in the face of danger, inspiring allies. All allies in the same Zone gain a Step Up Advantage on their next Defense roll.', cost: 1, requires: ['muse_you_can_do_better'], requiresAny: [], actionId: 'muse_grace_under_pressure' },
+    { id: 'muse_seductive_allure', label: 'Seductive Allure', group: 'action', subclass: 'Muse', detail: 'Control | 2 AP | 2 IM/Stress. With a wink and a smile, charm an enemy into seeing you as an ally instead of a foe. This enemy will not attack you on their next turn unless provoked.', cost: 1, requires: ['muse_witty_repartee'], requiresAny: [], actionId: 'muse_seductive_allure' },
+    { id: 'muse_bewitching_performance', label: 'Bewitching Performance', group: 'action', subclass: 'Muse', detail: 'Control | 2 AP | 2 IM/Stress. Put on a captivating performance, drawing the attention of all creatures within sight. All enemies suffer a Disadvantage on their next action as they are momentarily mesmerized.', cost: 1, requires: ['muse_center_of_attention'], requiresAny: [], actionId: 'muse_bewitching_performance' },
+    { id: 'muse_inspiring_performance', label: 'Inspiring Performance', group: 'teamwork', subclass: 'Muse', detail: 'Teamwork. If you successfully use Center of Attention and no allies in your Zone receive attacks that turn, generate 1 Teamwork Point — representing your ability to draw all enemy hostility onto yourself.', cost: 1, requires: ['muse_center_of_attention'], requiresAny: [] },
+    { id: 'muse_motivational_insight', label: 'Motivational Insight', group: 'teamwork', subclass: 'Muse', detail: 'Teamwork. If an ally successfully completes a skill check while under the effects of I Know You Can Do This or Bolstering Inspiration, generate 1 Teamwork Point.', cost: 1, requires: ['muse_bolstering_inspiration'], requiresAny: [] },
+    { id: 'muse_strategic_diversion', label: 'Strategic Diversion', group: 'teamwork', subclass: 'Muse', detail: "Teamwork. If you use What's That! and an ally uses the opportunity to move Zones without triggering Opportunity Attacks, generate 1 Teamwork Point.", cost: 1, requires: ['muse_whats_that'], requiresAny: [] },
+    { id: 'muse_shared_understanding', label: 'Shared Understanding', group: 'teamwork', subclass: 'Muse', detail: 'Teamwork. If you successfully use Effortless Communication and an ally benefits by performing a coordinated action in the same turn, generate 1 Teamwork Point.', cost: 1, requires: ['muse_effortless_communication'], requiresAny: [] }
   ];
 
   function getTitanRaidNode(nodeId) {
@@ -3351,6 +3410,14 @@
     var bonus = 0;
     if (hasTitanRaidNode('titan_root_defend_plus3')) bonus += 3;
     if (hasTitanRaidNode('titan_passive_armored_defense')) bonus += 1;
+    if (hasTitanRaidNode('exile_passive_feature')) bonus += 1;
+    return bonus;
+  }
+
+  function getTitanRaidControlFlatBonus() {
+    var bonus = 0;
+    if (hasTitanRaidNode('exile_passive_feature')) bonus += 1;
+    if (hasTitanRaidNode('exile_artful_dodger')) bonus += 1;
     return bonus;
   }
 
@@ -3370,7 +3437,7 @@
     var actions = getTitanRaidUnlockedActions();
     if (!actions.length) return '';
     return actions.map(function (entry) {
-      return '<option value="' + String(entry.id || '').replace(/"/g, '&quot;') + '">Titan: ' + String(entry.label || '') + '</option>';
+      return '<option value="' + String(entry.id || '').replace(/"/g, '&quot;') + '">Path: ' + String(entry.label || '') + '</option>';
     }).join('');
   }
 
@@ -3648,6 +3715,21 @@
     var view = ensureRaidTreeViewState();
     if (!view) return;
 
+    // For the expanded Atlas web, start with a framing that includes Titan and Exile.
+    if (sceneWidth >= 3000) {
+      var isLegacyDefault = Math.abs(Number(view.zoom || 1) - 1) < 0.01
+        && Math.abs(Number(view.x || 0) - 36) < 2
+        && Math.abs(Number(view.y || 0) - 20) < 2;
+      if (isLegacyDefault) {
+        var startZoom = 0.78;
+        var focusX = 1920;
+        var focusY = 560;
+        view.zoom = startZoom;
+        view.x = (Number(viewportEl.clientWidth || 0) * 0.5) - (focusX * startZoom);
+        view.y = (Number(viewportEl.clientHeight || 0) * 0.5) - (focusY * startZoom);
+      }
+    }
+
     applyRaidTreeTransform(view, viewportEl, sceneEl, sceneWidth, sceneHeight);
 
     if (!viewportEl.__raidTreeBound) {
@@ -3789,12 +3871,29 @@
     window.raidTreeResetView = function () {
       var st = ensureRaidTreeViewState();
       if (!st) return;
-      st.zoom = 1;
-      st.x = 36;
-      st.y = 20;
+      if (sceneWidth >= 3000) {
+        st.zoom = 0.78;
+        var focusX = 1920;
+        var focusY = 560;
+        st.x = (Number(viewportEl.clientWidth || 0) * 0.5) - (focusX * st.zoom);
+        st.y = (Number(viewportEl.clientHeight || 0) * 0.5) - (focusY * st.zoom);
+      } else {
+        st.zoom = 1;
+        st.x = 36;
+        st.y = 20;
+      }
       st.vx = 0;
       st.vy = 0;
       applyRaidTreeTransform(st, viewportEl, sceneEl, sceneWidth, sceneHeight);
+    };
+    window.raidTreeJumpLegacy = function () {
+      jumpRaidTreeToWorld(260, 340, viewportEl, sceneEl, sceneWidth, sceneHeight);
+    };
+    window.raidTreeJumpTitan = function () {
+      jumpRaidTreeToWorld(1150, 700, viewportEl, sceneEl, sceneWidth, sceneHeight);
+    };
+    window.raidTreeJumpExile = function () {
+      jumpRaidTreeToWorld(2620, 700, viewportEl, sceneEl, sceneWidth, sceneHeight);
     };
   }
 
@@ -3994,8 +4093,8 @@
 
     var titanPathHeader = '<div style="border:1px solid rgba(126,215,255,.28);background:linear-gradient(145deg, rgba(9,16,24,.96), rgba(12,18,30,.9));padding:.55rem .62rem;margin-top:.42rem;">'
       + '<div style="font-size:.78rem;color:#7ed7ff;margin-bottom:.1rem;"><strong>Raid Skill Paths</strong></div>'
-      + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.45;">Path web framework: Titan, Exile, Godbound, Weaver. Titan is active now with subclass branches for Tactician, Fury, and Seeker.</div>'
-      + '<div style="font-size:.63rem;color:var(--gold2);line-height:1.42;margin-top:.12rem;">Planned subclasses: Exile (Breeze, Muse, Stalker) · Godbound (Voice, Justice, Keeper) · Weaver (Pillar of Vheissu, Pillar of the Void, Pillar of the E\'Tayali).</div>'
+      + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.45;">Path web framework: Titan, Exile, Godbound, Weaver. Titan and Exile are active with full subclass branches.</div>'
+      + '<div style="font-size:.63rem;color:var(--gold2);line-height:1.42;margin-top:.12rem;">Active subclasses: Titan (Tactician, Fury, Seeker) · Exile (Breeze, Stalker, Muse). Planned: Godbound (Voice, Justice, Keeper) · Weaver (Pillar of Vheissu, Pillar of the Void, Pillar of the E\'Tayali).</div>'
       + '</div>';
 
     var titanNodeMeta = TITAN_RAID_WEB_NODES.map(function (node) {
@@ -4022,12 +4121,27 @@
       };
     });
 
+    var subclassAccent = {
+      Titan: '#ff9f63',
+      Tactician: '#66d7ff',
+      Fury: '#ff6e5f',
+      Seeker: '#f5cf6a',
+      Exile: '#7de2c4',
+      Breeze: '#8bf1ff',
+      Stalker: '#7bb8ff',
+      Muse: '#d8a1ff'
+    };
+    function getSubclassAccent(name) {
+      var key = String(name || 'Titan');
+      return subclassAccent[key] || '#8dd9ff';
+    }
+
     var titanActions = getTitanRaidUnlockedActions();
     var titanActionsHtml = titanActions.length
       ? titanActions.map(function (entry) {
           return '<div style="font-size:.64rem;color:var(--teal);line-height:1.42;">• ' + String(entry.label || '') + '</div>';
         }).join('')
-      : '<div style="font-size:.64rem;color:var(--muted2);">No Titan wayfarer actions unlocked yet.</div>';
+      : '<div style="font-size:.64rem;color:var(--muted2);">No path actions unlocked yet.</div>';
 
     var legacyCenter = { x: 286, y: 382 };
     var legacyPolar = [
@@ -4071,13 +4185,17 @@
       Titan:      { x: 1150, y: 700 },
       Tactician:  { x: 420,  y: 440 },
       Fury:       { x: 1150, y: 330 },
-      Seeker:     { x: 1880, y: 440 }
+      Seeker:     { x: 1880, y: 440 },
+      Exile:      { x: 2620, y: 700 },
+      Breeze:     { x: 2320, y: 440 },
+      Stalker:    { x: 2620, y: 330 },
+      Muse:       { x: 2920, y: 440 }
     };
     // Ring radii per node group for non-Titan subclasses
     var groupRingMap     = { root: 62, passive: 122, action: 195, teamwork: 272 };
     var groupRingTitan   = { root: 45, passive: 85,  action: 130, teamwork: 175 };
     // Arc center direction (degrees) pointing AWAY from Titan core
-    var subclassArcDir   = { Titan: 270, Tactician: 200, Fury: 270, Seeker: 340 };
+    var subclassArcDir   = { Titan: 270, Tactician: 200, Fury: 270, Seeker: 340, Exile: 270, Breeze: 200, Stalker: 270, Muse: 340 };
     // First pass: count per (subclass, group) bucket for dynamic spread
     var bcCount = {};
     titanNodeMeta.forEach(function (n) {
@@ -4114,7 +4232,7 @@
     var graphNodes = legacyNodeMeta.concat(titanNodeMeta);
     var graphLookup = {};
     graphNodes.forEach(function (n) { graphLookup[n.id] = n; });
-    var sceneWidth = 2260;
+    var sceneWidth = 3280;
     var sceneHeight = 920;
 
     var edgeHtml = '';
@@ -4124,9 +4242,10 @@
       var isTCore = key === 'Titan';
       var c = titanCenters[key];
       var rs = isTCore ? [45, 85, 130, 175] : [62, 122, 195, 272];
-      var alphas = ['.11', '.08', '.06', '.04'];
+      var alphas = ['.22', '.16', '.12', '.08'];
+      var accent = getSubclassAccent(key);
       rs.forEach(function (r, ri) {
-        edgeHtml += '<circle cx="' + c.x + '" cy="' + c.y + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,' + alphas[ri] + ')" stroke-width="1" ' + (ri > 0 ? 'stroke-dasharray="4 5"' : '') + ' />';
+        edgeHtml += '<circle cx="' + c.x + '" cy="' + c.y + '" r="' + r + '" fill="none" stroke="' + accent + '" stroke-opacity="' + alphas[ri] + '" stroke-width="1" ' + (ri > 0 ? 'stroke-dasharray="4 5"' : '') + ' />';
       });
     });
     legacyNodeMeta.forEach(function (n, idx) {
@@ -4153,7 +4272,7 @@
         edgeHtml += '<line x1="' + (p.x + p.w / 2) + '" y1="' + (p.y + p.h / 2) + '" x2="' + (n.x + n.w / 2) + '" y2="' + (n.y + n.h / 2) + '" stroke="rgba(255,213,106,.25)" stroke-width="2" stroke-dasharray="5 4" />';
       });
     });
-    ['Tactician', 'Fury', 'Seeker', 'Titan'].forEach(function (subclass) {
+    ['Tactician', 'Fury', 'Seeker', 'Titan', 'Breeze', 'Stalker', 'Muse', 'Exile'].forEach(function (subclass) {
       var chain = titanNodeMeta.filter(function (n) { return n.subclass === subclass; }).sort(function (a, b) {
         if (a.tier !== b.tier) return a.tier - b.tier;
         return a.y - b.y;
@@ -4226,24 +4345,25 @@
       var r = node.rarity === 'keystone' ? 30 : (node.rarity === 'notable' ? 22 : 16);
       var d = r * 2;
       var purchased = node.unlocked;
+      var accent = getSubclassAccent(node.subclass);
       var borderColor = purchased
         ? 'rgba(103,214,179,.95)'
         : (node.canBuy
-          ? (node.rarity === 'keystone' ? 'rgba(255,170,88,.72)' : (node.rarity === 'notable' ? 'rgba(126,215,255,.55)' : 'rgba(255,255,255,.3)'))
+          ? (node.rarity === 'keystone' ? accent : (node.rarity === 'notable' ? accent : 'rgba(255,255,255,.3)'))
           : 'rgba(255,255,255,.18)');
       var bg = purchased
         ? 'radial-gradient(circle at 40% 38%, rgba(72,210,152,.34), rgba(8,26,20,.92))'
         : (node.rarity === 'keystone'
-          ? 'radial-gradient(circle at 38% 36%, rgba(52,22,8,.92), rgba(10,12,18,.94))'
+          ? ('radial-gradient(circle at 38% 36%, ' + accent + '44, rgba(10,12,18,.94))')
           : node.rarity === 'notable'
-            ? 'radial-gradient(circle at 38% 36%, rgba(10,26,42,.92), rgba(8,12,18,.94))'
+            ? ('radial-gradient(circle at 38% 36%, ' + accent + '33, rgba(8,12,18,.94))')
             : 'radial-gradient(circle at 38% 36%, rgba(14,18,30,.93), rgba(8,12,18,.94))');
       var glow = purchased
         ? '0 0 14px rgba(103,214,179,.65), 0 0 30px rgba(103,214,179,.22), inset 0 0 8px rgba(103,214,179,.14)'
-        : (node.rarity === 'keystone' ? '0 0 16px rgba(255,170,88,.32)' : (node.rarity === 'notable' ? '0 0 11px rgba(126,215,255,.22)' : 'none'));
+        : (node.rarity === 'keystone' ? ('0 0 18px ' + accent + '88') : (node.rarity === 'notable' ? ('0 0 12px ' + accent + '66') : 'none'));
       var innerDot = purchased
         ? '<div style="width:' + Math.round(r * .44) + 'px;height:' + Math.round(r * .44) + 'px;border-radius:50%;background:radial-gradient(circle, rgba(145,235,190,.95), rgba(80,200,140,.7));box-shadow:0 0 6px rgba(103,214,179,.6);pointer-events:none;"></div>'
-        : (node.rarity !== 'normal' ? '<div style="width:' + Math.round(r * .30) + 'px;height:' + Math.round(r * .30) + 'px;border-radius:50%;background:' + (node.rarity === 'keystone' ? 'rgba(255,170,88,.5)' : 'rgba(126,215,255,.38)') + ';pointer-events:none;"></div>' : '');
+        : (node.rarity !== 'normal' ? ('<div style="width:' + Math.round(r * .30) + 'px;height:' + Math.round(r * .30) + 'px;border-radius:50%;background:' + accent + ';opacity:.45;pointer-events:none;"></div>') : '');
       var labelEsc = String(node.label || '').replace(/'/g, "\\'");
       return '<button data-raid-node="1" type="button"'
         + ' onclick="openRaidTreeNodeInspector(\'titan\',\'' + node.id + '\')"'
@@ -4254,8 +4374,8 @@
         + '</button>';
     }).join('');
 
-    panel.innerHTML = '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;padding:.34rem;border:1px solid rgba(201,162,39,.22);background:radial-gradient(135% 130% at 0% 0%, rgba(126,215,255,.08), rgba(10,12,18,.96));">'
-      + '<div style="border:1px solid rgba(201,162,39,.28);background:linear-gradient(165deg, rgba(201,162,39,.1), rgba(12,18,26,.94));padding:.52rem .6rem;">'
+    panel.innerHTML = '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;padding:.34rem;border:1px solid rgba(201,162,39,.22);background:radial-gradient(150% 140% at 0% 0%, rgba(126,215,255,.12), rgba(16,28,42,.88) 35%, rgba(9,12,20,.98));">'
+      + '<div style="border:1px solid rgba(201,162,39,.28);background:linear-gradient(165deg, rgba(201,162,39,.14), rgba(12,18,26,.94));padding:.52rem .6rem;box-shadow:inset 0 0 24px rgba(126,215,255,.08);">'
       + '<div style="display:flex;justify-content:space-between;gap:.45rem;align-items:flex-start;flex-wrap:wrap;">'
       + '<div>'
       + '<div style="font-size:.92rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Raid Progression: Atlas Skill Web</strong></div>'
@@ -4265,7 +4385,7 @@
       + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">'
       + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(126,215,255,.35);color:#7ed7ff;">Legacy Core</span>'
-      + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(103,214,179,.45);color:#67d6b3;">Titan Connected</span>'
+      + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(103,214,179,.45);color:#67d6b3;">Path Connected</span>'
       + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(255,213,106,.4);color:#ffd56a;">One-of Prereqs</span>'
       + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(240,139,108,.35);color:#f08b6c;">Combat Power</span>'
       + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(255,255,255,.3);color:var(--muted2);">Normal</span>'
@@ -4273,10 +4393,13 @@
       + '<span style="font-size:.58rem;padding:.08rem .18rem;border:1px solid rgba(255,170,88,.62);color:#ffb16a;">Keystone</span>'
       + '</div>'
       + '</div>'
-      + '<div style="margin-top:.34rem;border:1px solid rgba(126,215,255,.28);background:linear-gradient(160deg, rgba(8,14,24,.97), rgba(10,16,22,.92));padding:.34rem;">'
+      + '<div style="margin-top:.34rem;border:1px solid rgba(126,215,255,.28);background:linear-gradient(160deg, rgba(8,14,24,.97), rgba(10,16,22,.92));padding:.34rem;box-shadow:0 14px 34px rgba(0,0,0,.36), inset 0 0 28px rgba(126,215,255,.05);">'
       + '<div style="display:flex;justify-content:space-between;gap:.35rem;align-items:center;flex-wrap:wrap;margin-bottom:.22rem;">'
       + '<div style="font-size:.62rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Raid Skill Tree</div>'
       + '<div style="display:flex;align-items:center;gap:.2rem;">'
+      + '<button class="btn btn-xs" onclick="raidTreeJumpLegacy()">Legacy</button>'
+      + '<button class="btn btn-xs" onclick="raidTreeJumpTitan()">Titan</button>'
+      + '<button class="btn btn-xs" onclick="raidTreeJumpExile()">Exile</button>'
       + '<button class="btn btn-xs" onclick="raidTreeZoomOut()">-</button>'
       + '<input id="raidTreeZoomInput" type="range" min="60" max="180" step="5" value="100" style="width:120px;accent-color:#7ed7ff;">'
       + '<button class="btn btn-xs" onclick="raidTreeZoomIn()">+</button>'
@@ -4285,21 +4408,28 @@
       + '</div>'
       + '</div>'
       + '<div style="display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:.34rem;align-items:start;">'
-      + '<div id="raidSkillTreeViewport" style="position:relative;overflow:hidden;min-height:740px;border:1px solid rgba(255,255,255,.08);background:radial-gradient(140% 120% at 30% 20%, rgba(19,30,45,.52), rgba(6,10,14,.96));cursor:grab;touch-action:none;">'
+      + '<div id="raidSkillTreeViewport" style="position:relative;overflow:hidden;min-height:740px;border:1px solid rgba(255,255,255,.08);background:radial-gradient(180% 150% at 10% 4%, rgba(34,52,78,.56), rgba(7,12,18,.98) 55%),repeating-linear-gradient(118deg, rgba(255,255,255,.03) 0 1px, transparent 1px 24px);cursor:grab;touch-action:none;">'
       + '<div id="raidSkillTreeScene" data-scene-width="' + sceneWidth + '" data-scene-height="' + sceneHeight + '" style="position:relative;width:' + sceneWidth + 'px;height:' + sceneHeight + 'px;will-change:transform;">'
+      + '<div style="position:absolute;left:120px;top:80px;width:380px;height:250px;border-radius:50%;background:radial-gradient(circle, rgba(126,215,255,.18), rgba(126,215,255,0));filter:blur(14px);pointer-events:none;"></div>'
+      + '<div style="position:absolute;left:980px;top:560px;width:520px;height:300px;border-radius:50%;background:radial-gradient(circle, rgba(255,159,99,.2), rgba(255,159,99,0));filter:blur(18px);pointer-events:none;"></div>'
+      + '<div style="position:absolute;left:2420px;top:560px;width:520px;height:300px;border-radius:50%;background:radial-gradient(circle, rgba(125,226,196,.2), rgba(125,226,196,0));filter:blur(18px);pointer-events:none;"></div>'
       + '<svg width="' + sceneWidth + '" height="' + sceneHeight + '" style="position:absolute;left:0;top:0;pointer-events:none;">' + edgeHtml + '</svg>'
       + '<div style="position:absolute;left:198px;top:80px;font-size:.58rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.1em;">Legacy Ring Cluster</div>'
       + '<div style="position:absolute;left:330px;top:148px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Tactician</div>'
       + '<div style="position:absolute;left:1068px;top:54px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Fury</div>'
       + '<div style="position:absolute;left:1810px;top:148px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Seeker</div>'
+      + '<div style="position:absolute;left:2240px;top:148px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Breeze</div>'
+      + '<div style="position:absolute;left:2538px;top:54px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Stalker</div>'
+      + '<div style="position:absolute;left:2860px;top:148px;font-size:.56rem;color:rgba(201,162,39,.75);text-transform:uppercase;letter-spacing:.1em;">Muse</div>'
       + '<div style="position:absolute;left:1068px;top:730px;font-size:.54rem;color:rgba(201,162,39,.65);text-transform:uppercase;letter-spacing:.1em;">Titan Core</div>'
+      + '<div style="position:absolute;left:2538px;top:730px;font-size:.54rem;color:rgba(201,162,39,.65);text-transform:uppercase;letter-spacing:.1em;">Exile Core</div>'
       + legacyNodesHtml
       + titanNodesHtml
       + '<div id="raidNodeTip" style="position:absolute;z-index:220;display:none;background:rgba(7,11,18,.97);border:1px solid rgba(126,215,255,.5);color:#c8dff2;font-size:.62rem;padding:.22rem .46rem;white-space:nowrap;pointer-events:none;border-radius:3px;letter-spacing:.03em;"></div>'
       + '</div>'
       + '<div style="position:absolute;right:.5rem;bottom:.48rem;z-index:4;display:grid;gap:.12rem;justify-items:end;">'
       + '<div style="font-size:.5rem;color:var(--muted2);padding:.06rem .18rem;background:rgba(6,10,14,.7);border:1px solid rgba(255,255,255,.12);letter-spacing:.08em;text-transform:uppercase;">Minimap: click or drag to jump</div>'
-      + '<div id="raidTreeMinimap" style="position:relative;width:230px;height:118px;border:1px solid rgba(126,215,255,.4);background:rgba(7,12,18,.92);box-shadow:0 10px 24px rgba(0,0,0,.35);cursor:pointer;touch-action:none;">'
+      + '<div id="raidTreeMinimap" style="position:relative;width:230px;height:118px;border:1px solid rgba(126,215,255,.4);background:radial-gradient(130% 120% at 0% 0%, rgba(26,44,66,.92), rgba(7,12,18,.94));box-shadow:0 10px 24px rgba(0,0,0,.35), inset 0 0 18px rgba(126,215,255,.08);cursor:pointer;touch-action:none;">'
       + '<svg width="230" height="118" viewBox="0 0 ' + sceneWidth + ' ' + sceneHeight + '" style="position:absolute;left:0;top:0;width:100%;height:100%;">'
       + '<rect x="0" y="0" width="' + sceneWidth + '" height="' + sceneHeight + '" fill="rgba(8,14,22,.68)" />'
       + '<g opacity=".56">' + edgeHtml + '</g>'
@@ -4318,7 +4448,7 @@
       + '</div>'
       + '</div>'
       + '<div style="margin-top:.24rem;border-top:1px solid rgba(255,255,255,.1);padding-top:.18rem;">'
-      + '<div style="font-size:.62rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.09em;margin-bottom:.1rem;">Unlocked Titan Wayfarer Actions</div>'
+      + '<div style="font-size:.62rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.09em;margin-bottom:.1rem;">Unlocked Path Actions</div>'
       + titanActionsHtml
       + '</div>'
       + (function () {
@@ -4381,7 +4511,7 @@
     var node = getTitanRaidNode(nodeId);
     if (!profile || !node) return false;
     if (!canBuyTitanRaidNode(profile, node)) {
-      if (typeof showNotif === 'function') showNotif('Titan node is locked or you lack Raid Points.', 'warn');
+      if (typeof showNotif === 'function') showNotif('Path node is locked or you lack Raid Points.', 'warn');
       return false;
     }
     profile.raidPoints = Math.max(0, Number(profile.raidPoints || 0) - 1);
@@ -4395,12 +4525,40 @@
       if (String(node.id) === 'titan_root_defend_plus3') {
         tStats.titanDefendBonus = Math.max(3, Number(tStats.titanDefendBonus || 0) + 3);
       }
+      if (String(node.id) === 'exile_root_control_d20') {
+        tStats.control = Math.max(20, Number(tStats.control || 4));
+        if (typeof updateDieDisplay === 'function') updateDieDisplay('control');
+      }
+      if (String(node.id) === 'exile_passive_feature') {
+        tStats.exileDefendBonus = Math.max(1, Number(tStats.exileDefendBonus || 0) + 1);
+        tStats.exileControlBonus = Math.max(1, Number(tStats.exileControlBonus || 0) + 1);
+      }
       // Subclass profession roots — record unlock flags and passive bonuses
       if (String(node.id) === 'tact_root') { profile.tactRootUnlocked = true; }
       if (String(node.id) === 'fury_root')  { profile.furyRootUnlocked = true; profile.furyBodyD10 = true; }
       if (String(node.id) === 'seek_root')  { profile.seekRootUnlocked = true; }
+      if (String(node.id) === 'exile_root_control_d20') { profile.exileRootUnlocked = true; }
+      if (String(node.id) === 'breeze_root') { profile.breezeRootUnlocked = true; }
+      // Breeze passive bonuses
+      if (String(node.id) === 'breeze_dust_in_wind') { profile.breezeDustInWind = true; }
+      if (String(node.id) === 'breeze_wind_dancer') { profile.breezeWindDancer = true; }
+      if (String(node.id) === 'breeze_here_take_it') { profile.breezeHereTakeIt = true; }
+      if (String(node.id) === 'breeze_not_who_you_want') { profile.breezeNotWhoYouWant = true; }
+      if (String(node.id) === 'stalker_root') { profile.stalkerRootUnlocked = true; }
+      // Stalker passive bonuses
+      if (String(node.id) === 'stalker_marked_prey') { profile.stalkerMarkedPrey = true; }
+      if (String(node.id) === 'stalker_echoes_dark') { profile.stalkerEchoesDark = true; }
+      if (String(node.id) === 'stalker_monster_hunter') { profile.stalkerMonsterHunter = true; }
+      if (String(node.id) === 'muse_root') {
+        profile.museRootUnlocked = true;
+        // Spirit Die upgrades to d20
+        if (tStats.spirit && Number(tStats.spirit) < 20) { tStats.spirit = 20; }
+      }
+      // Muse passive bonuses
+      if (String(node.id) === 'muse_effortless_communication') { profile.museEffortlessComm = true; }
+      S.stats = tStats;
     }
-    if (typeof showNotif === 'function') showNotif('Titan node unlocked: ' + String(node.label || node.id) + '. Effect active — see Active Raid Perks.', 'good');
+    if (typeof showNotif === 'function') showNotif('Path node unlocked: ' + String(node.label || node.id) + '. Effect active — see Active Raid Perks.', 'good');
     renderLegacyRaidTreePanel();
     return true;
   };
@@ -7927,6 +8085,8 @@
     if (key === 'defend') {
       total += Math.max(0, Number(defendBonus || 0));
       total += Math.max(0, Number(getTitanRaidDefendFlatBonus() || 0));
+    } else if (key === 'control') {
+      total += Math.max(0, Number(getTitanRaidControlFlatBonus() || 0));
     }
     return { stat: key, die: die, total: total };
   }

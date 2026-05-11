@@ -2604,6 +2604,93 @@
     }
   ];
 
+  var TITAN_RAID_WEB_NODES = [
+    { id: 'titan_root_lead_d20', label: 'Titan Core: Lead d20', group: 'root', subclass: 'Titan', detail: 'Set your Lead die to d20. Foundational Titan command presence.', cost: 1, requires: [], requiresAny: [] },
+    { id: 'titan_root_defend_plus3', label: 'Titan Core: +3 Defend', group: 'root', subclass: 'Titan', detail: 'Gain +3 to Defend rolls in raid combat scenes.', cost: 1, requires: [], requiresAny: [] },
+
+    { id: 'titan_skill_shield_wall', label: 'Shield Wall', group: 'skill', subclass: 'Tactician', detail: '1 AP. Gain an Advantage d8 on your next Defend roll.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'], actionId: 'titan_shield_wall' },
+    { id: 'titan_skill_titans_grip', label: "Titan's Grip", group: 'skill', subclass: 'Fury', detail: '1 AP. Gain an Advantage d8 on your next melee strike.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'], actionId: 'titan_titans_grip' },
+    { id: 'titan_skill_warriors_roar', label: "Warrior's Roar", group: 'skill', subclass: 'Tactician', detail: '1 AP, once per encounter. Allies gain Advantage d8 on next roll; enemies roll next attack at disadvantage d8.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'], actionId: 'titan_warriors_roar' },
+    { id: 'titan_skill_bulwark', label: 'Bulwark', group: 'skill', subclass: 'Seeker', detail: '1 AP. Gain an Advantage d10 on next interception/defense for an ally.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'], actionId: 'titan_bulwark' },
+    { id: 'titan_skill_unyielding', label: 'Unyielding', group: 'skill', subclass: 'Fury', detail: '1 AP, once per scene. Roll Adventure die and heal that much HP.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'], actionId: 'titan_unyielding' },
+
+    { id: 'titan_passive_grit', label: 'Grit', group: 'passive', subclass: 'Titan', detail: 'Once per combat encounter, if you would collapse at max Stress, you instead stay up with Trauma.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'] },
+    { id: 'titan_passive_power_strike', label: 'Power Strike', group: 'passive', subclass: 'Fury', detail: '+1 to Strike rolls in raid combat.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'] },
+    { id: 'titan_passive_threatening_presence', label: 'Threatening Presence', group: 'passive', subclass: 'Tactician', detail: 'Open action: apply Dread reduction pressure to a number of enemies equal to Spirit die tier.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'], actionId: 'titan_threatening_presence' },
+    { id: 'titan_passive_armored_defense', label: 'Armored Defense', group: 'passive', subclass: 'Seeker', detail: '+1 to Defend rolls in raid combat.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'] },
+    { id: 'titan_passive_unyielding_resolve', label: 'Unyielding Resolve', group: 'passive', subclass: 'Titan', detail: 'Twice per encounter, ignore a negative condition or trauma application.', cost: 1, requires: [], requiresAny: ['titan_root_lead_d20', 'titan_root_defend_plus3'] },
+
+    { id: 'titan_personal_opportunist', label: 'Opportunist', group: 'personal', subclass: 'Fury', detail: 'Open action: reaction strike profile (+2 pressure).', cost: 1, requires: ['titan_skill_titans_grip'], requiresAny: [], actionId: 'titan_opportunist' },
+    { id: 'titan_personal_off_hand', label: 'Off-hand', group: 'personal', subclass: 'Fury', detail: 'Open action: perform a follow-up attack without extra AP.', cost: 1, requires: ['titan_skill_titans_grip'], requiresAny: [], actionId: 'titan_off_hand' },
+    { id: 'titan_personal_multi_attack', label: 'Multi-Attack', group: 'personal', subclass: 'Fury', detail: 'Open action: strike twice for 1 AP.', cost: 1, requires: ['titan_skill_titans_grip'], requiresAny: [], actionId: 'titan_multi_attack' },
+    { id: 'titan_personal_unstoppable_charge', label: 'Unstoppable Charge', group: 'personal', subclass: 'Seeker', detail: 'Open action: charge from Close to Engaged with Advantage die.', cost: 1, requires: ['titan_skill_bulwark'], requiresAny: [], actionId: 'titan_unstoppable_charge' },
+    { id: 'titan_personal_titans_lunge', label: "Titan's Lunge", group: 'personal', subclass: 'Seeker', detail: 'Open action: lunge up to four zones; twice per encounter.', cost: 1, requires: ['titan_skill_bulwark'], requiresAny: [], actionId: 'titan_titans_lunge' },
+
+    { id: 'titan_action_stand_firm', label: 'Stand Firm', group: 'action', subclass: 'Tactician', detail: '1 AP. Enemies attempting to move in-zone must beat your Body die or lose 1 AP.', cost: 1, requires: ['titan_skill_shield_wall'], requiresAny: [], actionId: 'titan_stand_firm' },
+    { id: 'titan_action_battering_ram', label: 'Battering Ram', group: 'action', subclass: 'Fury', detail: '1 AP. Body vs Dread; on success push enemy one zone back.', cost: 1, requires: ['titan_skill_titans_grip'], requiresAny: [], actionId: 'titan_battering_ram' },
+    { id: 'titan_action_shattering_roar', label: 'Shattering Roar', group: 'action', subclass: 'Tactician', detail: '1 AP. Enemies save vs Lead or suffer disadvantage on next attack; allies gain Advantage d8 next roll.', cost: 1, requires: ['titan_skill_warriors_roar'], requiresAny: [], actionId: 'titan_shattering_roar' },
+    { id: 'titan_action_titans_fury', label: "Titan's Fury", group: 'action', subclass: 'Fury', detail: '1 AP. Strike all enemies Engaged with you.', cost: 1, requires: ['titan_skill_titans_grip'], requiresAny: [], actionId: 'titan_titans_fury' },
+    { id: 'titan_action_shield_slam', label: 'Shield Slam', group: 'action', subclass: 'Seeker', detail: '1 AP. Control vs Engaged target; on success enemy loses 1 AP.', cost: 1, requires: ['titan_skill_shield_wall'], requiresAny: [], actionId: 'titan_shield_slam' },
+
+    { id: 'titan_teamwork_earthquake_slam', label: 'Earthquake Slam', group: 'teamwork', subclass: 'Titan', detail: 'Open action. Spend 7 Teamwork and all current AP: same-zone enemies save vs Body or are knocked prone and lose 2 AP next turn.', cost: 1, requires: ['titan_action_titans_fury', 'titan_action_shattering_roar'], requiresAny: [], actionId: 'titan_earthquake_slam' }
+  ];
+
+  function getTitanRaidNode(nodeId) {
+    var key = String(nodeId || '');
+    for (var i = 0; i < TITAN_RAID_WEB_NODES.length; i++) {
+      if (TITAN_RAID_WEB_NODES[i].id === key) return TITAN_RAID_WEB_NODES[i];
+    }
+    return null;
+  }
+
+  function hasTitanRaidNode(nodeId) {
+    return getLegacyRaidTalentRank(nodeId) > 0;
+  }
+
+  function getTitanRaidDefendFlatBonus() {
+    var bonus = 0;
+    if (hasTitanRaidNode('titan_root_defend_plus3')) bonus += 3;
+    if (hasTitanRaidNode('titan_passive_armored_defense')) bonus += 1;
+    return bonus;
+  }
+
+  function getTitanRaidStrikeFlatBonus() {
+    return hasTitanRaidNode('titan_passive_power_strike') ? 1 : 0;
+  }
+
+  function getTitanRaidUnlockedActions() {
+    return TITAN_RAID_WEB_NODES.filter(function (node) {
+      return !!(node && node.actionId && hasTitanRaidNode(node.id));
+    }).map(function (node) {
+      return { id: String(node.actionId || ''), label: String(node.label || node.actionId || '') };
+    });
+  }
+
+  function getTitanRaidActionOptionsHtml() {
+    var actions = getTitanRaidUnlockedActions();
+    if (!actions.length) return '';
+    return actions.map(function (entry) {
+      return '<option value="' + String(entry.id || '').replace(/"/g, '&quot;') + '">Titan: ' + String(entry.label || '') + '</option>';
+    }).join('');
+  }
+
+  function canBuyTitanRaidNode(profile, node) {
+    if (!profile || !node) return false;
+    if (hasTitanRaidNode(node.id)) return false;
+    var need = Math.max(0, Number(node.cost || 1));
+    if (Number(profile.raidPoints || 0) < need) return false;
+    var reqs = Array.isArray(node.requires) ? node.requires : [];
+    for (var i = 0; i < reqs.length; i++) {
+      if (!hasTitanRaidNode(reqs[i])) return false;
+    }
+    var reqAny = Array.isArray(node.requiresAny) ? node.requiresAny : [];
+    if (reqAny.length) {
+      var anyMet = reqAny.some(function (id) { return hasTitanRaidNode(id); });
+      if (!anyMet) return false;
+    }
+    return true;
+  }
+
   function getLegacyRaidTreeNode(nodeId) {
     var key = String(nodeId || '');
     for (var i = 0; i < LEGACY_RAID_TREE_NODES.length; i++) {
@@ -2833,6 +2920,58 @@
         + '</div>';
     }).join('');
 
+    var titanPathHeader = '<div style="border:1px solid rgba(126,215,255,.28);background:linear-gradient(145deg, rgba(9,16,24,.96), rgba(12,18,30,.9));padding:.55rem .62rem;margin-top:.42rem;">'
+      + '<div style="font-size:.78rem;color:#7ed7ff;margin-bottom:.1rem;"><strong>Raid Skill Paths</strong></div>'
+      + '<div style="font-size:.67rem;color:var(--muted2);line-height:1.45;">Path web framework: Titan, Exile, Godbound, Weaver. Titan is active now with subclass branches for Tactician, Fury, and Seeker.</div>'
+      + '<div style="font-size:.63rem;color:var(--gold2);line-height:1.42;margin-top:.12rem;">Planned subclasses: Exile (Breeze, Muse, Stalker) · Godbound (Voice, Justice, Keeper) · Weaver (Pillar of Vheissu, Pillar of the Void, Pillar of the E\'Tayali).</div>'
+      + '</div>';
+
+    var titanNodeHtml = TITAN_RAID_WEB_NODES.map(function (node) {
+      var unlocked = hasTitanRaidNode(node.id);
+      var canBuy = canBuyTitanRaidNode(profile, node);
+      var reqs = Array.isArray(node.requires) ? node.requires : [];
+      var reqAny = Array.isArray(node.requiresAny) ? node.requiresAny : [];
+      var needTxt = [];
+      if (reqs.length) needTxt.push('Requires: ' + reqs.map(function (id) { var n = getTitanRaidNode(id); return n ? n.label : id; }).join(' + '));
+      if (reqAny.length) needTxt.push('Requires one of: ' + reqAny.map(function (id) { var n2 = getTitanRaidNode(id); return n2 ? n2.label : id; }).join(' / '));
+      return '<div style="border:1px solid ' + (unlocked ? 'rgba(103,214,179,.45)' : 'rgba(255,255,255,.14)') + ';background:' + (unlocked ? 'rgba(103,214,179,.08)' : 'rgba(10,14,20,.78)') + ';padding:.34rem .4rem;">'
+        + '<div style="display:flex;justify-content:space-between;gap:.3rem;align-items:center;">'
+        + '<div style="font-size:.71rem;color:' + (unlocked ? 'var(--teal)' : 'var(--text2)') + ';"><strong>' + String(node.label || '') + '</strong></div>'
+        + '<div style="font-size:.6rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">' + String(node.subclass || 'Titan') + '</div>'
+        + '</div>'
+        + '<div style="font-size:.64rem;color:var(--muted2);line-height:1.45;margin:.1rem 0 .16rem;">' + String(node.detail || '') + '</div>'
+        + (needTxt.length ? ('<div style="font-size:.6rem;color:' + (canBuy || unlocked ? 'var(--muted2)' : 'var(--red2)') + ';line-height:1.35;margin-bottom:.14rem;">' + needTxt.join(' · ') + '</div>') : '')
+        + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;">'
+        + '<span style="font-size:.6rem;color:var(--gold2);">Cost: 1 Raid Point</span>'
+        + (unlocked
+          ? '<button class="btn btn-xs" disabled>Unlocked</button>'
+          : '<button class="btn btn-xs ' + (canBuy ? 'btn-teal' : '') + '" ' + (canBuy ? '' : 'disabled') + ' onclick="buyTitanRaidNode(\'' + String(node.id || '') + '\')">Buy Node</button>')
+        + '</div>'
+        + '</div>';
+    }).join('');
+
+    var titanActions = getTitanRaidUnlockedActions();
+    var titanActionsHtml = titanActions.length
+      ? titanActions.map(function (entry) {
+          return '<div style="font-size:.64rem;color:var(--teal);line-height:1.42;">• ' + String(entry.label || '') + '</div>';
+        }).join('')
+      : '<div style="font-size:.64rem;color:var(--muted2);">No Titan wayfarer actions unlocked yet.</div>';
+
+    var titanWebHtml = '<div style="margin-top:.42rem;border:1px solid rgba(126,215,255,.35);background:linear-gradient(155deg, rgba(8,14,24,.97), rgba(12,18,30,.9));padding:.5rem .56rem;">'
+      + '<div style="font-size:.76rem;color:#7ed7ff;margin-bottom:.14rem;"><strong>Titan Path Web (POE-style progression)</strong></div>'
+      + '<div style="font-size:.64rem;color:var(--muted2);line-height:1.45;margin-bottom:.2rem;">Each Titan node costs +1 Raid Point. Buying nodes unlocks persistent bonuses and raid-combat wayfarer actions.</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(3,minmax(190px,1fr));gap:.2rem;margin-bottom:.25rem;">'
+      + '<div style="font-size:.6rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.09em;">Tactician</div>'
+      + '<div style="font-size:.6rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.09em;">Fury</div>'
+      + '<div style="font-size:.6rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.09em;">Seeker</div>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.22rem;">' + titanNodeHtml + '</div>'
+      + '<div style="margin-top:.3rem;border-top:1px solid rgba(255,255,255,.1);padding-top:.2rem;">'
+      + '<div style="font-size:.62rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.09em;margin-bottom:.1rem;">Unlocked Titan Wayfarer Actions</div>'
+      + titanActionsHtml
+      + '</div>'
+      + '</div>';
+
     panel.innerHTML = '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;max-width:980px;padding:.35rem;border:1px solid rgba(201,162,39,.22);background:radial-gradient(120% 100% at 0% 0%, rgba(126,215,255,.08), rgba(10,12,18,.95));">'
       + '<div style="display:grid;grid-template-columns:1.2fr 1fr;gap:.45rem;">'
       + '<div style="display:grid;gap:.35rem;">'
@@ -2850,6 +2989,8 @@
       + '<div style="font-size:.7rem;color:var(--teal);line-height:1.45;margin-top:.2rem;display:flex;gap:.45rem;flex-wrap:wrap;align-items:center;">' + medalSummaryHtml + '<span>Raid Points: ' + pointCount + '</span></div>'
       + '</div>'
       + '<div style="border:1px dashed rgba(126,215,255,.25);padding:.28rem;background:rgba(10,14,20,.55);display:grid;grid-template-columns:repeat(2,minmax(210px,1fr));gap:.3rem;">' + nodeHtml + '</div>'
+      + titanPathHeader
+      + titanWebHtml
       + '</div>'
       + '<div style="display:grid;gap:.35rem;">'
       + '<div style="border:1px solid rgba(201,162,39,.2);background:linear-gradient(150deg, rgba(18,24,32,.95), rgba(10,14,20,.9));padding:.5rem .55rem;">'
@@ -2888,6 +3029,25 @@
       + '</div>';
     return true;
   }
+
+  window.buyTitanRaidNode = function (nodeId) {
+    var profile = ensureLegacyRaidProfile();
+    var node = getTitanRaidNode(nodeId);
+    if (!profile || !node) return false;
+    if (!canBuyTitanRaidNode(profile, node)) {
+      if (typeof showNotif === 'function') showNotif('Titan node is locked or you lack Raid Points.', 'warn');
+      return false;
+    }
+    profile.raidPoints = Math.max(0, Number(profile.raidPoints || 0) - 1);
+    profile.raidTreeRanks[String(node.id)] = 1;
+    if (String(node.id) === 'titan_root_lead_d20' && typeof S !== 'undefined' && S && S.stats) {
+      S.stats.lead = Math.max(20, Number(S.stats.lead || 4));
+      if (typeof updateDieDisplay === 'function') updateDieDisplay('lead');
+    }
+    if (typeof showNotif === 'function') showNotif('Titan node unlocked: ' + String(node.label || node.id) + '.', 'good');
+    renderLegacyRaidTreePanel();
+    return true;
+  };
 
   function renderSoulForgeTabPanel() {
     var hosts = [];
@@ -5031,6 +5191,8 @@
           return '<option value="' + String(opt.value).replace(/"/g, '&quot;') + '">' + String(opt.textContent || opt.value) + '</option>';
         }).join('')
       : '';
+    var titanActionOptions = getTitanRaidActionOptionsHtml();
+    var raidModalActionOptions = String(combatTabActionOptions || '') + String(titanActionOptions || '');
     var enemyTargetSelectOptions = '<option value="player"' + ((flow && String(flow.selectedEnemyTargetType || '') === 'player') ? ' selected' : '') + '>You</option>'
       + allies.map(function (ally) {
           var allyName = String(ally && ally.name || 'Wayfarer');
@@ -5167,9 +5329,9 @@
           + '<button class="btn btn-sm" ' + (sceneStarted && stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.executeLegacyRaidPlayerActionFromPanel(\'defend\',' + missionId + ',' + wingNum + ')">Defend</button>'
           + compactMoveButtons
         + '</div>'
-        + (combatTabActionOptions
+        + (raidModalActionOptions
           ? ('<div style="display:grid;grid-template-columns:1fr auto;gap:.2rem;align-items:end;margin-bottom:.14rem;">'
-            + '<label style="font-size:.63rem;color:var(--muted2);">Combat Tab Wayfarer Action<select id="raidCombatTabActionSelect" style="width:100%;margin-top:.08rem;">' + combatTabActionOptions + '</select></label>'
+            + '<label style="font-size:.63rem;color:var(--muted2);">Combat Tab Wayfarer Action<select id="raidCombatTabActionSelect" style="width:100%;margin-top:.08rem;">' + raidModalActionOptions + '</select></label>'
             + '<button class="btn btn-xs btn-teal" ' + (sceneStarted && stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="window.executeLegacyRaidCombatTabActionFromModal(' + missionId + ',' + wingNum + ')">Use Combat Action</button>'
             + '</div>')
           : '')
@@ -5226,6 +5388,7 @@
       + '<option value="shoot">Shoot</option>'
       + '<option value="defend">Defend</option>'
       + moveTargets.map(function (zone) { return '<option value="move:' + zone + '">Move to ' + zone + '</option>'; }).join('')
+      + titanActionOptions
       + '</select></label>'
       + '<button class="btn btn-xs btn-primary" ' + (sceneStarted && stage === 'player' && actionsLeft > 0 ? '' : 'disabled') + ' onclick="var sel=document.getElementById(\'raidPlayerActionSelect\');if(sel)window.executeLegacyRaidPlayerActionFromPanel(sel.value,' + missionId + ',' + wingNum + ');">Do Action</button>'
       + '</div>'
@@ -5332,6 +5495,18 @@
     flow.sceneStarted = true;
     flow.stage = 'player';
     flow.turn = Math.max(1, Number(flow.turn || 1));
+    flow.titanUsage = {
+      encounter: { warriorsRoar: false, threateningPresence: false, titansLunge: 0, unyieldingResolveBlocks: 0 },
+      scene: { unyielding: false }
+    };
+    flow.titanBuffs = {
+      nextDefendBonus: 0,
+      nextStrikeBonus: 0,
+      allyNextRollAdvD8: 0,
+      enemyNextAttackDisD8: 0,
+      standFirm: false,
+      enemyApPenaltyNextTurn: 0
+    };
     S.combat.actionsLeft = (typeof getMaxActions === 'function')
       ? Math.max(1, Number(getMaxActions() || 3))
       : Math.max(1, Number(S.combat.actionsLeft || 3));
@@ -5339,6 +5514,273 @@
     if (typeof window.refreshLegacyRaidCombatModal === 'function') window.refreshLegacyRaidCombatModal(missionId, wingNum);
     return true;
   };
+
+  function ensureTitanRaidFlowState(flow) {
+    if (!flow) return null;
+    if (!flow.titanUsage || typeof flow.titanUsage !== 'object') {
+      flow.titanUsage = {
+        encounter: { warriorsRoar: false, threateningPresence: false, titansLunge: 0, unyieldingResolveBlocks: 0 },
+        scene: { unyielding: false }
+      };
+    }
+    if (!flow.titanUsage.encounter || typeof flow.titanUsage.encounter !== 'object') {
+      flow.titanUsage.encounter = { warriorsRoar: false, threateningPresence: false, titansLunge: 0, unyieldingResolveBlocks: 0 };
+    }
+    if (!flow.titanUsage.scene || typeof flow.titanUsage.scene !== 'object') {
+      flow.titanUsage.scene = { unyielding: false };
+    }
+    if (!flow.titanBuffs || typeof flow.titanBuffs !== 'object') {
+      flow.titanBuffs = {
+        nextDefendBonus: 0,
+        nextStrikeBonus: 0,
+        allyNextRollAdvD8: 0,
+        enemyNextAttackDisD8: 0,
+        standFirm: false,
+        enemyApPenaltyNextTurn: 0
+      };
+    }
+    return flow;
+  }
+
+  function spendLegacyRaidPlayerPanelActions(flow, cost) {
+    var need = Math.max(0, Number(cost || 0));
+    if (!flow || need <= 0) return true;
+    var left = Math.max(0, Number(S && S.combat && S.combat.actionsLeft || 0));
+    if (left < need) {
+      if (typeof showNotif === 'function') showNotif('Need ' + need + ' action(s). Remaining: ' + left + '.', 'warn');
+      return false;
+    }
+    S.combat.actionsLeft = Math.max(0, left - need);
+    if (S.combat.actionsLeft <= 0) {
+      prepareLegacyRaidAllyStage();
+    }
+    return true;
+  }
+
+  function getLegacyRaidPlayerName() {
+    return String((typeof S !== 'undefined' && S && S.name) || 'Wayfarer');
+  }
+
+  function getShiftedRange(range, delta) {
+    var bands = ['Engaged', 'Close', 'Nearby', 'Far'];
+    var idx = bands.indexOf(normalizeLegacyRaidRange(range || 'Close'));
+    if (idx < 0) idx = 1;
+    var next = Math.max(0, Math.min(bands.length - 1, idx + Number(delta || 0)));
+    return bands[next];
+  }
+
+  function executeTitanRaidPlayerAction(act, flow, selected, hostiles) {
+    ensureTitanRaidFlowState(flow);
+    var buffs = flow.titanBuffs;
+    var usage = flow.titanUsage;
+    var playerName = getLegacyRaidPlayerName();
+    var adDie = getLegacyRaidCombatActionDie('spirit');
+    var bodyDie = getLegacyRaidCombatActionDie('body');
+    var leadDie = getLegacyRaidCombatActionDie('lead');
+    var controlDie = getLegacyRaidCombatActionDie('control');
+    var strikeDie = getLegacyRaidCombatActionDie('strike');
+    var adventureDie = getLegacyRaidWayfarerActionDie();
+
+    if (act === 'titan_shield_wall') {
+      if (!spendLegacyRaidPlayerPanelActions(flow, 1)) return false;
+      var wall = (typeof roll === 'function') ? roll(8) : (Math.floor(Math.random() * 8) + 1);
+      buffs.nextDefendBonus = Math.max(0, Number(buffs.nextDefendBonus || 0) + wall);
+      if (typeof showNotif === 'function') showNotif('Shield Wall active: next Defend gains +' + wall + '.', 'good');
+      return true;
+    }
+    if (act === 'titan_titans_grip') {
+      if (!spendLegacyRaidPlayerPanelActions(flow, 1)) return false;
+      var grip = (typeof roll === 'function') ? roll(8) : (Math.floor(Math.random() * 8) + 1);
+      buffs.nextStrikeBonus = Math.max(0, Number(buffs.nextStrikeBonus || 0) + grip);
+      if (typeof showNotif === 'function') showNotif("Titan's Grip active: next Strike gains +" + grip + '.', 'good');
+      return true;
+    }
+    if (act === 'titan_warriors_roar') {
+      if (usage.encounter.warriorsRoar) {
+        if (typeof showNotif === 'function') showNotif("Warrior's Roar is once per encounter.", 'warn');
+        return false;
+      }
+      if (!spendLegacyRaidPlayerPanelActions(flow, 1)) return false;
+      usage.encounter.warriorsRoar = true;
+      buffs.allyNextRollAdvD8 = Math.max(1, Number(buffs.allyNextRollAdvD8 || 0));
+      buffs.enemyNextAttackDisD8 = Math.max(1, Number(buffs.enemyNextAttackDisD8 || 0));
+      if (typeof showNotif === 'function') showNotif("Warrior's Roar: allies empowered, enemies disrupted.", 'good');
+      return true;
+    }
+    if (act === 'titan_bulwark') {
+      if (!spendLegacyRaidPlayerPanelActions(flow, 1)) return false;
+      var bulwark = (typeof roll === 'function') ? roll(10) : (Math.floor(Math.random() * 10) + 1);
+      flow.allyDefendBonus = flow.allyDefendBonus || {};
+      flow.allyDefendBonus[playerName] = Number(flow.allyDefendBonus[playerName] || 0) + bulwark;
+      if (typeof showNotif === 'function') showNotif('Bulwark: +' + bulwark + ' defend buffer ready.', 'good');
+      return true;
+    }
+    if (act === 'titan_unyielding') {
+      if (usage.scene.unyielding) {
+        if (typeof showNotif === 'function') showNotif('Unyielding is once per scene.', 'warn');
+        return false;
+      }
+      if (!spendLegacyRaidPlayerPanelActions(flow, 1)) return false;
+      usage.scene.unyielding = true;
+      var heal = (typeof roll === 'function') ? roll(adventureDie) : (Math.floor(Math.random() * adventureDie) + 1);
+      if (typeof S !== 'undefined' && S) {
+        var hpState = getLegacyRaidPlayerHealthState();
+        S.health = Math.min(Number(hpState.max || 1), Number(hpState.current || 0) + heal);
+      }
+      if (typeof showNotif === 'function') showNotif('Unyielding restores ' + heal + ' HP.', 'good');
+      return true;
+    }
+    if (act === 'titan_threatening_presence') {
+      if (usage.encounter.threateningPresence) {
+        if (typeof showNotif === 'function') showNotif('Threatening Presence is once per encounter.', 'warn');
+        return false;
+      }
+      if (!spendLegacyRaidPlayerPanelActions(flow, 1)) return false;
+      usage.encounter.threateningPresence = true;
+      var spiritTier = Math.max(1, Math.floor(Math.max(4, Number(getLegacyRaidCombatActionDie('spirit') || 4)) / 4));
+      var impacted = (Array.isArray(hostiles) ? hostiles : []).slice(0, spiritTier);
+      impacted.forEach(function (enemy) {
+        if (!enemy) return;
+        enemy.dread = Math.max(4, stepMissionDreadDieBy(Number(enemy.dread || 6), -1));
+      });
+      if (typeof showNotif === 'function') showNotif('Threatening Presence reduced Dread for ' + impacted.length + ' foe(s).', 'good');
+      return true;
+    }
+    if (act === 'titan_stand_firm') {
+      if (!spendLegacyRaidPlayerPanelActions(flow, 1)) return false;
+      buffs.standFirm = true;
+      if (typeof showNotif === 'function') showNotif('Stand Firm active until enemy phase resolves.', 'good');
+      return true;
+    }
+    if (act === 'titan_battering_ram') {
+      if (!selected) {
+        if (typeof showNotif === 'function') showNotif('Select a hostile target first.', 'warn');
+        return false;
+      }
+      if (!spendLegacyRaidPlayerPanelActions(flow, 1)) return false;
+      var bodyRoll = (typeof roll === 'function') ? roll(bodyDie) : (Math.floor(Math.random() * bodyDie) + 1);
+      var dreadRoll = (typeof roll === 'function') ? roll(Math.max(4, Number(selected.dread || 6))) : (Math.floor(Math.random() * Math.max(4, Number(selected.dread || 6))) + 1);
+      if (bodyRoll >= dreadRoll) {
+        flow.hostileRangeById = flow.hostileRangeById || {};
+        flow.hostileRangeById[String(Number(selected.id || 0))] = getShiftedRange(getLegacyRaidHostileRange(flow, selected.id), 1);
+        if (typeof showNotif === 'function') showNotif('Battering Ram success: ' + selected.name + ' pushed back one zone.', 'good');
+      } else if (typeof showNotif === 'function') {
+        showNotif('Battering Ram failed (' + bodyRoll + ' vs ' + dreadRoll + ').', 'warn');
+      }
+      return true;
+    }
+    if (act === 'titan_shattering_roar') {
+      if (!spendLegacyRaidPlayerPanelActions(flow, 1)) return false;
+      var leadBoost = (typeof roll === 'function') ? roll(8) : (Math.floor(Math.random() * 8) + 1);
+      buffs.allyNextRollAdvD8 = Math.max(1, Number(buffs.allyNextRollAdvD8 || 0));
+      buffs.enemyNextAttackDisD8 = Math.max(1, Number(buffs.enemyNextAttackDisD8 || 0));
+      if (typeof showNotif === 'function') showNotif('Shattering Roar: allies gain +d8 next roll (' + leadBoost + ' rolled), enemies disadvantaged next attack.', 'good');
+      return true;
+    }
+    if (act === 'titan_titans_fury') {
+      if (!spendLegacyRaidPlayerPanelActions(flow, 1)) return false;
+      var engaged = (Array.isArray(hostiles) ? hostiles : []).filter(function (enemy) {
+        return getLegacyRaidHostileRange(flow, Number(enemy && enemy.id || 0)) === 'Engaged';
+      });
+      if (!engaged.length) {
+        if (typeof showNotif === 'function') showNotif("Titan's Fury found no Engaged enemies.", 'info');
+        return true;
+      }
+      engaged.forEach(function (enemy) {
+        if (!enemy) return;
+        var atk = (typeof roll === 'function') ? roll(strikeDie) : (Math.floor(Math.random() * strikeDie) + 1);
+        var def = (typeof roll === 'function') ? roll(Math.max(4, Number(enemy.dread || 6))) : (Math.floor(Math.random() * Math.max(4, Number(enemy.dread || 6))) + 1);
+        var dmg = Math.max(0, atk - def);
+        enemy.stress = Math.min(Number(enemy.maxStress || 8), Number(enemy.stress || 0) + dmg);
+      });
+      if (typeof showNotif === 'function') showNotif("Titan's Fury struck " + engaged.length + ' Engaged enemy(ies).', 'good');
+      return true;
+    }
+    if (act === 'titan_shield_slam') {
+      if (!selected) {
+        if (typeof showNotif === 'function') showNotif('Select an Engaged target for Shield Slam.', 'warn');
+        return false;
+      }
+      if (getLegacyRaidHostileRange(flow, Number(selected.id || 0)) !== 'Engaged') {
+        if (typeof showNotif === 'function') showNotif('Shield Slam requires an Engaged target.', 'warn');
+        return false;
+      }
+      if (!spendLegacyRaidPlayerPanelActions(flow, 1)) return false;
+      var cRoll = (typeof roll === 'function') ? roll(controlDie) : (Math.floor(Math.random() * controlDie) + 1);
+      var dRoll = (typeof roll === 'function') ? roll(Math.max(4, Number(selected.dread || 6))) : (Math.floor(Math.random() * Math.max(4, Number(selected.dread || 6))) + 1);
+      if (cRoll >= dRoll) {
+        flow.enemyActionBudget = Math.max(0, Number(flow.enemyActionBudget || 0) - 1);
+        if (typeof showNotif === 'function') showNotif('Shield Slam: enemy loses 1 AP this round.', 'good');
+      } else if (typeof showNotif === 'function') {
+        showNotif('Shield Slam failed (' + cRoll + ' vs ' + dRoll + ').', 'warn');
+      }
+      return true;
+    }
+    if (act === 'titan_opportunist') {
+      if (!spendLegacyRaidPlayerPanelActions(flow, 1)) return false;
+      flow.allyAttackBonus = Number(flow.allyAttackBonus || 0) + 2;
+      if (typeof showNotif === 'function') showNotif('Opportunist primed: +2 attack pressure.', 'good');
+      return true;
+    }
+    if (act === 'titan_off_hand' || act === 'titan_multi_attack') {
+      if (!spendLegacyRaidPlayerPanelActions(flow, 1)) return false;
+      var extraRoll = (typeof roll === 'function') ? roll(strikeDie) : (Math.floor(Math.random() * strikeDie) + 1);
+      var extraDef = (typeof roll === 'function') ? roll(Math.max(4, Number(selected && selected.dread || 6))) : (Math.floor(Math.random() * Math.max(4, Number(selected && selected.dread || 6))) + 1);
+      var extraDmg = Math.max(0, extraRoll - extraDef);
+      if (selected) selected.stress = Math.min(Number(selected.maxStress || 8), Number(selected.stress || 0) + extraDmg);
+      if (act === 'titan_multi_attack' && selected) {
+        var extraRoll2 = (typeof roll === 'function') ? roll(strikeDie) : (Math.floor(Math.random() * strikeDie) + 1);
+        var extraDef2 = (typeof roll === 'function') ? roll(Math.max(4, Number(selected.dread || 6))) : (Math.floor(Math.random() * Math.max(4, Number(selected.dread || 6))) + 1);
+        selected.stress = Math.min(Number(selected.maxStress || 8), Number(selected.stress || 0) + Math.max(0, extraRoll2 - extraDef2));
+      }
+      if (typeof showNotif === 'function') showNotif((act === 'titan_multi_attack' ? 'Multi-Attack' : 'Off-hand') + ' executed.', 'good');
+      return true;
+    }
+    if (act === 'titan_unstoppable_charge') {
+      if (!spendLegacyRaidPlayerPanelActions(flow, 1)) return false;
+      flow.playerRange = 'Engaged';
+      buffs.nextStrikeBonus = Math.max(0, Number(buffs.nextStrikeBonus || 0) + ((typeof roll === 'function') ? roll(8) : (Math.floor(Math.random() * 8) + 1)));
+      if (typeof showNotif === 'function') showNotif('Unstoppable Charge: moved to Engaged with bonus strike pressure.', 'good');
+      return true;
+    }
+    if (act === 'titan_titans_lunge') {
+      if (Number(usage.encounter.titansLunge || 0) >= 2) {
+        if (typeof showNotif === 'function') showNotif("Titan's Lunge is limited to twice per encounter.", 'warn');
+        return false;
+      }
+      if (!spendLegacyRaidPlayerPanelActions(flow, 1)) return false;
+      usage.encounter.titansLunge = Number(usage.encounter.titansLunge || 0) + 1;
+      flow.playerRange = 'Engaged';
+      if (typeof showNotif === 'function') showNotif("Titan's Lunge: surged to Engaged (uses " + usage.encounter.titansLunge + '/2).', 'good');
+      return true;
+    }
+    if (act === 'titan_earthquake_slam') {
+      var tmwNeed = 7;
+      if (Number((S && S.tmw) || 0) < tmwNeed) {
+        if (typeof showNotif === 'function') showNotif('Earthquake Slam needs 7 Teamwork Points.', 'warn');
+        return false;
+      }
+      var allActions = Math.max(1, Number(S && S.combat && S.combat.actionsLeft || 1));
+      if (!spendLegacyRaidPlayerPanelActions(flow, allActions)) return false;
+      if (typeof changeCounter === 'function') changeCounter('tmw', -tmwNeed);
+      else if (typeof S !== 'undefined' && S) S.tmw = Math.max(0, Number(S.tmw || 0) - tmwNeed);
+      var sameZone = (Array.isArray(hostiles) ? hostiles : []).filter(function (enemy) {
+        return getLegacyRaidHostileRange(flow, Number(enemy && enemy.id || 0)) === normalizeLegacyRaidRange(flow.playerRange || 'Close');
+      });
+      sameZone.forEach(function (enemy) {
+        if (!enemy) return;
+        var save = (typeof roll === 'function') ? roll(Math.max(4, Number(enemy.dread || 6))) : (Math.floor(Math.random() * Math.max(4, Number(enemy.dread || 6))) + 1);
+        var body = (typeof roll === 'function') ? roll(bodyDie) : (Math.floor(Math.random() * bodyDie) + 1);
+        if (body >= save) {
+          enemy.stress = Math.min(Number(enemy.maxStress || 8), Number(enemy.stress || 0) + 2);
+          buffs.enemyApPenaltyNextTurn = Number(buffs.enemyApPenaltyNextTurn || 0) + 2;
+        }
+      });
+      if (typeof showNotif === 'function') showNotif('Earthquake Slam resolved across ' + sameZone.length + ' same-zone hostiles.', 'good');
+      return true;
+    }
+    return false;
+  }
 
   window.executeLegacyRaidPlayerActionFromPanel = function (action, missionId, wingNum) {
     if (typeof S === 'undefined' || !S || !S.combat || !S.combat.raidFlow) return false;
@@ -5352,6 +5794,7 @@
       return false;
     }
     var act = String(action || '').toLowerCase();
+    ensureTitanRaidFlowState(flow);
     var aliasMap = {
       standard_strike: 'strike',
       focused_strike: 'strike',
@@ -5363,17 +5806,49 @@
       safeguard: 'defend',
       defend: 'defend',
       team_support: 'support',
-      support: 'support'
+      support: 'support',
+      titan_shield_wall: 'titan_shield_wall',
+      titan_titans_grip: 'titan_titans_grip',
+      titan_warriors_roar: 'titan_warriors_roar',
+      titan_bulwark: 'titan_bulwark',
+      titan_unyielding: 'titan_unyielding',
+      titan_threatening_presence: 'titan_threatening_presence',
+      titan_opportunist: 'titan_opportunist',
+      titan_off_hand: 'titan_off_hand',
+      titan_multi_attack: 'titan_multi_attack',
+      titan_unstoppable_charge: 'titan_unstoppable_charge',
+      titan_titans_lunge: 'titan_titans_lunge',
+      titan_stand_firm: 'titan_stand_firm',
+      titan_battering_ram: 'titan_battering_ram',
+      titan_shattering_roar: 'titan_shattering_roar',
+      titan_titans_fury: 'titan_titans_fury',
+      titan_shield_slam: 'titan_shield_slam',
+      titan_earthquake_slam: 'titan_earthquake_slam'
     };
     if (aliasMap[act]) act = aliasMap[act];
     if (!act) return false;
     var hostiles = getLegacyRaidSceneHostiles();
     var selected = hostiles.find(function (h) { return Number(h && h.id || 0) === Number(flow.selectedHostileId || 0); }) || hostiles[0] || null;
     var selectedRange = selected ? getLegacyRaidHostileRange(flow, selected.id) : 'Engaged';
+    if (act.indexOf('titan_') === 0) {
+      var titanHandled = executeTitanRaidPlayerAction(act, flow, selected, hostiles);
+      if (titanHandled) {
+        if (typeof updateCombatUI === 'function') updateCombatUI();
+        if (typeof renderEnemies === 'function') renderEnemies();
+        if (typeof renderCombatOptions === 'function') renderCombatOptions();
+        if (typeof updateWayfarerActionBtn === 'function') updateWayfarerActionBtn();
+      }
+      if (typeof window.refreshLegacyRaidCombatModal === 'function') window.refreshLegacyRaidCombatModal(missionId, wingNum);
+      return titanHandled;
+    }
     if (act === 'strike') {
       if (!(selectedRange === 'Engaged' || selectedRange === 'Close')) {
         if (typeof showNotif === 'function') showNotif('Strike requires Engaged or Close range to the selected enemy.', 'warn');
         return false;
+      }
+      if (Number(flow.titanBuffs && flow.titanBuffs.nextStrikeBonus || 0) > 0) {
+        flow.allyAttackBonus = Number(flow.allyAttackBonus || 0) + Number(flow.titanBuffs.nextStrikeBonus || 0);
+        flow.titanBuffs.nextStrikeBonus = 0;
       }
       if (typeof rollAttack === 'function') rollAttack('strike');
     } else if (act === 'shoot') {
@@ -5654,6 +6129,11 @@
     flow.stage = allies.length ? 'ally' : 'enemy';
     var hostiles = getLegacyRaidSceneHostiles();
     flow.enemyActionBudget = Math.max(0, hostiles.length * Math.max(1, Number(flow.enemyActionsPerTurn || 2)));
+    ensureTitanRaidFlowState(flow);
+    if (Number(flow.titanBuffs && flow.titanBuffs.enemyApPenaltyNextTurn || 0) > 0) {
+      flow.enemyActionBudget = Math.max(0, Number(flow.enemyActionBudget || 0) - Number(flow.titanBuffs.enemyApPenaltyNextTurn || 0));
+      flow.titanBuffs.enemyApPenaltyNextTurn = 0;
+    }
   }
 
   window.setLegacyRaidPlayerRange = function (range) {
@@ -5707,6 +6187,7 @@
       return false;
     }
     var encounter = initializeRaidCombatIfNeeded();
+    ensureTitanRaidFlowState(flow);
     var act = String(action || 'attack').toLowerCase();
     var target = String(targetName || '');
     flow.allyTacticalFlags = flow.allyTacticalFlags || {};
@@ -5716,6 +6197,11 @@
       var hostile = getLegacyRaidNearestHostileForAlly(flow, hostiles, allyName);
       if (hostile) {
         var allyRoll = typeof roll === 'function' ? roll(6) : (Math.floor(Math.random() * 6) + 1);
+        if (Number(flow.titanBuffs && flow.titanBuffs.allyNextRollAdvD8 || 0) > 0) {
+          var roarBoost = typeof roll === 'function' ? roll(8) : (Math.floor(Math.random() * 8) + 1);
+          allyRoll += roarBoost;
+          flow.titanBuffs.allyNextRollAdvD8 = Math.max(0, Number(flow.titanBuffs.allyNextRollAdvD8 || 0) - 1);
+        }
         var enemyRoll = typeof roll === 'function' ? roll(Math.max(4, Number(hostile.dread || 6))) : (Math.floor(Math.random() * Math.max(4, Number(hostile.dread || 6))) + 1);
         flow.supportBonusByName = flow.supportBonusByName || {};
         var supportBonus = Math.max(0, Number(flow.supportBonusByName[allyName] || 0));
@@ -5804,7 +6290,10 @@
       ? explodingRoll(die)
       : { total: (typeof roll === 'function' ? roll(die) : (Math.floor(Math.random() * die) + 1)) };
     var total = Number(rolled.total || 0);
-    if (key === 'defend') total += Math.max(0, Number(defendBonus || 0));
+    if (key === 'defend') {
+      total += Math.max(0, Number(defendBonus || 0));
+      total += Math.max(0, Number(getTitanRaidDefendFlatBonus() || 0));
+    }
     return { stat: key, die: die, total: total };
   }
 
@@ -5813,10 +6302,23 @@
     var effects = action.effects;
     var applied = [];
     if (effects.condition && S.conditions && Object.prototype.hasOwnProperty.call(S.conditions, String(effects.condition))) {
-      S.conditions[String(effects.condition)] = true;
-      if (typeof updateConditionButtons === 'function') updateConditionButtons();
-      if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
-      applied.push('Condition: ' + String(effects.condition));
+      ensureTitanRaidFlowState(flow || {});
+      var blocked = false;
+      if (hasTitanRaidNode('titan_passive_unyielding_resolve') && flow && flow.titanUsage && flow.titanUsage.encounter) {
+        var used = Math.max(0, Number(flow.titanUsage.encounter.unyieldingResolveBlocks || 0));
+        if (used < 2) {
+          flow.titanUsage.encounter.unyieldingResolveBlocks = used + 1;
+          blocked = true;
+        }
+      }
+      if (blocked) {
+        applied.push('Unyielding Resolve blocked ' + String(effects.condition));
+      } else {
+        S.conditions[String(effects.condition)] = true;
+        if (typeof updateConditionButtons === 'function') updateConditionButtons();
+        if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+        applied.push('Condition: ' + String(effects.condition));
+      }
     }
     if (Number(effects.mentalStress || 0) > 0) {
       var ms = Math.max(1, Number(effects.mentalStress || 0));
@@ -5849,6 +6351,7 @@
   window.executeLegacyRaidSceneEnemyAction = function (targetType, targetName) {
     if (typeof S === 'undefined' || !S || !S.combat || !S.combat.raidFlow || !S.combat.raidFlow.active) return false;
     var flow = S.combat.raidFlow;
+    ensureTitanRaidFlowState(flow);
     if (String(flow.stage || '') !== 'enemy') {
       if (typeof showNotif === 'function') showNotif('It is not the enemy phase.', 'warn');
       return false;
@@ -5883,6 +6386,33 @@
     flow.enemyRecentTargets = flow.enemyRecentTargets || {};
     flow.enemyRecentTargets[flow.lastEnemyFocusTarget] = Number(flow.enemyRecentTargets[flow.lastEnemyFocusTarget] || 0) + 1;
     var hit = typeof roll === 'function' ? roll(dreadDie) : (Math.floor(Math.random() * dreadDie) + 1);
+    if (Number(flow.titanBuffs && flow.titanBuffs.enemyNextAttackDisD8 || 0) > 0) {
+      var dis = typeof roll === 'function' ? roll(8) : (Math.floor(Math.random() * 8) + 1);
+      hit = Math.max(0, Number(hit || 0) - dis);
+      flow.titanBuffs.enemyNextAttackDisD8 = Math.max(0, Number(flow.titanBuffs.enemyNextAttackDisD8 || 0) - 1);
+    }
+
+    if (flow.titanBuffs && flow.titanBuffs.standFirm) {
+      var standBody = getLegacyRaidCombatActionDie('body');
+      var standCheck = typeof roll === 'function' ? roll(standBody) : (Math.floor(Math.random() * standBody) + 1);
+      if (standCheck >= hit) {
+        flow.enemyActionBudget = Math.max(0, Number(flow.enemyActionBudget || 0) - 1);
+        if (typeof showNotif === 'function') showNotif('Stand Firm held: enemy lost 1 AP attempting to reposition.', 'good');
+        if (flow.enemyActionBudget <= 0) {
+          flow.titanBuffs.standFirm = false;
+          flow.stage = 'player';
+          flow.turn = Number(flow.turn || 1) + 1;
+          S.combat.actionsLeft = (typeof getMaxActions === 'function')
+            ? Math.max(1, Number(getMaxActions() || 3))
+            : Math.max(1, Number(S.combat.actionsLeft || 3));
+        }
+        if (typeof renderEnemies === 'function') renderEnemies();
+        if (typeof updateCombatUI === 'function') updateCombatUI();
+        return true;
+      }
+      flow.titanBuffs.standFirm = false;
+    }
+
     var defendDie = target.type === 'player' ? getLegacyRaidCombatActionDie('defend') : 6;
     var defend = typeof roll === 'function' ? roll(defendDie) : (Math.floor(Math.random() * defendDie) + 1);
     var defendBonusTarget = target.type === 'player'
@@ -5892,6 +6422,10 @@
     if (flow.allyDefendBonus && Number(flow.allyDefendBonus[defendBonusTarget] || 0) > 0) {
       defendBonus = Number(flow.allyDefendBonus[defendBonusTarget] || 0);
       flow.allyDefendBonus[defendBonusTarget] = 0;
+    }
+    if (target.type === 'player' && Number(flow.titanBuffs && flow.titanBuffs.nextDefendBonus || 0) > 0) {
+      defendBonus += Number(flow.titanBuffs.nextDefendBonus || 0);
+      flow.titanBuffs.nextDefendBonus = 0;
     }
     defend = defend + defendBonus;
     var special = getLegacyRaidEnemySpecialAction(enemy, target);
@@ -5906,7 +6440,20 @@
     if (target.type === 'player') {
       if (typeof S !== 'undefined' && S) {
         var hpBefore = getLegacyRaidPlayerHealthState();
-        S.health = Math.max(0, Number(hpBefore.current || 0) - dmg);
+        var nextHp = Math.max(0, Number(hpBefore.current || 0) - dmg);
+        if (nextHp <= 0 && hasTitanRaidNode('titan_passive_grit')) {
+          ensureTitanRaidFlowState(flow);
+          var gritUsed = !!(flow.titanUsage && flow.titanUsage.encounter && flow.titanUsage.encounter.gritUsed);
+          if (!gritUsed) {
+            if (!flow.titanUsage.encounter) flow.titanUsage.encounter = {};
+            flow.titanUsage.encounter.gritUsed = true;
+            if (typeof changeTrauma === 'function') changeTrauma(1);
+            else S.trauma = Math.max(0, Number(S.trauma || 0) + 1);
+            nextHp = 1;
+            if (typeof showNotif === 'function') showNotif('Grit triggered: you stay standing at 1 HP and take +1 Trauma.', 'warn');
+          }
+        }
+        S.health = nextHp;
       }
       if (dmg > 0) applyLegacyRaidPlayerSpecialEffects(special, flow);
     } else {
@@ -10320,7 +10867,9 @@
       : { total: (typeof roll === 'function' ? roll(actionDie) : (Math.floor(Math.random() * actionDie) + 1)) };
     var dreadDie = getLegacyRaidBossDreadDie(encounter);
     var dreadRoll = (typeof roll === 'function') ? roll(dreadDie) : (Math.floor(Math.random() * dreadDie) + 1);
-    var strikeBonus = /strike|attack|heavy|fast/.test(lower) ? getLegacyRaidStrikeTalentBonus() : 0;
+    var strikeBonus = /strike|attack|heavy|fast/.test(lower)
+      ? (getLegacyRaidStrikeTalentBonus() + getTitanRaidStrikeFlatBonus())
+      : 0;
     var weaponBonus = getLegacyRaidWeaponFlatBonusForAction(label);
     var total = Number(actionRoll.total || 0) + Number(strikeBonus || 0) + Number(weaponBonus || 0);
     var hit = total >= Number(dreadRoll || 0);

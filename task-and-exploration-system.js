@@ -153,7 +153,6 @@ function performWildernessObservationManualRoll(col,row,directionKey,target){
 }
 
 function finalizeWildernessManualRoll(col,row,directionKey){
-  closeModal();
   const actionInput=document.getElementById('wildcardActionValue');
   const dreadInput=document.getElementById('wildcardDreadValue');
   if(!actionInput||!dreadInput){
@@ -172,6 +171,8 @@ function finalizeWildernessManualRoll(col,row,directionKey){
     if(typeof showNotif==='function')showNotif('Dice values out of range','warn');
     return;
   }
+
+  closeModal();
   
   // Process the result
   const target=getAdjacentHexByDirection(col,row,directionKey);

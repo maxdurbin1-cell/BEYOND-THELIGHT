@@ -4177,61 +4177,145 @@
 
   function getCrucibleExpeditionStartingArmorOptions() {
     return [
-      { id: 'light', label: 'Light Armor', defendBonus: 0, avoidDesc: 'Minimal protection. +2 movement. Preferred by scouts and assassins.' },
-      { id: 'medium', label: 'Medium Armor', defendBonus: 1, avoidDesc: 'Balanced defense and mobility. Standard knight loadout.' },
-      { id: 'heavy', label: 'Heavy Armor', defendBonus: 2, avoidDesc: 'Maximum protection. -1 mobility. For tanks and bulwarks.' }
+      { id: 'light', label: 'Light Armor', defendDie: 'd4', actions: 3, desc: 'Minimal protection. +2 movement. Preferred by scouts and assassins.' },
+      { id: 'medium', label: 'Balanced Armor', defendDie: 'd6', actions: 2, desc: 'Balanced defense and mobility. Standard knight loadout.' },
+      { id: 'heavy', label: 'Heavy Armor', defendDie: 'd10', actions: 1, desc: 'Maximum protection. -1 mobility. For tanks and bulwarks.' }
     ];
   }
 
   function getCrucibleExpeditionStartingWeaponOptions() {
     return [
-      { id: 'sword', label: 'Sword +2 Strike', strikeBonus: 2, range: 'Engaged', desc: 'Melee mastery. Works at close range.' },
-      { id: 'bow', label: 'Bow +2 Shoot', shootBonus: 2, range: 'Nearby', desc: 'Ranged precision. Works at medium range.' },
-      { id: 'spell', label: 'Damage Spell +3 Control', controlBonus: 3, range: ' Nearby', desc: 'Arcane power. Spell-based attacks.' }
+      { id: 'sword', label: 'Sword +2 Strike', bonus: 2, stat: 'strike', range: 'Engaged', desc: 'Melee mastery. Works at close range.' },
+      { id: 'bow', label: 'Bow +2 Shoot', bonus: 2, stat: 'shoot', range: 'Nearby', desc: 'Ranged precision. Works at medium range.' },
+      { id: 'fireball', label: 'Fireball +2 Control', bonus: 2, stat: 'control', range: 'Close', desc: 'Arcane fireball spell. Works at close range against enemies.' }
     ];
   }
 
-  function getCrucibleExpeditionStartingPassiveFeatures() {
-    var allFeatures = [
-      { id: 'p1', label: 'Regenerator', desc: 'Recover your Adventure Die in Health each phase.' },
-      { id: 'p2', label: 'Lucky', desc: 'Reroll 1s on your Action Die.' },
-      { id: 'p3', label: 'Mule', desc: 'Backpack capacity becomes 20 slots.' },
-      { id: 'p4', label: 'Storm Veins', desc: 'Negate the first forced Trauma roll each scene.' },
-      { id: 'p5', label: 'Blessed Appetite', desc: 'Food use heals +1 extra Stress.' },
-      { id: 'p6', label: 'Black Salt Ward', desc: 'Negate first horror-tagged psychic effect daily.' },
-      { id: 'p7', label: 'After Successful Defend', desc: 'Gain a Free Strike action.' },
-      { id: 'p8', label: 'Failed Rolls Teamwork', desc: 'Failed rolls grant +2 Teamwork instead of +1.' },
-      { id: 'p9', label: 'Dual-Wielder', desc: 'Strike with 2 daggers for 1 AP.' },
-      { id: 'p10', label: 'Shadow Strike', desc: 'Advantage d8 vs surprised or unaware enemies.' },
-      { id: 'p11', label: 'Agile Escape', desc: 'Advantage d8 on Defend when dodging attacks.' },
-      { id: 'p12', label: 'Slippery Target', desc: 'Enemies suffer -1 on rolls to hit you.' },
-      { id: 'p13', label: 'Rhythm of the Bow', desc: 'Make an extra ranged attack for 1 AP total.' },
-      { id: 'p14', label: 'You Can\'t Escape Me', desc: 'Quarry cannot move away from you when engaged.' },
-      { id: 'p15', label: 'Harmony Defend d20', desc: 'Your Defend die is now d20 (Godbound).' },
-      { id: 'p16', label: 'Divine Protection', desc: 'Once per encounter, reduce damage by 1.' },
-      { id: 'p17', label: 'Sacred Armor', desc: 'Gain +1 to Defend while wearing armor.' },
-      { id: 'p18', label: 'Zealous Strike', desc: 'Add extra d4 damage vs corruption.' },
-      { id: 'p19', label: 'Faith Healing', desc: 'Once per day, heal Injuries and Scars.' },
-      { id: 'p20', label: 'Arcane Casting Edge', desc: 'Any magic cast grants Advantage d10.' },
-      { id: 'p21', label: 'Arcane Insight', desc: 'Advantage d8 to identify/disrupt magic.' },
-      { id: 'p22', label: 'Source Channeling', desc: 'Advantage d8 to cast spells.' },
-      { id: 'p23', label: 'Arcane Resilience', desc: 'Advantage d8 on Defend vs magical attacks.' },
-      { id: 'p24', label: 'Ethereal Connection', desc: 'Advantage d8 to perceive invisibility/illusions.' },
-      { id: 'p25', label: 'Arcane Aegis', desc: 'Once per encounter, reduce magic damage by 1.' }
+  function getCrucibleExpeditionPersonalFlavorOptions() {
+    var allFlavors = [
+      'Animal Companion: DD6 | 12 Stress',
+      'Holy Shield: Add Spirit Die to Defend Rolls',
+      'Emit blinding light — all Engaged Targets are Distracted',
+      'Infernal Eyes: Lead rolls step up in fear scenes',
+      'Leader: Faction becomes Empowered for the Scene',
+      'Beast Form: Use Dread for actions. Small DD4 / Medium DD6 / Large DD8',
+      'Communicate telepathically with anyone you have met',
+      'Weaken an object or enemy armor by a Step for a Round',
+      'Plastic bones — readjust the shape and size of your bones',
+      'Illusionist: Create minor visual illusions — Enemies are Distracted',
+      'Regenerator: Recover Adventure Die Health each phase and combat round',
+      'Emit burst of electricity — Ad8 to Shoot in Close range',
+      'Stone Skin: Ad4 to Defend',
+      'Mimic: Copy successful actions of another without rolling',
+      'In water: breathe, gain +1 Action, all Action Dice step up',
+      'Void Gazer: See invisibility and hidden things',
+      'After a Successful Defend, gain a Free Strike',
+      'Trickshot: Ad10 to Shoot rolls',
+      'Create a psychic dome — up to 4 people, cannot be attacked within',
+      'New Senses: vibration, echolocation, or magnetic',
+      'Tinkerer: Repair broken things — 1 hour',
+      'Scaled Skin: +3 to Defend rolls',
+      'Source Attuned: Sense nearby Arcana, Mutants, and unstable mutations',
+      'Failed rolls grant +2 Teamwork Points instead of +1',
+      'Moves like the Wind: +1 Action during Combat Scenes',
+      'Feats of Strength: Ad10 to Body and Power checks',
+      'Phase Walker: Pass through walls',
+      'Teleportation: Teleport to any location you can see',
+      'Mindshield: Ad8 to Trauma checks',
+      'Healer: Restore Adventure Die roll in Stress with a Touch',
+      'Mule: Backpack capacity doubles again',
+      'Deity Pact: Request a patron favor or minor miracle once per day',
+      'Vampire: Blood hunger grants nocturnal power and daylight vulnerability',
+      'Werewolf: Bestial strength surges at night with lunar instincts',
+      'Echo Step: After a successful Defend, reposition 1 range band and gain +Adventure Die on next Strike',
+      'Battle Cantor: Ally gains +Adventure Die bonus on their next Action roll',
+      'Glasswalker: Ignore first peril terrain penalty each phase',
+      'Iron Lungs: Ignore smoke and ash penalties',
+      'Runesmith: Your weapon carries the rune — +Adventure Die bonus damage on next Strike or Shoot this scene',
+      'Scavenger Memory: First loot roll each day may be rerolled — keep the better result, +Adventure Die queued',
+      'Hex Cartographer: Reveal one adjacent hex detail for free',
+      'Solar Needle: One ranged attack per scene gains +Adventure Die bonus to Shoot',
+      'Grave Whisper: Commune with the recent dead for a clue, lore shard, or grave omen',
+      'Storm Veins: Glimpse one possible future and negate the first forced Trauma this scene',
+      'Ruin Scholar: +Adventure Die bonus on all checks inside Ruins or the Lost City this phase',
+      'Blessed Appetite: Food use heals +1 extra Stress',
+      'Duelist Footwork: On hit, step to Nearby without cost',
+      'Pathfinder: Add Adventure Die as a bonus when encountering Barriers during traversal',
+      'Dust Prophet: Reveal the next weather shift — reroll and choose which result applies',
+      'Mirror Nerves: Immune to first Distracted per scene',
+      'Moon Listener: During Evening or Night phase, gain Adventure Die bonus to any roll',
+      'Chain Breaker: Ignore one restraint effect per scene',
+      'Warding Palm: Adjacent ally gains Protected for one roll',
+      'Quick Draw: First Strike or Shoot each combat gains +Adventure Die bonus',
+      'Bone Oracle: Read omen from remains once per day',
+      'Black Salt Ward: Negate the first Horror, fear, or psychic enemy effect each day',
+      'Field Surgeon: Stabilize ally for +1 Health recovery',
+      'Signal Caller: +Adventure Die bonus to Lead checks on caravan and trade routes',
+      'Scrap Alchemist: Choose an Item from your backpack and transform it into a remedy',
+      'Silent Knife: +Adventure Die bonus to Strike when no ally is Engaged',
+      'Ash Runner: In Planetary Exploration, ignore the first difficult terrain movement cost',
+      'Beacon Heart: Allies in Close range gain +Adventure Die bonus to Trauma checks',
+      'Clockmind: +Adventure Die bonus to Control on trap or lock interactions',
+      'Wild Empathy: Beast enemies are Distracted on their first action — they do not attack you first',
+      'Grim Resolve: At half Health or below, gain +Adventure Die bonus to Defend checks',
+      'Bloodhound: Track a target across two hexes automatically',
+      'Cold Reader: +Adventure Die bonus to Spirit checks in social or deception scenes',
+      'Iron Stomach: Consume any backpack item — roll Adventure Die, reduce Health by that amount for an unpredictable boon',
+      'Stormglass Eye: See hidden movement in rain/fog',
+      'Banner Oath: +Adventure Die bonus to Lead while carrying a mission objective',
+      'Trophy Keeper: First enemy defeat each scene gives +Adventure Die queued and +1 Teamwork',
+      'Quick Stitch: Remove one Injury or negative condition from self or nearby ally per scene',
+      'Lantern Scholar: +Adventure Die bonus to Mind checks in darkness or ruins',
+      'Faultline Sense: Safely pass through one Peril encounter this phase without Stress',
+      'Arc Shot: Ranged attacks can ignore one cover source',
+      'Mercy Hand: Spare a defeated enemy — +1 Renown for the act of mercy',
+      'Rune Tongue: Read unknown glyphs with Mind check',
+      'Night Courier: During Evening or Night, travel 2 hexes per click — phase clock does not tick until second move',
+      'Chain Tactician: First ally action after yours gains +Adventure Die bonus',
+      'Cinder Skin: Ignore heat and ember hazards — travel Hot planets without damage or Coolant Layer',
+      'Vault Memory: Returning to a visited route grants +Adventure Die bonus and +1 Path Token',
+      'Hunt Rhythm: After a successful Defend, next Strike gains +Adventure Die bonus',
+      'Vowkeeper: +Adventure Die bonus on checks tied to your current active task',
+      'Steel Prayer: Once per day, negate one Trauma gain',
+      'Ghoststride: Movement does not trigger simple traps',
+      'Iridescent Blood: Recover +Adventure Die additional Stress when using any remedy',
+      'Field Quartermaster: Backpack stack cap effectively doubles',
+      'Cave Ears: +Adventure Die bonus to Notice and Lead checks in enclosed spaces',
+      'Apex Calm: Cannot be Shaken by minor foes',
+      'Shard Focus: +Adventure Die bonus to Control when using hacks or relics',
+      'Ashen Halo: First reveal steals 1 enemy Action this round',
+      'Dawnbreaker: First Morning action gains +Adventure Die bonus',
+      'Duskcaller: First Evening action gains +Adventure Die bonus',
+      'Gale Step: Gain free reposition on crit success',
+      'Sable Ward: Reduce first incoming Mental Stress each scene by your Adventure Die roll',
+      'Fracture Sight: Spot weak points — +Adventure Die bonus to next Shoot check',
+      'Torchbearer: Allies ignore first darkness penalty',
+      'Oathbound Medic: Long Rest heals +1 Trauma',
+      'Circuit Saint: +Adventure Die bonus to Hack and old-world device checks',
+      'Feral Grace: +Adventure Die bonus to Defend checks against beasts',
+      'Pact Witness: +Adventure Die bonus to Spirit on deity pact outcomes',
+      'Reverse Time: Rewind up to 2 rounds worth of momentum; take Mental Stress equal to rounds reversed',
+      'Enhance Abilities: Step up the next allied action with an elevated bonus die',
+      'Shed Skin: Roll a new appearance and count as disguised for the current scene',
+      'Time Traveler: Glimpse 1 hour into the past or future and gain a concrete clue',
+      'Undying: If struck down, regenerate into a newly generated Wayfarer shell',
+      'Beast Call: Summon 4 beasts, each DD4 with 8 Stress',
+      'Monk: Bonus Adventure Die to Strike when unarmed',
+      'Siphon Energy: Heal equal to the damage you deal',
+      'Stop Time: Freeze the field for a round; gain Adventure Die as Mental Stress each round time is stopped',
+      'Lucky: Reroll 1s on your Action Die',
+      'Tremor Pulse: All in your Zone must Save vs your Adventure Die or lose 1 Action',
+      'Cloning: Create clones equal to your current remaining Health, each DD4 with 1 Stress',
+      'Increase Gravity: A target\'s actions cost +1 Action this round',
+      'Slow Time: One target only gets 1 Action on their turn this round',
+      'Relive Last Moments: Touch a corpse to replay its recent memories for clues, routes, or warnings'
     ];
-    return allFeatures.slice(0, 100);
+    return allFlavors.slice(0, 100);
   }
 
   function getCrucibleExpeditionWayfarerActionDice() {
-    if (!S || !S.equipment) return 'd8';
-    var armorText = String(S.equipment.armor || '');
-    var m = armorText.match(/ad\s*(4|6|8|10|12|20)/i) || armorText.match(/(\d+)\s*action\s*die/i);
-    if (m && m[1]) {
-      var base = Number(m[1]);
-      if (base === 4 || base === 6 || base === 8 || base === 10 || base === 12 || base === 20) return 'd' + base;
-    }
-    var adventure = Number((typeof getStat === 'function' ? getStat('adventure') : null) || 8);
-    return 'd' + adventure;
+    if (typeof S === 'undefined' || !S || !Array.isArray(S.soulArray)) return [8, 6];
+    return S.soulArray.slice();
   }
 
   function getCrucibleExpeditionAvailableRaidNodes() {
@@ -4265,24 +4349,25 @@
   function buildCrucibleExpeditionLoadoutSelectionHtml() {
     var armorOptions = getCrucibleExpeditionStartingArmorOptions();
     var weaponOptions = getCrucibleExpeditionStartingWeaponOptions();
-    var passiveFeatures = getCrucibleExpeditionStartingPassiveFeatures();
+    var flavorOptions = getCrucibleExpeditionPersonalFlavorOptions();
     var actionDice = getCrucibleExpeditionWayfarerActionDice();
     var raidNodes = getCrucibleExpeditionAvailableRaidNodes();
     var selectedArmor = 'medium';
     var selectedWeapon = 'sword';
-    var selectedPassives = ['p1', 'p2', 'p3'];
-    var html = '<div style="font-family:Cinzel,serif;color:var(--text2);line-height:1.6;max-height:70vh;overflow-y:auto;">'
+    var selectedFlavor = flavorOptions[0] || 'Lucky';
+    var diceDisplay = Array.isArray(actionDice) ? actionDice.map(function (d) { return 'd' + d; }).join(', ') : 'd8, d6';
+    var html = '<div style="font-family:\'Cinzel\',serif;color:var(--text2);line-height:1.6;max-height:70vh;overflow-y:auto;">'
       + '<div style="margin-bottom:1rem;padding-bottom:.5rem;border-bottom:1px solid var(--border);">'
         + '<h3 style="color:var(--gold2);font-size:1.2rem;margin-bottom:.5rem;">Expedition Loadout Selection</h3>'
-        + '<p style="font-size:.9rem;color:var(--muted2);">Choose your starting equipment before entering the province.</p>'
+        + '<p style="font-size:.9rem;color:var(--muted2);">Choose your starting equipment before entering the province. Your Soul Array action dice will be assigned automatically.</p>'
       + '</div>'
       + '<div style="margin-bottom:1.2rem;">'
         + '<div style="font-weight:600;color:var(--teal2);margin-bottom:.4rem;font-size:.95rem;">Starting Armor</div>'
         + armorOptions.map(function (opt) {
           return '<label style="display:block;margin-bottom:.4rem;padding:.4rem;border:1px solid ' + (selectedArmor === opt.id ? 'var(--teal)' : 'var(--border)') + ';border-radius:4px;cursor:pointer;background:' + (selectedArmor === opt.id ? 'rgba(46,196,182,.1)' : 'transparent') + ';">'
             + '<input type="radio" name="expeditionArmor" value="' + opt.id + '" ' + (selectedArmor === opt.id ? 'checked' : '') + ' onchange="window._expeditionLoadout.armor=this.value;" style="margin-right:.4rem;" />'
-            + '<strong>' + opt.label + '</strong> (Defend +' + opt.defendBonus + ')'
-            + '<div style="font-size:.8rem;color:var(--muted2);margin-top:.2rem;">' + opt.avoidDesc + '</div>'
+            + '<strong>' + opt.label + '</strong> (' + opt.defendDie + ' Defend | ' + opt.actions + ' Actions)'
+            + '<div style="font-size:.8rem;color:var(--muted2);margin-top:.2rem;">' + opt.desc + '</div>'
             + '</label>';
         }).join('')
       + '</div>'
@@ -4297,20 +4382,25 @@
         }).join('')
       + '</div>'
       + '<div style="margin-bottom:1.2rem;">'
-        + '<div style="font-weight:600;color:var(--teal2);margin-bottom:.4rem;font-size:.95rem;">Select 3 Passive Features</div>'
-        + '<input type="text" placeholder="Search passives..." onkeyup="window._expeditionLoadout.filterPassives(this.value);" style="width:100%;margin-bottom:.4rem;padding:.4rem;font-size:.9rem;" />'
-        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem;max-height:15rem;overflow-y:auto;">' + passiveFeatures.map(function (feat) {
-          return '<label style="padding:.3rem;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:' + (selectedPassives.indexOf(feat.id) >= 0 ? 'rgba(46,196,182,.1)' : 'transparent') + ';">'
-            + '<input type="checkbox" value="' + feat.id + '" ' + (selectedPassives.indexOf(feat.id) >= 0 ? 'checked' : '') + ' onchange="window._expeditionLoadout.togglePassive(this.value, this.checked);" style="margin-right:.2rem;" />'
-            + '<span style="font-size:.85rem;">' + feat.label + '</span>'
+        + '<div style="font-weight:600;color:var(--teal2);margin-bottom:.4rem;font-size:.95rem;">Personal Flavor <span style="cursor:help;font-size:.85rem;color:var(--muted2);" title="Your personal flavor grants a special ability unique to your character. Select the one that resonates most with your playstyle.">(?)</span></div>'
+        + '<input type="text" id="flavorSearch" placeholder="Search flavors..." onkeyup="window._expeditionLoadout.filterFlavors(this.value);" style="width:100%;margin-bottom:.4rem;padding:.4rem;font-size:.9rem;" />'
+        + '<div style="display:grid;grid-template-columns:1fr;gap:.3rem;max-height:18rem;overflow-y:auto;border:1px solid var(--border);padding:.4rem;border-radius:4px;" id="flavorList">' 
+        + flavorOptions.map(function (flavor, idx) {
+          var flavorName = String(flavor || '').split(':')[0].trim();
+          var flavorDesc = String(flavor || '').split(':').slice(1).join(':').trim();
+          return '<label style="padding:.3rem;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:' + (selectedFlavor === flavor ? 'rgba(46,196,182,.1)' : 'transparent') + ';display:flex;align-items:flex-start;gap:.3rem;">'
+            + '<input type="radio" name="expeditionFlavor" value="' + flavorName + '" ' + (selectedFlavor === flavor ? 'checked' : '') + ' onchange="window._expeditionLoadout.flavor=this.value;" style="margin-top:.1rem;flex-shrink:0;" />'
+            + '<div style="flex:1;font-size:.8rem;">'
+              + '<strong style="color:var(--teal2);">' + flavorName + '</strong>'
+              + '<div style="color:var(--muted2);margin-top:.1rem;" title="' + flavorDesc + '">' + flavorDesc.substr(0, 60) + (flavorDesc.length > 60 ? '...' : '') + '</div>'
+            + '</div>'
             + '</label>';
         }).join('')
         + '</div>'
-        + '<div style="font-size:.8rem;color:var(--muted2);margin-top:.3rem;"><strong>Selected: ' + selectedPassives.length + '/3</strong></div>'
       + '</div>'
       + '<div style="margin-bottom:1.2rem;padding:.6rem;background:rgba(46,196,182,.05);border:1px solid rgba(46,196,182,.2);border-radius:4px;">'
         + '<div style="font-weight:600;color:var(--teal2);margin-bottom:.4rem;">Character Resources</div>'
-        + '<div style="font-size:.9rem;margin-bottom:.3rem;"><strong>Wayfarer\'s Action Dice:</strong> ' + actionDice + '</div>'
+        + '<div style="font-size:.9rem;margin-bottom:.3rem;"><strong>Soul Array Action Dice:</strong> ' + diceDisplay + '</div>'
         + (raidNodes.length > 0 ? '<div style="font-size:.9rem;"><strong>Available Raid Nodes:</strong> ' + raidNodes.map(function (n) { return n.label; }).join(', ') + '</div>' : '<div style="font-size:.9rem;color:var(--muted2);">No Raid Nodes purchased yet.</div>')
       + '</div>'
       + '<div style="display:flex;gap:.4rem;justify-content:flex-end;margin-top:1rem;">'
@@ -4322,20 +4412,13 @@
       window._expeditionLoadout = {
         armor: selectedArmor,
         weapon: selectedWeapon,
-        passives: selectedPassives.slice(),
-        togglePassive: function (id, checked) {
-          if (checked) {
-            if (this.passives.length < 3) this.passives.push(id);
-          } else {
-            this.passives = this.passives.filter(function (p) { return p !== id; });
-          }
-        },
-        filterPassives: function (query) {
+        flavor: selectedFlavor.split(':')[0].trim(),
+        filterFlavors: function (query) {
           var lower = String(query || '').toLowerCase();
-          var labels = document.querySelectorAll('[role="checkbox-group"] label');
+          var labels = document.querySelectorAll('#flavorList label');
           labels.forEach(function (label) {
             var text = label.textContent.toLowerCase();
-            label.style.display = text.indexOf(lower) >= 0 ? 'block' : 'none';
+            label.style.display = text.indexOf(lower) >= 0 ? 'flex' : 'none';
           });
         }
       };
@@ -4349,29 +4432,40 @@
     var loadout = window._expeditionLoadout || {};
     var armor = String(loadout.armor || 'medium');
     var weapon = String(loadout.weapon || 'sword');
-    var passives = Array.isArray(loadout.passives) ? loadout.passives : [];
+    var flavor = String(loadout.flavor || 'Lucky');
     var expedition = match.expedition;
     var player = getCrucibleExpeditionPlayer(match);
     if (!player) return false;
-    if (armor === 'light') {
-      player.defendDie = Math.max(4, Number(player.defendDie || 8));
-    } else if (armor === 'heavy') {
-      player.defendDie = Math.max(4, Number(player.defendDie || 8) + 2);
+    var armorOptions = getCrucibleExpeditionStartingArmorOptions();
+    var weaponOptions = getCrucibleExpeditionStartingWeaponOptions();
+    var actionDice = getCrucibleExpeditionWayfarerActionDice();
+    var armorOpt = armorOptions.find(function (a) { return a.id === armor; });
+    var weaponOpt = weaponOptions.find(function (w) { return w.id === weapon; });
+    if (armorOpt) {
+      if (armorOpt.defendDie === 'd4') {
+        player.defendDie = 4;
+      } else if (armorOpt.defendDie === 'd6') {
+        player.defendDie = 6;
+      } else if (armorOpt.defendDie === 'd10') {
+        player.defendDie = 10;
+      }
+      player.ap = Number(armorOpt.actions || 2);
     }
-    if (weapon === 'sword') {
-      player.attackDie = Math.max(4, Number(player.attackDie || 8) + 2);
-    } else if (weapon === 'bow') {
-      player.attackDie = Math.max(4, Number(player.attackDie || 8) + 2);
-    } else if (weapon === 'spell') {
-      player.attackDie = Math.max(4, Number(player.attackDie || 8) + 3);
+    if (weaponOpt) {
+      player.attackDie = Math.max(4, Number(player.attackDie || 8) + Number(weaponOpt.bonus || 0));
+    }
+    if (Array.isArray(actionDice) && actionDice.length > 0) {
+      player.actionDice = actionDice.slice();
     }
     expedition.loadout = {
       armor: armor,
       weapon: weapon,
-      passives: passives
+      flavor: flavor,
+      actionDice: Array.isArray(actionDice) ? actionDice.slice() : []
     };
     expedition.loaded = true;
-    match.log = (match.log || []).concat(['Loadout applied: ' + armor + ' armor, ' + weapon + ' weapon, ' + passives.length + ' passive features.']).slice(-120);
+    player.personalFlavor = { name: flavor };
+    match.log = (match.log || []).concat(['Loadout applied: ' + armor + ' armor (' + (armorOpt ? armorOpt.defendDie + ' Defend, ' + armorOpt.actions + ' Actions' : '?') + '), ' + weapon + ' weapon, personal flavor: ' + flavor + '.']).slice(-120);
     if (typeof closeModal === 'function') closeModal();
     renderHoldingCruciblePopup();
     renderHoldingUI();

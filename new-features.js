@@ -1137,8 +1137,8 @@
     var driverStat = S.caravan.chase.driverStat || "control";
     var actionDie = (S.stats && S.stats[driverStat]) || 4;
     var dread = S.caravan.chase.enemyDread;
-    var a = explodingRoll(actionDie);
-    var d = explodingRoll(dread);
+    var a = explodingRoll(actionDie, { type: 'action', major: true, label: 'Caravan Chase ' + driverStat.toUpperCase() + ' d' + actionDie });
+    var d = explodingRoll(dread, { type: 'dread', major: true, label: 'Caravan Chase DD' + dread });
     var success = a.total >= d.total;
     var diff = a.total - d.total;
     var zoneShift = 0;
@@ -1180,8 +1180,8 @@
   function rollChaseEnemyAttack() {
     var dread = S.caravan.chase.enemyDread;
     var caravanDread = getCaravanDread();
-    var a = explodingRoll(dread);
-    var d = explodingRoll(caravanDread);
+    var a = explodingRoll(dread, { type: 'action', major: true, label: 'Enemy Attack d' + dread });
+    var d = explodingRoll(caravanDread, { type: 'dread', major: true, label: 'Caravan Defense DD' + caravanDread });
     var hit = a.total > d.total;
     var damage = Math.max(1, a.total - d.total);
     var max = (CARAVAN_SIZES[S.caravan.size] || CARAVAN_SIZES.Small).stress;
@@ -1843,8 +1843,8 @@
       actionTotal = Math.max(1, Number(manualTotals.action));
       dreadTotal = Math.max(1, Number(manualTotals.dread));
     } else {
-      var actionRoll = (typeof explodingRoll === 'function') ? explodingRoll(actionDie) : { total: (Math.floor(Math.random() * actionDie) + 1) };
-      var dreadRoll = (typeof explodingRoll === 'function') ? explodingRoll(dreadDie) : { total: (Math.floor(Math.random() * dreadDie) + 1) };
+      var actionRoll = (typeof explodingRoll === 'function') ? explodingRoll(actionDie, { type: 'action', major: true, label: 'Crucible ' + actionKind.toUpperCase() + ' d' + actionDie }) : { total: (Math.floor(Math.random() * actionDie) + 1) };
+      var dreadRoll = (typeof explodingRoll === 'function') ? explodingRoll(dreadDie, { type: 'dread', major: true, label: 'Crucible Defense DD' + dreadDie }) : { total: (Math.floor(Math.random() * dreadDie) + 1) };
       actionTotal = Math.max(1, Number(actionRoll.total || 1));
       dreadTotal = Math.max(1, Number(dreadRoll.total || 1));
     }
@@ -3985,8 +3985,8 @@
   function runHoldingLocalWork(node) {
     if (!node) { return; }
     var bodyDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('body') : ((S.stats && S.stats.body) || 4);
-    var actionRoll = explodingRoll(bodyDie);
-    var dreadRoll = explodingRoll(6);
+    var actionRoll = explodingRoll(bodyDie, { type: 'action', major: true, label: 'Holding Local Work BODY d' + bodyDie });
+    var dreadRoll = explodingRoll(6, { type: 'dread', major: true, label: 'Holding Local Work DD6' });
     var success = Number(actionRoll.total || 0) >= Number(dreadRoll.total || 0);
     var msg = 'Local shift (Body vs Dread d6): Body d' + bodyDie + ' ' + actionRoll.total + ' vs DD6 ' + dreadRoll.total + '. ';
     advanceHoldingOneDay();
@@ -4292,8 +4292,8 @@
     var node = crawl.nodes.find(function (entry) { return String(entry.id || '') === String(nodeId || ''); });
     if (!node) return;
     var die = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
-    var a = explodingRoll(die);
-    var d = explodingRoll(6);
+    var a = explodingRoll(die, { type: 'action', major: true, label: 'District Side Task LEAD d' + die });
+    var d = explodingRoll(6, { type: 'dread', major: true, label: 'District Side Task DD6' });
     var success = Number(a.total || 0) >= Number(d.total || 0);
     if (success) {
       S.credits = Number(S.credits || 0) + 45;
@@ -5026,8 +5026,8 @@
     if (!node || node.explored || !node.revealed) { return; }
     node.explored = true;
     var die = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
-    var action = explodingRoll(die);
-    var dread = explodingRoll(Number(node.dd || 6));
+    var action = explodingRoll(die, { type: 'action', major: true, label: 'Settlement Node LEAD d' + die });
+    var dread = explodingRoll(Number(node.dd || 6), { type: 'dread', major: true, label: 'Settlement Node DD' + Number(node.dd || 6) });
     var success = action.total >= dread.total;
     var line = 'Lead d' + die + ' ' + action.total + ' vs DD' + Number(node.dd || 6) + ' ' + dread.total + '. ';
     crawl.stats = crawl.stats || {};
@@ -5129,8 +5129,8 @@
     if (!evt) { return; }
     var key = String(statKey || 'lead').toLowerCase();
     var die = (typeof getEffectiveDie === 'function') ? getEffectiveDie(key) : ((S.stats && S.stats[key]) || 4);
-    var a = explodingRoll(die);
-    var d = explodingRoll(evt.dd || 6);
+    var a = explodingRoll(die, { type: 'action', major: true, label: 'Downtime ' + key.toUpperCase() + ' d' + die });
+    var d = explodingRoll(evt.dd || 6, { type: 'dread', major: true, label: 'Downtime DD' + Number(evt.dd || 6) });
     var success = a.total >= d.total;
     if (success) {
       applyHoldingDowntimeEffect(evt.successEffect);
@@ -5323,8 +5323,8 @@
 
     var advDie = 8;
     var dreadDie = 8;
-    var a = explodingRoll(advDie);
-    var d = explodingRoll(dreadDie);
+    var a = explodingRoll(advDie, { type: 'action', major: true, label: 'Holding Step 1 AD' + advDie });
+    var d = explodingRoll(dreadDie, { type: 'dread', major: true, label: 'Holding Step 1 DD' + dreadDie });
     var success = a.total >= d.total;
     var rolled = success ? holdingQuestRollFeature() : holdingQuestRollDanger();
     var encoded = encodeURIComponent(JSON.stringify(rolled));
@@ -6096,8 +6096,8 @@
   function rollCouncilTask(role) {
     var advDie = (S.stats && S.stats.adventure) || 4;
     var dreadTarget = (role === "regent" && (S.holding.crises || []).length > 0) ? 8 : 6;
-    var a = explodingRoll(advDie);
-    var d = explodingRoll(dreadTarget);
+    var a = explodingRoll(advDie, { type: 'action', major: true, label: 'Council Task AD' + advDie });
+    var d = explodingRoll(dreadTarget, { type: 'dread', major: true, label: 'Council Task DD' + dreadTarget });
     var success = a.total >= d.total;
     var el = document.getElementById("councilResult-" + role);
     if (el) {

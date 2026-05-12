@@ -1787,8 +1787,16 @@ function roll(n,meta){
   const sides=Math.max(1,parseInt(n,10)||1);
   let value=Math.floor(Math.random()*sides)+1;
   var manualKind=resolveManualRollKind(meta);
-  if(isManualRollModeEnabled()&&manualKind){
-    const manualValue=getManualRollValue(sides,meta||null);
+  if(isManualRollModeEnabled()){
+    var manualMeta=meta&&typeof meta==='object'?Object.assign({},meta):{};
+    if(!manualKind){
+      var nextKind=(typeof window!=='undefined'&&window.__manualFallbackNextKind==='dread')?'dread':'action';
+      manualKind=nextKind;
+      if(typeof window!=='undefined')window.__manualFallbackNextKind=(nextKind==='action')?'dread':'action';
+      if(!manualMeta.type)manualMeta.type=manualKind;
+      if(!manualMeta.label)manualMeta.label=(manualKind==='dread'?'Manual Dread':'Manual Action')+' d'+sides;
+    }
+    const manualValue=getManualRollValue(sides,manualMeta||null);
     if(manualValue!==null)value=manualValue;
     else {
       if(typeof showNotif==='function')showNotif('Manual Roll Mode: enter '+manualKind+' d'+sides+' in Manual Check before rolling.','warn');
@@ -2766,8 +2774,8 @@ function completeBackstoryAnchorTask(anchorId,currentKey){
     return;
   }
   const adDie=(typeof getEffectiveDie==='function')?getEffectiveDie('adventure'):(S.stats&&S.stats.adventure)||4;
-  const a=explodingRoll(adDie);
-  const d=explodingRoll(task.dd||6);
+  const a=explodingRoll(adDie,{type:'action',major:true,label:'Anchor Task AD'+adDie});
+  const d=explodingRoll(task.dd||6,{type:'dread',major:true,label:'Anchor Task DD'+(task.dd||6)});
   const success=a.total>=d.total;
 
   if(success){
@@ -2857,8 +2865,8 @@ function doHometownDowntimeRest(key,scope){
 function resolveHometownDowntimeCheck(key,scope,stat){
   const st=ensureBackstoryAnchorState();
   const die=(typeof getEffectiveDie==='function')?getEffectiveDie(stat||'spirit'):(S.stats&&S.stats[stat])||4;
-  const a=explodingRoll(die);
-  const d=explodingRoll(6);
+  const a=explodingRoll(die,{type:'action',major:true,label:'Hometown Downtime '+String(stat).toUpperCase()+' d'+die});
+  const d=explodingRoll(6,{type:'dread',major:true,label:'Hometown Downtime DD6'});
   const success=a.total>=d.total;
   st.home.visits=(st.home.visits||0)+1;
   if(success){
@@ -2961,8 +2969,8 @@ function resolveHometownEventCheck(key,scope,stat){
     return;
   }
   const die=(typeof getEffectiveDie==='function')?getEffectiveDie(stat||'lead'):(S.stats&&S.stats[stat])||4;
-  const a=explodingRoll(die);
-  const d=explodingRoll(6);
+  const a=explodingRoll(die,{type:'action',major:true,label:'Hometown Event '+String(stat).toUpperCase()+' d'+die});
+  const d=explodingRoll(6,{type:'dread',major:true,label:'Hometown Event DD6'});
   const success=a.total>=d.total;
   st.home.lastEvent=ev.name+' ('+(success?'success':'failure')+')';
   st.home.pendingEvent=null;
@@ -3001,8 +3009,8 @@ function talkToTrustedContact(key,scope){
   const st=ensureBackstoryAnchorState();
   st.connection.interactions=(st.connection.interactions||0)+1;
   const adDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):(S.stats&&S.stats.spirit)||4;
-  const a=explodingRoll(adDie);
-  const d=explodingRoll(6);
+  const a=explodingRoll(adDie,{type:'action',major:true,label:'Trusted Contact SPIRIT d'+adDie});
+  const d=explodingRoll(6,{type:'dread',major:true,label:'Trusted Contact DD6'});
   const success=a.total>=d.total;
   if(success){
     st.connection.trust=(st.connection.trust||0)+1;
@@ -15047,8 +15055,8 @@ function resolveSiteMemoryEncounterOutcome(col,row,kind){
   var stat=statMap[k]||'mind';
   var dd=ddMap[k]||6;
   var die=(typeof getEffectiveDie==='function')?getEffectiveDie(stat):((S.stats&&S.stats[stat])||4);
-  var check=explodingRoll(die);
-  var oppose=explodingRoll(dd);
+  var check=explodingRoll(die,{type:'action',major:true,label:'Site Memory '+String(stat).toUpperCase()+' d'+die});
+  var oppose=explodingRoll(dd,{type:'dread',major:true,label:'Site Memory DD'+dd});
   var success=check.total>=oppose.total;
 
   // ---- Scene content pools per kind ----
@@ -15778,7 +15786,7 @@ function lcResolveRoom(col,row,idx){
     const r=crawl.rooms[idx];
     if(!r||r.cleared)return;
     const ad=(S.stats&&S.stats.adventure)||4;
-    const a=explodingRoll(ad),d=explodingRoll(6);
+    const a=explodingRoll(ad,{type:'action',major:true,label:'Lost City Search AD'+ad}),d=explodingRoll(6,{type:'dread',major:true,label:'Lost City Search DD6'});
     const success=a.total>=d.total;
     if(success){
       const resultRoll=roll(6);
@@ -15878,7 +15886,7 @@ function lcTriggerTrap(col,row,idx){
     const r=hex.data.hexcrawl.rooms[idx];
     if(!r)return;
     const ad=(S.stats&&S.stats.action)||4;
-    const a=explodingRoll(ad),d=explodingRoll(8);
+    const a=explodingRoll(ad,{type:'action',major:true,label:'Lost City Trap AD'+ad}),d=explodingRoll(8,{type:'dread',major:true,label:'Lost City Trap DD8'});
     const success=a.total>=d.total;
     const resultMsg=success?'No trap triggered — room is safe.':'Trap! '+r.trap;
     if(!success){

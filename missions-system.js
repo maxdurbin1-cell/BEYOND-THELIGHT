@@ -813,8 +813,8 @@
     ensureState();
     var tierDie = getSeaColosseumTierDie();
     var actionDie = Math.max(4, Number((S && S.adventure) || 6));
-    var a = (typeof explodingRoll === 'function') ? explodingRoll(actionDie) : { total: roll(actionDie), exploded: false };
-    var d = (typeof explodingRoll === 'function') ? explodingRoll(tierDie) : { total: roll(tierDie), exploded: false };
+    var a = (typeof explodingRoll === 'function') ? explodingRoll(actionDie, { type: 'action', major: true, label: 'Sea Colosseum AD' + actionDie }) : { total: roll(actionDie), exploded: false };
+    var d = (typeof explodingRoll === 'function') ? explodingRoll(tierDie, { type: 'dread', major: true, label: 'Sea Colosseum DD' + tierDie }) : { total: roll(tierDie), exploded: false };
     var success = Number(a.total || 0) >= Number(d.total || 0);
     var endgame = ensureEndgameDirectorState();
     var col = endgame.colosseum;
@@ -2721,8 +2721,8 @@
       var statDie = (typeof getEffectiveDie === 'function')
         ? Math.max(4, Number(getEffectiveDie(statKey) || 4))
         : Math.max(4, Number((S && S.stats && S.stats[statKey]) || (S && S.adventure) || 4));
-      var playerRoll = (typeof explodingRoll === 'function') ? explodingRoll(statDie) : { total: roll(statDie) };
-      var trapRoll = (typeof explodingRoll === 'function') ? explodingRoll(Math.max(4, Number(trap.dd || 6))) : { total: roll(Math.max(4, Number(trap.dd || 6))) };
+      var playerRoll = (typeof explodingRoll === 'function') ? explodingRoll(statDie, { type: 'action', major: true, label: 'Pinnacle Trap ' + statKey.toUpperCase() + ' d' + statDie }) : { total: roll(statDie) };
+      var trapRoll = (typeof explodingRoll === 'function') ? explodingRoll(Math.max(4, Number(trap.dd || 6)), { type: 'dread', major: true, label: 'Pinnacle Trap DD' + Math.max(4, Number(trap.dd || 6)) }) : { total: roll(Math.max(4, Number(trap.dd || 6))) };
       if (Number(playerRoll.total || 0) >= Number(trapRoll.total || 0)) {
         cards.push('<div style="border:1px solid rgba(122,236,139,.55);background:rgba(122,236,139,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Trap Avoided</strong>: ' + trap.title + ' (' + statKey.toUpperCase() + ' d' + statDie + ' vs DD' + Number(trap.dd || 6) + ').</div>');
       } else {
@@ -2769,8 +2769,8 @@
         var squadPressure = 0;
         while (campHp > 0 && rounds < 5) {
           rounds += 1;
-          var aRoll = typeof explodingRoll === 'function' ? explodingRoll(ad) : { total: roll(ad) };
-          var dRoll = typeof explodingRoll === 'function' ? explodingRoll(campDie) : { total: roll(campDie) };
+          var aRoll = typeof explodingRoll === 'function' ? explodingRoll(ad, { type: 'action', major: true, label: 'Pinnacle Camp AD' + ad }) : { total: roll(ad) };
+          var dRoll = typeof explodingRoll === 'function' ? explodingRoll(campDie, { type: 'dread', major: true, label: 'Pinnacle Camp DD' + campDie }) : { total: roll(campDie) };
           if (Number(aRoll.total || 0) >= Number(dRoll.total || 0)) {
             campHp = Math.max(0, campHp - (4 + Math.floor(Math.random() * 5)));
           } else {
@@ -2816,8 +2816,8 @@
         } else {
           var puzzleDie = 8 + Math.floor(Math.random() * 3);
           var spirit = Math.max(4, Number((S && S.spirit) || 6));
-          var pRoll = typeof explodingRoll === 'function' ? explodingRoll(spirit) : { total: roll(spirit) };
-          var dread = typeof explodingRoll === 'function' ? explodingRoll(puzzleDie) : { total: roll(puzzleDie) };
+          var pRoll = typeof explodingRoll === 'function' ? explodingRoll(spirit, { type: 'action', major: true, label: 'Pinnacle Puzzle SPIRIT d' + spirit }) : { total: roll(spirit) };
+          var dread = typeof explodingRoll === 'function' ? explodingRoll(puzzleDie, { type: 'dread', major: true, label: 'Pinnacle Puzzle DD' + puzzleDie }) : { total: roll(puzzleDie) };
           if (Number(pRoll.total || 0) >= Number(dread.total || 0)) {
             state.floorBoons.puzzleSolved = true;
             cards.push('<div style="border:1px solid rgba(132,198,255,.55);background:rgba(132,198,255,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Puzzle Solved</strong>: hazard pressure is dampened for this phase.</div>');
@@ -15142,7 +15142,7 @@
     }
     var advDie=getStat('adventure'), dreadDie=mission.dread;
     var manualMode=isMissionManualRollMode();
-    var advR=manualMode?null:explodingRoll(advDie), dreadR=manualMode?null:explodingRoll(dreadDie);
+    var advR=manualMode?null:explodingRoll(advDie,{type:'action',major:true,label:'Mission Step 1 AD'+advDie}), dreadR=manualMode?null:explodingRoll(dreadDie,{type:'dread',major:true,label:'Mission Step 1 DD'+dreadDie});
     var success=manualMode?null:(advR.total>=dreadR.total);
     var successFod=rollInfoFeature();
     var failureFod=rollInfoDanger();
@@ -15277,7 +15277,7 @@
       if (isMissionManualRollMode()) {
         mission.siteRoll={ advDie:advDie, dreadDie:mission.dread, adv:null, bonus:bonus, dread:null, total:null, success:null, exploded:false, manual:true, pending:true };
       } else {
-        var aR=explodingRoll(advDie), dR=explodingRoll(mission.dread);
+        var aR=explodingRoll(advDie,{type:'action',major:true,label:'Mission Site AD'+advDie}), dR=explodingRoll(mission.dread,{type:'dread',major:true,label:'Mission Site DD'+mission.dread});
         var tot=aR.total+bonus;
         mission.siteRoll={ advDie:advDie, dreadDie:mission.dread, adv:aR.total, bonus:bonus, dread:dR.total, total:tot, success:tot>=dR.total, exploded:aR.exploded };
       }
@@ -15443,7 +15443,7 @@
       return;
     }
     var statDie=getStat('adventure');
-    var a=explodingRoll(statDie), d=explodingRoll(room.find.dd||6);
+    var a=explodingRoll(statDie,{type:'action',major:true,label:'Mission Room '+String(room.find.stat||'AD').toUpperCase()+' d'+statDie}), d=explodingRoll(room.find.dd||6,{type:'dread',major:true,label:'Mission Room DD'+(room.find.dd||6)});
     room.find.resolved=true;
     if (a.total>=d.total) {
       room.find.text='TRAP DISARMED \u2014 AD d'+statDie+'='+a.total+' vs DD'+(room.find.dd||6)+'='+d.total+'.';

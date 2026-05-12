@@ -2822,7 +2822,7 @@ function readManualCheckValue(kind, consume) {
   return value;
 }
 
-function consumeVisibleManualRollValue(kind, sides) {
+function consumeVisibleManualRollValue(kind, sides, meta) {
   if (!(typeof isManualRollModeEnabled === "function" && isManualRollModeEnabled())) {
     return null;
   }
@@ -2834,7 +2834,30 @@ function consumeVisibleManualRollValue(kind, sides) {
   if (!input) return null;
   var raw = String(input.value || "").trim();
   if (!raw) {
-    return null;
+    var promptLabel = "";
+    if (meta && typeof meta === "object") {
+      promptLabel = String(meta.label || "").trim();
+    }
+    var tmw = (typeof S !== "undefined" && S) ? Math.max(0, Number(S.tmw || 0)) : 0;
+    var dieLabel = (kind === "action" ? "Action" : "Dread") + " d" + die;
+    var promptText = "Manual Roll Mode (GM Prompt)\n"
+      + "Roll " + dieLabel + " now and enter the result (1-" + die + ").";
+    if (promptLabel) {
+      promptText += "\nCheck: " + promptLabel;
+    }
+    promptText += "\nTeamwork: " + tmw;
+    var entered = (typeof window !== "undefined" && typeof window.prompt === "function")
+      ? window.prompt(promptText, "")
+      : null;
+    if (entered === null) {
+      showNotif("Manual roll cancelled for " + dieLabel + ".", "warn");
+      return null;
+    }
+    raw = String(entered || "").trim();
+    if (!raw) {
+      showNotif("Enter a value for " + dieLabel + ".", "warn");
+      return null;
+    }
   }
   var value = Number.parseInt(raw, 10);
   if (!Number.isFinite(value) || value < 1 || value > die) {

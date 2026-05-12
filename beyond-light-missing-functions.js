@@ -112,6 +112,86 @@ function renderGlobalQuickAccess() {
 window.quickAccessGo = quickAccessGo;
 window.renderGlobalQuickAccess = renderGlobalQuickAccess;
 
+const CONTEXT_QUICK_ACTIONS = {
+  combat: [
+    { id: 'combat-start', label: 'Start Scene' },
+    { id: 'combat-next', label: 'Next Round' },
+    { id: 'combat-end', label: 'End Scene' }
+  ],
+  raidtree: [
+    { id: 'raid-refresh', label: 'Refresh Raid Tree' },
+    { id: 'nav-missions', label: 'Open Missions' }
+  ],
+  map: [
+    { id: 'map-generate', label: 'Generate Province' },
+    { id: 'map-clickmode', label: 'Toggle Click Mode' },
+    { id: 'nav-theos', label: 'Open Atlas' }
+  ],
+  lastsea: [
+    { id: 'sea-generate', label: 'Generate Last Sea' },
+    { id: 'sea-clickmode', label: 'Toggle Click Mode' },
+    { id: 'nav-missions', label: 'Open Missions' }
+  ],
+  worldthatwas: [
+    { id: 'wtw-refresh', label: 'Refresh World Map' },
+    { id: 'nav-missions', label: 'Open Missions' },
+    { id: 'combat-start', label: 'Start Scene' }
+  ],
+  missions: [
+    { id: 'nav-map', label: 'Open Province' },
+    { id: 'nav-lastsea', label: 'Open Sea Region' },
+    { id: 'nav-worldthatwas', label: 'Open World That Was' }
+  ]
+};
+
+const CONTEXT_QUICK_ACTION_HANDLERS = {
+  'combat-start': function () { if (typeof startCombat === 'function') startCombat(); },
+  'combat-next': function () { if (typeof nextRound === 'function') nextRound(); },
+  'combat-end': function () { if (typeof endCombat === 'function') endCombat(); },
+  'raid-refresh': function () { if (typeof renderLegacyRaidTreePanel === 'function') renderLegacyRaidTreePanel(); },
+  'map-generate': function () { if (typeof generateMap === 'function') generateMap(); },
+  'map-clickmode': function () { if (typeof toggleMapClickMode === 'function') toggleMapClickMode(); },
+  'sea-generate': function () { if (typeof generateLastSea === 'function') generateLastSea(); },
+  'sea-clickmode': function () { if (typeof toggleLastSeaClickMode === 'function') toggleLastSeaClickMode(); },
+  'wtw-refresh': function () { if (typeof renderWorldThatWas === 'function') renderWorldThatWas(); },
+  'nav-map': function () { quickAccessGo('map'); },
+  'nav-lastsea': function () { quickAccessGo('lastsea'); },
+  'nav-worldthatwas': function () { quickAccessGo('worldthatwas'); },
+  'nav-missions': function () { quickAccessGo('missions'); },
+  'nav-theos': function () { quickAccessGo('theos'); }
+};
+
+function runContextQuickAction(actionId) {
+  const fn = CONTEXT_QUICK_ACTION_HANDLERS[String(actionId || '')];
+  if (typeof fn === 'function') fn();
+}
+
+function renderContextQuickActions(tabId) {
+  const root = document.getElementById('contextQuickActions');
+  if (!root) return;
+  let activeTabId = String(tabId || '');
+  if (!activeTabId) {
+    const activePanel = document.querySelector('.tab-panel.active[id^="tab-"]');
+    if (activePanel) activeTabId = String(activePanel.id || '').replace(/^tab-/, '');
+  }
+  const actions = CONTEXT_QUICK_ACTIONS[activeTabId] || [];
+  if (!actions.length) {
+    root.style.display = 'none';
+    root.innerHTML = '';
+    return;
+  }
+  let html = '<span class="qa-label">Context Actions</span>';
+  actions.forEach(function (action) {
+    if (!action || !action.id || !action.label) return;
+    html += '<button class="btn btn-sm" onclick="runContextQuickAction(\'' + String(action.id).replace(/'/g, '&#39;') + '\')">' + String(action.label) + '</button>';
+  });
+  root.innerHTML = html;
+  root.style.display = 'flex';
+}
+
+window.runContextQuickAction = runContextQuickAction;
+window.renderContextQuickActions = renderContextQuickActions;
+
 function syncTabAccessibility() {
   var tablist = document.getElementById('mainNavTablist');
   if (tablist) {
@@ -154,6 +234,7 @@ function switchTab(tabId, btn) {
   }
   trackQuickAccessTab(tabId);
   renderGlobalQuickAccess();
+  renderContextQuickActions(tabId);
   // AUDIO: Switch music based on tab
   if (typeof window.AudioManager !== "undefined") {
     window.AudioManager.switchTabMusic(tabId);
@@ -251,12 +332,20 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
     syncTabAccessibility();
     renderGlobalQuickAccess();
-    window.addEventListener('resize', renderGlobalQuickAccess);
+    renderContextQuickActions();
+    window.addEventListener('resize', function () {
+      renderGlobalQuickAccess();
+      renderContextQuickActions();
+    });
   });
 } else {
   syncTabAccessibility();
   renderGlobalQuickAccess();
-  window.addEventListener('resize', renderGlobalQuickAccess);
+  renderContextQuickActions();
+  window.addEventListener('resize', function () {
+    renderGlobalQuickAccess();
+    renderContextQuickActions();
+  });
 }
 
 function setInputValue(id, value) {

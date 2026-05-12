@@ -46,12 +46,16 @@ nav{grid-column:1 / -1;display:flex;gap:.32rem;flex-wrap:wrap;align-items:center
 .global-quick-access .qa-label{font-size:.68rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted2);font-family:'Cinzel',serif;margin-right:.2rem;}
 .global-quick-access .qa-empty{font-size:.83rem;color:var(--muted2);}
 .global-quick-access .btn{font-size:.77rem;padding:.3rem .62rem;}
+.context-quick-actions{position:sticky;top:calc(var(--quick-access-top, 8.2rem) + 2.35rem);z-index:189;padding:.42rem 1.2rem;background:linear-gradient(180deg,rgba(6,9,16,.96) 0%,rgba(6,9,16,.86) 100%);border-bottom:1px solid rgba(70,196,182,.16);display:none;gap:.35rem;flex-wrap:wrap;align-items:center;box-shadow:0 8px 18px rgba(0,0,0,.15);}
+.context-quick-actions .qa-label{font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);font-family:'Cinzel',serif;margin-right:.22rem;}
+.context-quick-actions .btn{font-size:.75rem;padding:.26rem .56rem;}
 .admin-mode-badge{position:fixed;right:1rem;bottom:1rem;z-index:1250;display:none;align-items:center;gap:.4rem;padding:.42rem .52rem;border:1px solid rgba(201,162,39,.46);border-radius:999px;background:linear-gradient(180deg,rgba(11,12,26,.94) 0%,rgba(8,10,18,.92) 100%);box-shadow:0 14px 30px rgba(0,0,0,.32);backdrop-filter:blur(5px);}
 .admin-mode-badge.show{display:inline-flex;}
 .admin-mode-dot{width:.48rem;height:.48rem;border-radius:50%;background:var(--gold2);box-shadow:0 0 10px rgba(232,192,80,.65);}
 .admin-mode-label{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold3);line-height:1;}
 .admin-mode-badge .btn{min-height:1.7rem;padding:.2rem .52rem;font-size:.68rem;letter-spacing:.08em;}
 @media (max-width:900px){.global-quick-access{top:var(--quick-access-top, 8.2rem);padding:.35rem .6rem;}}
+@media (max-width:900px){.context-quick-actions{top:calc(var(--quick-access-top, 8.2rem) + 2.1rem);padding:.28rem .6rem;}}
 .section-title{font-family:'Cinzel',serif;font-size:.84rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);margin-bottom:.85rem;padding-bottom:.45rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.4rem;font-weight:700;}
 .section-title::before{content:'';width:3px;height:.7rem;background:var(--gold);opacity:.6;flex-shrink:0;}
 .sub-label{font-family:'Cinzel',serif;font-size:.74rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;display:block;margin-bottom:.32rem;font-weight:600;}
@@ -146,7 +150,7 @@ select option{background:#0f1020;}
 .age-btn.on{color:var(--teal);border-color:var(--teal);background:rgba(46,196,182,.06);}
 .season-btn{background:transparent;border:1px solid var(--border);color:var(--muted);font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;padding:.28rem .6rem;cursor:pointer;text-transform:uppercase;transition:all .15s;}
 .season-btn.on{color:var(--gold2);border-color:var(--gold2);background:rgba(232,192,80,.06);}
-.svg-hex{cursor:pointer;}.svg-hex:hover polygon{stroke-width:2!important;}.svg-hex.sel polygon{stroke:#e8c050!important;stroke-width:2.5!important;}
+.svg-hex{cursor:pointer;transition:opacity .16s ease,filter .16s ease;}.svg-hex:hover polygon{stroke-width:2!important;}.svg-hex.sel polygon{stroke:#e8c050!important;stroke-width:2.5!important;}.svg-hex.sel{filter:brightness(1.12);}.svg-hex.dim{opacity:.56;filter:saturate(.62) brightness(.78);}
 .shop-cats{display:flex;gap:.2rem;margin-bottom:.85rem;flex-wrap:wrap;}
 .scat{background:transparent;border:1px solid var(--border);color:var(--muted2);font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.1em;padding:.34rem .7rem;cursor:pointer;text-transform:uppercase;transition:all .15s;}
 .scat:hover{color:var(--gold);border-color:rgba(201,162,39,.4);}.scat.on{color:var(--gold);border-color:var(--gold);background:rgba(201,162,39,.06);}
@@ -452,6 +456,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 </header>
 
 <div id="globalQuickAccess" class="global-quick-access"></div>
+<div id="contextQuickActions" class="context-quick-actions"></div>
 <div id="adminModeBadge" class="admin-mode-badge" aria-live="polite">
   <span class="admin-mode-dot" aria-hidden="true"></span>
   <span class="admin-mode-label">Admin Mode</span>
@@ -12219,13 +12224,15 @@ function renderHexMap(){
   const svg=document.getElementById('hexMapSvg');
   svg.setAttribute('width',svgW);svg.setAttribute('height',svgH);svg.innerHTML='';
   applyMapOverlayStyle(svg,'province');
+  const hasProvinceSelection=!!selectedHex;
   mapData.forEach(hex=>{
     const{x,y}=hexToPixel(hex.col,hex.row);
     const markerKey=`${hex.col},${hex.row}`;
     const r=HEX_SIZE-1;
     const pts=hexPoints(x,y,r);
     const g=document.createElementNS('http://www.w3.org/2000/svg','g');
-    g.setAttribute('class','svg-hex'+(selectedHex&&selectedHex===hex?' sel':''));
+    const isSelected=!!(selectedHex&&selectedHex===hex);
+    g.setAttribute('class','svg-hex'+(isSelected?' sel':'')+((hasProvinceSelection&&!isSelected)?' dim':''));
     const poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');
     poly.setAttribute('points',pts);
     poly.setAttribute('fill',hex.type==='wilderness'?hex.terrain.color:HEX_COLORS[hex.type]||'#1a2010');

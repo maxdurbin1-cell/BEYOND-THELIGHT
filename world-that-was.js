@@ -451,6 +451,7 @@
     if (!w || !Array.isArray(w.hexes) || !w.hexes.length) return 0;
 
     let expected = 0;
+    const hasWorldSelection = !!w.selectedHexId;
     w.hexes.forEach(function (hex) {
       expected += getPactAdjustedSkirmishChance(hex.zone) / 100;
     });
@@ -1642,15 +1643,16 @@
       const isTrackedThreadHex = trackedWtwHexId && String(hex.id) === trackedWtwHexId;
       const r = WTW_HEX - 1;
 
+      const isSelected = w.selectedHexId === hex.id;
       const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-      g.setAttribute("class", "svg-hex" + (w.selectedHexId === hex.id ? " sel" : ""));
+      g.setAttribute("class", "svg-hex" + (isSelected ? " sel" : "") + ((hasWorldSelection && !isSelected) ? " dim" : ""));
 
       const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
       poly.setAttribute("points", hexPoints(p.x, p.y));
       poly.setAttribute("fill", minimal ? "rgba(16,22,30,.92)" : "rgba(20,28,34,.85)");
       poly.setAttribute("stroke", zone ? zone.color : "#8e8e8e");
-      poly.setAttribute("stroke-opacity", minimal ? (w.selectedHexId === hex.id ? "1" : ".58") : "1");
-      poly.setAttribute("stroke-width", w.selectedHexId === hex.id ? "2.6" : (minimal ? "1" : (mapFx.hex3d ? "1.7" : "1.2")));
+      poly.setAttribute("stroke-opacity", minimal ? (isSelected ? "1" : ".58") : "1");
+      poly.setAttribute("stroke-width", isSelected ? "2.6" : (minimal ? "1" : (mapFx.hex3d ? "1.7" : "1.2")));
       g.appendChild(poly);
 
       // Province-style barrier presentation: draw the barrier on the edge of the hex instead of center icon.

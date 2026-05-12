@@ -1967,7 +1967,7 @@
       }
       var canClick = !!reach[k] && !isCollapsed;
       var strokeWidth = canClick ? '2' : '1.1';
-      var clickAttr = canClick ? (' onclick="holdingCrucibleHandleBoardHexClick(' + Number(cell.q || 0) + ',' + Number(cell.r || 0) + ')" style="cursor:pointer;"') : '';
+      var clickAttr = canClick ? (' onclick="holdingCrucibleExpeditionMoveTo(' + Number(cell.q || 0) + ',' + Number(cell.r || 0) + ')" style="cursor:pointer;"') : '';
       svg += '<g><polygon points="' + points(px.x, px.y, size - 1) + '" fill="' + fill + '" stroke="' + (canClick ? '#f0d070' : stroke) + '" stroke-width="' + strokeWidth + '"' + clickAttr + '/>';
       if (icon) svg += '<text x="' + px.x + '" y="' + (px.y + 3) + '" text-anchor="middle" font-size="11" fill="' + (isCollapsed ? '#f2a3a3' : '#e8d9bd') + '" pointer-events="none">' + icon + '</text>';
       svg += '</g>';
@@ -4519,7 +4519,7 @@
       + '<div style="font-size:.68rem;color:var(--teal);margin-bottom:.14rem;">Move to a highlighted hex</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">' + reachableHexes.map(function (hex) {
         var label = '[' + (Number(hex.q || 0) + 1) + ',' + (Number(hex.r || 0) + 1) + ']';
-        return '<button class="btn btn-xs btn-teal" onclick="holdingCrucibleHandleBoardHexClick(' + Number(hex.q || 0) + ',' + Number(hex.r || 0) + ');">Move ' + label + '</button>';
+        return '<button class="btn btn-xs btn-teal" onclick="holdingCrucibleExpeditionMoveTo(' + Number(hex.q || 0) + ',' + Number(hex.r || 0) + ');">Move ' + label + '</button>';
       }).join('') + '</div>'
       + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.12rem;">You can also click the highlighted hexes on the board.</div>'
       + '</div>';
@@ -4898,6 +4898,9 @@
   function holdingCrucibleHandleBoardHexClick(q, r) {
     var match = getHoldingCrucibleMatch();
     if (!match) return false;
+    if (String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || 'explore') === 'explore') {
+      return holdingCrucibleExpeditionMoveTo(q, r);
+    }
     if (tryCrucibleExpeditionDirectMove(match, q, r)) return true;
     if (String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || 'explore') === 'explore') {
       var player = getCrucibleExpeditionPlayer(match);
@@ -4916,6 +4919,32 @@
       renderHoldingUI();
     }
     return moved;
+  }
+
+  function holdingCrucibleExpeditionMoveTo(q, r) {
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition) return false;
+    if (String(match.expedition.phase || 'explore') !== 'explore') {
+      if (typeof showNotif === 'function') showNotif('Movement is only available in Exploration phase.', 'warn');
+      return false;
+    }
+    var player = getCrucibleExpeditionPlayer(match);
+    var before = player && player.position ? (String(player.position.q) + ',' + String(player.position.r)) : '';
+    var handled = tryCrucibleExpeditionDirectMove(match, q, r);
+    player = getCrucibleExpeditionPlayer(match);
+    var after = player && player.position ? (String(player.position.q) + ',' + String(player.position.r)) : '';
+    if (handled && before !== after) return true;
+    if (handled) return false;
+
+    var moved = holdingCrucibleMoveSelected(q, r);
+    if (moved) {
+      recordCrucibleExpeditionHexClick(match);
+      renderHoldingCruciblePopup();
+      renderHoldingUI();
+      return true;
+    }
+    if (typeof showNotif === 'function') showNotif('That hex is not currently reachable.', 'warn');
+    return false;
   }
 
   function holdingCrucibleStartDrag(side, unitId) {
@@ -9291,6 +9320,7 @@
   window.getCrucibleExpeditionStartingPassiveFeatures = getCrucibleExpeditionStartingPassiveFeatures;
   window.getCrucibleExpeditionWayfarerActionDice = getCrucibleExpeditionWayfarerActionDice;
   window.getCrucibleExpeditionAvailableRaidNodes = getCrucibleExpeditionAvailableRaidNodes;
+  window.holdingCrucibleExpeditionMoveTo = holdingCrucibleExpeditionMoveTo;
   window.holdingCrucibleMoveSelected = holdingCrucibleMoveSelected;
   window.holdingCrucibleTeleportSelected = holdingCrucibleTeleportSelected;
   window.holdingCrucibleUseExpeditionFlask = holdingCrucibleUseExpeditionFlask;

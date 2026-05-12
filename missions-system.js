@@ -6214,16 +6214,31 @@
 
     var destinationSvg = '';
     if (selectedPlaced && opts.showMoveOverlay !== false) {
-      var allowedRanges = getLegacyRaidAdjacentRanges(selectedPlaced.range);
       var destinations = [];
-      for (var ar = 0; ar < allowedRanges.length; ar += 1) {
-        var rangeKey = allowedRanges[ar];
-        var slots = slotsByRange[rangeKey] || [];
-        for (var si = 0; si < slots.length; si += 1) {
-          var slot = slots[si];
-          var occKey = String(slot.q) + ',' + String(slot.r);
-          if (occupied[occKey]) continue;
-          destinations.push({ q: Number(slot.q || 0), r: Number(slot.r || 0), range: rangeKey });
+      var allowAnyMove = !!opts.allowAnyMove;
+      if (allowAnyMove) {
+        for (var gi = 0; gi < grid.length; gi += 1) {
+          var anySlot = grid[gi] || { q: 0, r: 0 };
+          var anyKey = String(anySlot.q) + ',' + String(anySlot.r);
+          if (occupied[anyKey] && anyKey !== (String(selectedPlaced.q) + ',' + String(selectedPlaced.r))) continue;
+          if (Number(anySlot.q || 0) === Number(selectedPlaced.q || 0) && Number(anySlot.r || 0) === Number(selectedPlaced.r || 0)) continue;
+          destinations.push({
+            q: Number(anySlot.q || 0),
+            r: Number(anySlot.r || 0),
+            range: normalizeLegacyRaidRange(getLegacyRaidRangeFromHex(anySlot.q, anySlot.r))
+          });
+        }
+      } else {
+        var allowedRanges = getLegacyRaidAdjacentRanges(selectedPlaced.range);
+        for (var ar = 0; ar < allowedRanges.length; ar += 1) {
+          var rangeKey = allowedRanges[ar];
+          var slots = slotsByRange[rangeKey] || [];
+          for (var si = 0; si < slots.length; si += 1) {
+            var slot = slots[si];
+            var occKey = String(slot.q) + ',' + String(slot.r);
+            if (occupied[occKey]) continue;
+            destinations.push({ q: Number(slot.q || 0), r: Number(slot.r || 0), range: rangeKey });
+          }
         }
       }
       destinationSvg = destinations.map(function (dest) {
@@ -6349,6 +6364,7 @@
       moveHandler: 'window.moveLegacyRaidHexBoardUnit',
       mapTheme: 'raid-boss',
       selectedUnit: (S && S.combat && S.combat.raidFlow && S.combat.raidFlow.selectedBoardUnit) ? S.combat.raidFlow.selectedBoardUnit : null,
+      allowAnyMove: true,
       showMoveOverlay: true,
       isSelected: function (unit) {
         var flow = (typeof S !== 'undefined' && S && S.combat && S.combat.raidFlow) ? S.combat.raidFlow : null;
@@ -7931,6 +7947,7 @@
       moveHandler: 'window.moveLegacyRaidHexBoardUnit',
       mapTheme: 'raid-wing',
       selectedUnit: flow && flow.selectedBoardUnit ? flow.selectedBoardUnit : null,
+      allowAnyMove: true,
       showMoveOverlay: true,
       isSelected: function (unit) {
         if (!flow || !unit) return false;
@@ -8809,6 +8826,9 @@
     if (role === 'enemy') {
       if (typeof window.setLegacyRaidHostileRange === 'function') window.setLegacyRaidHostileRange(Number(unitId || 0), destination);
     } else if (!!isPlayer) {
+      if (typeof consumeCombatAction === 'function' && !consumeCombatAction('Move Zone')) {
+        return false;
+      }
       if (typeof window.setLegacyRaidPlayerRange === 'function') window.setLegacyRaidPlayerRange(destination);
     } else {
       if (flow) {

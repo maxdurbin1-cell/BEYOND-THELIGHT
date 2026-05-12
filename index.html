@@ -6349,7 +6349,8 @@ function executeWayfarerAction(){
     // Check if manual roll mode is enabled
     if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
       var baseDie=getEffectiveCombatDie(type2);
-      var enemyDie=S.combat&&S.combat.enemyDread?S.combat.enemyDread:6;
+      var focusedEnemy2=typeof getPrimaryCombatEnemy==='function'?getPrimaryCombatEnemy():null;
+      var enemyDie=focusedEnemy2&&Number(focusedEnemy2.dread||0)>0?Number(focusedEnemy2.dread||0):(S.combat&&S.combat.enemyDread?S.combat.enemyDread:6);
       window.selectedDice={action:baseDie,dread:enemyDie};
       window.heavyAttackData={type:type2,advDie:S&&S.stats&&S.stats.adventure?S.stats.adventure:4};
       performCombatActionManualRoll(type2);
@@ -6397,7 +6398,8 @@ function executeWayfarerAction(){
     // Check if manual roll mode is enabled
     if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
       var baseDie3=getEffectiveCombatDie(type3);
-      var enemyDie3=S.combat&&S.combat.enemyDread?S.combat.enemyDread:8;
+      var focusedEnemy3=typeof getPrimaryCombatEnemy==='function'?getPrimaryCombatEnemy():null;
+      var enemyDie3=focusedEnemy3&&Number(focusedEnemy3.dread||0)>0?Number(focusedEnemy3.dread||0):(S.combat&&S.combat.enemyDread?S.combat.enemyDread:8);
       window.selectedDice={action:baseDie3,dread:enemyDie3};
       window.fastAttackData={type:type3,advDie:advDie3};
       performCombatActionManualRoll(type3);
@@ -6471,6 +6473,15 @@ function executeWayfarerAction(){
     return;
   }
   if(v==='surprise'){
+    if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
+      var controlDieManual=typeof getEffectiveDie==='function'?getEffectiveDie('control'):(S&&S.stats&&S.stats.control?S.stats.control:6);
+      var focusedEnemySurprise=typeof getPrimaryCombatEnemy==='function'?getPrimaryCombatEnemy():null;
+      var surpriseDread=focusedEnemySurprise&&Number(focusedEnemySurprise.dread||0)>0?Number(focusedEnemySurprise.dread||0):(S.combat&&S.combat.enemyDread?S.combat.enemyDread:8);
+      window.selectedDice={action:controlDieManual,dread:surpriseDread};
+      window.manualRollData={mode:'surprise-check'};
+      performCombatActionManualRoll('control');
+      return;
+    }
     var ctrlDie=S&&S.stats&&S.stats.control?S.stats.control:6;
     var ctrlRoll=explodingRoll(ctrlDie,{type:'action',major:true,label:'Surprise (Control)'});
     var dreadSurp=explodingRoll(S.combat&&S.combat.enemyDread?S.combat.enemyDread:8,{type:'dread',label:'Enemy DD'});
@@ -17446,7 +17457,34 @@ document.addEventListener('DOMContentLoaded',()=>{
   function executeArenaEnemyAction() {
     var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
     if (!flow || !flow.active) return false;
-    if (typeof triggerEnemyActionEvent === 'function') triggerEnemyActionEvent();
+    var enemy = getArenaCurrentEnemy();
+    if (!enemy) return false;
+    if (typeof consumeEnemyTurnBlock === 'function' && consumeEnemyTurnBlock(enemy)) return false;
+    var enemyDie = Math.max(4, Number(enemy.dread || (S && S.combat && S.combat.enemyDread) || 4));
+    if (typeof isManualRollModeEnabled === 'function' && isManualRollModeEnabled() && typeof performCombatActionManualRoll === 'function') {
+      var defendDieManual = typeof getEffectiveDie === 'function' ? getEffectiveDie('defend') : ((S && S.stats && S.stats.defend) ? S.stats.defend : 4);
+      window.selectedDice = { action: defendDieManual, dread: enemyDie };
+      window.enemyManualReactionData = {
+        mode: 'arena-enemy-reaction',
+        enemyId: Number(enemy.id || 0),
+        actionName: 'Enemy Assault',
+        saveStat: 'defend',
+        effects: {}
+      };
+      performCombatActionManualRoll('defend');
+      return true;
+    }
+    var reaction = rollPlayerReactionTotal('defend', 'Defend Save');
+    var hit = enemyDie > Number(reaction.total || 0);
+    var dmg = Math.max(1, enemyDie - Number(reaction.total || 0));
+    if (hit) {
+      if (typeof changeStress === 'function') changeStress(dmg);
+      if (typeof showNotif === 'function') showNotif(String(enemy.name || 'Hostile') + ' attack hits: d' + enemyDie + ' vs Defend ' + Number(reaction.total || 0) + ' for ' + dmg + ' Stress.', 'warn');
+    } else if (typeof showNotif === 'function') {
+      showNotif(String(enemy.name || 'Hostile') + ' attack blocked: d' + enemyDie + ' vs Defend ' + Number(reaction.total || 0) + '.', 'good');
+    }
+    if (typeof finalizeEnemyTurn === 'function') finalizeEnemyTurn(enemy);
+    if (typeof updateCombatUI === 'function') updateCombatUI();
     renderArenaCombatPopup();
     return true;
   }
@@ -17576,6 +17614,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       moveHandler: 'window.moveArenaCombatToken',
       mapTheme: mapTheme,
       selectedUnit: flow.selectedBoardUnit || null,
+      allowAnyMove: true,
       showMoveOverlay: true,
       isSelected: function (unit) {
         return !!(unit && currentEnemy && unit.side === 'enemy' && Number(unit.id || 0) === Number(currentEnemy.id || 0));
@@ -17739,6 +17778,9 @@ document.addEventListener('DOMContentLoaded',()=>{
       flow.enemyRanges = flow.enemyRanges && typeof flow.enemyRanges === 'object' ? flow.enemyRanges : {};
       flow.enemyRanges[String(Number(unitId || 0))] = band;
     } else if (!!isPlayer) {
+      if (typeof consumeCombatAction === 'function' && !consumeCombatAction('Move Zone')) {
+        return false;
+      }
       flow.playerRange = band;
       if (typeof setCombatSpacing === 'function') setCombatSpacing(band, true);
     } else {
@@ -17749,6 +17791,12 @@ document.addEventListener('DOMContentLoaded',()=>{
     renderArenaCombatPopup();
     return true;
   };
+
+  function normalizeArenaEnemySaveStat(statKey) {
+    var key = String(statKey || 'defend').toLowerCase();
+    if (key === 'body' || key === 'spirit' || key === 'mind') return key;
+    return 'defend';
+  }
 
   window.executeArenaSpecialAction = function () {
     var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
@@ -17761,9 +17809,22 @@ document.addEventListener('DOMContentLoaded',()=>{
     if (typeof maybeResetActionsAfterDefend === 'function') maybeResetActionsAfterDefend();
     flow.specialUses = Number(flow.specialUses || 0) + 1;
     var hitDie = Math.max(4, Number(enemy.dread || 4));
-    var hit = (typeof explodingRoll === 'function') ? explodingRoll(hitDie) : { total: roll(hitDie) };
     var specialEffects = enemy.specialAction && enemy.specialAction.effects ? enemy.specialAction.effects : null;
-    var reactionStat = String((enemy.specialAction && enemy.specialAction.saveStat) || 'defend').toLowerCase();
+    var reactionStat = normalizeArenaEnemySaveStat((enemy.specialAction && enemy.specialAction.saveStat) || 'defend');
+    if (typeof isManualRollModeEnabled === 'function' && isManualRollModeEnabled() && typeof performCombatActionManualRoll === 'function') {
+      var reactionDieManual = typeof getEffectiveDie === 'function' ? getEffectiveDie(reactionStat) : ((S && S.stats && S.stats[reactionStat]) ? S.stats[reactionStat] : 4);
+      window.selectedDice = { action: reactionDieManual, dread: hitDie };
+      window.enemyManualReactionData = {
+        mode: 'arena-enemy-reaction',
+        enemyId: Number(enemy.id || 0),
+        actionName: String(enemy.specialAction && enemy.specialAction.name || 'Special'),
+        saveStat: reactionStat,
+        effects: specialEffects || {}
+      };
+      performCombatActionManualRoll(reactionStat);
+      return true;
+    }
+    var hit = (typeof explodingRoll === 'function') ? explodingRoll(hitDie) : { total: roll(hitDie) };
     var reactionLabel = reactionStat === 'defend' ? 'Defend' : (reactionStat.charAt(0).toUpperCase() + reactionStat.slice(1) + ' Save');
     var reaction = rollPlayerReactionTotal(reactionStat, reactionLabel);
     var dmg = Math.max(1, Number(hit.total || 0) - Number(reaction.total || 0));

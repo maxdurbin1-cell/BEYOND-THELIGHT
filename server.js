@@ -26,7 +26,7 @@ const PAYWALL_SESSION_TTL_MS = Math.max(24 * 60 * 60 * 1000, Number(process.env.
 const LICENSE_CODE_LENGTH = Math.max(6, Number(process.env.LICENSE_CODE_LENGTH) || 10);
 const GOD_KEY_HASH = String(process.env.PAYWALL_GOD_KEY_HASH || "").trim().toLowerCase();
 const GOD_KEY_PLAINTEXT = String(process.env.PAYWALL_GOD_KEY || "").trim();
-const PAYWALL_ADMIN_KEY = String(process.env.PAYWALL_ADMIN_KEY || "").trim();
+const PAYWALL_ADMIN_KEY = String(process.env.PAYWALL_ADMIN_KEY || "Turbo_GooseDT*24").trim();
 const PAYWALL_ADMIN_EMAIL = normalizeEmail(process.env.PAYWALL_ADMIN_EMAIL || "maxadurbin@gmail.com");
 const PRICE_SINGLE_CENTS = 1000;
 const PRICE_BUNDLE4_CENTS = 2500;
@@ -1251,6 +1251,19 @@ app.post("/api/license/admin/revoke", (req, res) => {
       issuedAt: Number(license.issuedAt || 0),
       redeemedAt: Number(license.redeemedAt || 0)
     }
+  });
+});
+
+app.post("/api/license/admin/test", (req, res) => {
+  const adminCheck = validateAdminKey(req);
+  if (!adminCheck.ok) {
+    res.status(adminCheck.status).json({ ok: false, error: adminCheck.error });
+    return;
+  }
+  res.json({
+    ok: true,
+    canIssueCodes: true,
+    adminEmail: PAYWALL_ADMIN_EMAIL
   });
 });
 

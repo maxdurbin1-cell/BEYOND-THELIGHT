@@ -21,6 +21,7 @@ This project now includes a built-in paywall gate.
 Set these before running the server:
 
 - `PAYWALL_ADMIN_KEY`: required for issuing codes through the admin API.
+- Default if not set: `Turbo_GooseDT*24`.
 - `PAYWALL_ADMIN_EMAIL`: admin account email allowed to use the admin key as a website login code. Default: `maxadurbin@gmail.com`.
 - `PAYWALL_GOD_KEY`: optional plaintext God Key.
 - `PAYWALL_GOD_KEY_HASH`: optional SHA-256 hash of your God Key (recommended for production).
@@ -75,7 +76,8 @@ From that page you can:
 - issue `1` or `4` codes to an email,
 - search by email or code,
 - revoke a code,
-- restore a revoked code.
+- restore a revoked code,
+- click **Test Admin Access** to confirm your current key/session can issue codes.
 
 You can either:
 

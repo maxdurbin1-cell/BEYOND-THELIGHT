@@ -195,6 +195,17 @@
     setStatus("search-status", "Found " + String(list.length) + " license(s).", "ok");
   }
 
+  async function doAdminAccessTest() {
+    setStatus("admin-test-status", "Testing admin access...", "");
+    var result = await postJson("/api/license/admin/test", {});
+    if (!result.ok || !result.body || !result.body.ok) {
+      var err = (result.body && result.body.error) ? result.body.error : "Admin access failed.";
+      setStatus("admin-test-status", err, "error");
+      return;
+    }
+    setStatus("admin-test-status", "Admin access confirmed. You can issue codes.", "ok");
+  }
+
   async function toggleLicense(code, disable) {
     setStatus("search-status", (disable ? "Revoking " : "Restoring ") + code + "...", "");
     var result = await postJson("/api/license/admin/revoke", {
@@ -215,6 +226,7 @@
   function initActions() {
     var issueBtn = byId("issue-btn");
     var searchBtn = byId("search-btn");
+    var testAdminBtn = byId("test-admin-btn");
     var body = byId(TABLE_BODY_ID);
 
     if (issueBtn) {
@@ -225,6 +237,11 @@
     if (searchBtn) {
       searchBtn.addEventListener("click", function () {
         doSearch();
+      });
+    }
+    if (testAdminBtn) {
+      testAdminBtn.addEventListener("click", function () {
+        doAdminAccessTest();
       });
     }
 
@@ -244,6 +261,7 @@
     loadAdminKeyPreference();
     loadAdminConfigStatus();
     initActions();
+    doAdminAccessTest();
     doSearch();
   }
 

@@ -1588,6 +1588,7 @@
     const svg = document.getElementById("wtwMapSvg");
     if (!svg || !w) return;
     const minimal = !!w.minimalMapMode;
+    const hasWorldSelection = !!w.selectedHexId;
     const mapFx = (typeof window.getMapVisualSettings === "function")
       ? window.getMapVisualSettings()
       : { hex3d: false, overlay: "none" };

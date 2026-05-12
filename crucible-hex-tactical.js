@@ -107,7 +107,7 @@ function getCrucibleRandomOpenHex(unit, match, maxDistance) {
 // ============================================================================
 
 function generateCrucibleHexMap(seed, size) {
-  var mapSize = Math.max(7, Math.min(11, Number(size || 9)));
+  var mapSize = Math.max(7, Math.min(12, Number(size || 9)));
   var useSeed = Math.max(1, Number(seed || 1));
   
   // Seed-based pseudo-random

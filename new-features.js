@@ -1950,7 +1950,7 @@
       day: 1,
       phase: 'explore',
       clickedHexes: 0,
-      collapseEveryClicks: 2,
+      collapseEveryClicks: 3,
       collapseRing: 0,
       maxRing: getHexRadiusFromMap(hexMap),
       collapsed: {},
@@ -2042,7 +2042,7 @@
     if (!match || !match.expedition) return false;
     var nextDay = Math.max(1, Number(day || 1));
     var newMap = (typeof generateCrucibleHexMap === 'function')
-      ? generateCrucibleHexMap(Date.now() + nextDay, 9)
+      ? generateCrucibleHexMap(Date.now() + nextDay, 12)
       : { seed: 1, size: 9, hexes: {}, objectives: [], spawns: { ally: { q: -1, r: -1 }, enemy: { q: 1, r: 1 } } };
     stampCrucibleTemplesOnMap(newMap, 2);
     var stamped = stampCrucibleExpeditionProvinceFeatures(newMap, nextDay);
@@ -2051,7 +2051,7 @@
     expedition.day = nextDay;
     expedition.phase = 'explore';
     expedition.clickedHexes = 0;
-    expedition.collapseEveryClicks = nextDay === 1 ? 2 : 1;
+    expedition.collapseEveryClicks = nextDay === 1 ? 3 : 2;
     expedition.collapseRing = 0;
     expedition.maxRing = getHexRadiusFromMap(newMap);
     expedition.collapsed = {};
@@ -2415,7 +2415,7 @@
     var modeSpec = getCrucibleModeSpec(crucible.preferredMode || 'control');
     if (modeSpec.id === 'expedition') {
       var expeditionMap = (typeof generateCrucibleHexMap === 'function')
-        ? generateCrucibleHexMap(Date.now(), 9)
+        ? generateCrucibleHexMap(Date.now(), 12)
         : { seed: 1, size: 9, hexes: {}, objectives: [], spawns: { ally: { q: -1, r: -1 }, enemy: { q: 1, r: 1 } } };
       stampCrucibleTemplesOnMap(expeditionMap, 2);
       var wayfarerName = String((S && S.name) || 'Wayfarer');
@@ -3074,7 +3074,7 @@
         }
         expedition.day = 3;
         expedition.phase = 'explore';
-        expedition.collapseEveryClicks = 1;
+        expedition.collapseEveryClicks = 2;
         expedition.currentBossIndex = 2;
         maybeTriggerCrucibleExpeditionEncounter(match, true);
         match.log = (match.log || []).concat(['Teleport rupture: the Raid Boss arrives.']).slice(-120);
@@ -3190,6 +3190,25 @@
       var interactablesPanel = (interactables.length && typeof buildInteractablePanelHtml === 'function')
         ? buildInteractablePanelHtml(interactables, selectedUnit)
         : '';
+      var combatHint = (String(expedition.phase || 'explore') === 'combat' && getCrucibleExpeditionCurrentEnemy(match))
+        ? '<div style="font-size:.68rem;color:var(--muted2);margin:.18rem 0 .08rem;">Combat is live on ' + (player && player.position ? ('Hex [' + (Number(player.position.q || 0) + 1) + ',' + (Number(player.position.r || 0) + 1) + ']') : 'this hex') + '.</div>'
+        : '';
+      var coreActions = '<div class="theos-region-actions">'
+        + '<button class="btn btn-sm" onclick="holdingCrucibleExpeditionWildernessRoll();">Wilderness Roll</button>'
+        + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExpeditionSearchHex();">Search Hex</button>'
+        + '<button class="btn btn-sm" onclick="holdingCrucibleExpeditionObserveAdjacent();">Observe Adjacent</button>'
+        + '</div>';
+      var utilityActions = '<details class="card" style="margin-top:.28rem;">'
+        + '<summary style="cursor:pointer;font-size:.72rem;color:var(--gold2);letter-spacing:.04em;text-transform:uppercase;">More Expedition Actions</summary>'
+        + '<div class="theos-region-actions" style="margin-top:.22rem;">'
+        + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleExpeditionRandomEncounter();">Random Encounter</button>'
+        + '<button class="btn btn-sm" onclick="holdingCrucibleCloseExpeditionGate();">Close Gate</button>'
+        + '<button class="btn btn-sm btn-red" onclick="holdingCrucibleBreachExpeditionPortal();">Breach Portal</button>'
+        + '<button class="btn btn-sm" onclick="holdingCrucibleSolvePortalPuzzle();">Solve Portal Puzzle</button>'
+        + '<button class="btn btn-sm" onclick="holdingCrucibleExpeditionSwitchTab(\'wayfarer\');">Open Wayfarer</button>'
+        + '<button class="btn btn-sm" onclick="holdingCrucibleResetMatch();">Abandon Run</button>'
+        + '</div>'
+        + '</details>';
       var provinceMeta = '<div class="card" style="margin-bottom:.25rem;">'
         + '<div class="section-title">Province Map</div>'
         + '<div class="theos-region-kicker">Expedition Province Map · Day ' + Number(expedition.day || 1) + '</div>'
@@ -3202,16 +3221,10 @@
         + '<span class="theos-chip">Gates</span>'
         + '<span class="theos-chip">Portals</span>'
         + '</div>'
+        + combatHint
         + provinceSvg
-        + '<div class="theos-region-actions">'
-        + '<button class="btn btn-sm" onclick="holdingCrucibleExpeditionWildernessRoll();">Wilderness Roll</button>'
-        + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExpeditionSearchHex();">Search Hex</button>'
-        + '<button class="btn btn-sm" onclick="holdingCrucibleExpeditionObserveAdjacent();">Observe Adjacent</button>'
-        + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleExpeditionRandomEncounter();">Random Encounter</button>'
-        + '<button class="btn btn-sm" onclick="holdingCrucibleCloseExpeditionGate();">Close Gate</button>'
-        + '<button class="btn btn-sm btn-red" onclick="holdingCrucibleBreachExpeditionPortal();">Breach Portal</button>'
-        + '<button class="btn btn-sm" onclick="holdingCrucibleSolvePortalPuzzle();">Solve Portal Puzzle</button>'
-        + '</div>'
+        + coreActions
+        + utilityActions
         + '</div>';
       return '<div style="margin-bottom:.25rem;">'
         + provinceMeta
@@ -3316,23 +3329,133 @@
     return true;
   }
 
+  function buildCrucibleExpeditionCombatSectionHtml(match) {
+    var expedition = match && match.expedition ? match.expedition : null;
+    var enemy = getCrucibleExpeditionCurrentEnemy(match);
+    if (!expedition || !enemy || String(expedition.phase || '') !== 'combat') return '';
+    var isEnemyTurn = String(match.turnSide || 'ally') === 'enemy';
+    var selectedAlly = getSelectedCrucibleAlly(match);
+    var selectedEnemy = getSelectedCrucibleEnemy(match);
+    var selectedTarget = getSelectedCrucibleTarget(match);
+    var selectedAllyTarget = getSelectedCrucibleAllyTarget(match);
+    var selectedActiveUnit = isEnemyTurn ? selectedEnemy : selectedAlly;
+    var wayfarerOptions = getCrucibleWayfarerActionOptionsHtml();
+    var wayfarerTargetOptions = buildCrucibleEnemyTargetOptions(match, 'attack', selectedAlly);
+    var teamTargetOptions = buildCrucibleTeamTargetOptions(match, 'attack', selectedAlly);
+    var enemyTargetOptions = buildCrucibleEnemyTargetOptions(match, 'attack', selectedEnemy);
+    var allyRows = getLivingTeamUnits(match.allies).map(function (u) {
+      var on = isEnemyTurn
+        ? (selectedAllyTarget && String(selectedAllyTarget.id) === String(u.id))
+        : (selectedAlly && String(selectedAlly.id) === String(u.id));
+      var flavor = (u.personalFlavor && u.personalFlavor.name) ? (' · PF:' + String(u.personalFlavor.name)) : '';
+      var handler = isEnemyTurn ? 'selectHoldingCrucibleAllyTarget' : 'selectHoldingCrucibleUnit';
+      return '<button class="btn btn-xs ' + (on ? 'btn-teal' : '') + '" onclick="' + handler + '(\'' + String(u.id).replace(/'/g, '&#39;') + '\')">'
+        + u.name + ' [' + (u.position ? (u.position.q + ',' + u.position.r) : 'PA') + '] AP' + Number(u.ap || 0) + ' HP' + Number(u.hp || 0) + flavor
+      + '</button>';
+    }).join('');
+    var targetRows = getLivingTeamUnits(match.enemies).map(function (u) {
+      var on = isEnemyTurn
+        ? (selectedEnemy && String(selectedEnemy.id) === String(u.id))
+        : (selectedTarget && String(selectedTarget.id) === String(u.id));
+      var dist = selectedActiveUnit ? (typeof getUnitDistance === 'function' ? getUnitDistance(selectedActiveUnit, u) : 0) : 0;
+      var handler = isEnemyTurn ? 'selectHoldingCrucibleEnemy' : 'selectHoldingCrucibleTarget';
+      return '<div style="display:flex;gap:.14rem;align-items:center;">'
+        + '<button class="btn btn-xs ' + (on ? 'btn-red' : '') + '" onclick="' + handler + '(\'' + String(u.id).replace(/'/g, '&#39;') + '\')">'
+        + u.name + ' [' + (u.position ? (u.position.q + ',' + u.position.r) : 'PA') + '] d:' + dist + ' HP' + Number(u.hp || 0)
+        + '</button>'
+        + '<button class="btn btn-xs" onclick="openCrucibleEnemyLore(\'' + String(u.id).replace(/'/g, '&#39;') + '\')">?</button>'
+      + '</div>';
+    }).join('');
+    var canAct = !!(!isEnemyTurn && selectedAlly && Number(selectedAlly.hp || 0) > 0 && Number(selectedAlly.ap || 0) > 0);
+    var canEnemyAct = !!(isEnemyTurn && selectedEnemy && Number(selectedEnemy.hp || 0) > 0 && Number(selectedEnemy.ap || 0) > 0);
+    var turnRail = '<div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:.16rem;align-items:center;margin-bottom:.28rem;">'
+      + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid ' + (!isEnemyTurn ? 'rgba(70,196,182,.45)' : 'var(--border2)') + ';background:' + (!isEnemyTurn ? 'rgba(70,196,182,.12)' : 'rgba(255,255,255,.02)') + ';font-size:.68rem;color:' + (!isEnemyTurn ? 'var(--teal)' : 'var(--muted2)') + ';">Your Team</div>'
+      + '<div style="font-size:.78rem;color:var(--muted2);text-align:center;">→</div>'
+      + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.68rem;color:var(--gold2);">Combat</div>'
+      + '<div style="font-size:.78rem;color:var(--muted2);text-align:center;">→</div>'
+      + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid ' + (isEnemyTurn ? 'rgba(200,80,80,.45)' : 'var(--border2)') + ';background:' + (isEnemyTurn ? 'rgba(200,80,80,.12)' : 'rgba(255,255,255,.02)') + ';font-size:.68rem;color:' + (isEnemyTurn ? 'var(--red2)' : 'var(--muted2)') + ';">Enemy Team</div>'
+    + '</div>';
+    var turnControlsHtml = '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.22rem;">'
+      + '<label style="font-size:.66rem;color:var(--muted2);">Wayfarer Actions'
+      + '<select id="crucibleWayfarerActionSelect" onchange="refreshCrucibleWayfarerActionOptions();" style="width:100%;margin-top:.08rem;" ' + (isEnemyTurn ? 'disabled' : '') + '>' + wayfarerOptions + '</select></label>'
+      + '<label style="font-size:.66rem;color:var(--muted2);">Target'
+      + '<select id="crucibleWayfarerTargetSelect" style="width:100%;margin-top:.08rem;" ' + (isEnemyTurn ? 'disabled' : '') + '>' + wayfarerTargetOptions + '</select></label>'
+      + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExecuteWayfarerAction();">Execute</button>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.22rem;">'
+      + '<label style="font-size:.66rem;color:var(--muted2);">Team Action'
+      + '<select id="crucibleTeamActionSelect" onchange="refreshCrucibleTeamActionOptions();" style="width:100%;margin-top:.08rem;" ' + (isEnemyTurn ? 'disabled' : '') + '>'
+      + '<option value="personal-flavor">Personal Flavor</option>'
+      + '<option value="defend">Defend (+3 next defend)</option>'
+      + '<option value="attack" selected>Attack (Engaged/Close)</option>'
+      + '<option value="support">Support (+3 next attack)</option>'
+      + '</select></label>'
+      + '<label style="font-size:.66rem;color:var(--muted2);">Target'
+      + '<select id="crucibleTeamTargetSelect" style="width:100%;margin-top:.08rem;" ' + (isEnemyTurn ? 'disabled' : '') + '>' + teamTargetOptions + '</select></label>'
+      + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExecuteTeamAction();">Execute</button>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.28rem;">'
+      + '<label style="font-size:.66rem;color:var(--muted2);">Enemy Action'
+      + '<select id="crucibleEnemyActionSelect" onchange="refreshCrucibleEnemyActionOptions();" style="width:100%;margin-top:.08rem;" ' + (!isEnemyTurn ? 'disabled' : '') + '>'
+      + '<option value="personal-flavor">Personal Flavor</option>'
+      + '<option value="defend">Defend (+3 next defend)</option>'
+      + '<option value="attack" selected>Attack (Engaged/Close)</option>'
+      + '<option value="support">Support (+3 next attack)</option>'
+      + '<option value="move">Move Action (random)</option>'
+      + '</select></label>'
+      + '<label style="font-size:.66rem;color:var(--muted2);">Target'
+      + '<select id="crucibleEnemyTargetSelect" style="width:100%;margin-top:.08rem;" ' + (!isEnemyTurn ? 'disabled' : '') + '>' + enemyTargetOptions + '</select></label>'
+      + '<button class="btn btn-sm btn-red" onclick="holdingCrucibleExecuteEnemyAction();">Execute</button>'
+      + '</div>'
+      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.32rem;">'
+      + '<button class="btn btn-sm" onclick="holdingCrucibleEndSelectedUnit();">End Unit</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAdvanceRound();">' + (isEnemyTurn ? 'End Enemy Turn' : 'Begin Enemy Turn') + '</button>'
+      + (isEnemyTurn ? '<button class="btn btn-sm btn-red" onclick="holdingCrucibleRunEnemyAI();">Enemy AI Turn</button>' : '')
+      + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAutoResolve();">Auto Resolve</button>'
+      + '<button class="btn btn-sm" onclick="holdingCrucibleResetMatch();">Reset Match</button>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;">'
+      + '<div style="border:1px solid rgba(70,196,182,.35);padding:.28rem .34rem;background:linear-gradient(180deg,rgba(70,196,182,.08),rgba(255,255,255,.02));">'
+      + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;margin-bottom:.2rem;">'
+      + '<div style="font-size:.7rem;color:var(--teal);">Blue Side</div>'
+      + '<div style="font-size:.64rem;color:var(--muted2);">AP / HP / PF</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.18rem;flex-wrap:wrap;max-height:6.5rem;overflow:auto;">' + (allyRows || '<div style="font-size:.72rem;color:var(--muted2);">No allies standing.</div>') + '</div>'
+      + '</div>'
+      + '<div style="border:1px solid rgba(200,80,80,.35);padding:.28rem .34rem;background:linear-gradient(180deg,rgba(200,80,80,.08),rgba(255,255,255,.02));">'
+      + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;margin-bottom:.2rem;">'
+      + '<div style="font-size:.7rem;color:var(--red2);">Red Side</div>'
+      + '<div style="font-size:.64rem;color:var(--muted2);">Distance / HP / ?</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.18rem;flex-wrap:wrap;max-height:6.5rem;overflow:auto;">' + (targetRows || '<div style="font-size:.72rem;color:var(--muted2);">No enemies standing.</div>') + '</div>'
+      + '</div>'
+      + '</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.18rem;">Enemy archive controls appear only while combat is active.</div>'
+      + '</details>';
+    return combatSection;
+  }
+
   function buildCrucibleExpeditionPopupHtml(match) {
     var expedition = match.expedition || {};
     var uiTab = String(expedition.uiTab || 'province');
     var player = getCrucibleExpeditionPlayer(match);
     var enemy = getCrucibleExpeditionCurrentEnemy(match);
+    var currentHexLabel = player && player.position
+      ? ('Hex [' + (Number(player.position.q || 0) + 1) + ',' + (Number(player.position.r || 0) + 1) + ']')
+      : 'Hex [--]';
     var portalGoal = Number(expedition.portalQuestTarget || 5);
     var portalsClosed = Number(expedition.portalsClosed || 0);
     var portalStatus = portalsClosed >= portalGoal ? 'Raid Boss weakened (d12 | 24 HP)' : ('Need ' + Math.max(0, portalGoal - portalsClosed) + ' more before Day 3');
     var openHexes = getCrucibleExpeditionOpenHexCount(match);
+    var isCombatActive = String(expedition.phase || '') === 'combat' && !!enemy;
     var tabRow = '<div style="display:flex;gap:.22rem;margin-bottom:.3rem;">'
       + '<button class="btn btn-sm ' + (uiTab === 'province' ? 'btn-primary' : '') + '" onclick="holdingCrucibleExpeditionSwitchTab(\'province\')">Province</button>'
       + '<button class="btn btn-sm ' + (uiTab === 'wayfarer' ? 'btn-primary' : '') + '" onclick="holdingCrucibleExpeditionSwitchTab(\'wayfarer\')">Wayfarer</button>'
       + '</div>';
     var top = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
       + '<div style="font-family:Cinzel,serif;font-size:.92rem;color:var(--gold2);margin-bottom:.15rem;">Expedition Province Map</div>'
-      + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.12rem;">Day ' + Number(expedition.day || 1) + ' · Flasks ' + Number(expedition.flasks || 0) + '/' + Number(expedition.maxFlasks || 7) + ' · Open Hexes ' + Number(openHexes || 0) + '</div>'
-      + '<div style="font-size:.69rem;color:var(--teal);margin-bottom:.08rem;">Day 1 closes edges every 2 hexes. Day 2+ closes every hex. When one hex remains, a cinematic boss prompt triggers.</div>'
+      + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.12rem;">Day ' + Number(expedition.day || 1) + ' · ' + currentHexLabel + ' · Flasks ' + Number(expedition.flasks || 0) + '/' + Number(expedition.maxFlasks || 7) + ' · Open Hexes ' + Number(openHexes || 0) + '</div>'
+      + '<div style="font-size:.69rem;color:var(--teal);margin-bottom:.08rem;">Day 1 closes edges every 3 hex clicks. Day 2+ closes every 2 clicks. The Expedition keeps the province-sized 12x12 feel.</div>'
       + '<div style="font-size:.69rem;color:var(--gold2);margin-bottom:.28rem;">Portal Mission: ' + portalsClosed + '/' + portalGoal + ' closed in Nights 1-2 · ' + portalStatus + '</div>'
       + tabRow;
 
@@ -3371,33 +3494,17 @@
     }
 
     var board = buildHoldingCrucibleBoardHtml(match);
-    var enemyCard = enemy
-      ? ('<div style="border:1px solid rgba(200,80,80,.35);padding:.28rem .34rem;background:linear-gradient(180deg,rgba(200,80,80,.08),rgba(255,255,255,.02));">'
-        + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;">'
-        + '<div style="font-size:.74rem;color:var(--red2);">Current Enemy: ' + String(enemy.name || 'Unknown') + '</div>'
-        + '<button class="btn btn-xs" onclick="openCrucibleEnemyLore(\'' + String(enemy.id || '').replace(/'/g, '&#39;') + '\')">?</button>'
-        + '</div>'
-        + '<div style="font-size:.7rem;color:var(--muted2);">Dread d' + Number(enemy.attackDie || 4) + ' · HP ' + Number(enemy.hp || 0) + '/' + Number(enemy.maxHp || enemy.hp || 0) + '</div>'
-        + '</div>')
-      : '<div style="font-size:.72rem;color:var(--muted2);border:1px solid var(--border2);padding:.25rem .3rem;">No active enemy in this hex.</div>';
-
+    var combatSection = buildCrucibleExpeditionCombatSectionHtml(match);
     var logLines = (match.log || []).slice(-10).reverse().map(function (line) {
       return '<div style="font-size:.72rem;color:var(--text2);line-height:1.45;border-bottom:1px solid var(--border2);padding:.12rem 0;">' + String(line || '') + '</div>';
     }).join('');
 
     return top
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.3rem;">'
-      + '<button class="btn btn-sm" onclick="holdingCrucibleExpeditionWildernessRoll();">Wilderness Roll</button>'
-      + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExpeditionSearchHex();">Search Hex (Loot)</button>'
-      + '<button class="btn btn-sm" onclick="holdingCrucibleExpeditionObserveAdjacent();">Observe Adjacent</button>'
-      + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleExpeditionRandomEncounter();">Random Encounter</button>'
-      + '<button class="btn btn-sm" onclick="holdingCrucibleCloseExpeditionGate();">Close Gate</button>'
-      + '<button class="btn btn-sm btn-red" onclick="holdingCrucibleBreachExpeditionPortal();">Breach Portal</button>'
-      + '<button class="btn btn-sm" onclick="holdingCrucibleSolvePortalPuzzle();">Solve Portal Puzzle</button>'
-      + '<button class="btn btn-sm" onclick="holdingCrucibleExpeditionSwitchTab(\'wayfarer\')">Open Wayfarer</button>'
       + '<button class="btn btn-sm" onclick="holdingCrucibleResetMatch();">Abandon Run</button>'
+      + '<button class="btn btn-sm" onclick="closeModal();">Close</button>'
       + '</div>'
-      + enemyCard
+      + combatSection
       + '<div style="margin-top:.3rem;">' + board + '</div>'
       + '<div style="margin-top:.35rem;border:1px solid var(--border2);padding:.28rem .34rem;max-height:180px;overflow:auto;background:rgba(255,255,255,.02);">' + (logLines || '<div style="font-size:.72rem;color:var(--muted2);">No events yet.</div>') + '</div>'
       + '<div style="display:flex;gap:.22rem;flex-wrap:wrap;margin-top:.32rem;">'

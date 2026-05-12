@@ -17527,19 +17527,45 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '<span>✕</span><strong>' + String(enemy.name || 'Hostile') + '</strong><span style="color:var(--muted2);">d' + Number(enemy.dread || 4) + ' · ' + hpNow + ' HP</span>'
       + '</div>';
     }).join('');
-    var player = { name: String((typeof S !== 'undefined' && S && S.name) || 'Wayfarer'), side: 'ally', isPlayer: true, hp: Math.max(0, Number(typeof S !== 'undefined' && S && S.health || 0)), range: 'Engaged' };
+    flow = flow || {};
+    flow.playerRange = String(flow.playerRange || (S && S.combat && S.combat.spacing) || 'Engaged');
+    flow.allyRanges = flow.allyRanges && typeof flow.allyRanges === 'object' ? flow.allyRanges : {};
+    flow.enemyRanges = flow.enemyRanges && typeof flow.enemyRanges === 'object' ? flow.enemyRanges : {};
+    var player = { name: String((typeof S !== 'undefined' && S && S.name) || 'Wayfarer'), side: 'ally', isPlayer: true, hp: Math.max(0, Number(typeof S !== 'undefined' && S && S.health || 0)), range: flow.playerRange };
     var boardUnits = [player];
+    allies.forEach(function (allyUnit) {
+      if (!allyUnit) return;
+      var allyKey = String(Number(allyUnit.id || 0));
+      boardUnits.push({
+        id: Number(allyUnit.id || 0),
+        name: String(allyUnit.name || 'Ally'),
+        side: 'ally',
+        hp: Math.max(0, Number(allyUnit.maxStress || 12) - Number(allyUnit.stress || 0)),
+        range: String(flow.allyRanges[allyKey] || 'Close')
+      });
+    });
     if (currentEnemy) {
-      boardUnits.push({ id: Number(currentEnemy.id || 0), name: enemyName, side: 'enemy', hp: enemyHp, dread: enemyDie, range: 'Engaged' });
+      var enemyKey = String(Number(currentEnemy.id || 0));
+      boardUnits.push({ id: Number(currentEnemy.id || 0), name: enemyName, side: 'enemy', hp: enemyHp, dread: enemyDie, range: String(flow.enemyRanges[enemyKey] || 'Engaged') });
+    }
+    var mapTheme = 'colosseum';
+    if (mode === 'gate') {
+      mapTheme = (flow && flow.gatePortal && String(flow.gatePortal.type || '') === 'celestial') ? 'gate-celestial' : 'gate-hellscape';
+    } else if (mode === 'pinnacle') {
+      mapTheme = String(flow && flow.pinnacleTheme || '').indexOf('celestial') >= 0 ? 'pinnacle-celestial' : 'pinnacle-hellscape';
     }
     var boardHtml = buildLegacyRaidHexCombatBoard(boardUnits, {
       title: '🌌 STARS COMBAT - HEX ZONE MAP',
-      subtitle: 'Use Quick Panel combat actions below. Click a token to focus it.',
+      subtitle: 'Select a token to preview legal move destinations and click a blue hex to reposition.',
       seed: String(mode || 'challenge') + '-' + String(hexKey || 'arena'),
-      mode: 'boss',
+      mode: 'arena',
       missionId: 0,
       wingNum: 0,
       clickHandler: 'window.selectArenaCombatTarget',
+      moveHandler: 'window.moveArenaCombatToken',
+      mapTheme: mapTheme,
+      selectedUnit: flow.selectedBoardUnit || null,
+      showMoveOverlay: true,
       isSelected: function (unit) {
         return !!(unit && currentEnemy && unit.side === 'enemy' && Number(unit.id || 0) === Number(currentEnemy.id || 0));
       }
@@ -17677,12 +17703,40 @@ document.addEventListener('DOMContentLoaded',()=>{
   window.selectArenaCombatTarget = function (mode, missionId, wingNum, side, unitId, unitName, isPlayer) {
     if (!S || !S.combat || !S.combat.arenaFlow) return false;
     var flow = S.combat.arenaFlow;
+    flow.selectedBoardUnit = {
+      side: String(side || 'ally'),
+      id: Number(unitId || 0),
+      name: String(unitName || ''),
+      isPlayer: !!isPlayer
+    };
     if (String(side || '') === 'enemy') {
       flow.selectedEnemyId = Number(unitId || 0);
       flow.selectedEnemyName = String(unitName || 'Arena Combatant');
       if (typeof setCombatFocusEnemy === 'function') setCombatFocusEnemy(Number(unitId || 0));
       if (typeof showNotif === 'function') showNotif('Arena target locked: ' + flow.selectedEnemyName + '.', 'good');
+    } else if (typeof showNotif === 'function') {
+      showNotif('Selected ' + String(unitName || (isPlayer ? 'Wayfarer' : 'ally')) + '. Legal move hexes are highlighted.', 'info');
     }
+    renderArenaCombatPopup();
+    return true;
+  };
+
+  window.moveArenaCombatToken = function (mode, missionId, wingNum, side, unitId, unitName, isPlayer, targetQ, targetR, targetRange) {
+    var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
+    if (!flow) return false;
+    var band = String(targetRange || 'Close');
+    var role = String(side || 'ally');
+    if (role === 'enemy') {
+      flow.enemyRanges = flow.enemyRanges && typeof flow.enemyRanges === 'object' ? flow.enemyRanges : {};
+      flow.enemyRanges[String(Number(unitId || 0))] = band;
+    } else if (!!isPlayer) {
+      flow.playerRange = band;
+      if (typeof setCombatSpacing === 'function') setCombatSpacing(band, true);
+    } else {
+      flow.allyRanges = flow.allyRanges && typeof flow.allyRanges === 'object' ? flow.allyRanges : {};
+      flow.allyRanges[String(Number(unitId || 0))] = band;
+    }
+    if (typeof showNotif === 'function') showNotif(String(unitName || 'Unit') + ' repositioned to ' + band + '.', 'good');
     renderArenaCombatPopup();
     return true;
   };

@@ -6059,6 +6059,59 @@
     };
   }
 
+  function getLegacyRaidAdjacentRanges(range) {
+    var normalized = normalizeLegacyRaidRange(range);
+    if (normalized === 'Engaged') return ['Close'];
+    if (normalized === 'Close') return ['Engaged', 'Nearby'];
+    if (normalized === 'Nearby') return ['Close', 'Far'];
+    return ['Nearby'];
+  }
+
+  function getLegacyRaidRangeFromHex(q, r) {
+    var dist = getLegacyRaidHexDistance(q, r);
+    if (dist <= 0) return 'Engaged';
+    if (dist <= 1) return 'Close';
+    if (dist <= 2) return 'Nearby';
+    return 'Far';
+  }
+
+  function getStarsThemeInteractables(theme) {
+    var key = String(theme || 'raid-wing').toLowerCase();
+    if (key === 'gate-celestial') {
+      return [
+        { id: 'angelic_cover', icon: '🛡', label: 'Aegis Pillar', effect: 'Gain Protected and +1 Defend this round.', q: 1, r: -2 },
+        { id: 'judgment_lens', icon: '✨', label: 'Judgment Lens', effect: 'Expose focused enemy (add 2 Stress).', q: -2, r: 1 },
+        { id: 'skybridge', icon: '🌉', label: 'Skybridge Rise', effect: 'Reposition to Nearby without lane penalty.', q: 2, r: 1 }
+      ];
+    }
+    if (key === 'gate-hellscape' || key === 'pinnacle-hellscape') {
+      return [
+        { id: 'chain_winch', icon: '⛓', label: 'Chain Winch', effect: 'Drag focused enemy into Engaged band.', q: 2, r: -1 },
+        { id: 'infernal_cover', icon: '🧱', label: 'Broken Bastion', effect: 'Take hard cover (Protected).', q: -2, r: 2 },
+        { id: 'molten_vent', icon: '🔥', label: 'Molten Vent', effect: 'Vent burst deals 2-4 Stress to focused enemy.', q: 1, r: 2 }
+      ];
+    }
+    if (key === 'pinnacle-celestial') {
+      return [
+        { id: 'halo_perch', icon: '🏛', label: 'Halo Perch', effect: 'High ground: gain +1 Action and reposition.', q: 2, r: -2 },
+        { id: 'aether_font', icon: '💧', label: 'Aether Font', effect: 'Cleanse a condition and steady focus.', q: -1, r: 2 },
+        { id: 'mirror_lance', icon: '🪞', label: 'Mirror Lance', effect: 'Reflective beam deals 3 Stress to focused enemy.', q: -2, r: -1 }
+      ];
+    }
+    if (key === 'colosseum') {
+      return [
+        { id: 'arena_pillar', icon: '🧱', label: 'Arena Pillar', effect: 'Gain cover: Protected this round.', q: 1, r: -1 },
+        { id: 'sand_trap', icon: '⏳', label: 'Sand Trap', effect: 'Force focused enemy to Nearby band.', q: -1, r: 2 },
+        { id: 'crowd_hype', icon: '📣', label: 'Crowd Hype', effect: 'Gain +1 Action from momentum.', q: 2, r: 1 }
+      ];
+    }
+    return [
+      { id: 'cover_node', icon: '🛡', label: 'Cover Node', effect: 'Gain Protected this round.', q: -1, r: -2 },
+      { id: 'high_ground', icon: '🏹', label: 'High Ground', effect: 'Gain +1 Action for tactical push.', q: 2, r: 0 },
+      { id: 'volatile_cache', icon: '💥', label: 'Volatile Cache', effect: 'Detonate for 2-4 Stress on focused enemy.', q: -2, r: 1 }
+    ];
+  }
+
   function buildLegacyRaidHexCombatBoard(units, options) {
     var opts = options || {};
     var title = String(opts.title || 'STARS COMBAT - HEX ZONE MAP');
@@ -6114,6 +6167,8 @@
         hp: Math.max(0, Number(unit.hp || 0)),
         dread: Math.max(0, Number(unit.dread || 0)),
         range: range,
+        q: Number(slot.q || 0),
+        r: Number(slot.r || 0),
         x: p.x,
         y: p.y
       };
@@ -6140,9 +6195,50 @@
       return '<polygon points="' + hexPoints(p.x, p.y) + '" fill="' + style.fill + '" stroke="' + style.stroke + '" stroke-width="1.1"/>';
     }).join('');
     var clickHandler = (typeof opts.clickHandler === 'string' && opts.clickHandler) ? opts.clickHandler : '';
+    var moveHandler = (typeof opts.moveHandler === 'string' && opts.moveHandler) ? opts.moveHandler : '';
     var modeArg = String(opts.mode || 'wing').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     var missionArg = Number(opts.missionId || 0);
     var wingArg = Number(opts.wingNum || 0);
+    var mapTheme = String(opts.mapTheme || 'raid-wing').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    var selectedUnit = opts.selectedUnit && typeof opts.selectedUnit === 'object' ? opts.selectedUnit : null;
+    var selectedPlaced = null;
+    if (selectedUnit) {
+      selectedPlaced = placedUnits.find(function (u) {
+        if (!u) return false;
+        if (selectedUnit.isPlayer && u.isPlayer) return true;
+        if (selectedUnit.side && String(u.side || '') !== String(selectedUnit.side || '')) return false;
+        if (selectedUnit.id && Number(selectedUnit.id || 0) === Number(u.id || 0)) return true;
+        return !!(selectedUnit.name && String(u.name || '') === String(selectedUnit.name || ''));
+      }) || null;
+    }
+
+    var destinationSvg = '';
+    if (selectedPlaced && opts.showMoveOverlay !== false) {
+      var allowedRanges = getLegacyRaidAdjacentRanges(selectedPlaced.range);
+      var destinations = [];
+      for (var ar = 0; ar < allowedRanges.length; ar += 1) {
+        var rangeKey = allowedRanges[ar];
+        var slots = slotsByRange[rangeKey] || [];
+        for (var si = 0; si < slots.length; si += 1) {
+          var slot = slots[si];
+          var occKey = String(slot.q) + ',' + String(slot.r);
+          if (occupied[occKey]) continue;
+          destinations.push({ q: Number(slot.q || 0), r: Number(slot.r || 0), range: rangeKey });
+        }
+      }
+      destinationSvg = destinations.map(function (dest) {
+        var p = toPixel(dest.q, dest.r);
+        var click = '';
+        if (moveHandler) {
+          click = ' style="cursor:pointer;" onclick="' + moveHandler + '(\'' + modeArg + '\',' + missionArg + ',' + wingArg + ',\'' + String(selectedPlaced.side || 'ally') + '\',' + Number(selectedPlaced.id || 0) + ',\'' + String(selectedPlaced.name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\',' + (selectedPlaced.isPlayer ? 'true' : 'false') + ',' + Number(dest.q || 0) + ',' + Number(dest.r || 0) + ',\'' + String(dest.range || 'Close') + '\')"';
+        }
+        return '<g>'
+          + '<polygon points="' + hexPoints(p.x, p.y) + '" fill="rgba(126,215,255,.26)" stroke="rgba(126,215,255,.78)" stroke-width="1.7" stroke-dasharray="4 3"' + click + '/>'
+          + '<text x="' + p.x.toFixed(2) + '" y="' + (p.y + 4).toFixed(2) + '" text-anchor="middle" font-size="10" fill="#bfefff">↔</text>'
+          + '</g>';
+      }).join('');
+    }
+
     var isSelected = typeof opts.isSelected === 'function' ? opts.isSelected : function () { return false; };
     var unitSvg = placedUnits.map(function (u) {
       var fill = u.side === 'enemy' ? 'rgba(201,64,64,.9)' : 'rgba(46,196,182,.9)';
@@ -6166,16 +6262,34 @@
       + '<span><strong style="color:var(--gold2);">Close</strong> ring 1</span>'
       + '<span><strong style="color:var(--teal);">Nearby</strong> ring 2</span>'
       + '<span><strong style="color:var(--muted3);">Far</strong> ring 3</span>'
+      + '<span><strong style="color:#7ed7ff;">Blue hexes</strong> = legal move destinations</span>'
       + '<span>Terrain creates movement pressure.</span>'
       + '</div>';
+
+    var interactables = Array.isArray(opts.interactables) ? opts.interactables : getStarsThemeInteractables(opts.mapTheme || 'raid-wing');
+    var interactableSvg = interactables.map(function (node) {
+      var p = toPixel(Number(node && node.q || 0), Number(node && node.r || 0));
+      return '<g>'
+        + '<circle cx="' + p.x.toFixed(2) + '" cy="' + p.y.toFixed(2) + '" r="7.8" fill="rgba(30,30,30,.78)" stroke="rgba(255,255,255,.36)" stroke-width="1.1"/>'
+        + '<text x="' + p.x.toFixed(2) + '" y="' + (p.y + 3.2).toFixed(2) + '" text-anchor="middle" font-size="9">' + String(node.icon || '✦') + '</text>'
+        + '</g>';
+    }).join('');
+    var interactableButtons = interactables.map(function (node) {
+      return '<button class="btn btn-xs" onclick="window.resolveStarsMapInteractable(\'' + modeArg + '\',' + missionArg + ',' + wingArg + ',\'' + mapTheme + '\',\'' + String(node.id || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')">' + String(node.icon || '✦') + ' ' + String(node.label || 'Interactable') + '</button>';
+    }).join('');
+    var interactableNotes = interactables.map(function (node) {
+      return '<div style="font-size:.62rem;color:var(--muted2);line-height:1.35;">' + String(node.icon || '✦') + ' <strong style="color:var(--text2);">' + String(node.label || 'Node') + ':</strong> ' + String(node.effect || '') + '</div>';
+    }).join('');
 
     return '<div style="margin:.15rem 0;border:1px solid var(--border2);padding:.28rem .3rem;background:rgba(255,255,255,.02);">'
       + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.2rem;">' + title + '</div>'
       + '<div style="font-size:.62rem;color:var(--muted2);margin-bottom:.16rem;">' + subtitle + '</div>'
       + '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="xMidYMid meet" style="width:100%;max-width:640px;height:auto;display:block;margin:0 auto;">'
-      + gridSvg + terrain + unitSvg
+      + gridSvg + terrain + interactableSvg + destinationSvg + unitSvg
       + '</svg>'
       + legend
+      + '<div style="margin-top:.14rem;display:flex;gap:.2rem;flex-wrap:wrap;">' + interactableButtons + '</div>'
+      + '<div style="margin-top:.14rem;display:flex;flex-direction:column;gap:.12rem;">' + interactableNotes + '</div>'
       + '</div>';
   }
 
@@ -6232,6 +6346,10 @@
       missionId: mission && mission.id || 0,
       wingNum: 3,
       clickHandler: 'window.selectLegacyRaidHexBoardTarget',
+      moveHandler: 'window.moveLegacyRaidHexBoardUnit',
+      mapTheme: 'raid-boss',
+      selectedUnit: (S && S.combat && S.combat.raidFlow && S.combat.raidFlow.selectedBoardUnit) ? S.combat.raidFlow.selectedBoardUnit : null,
+      showMoveOverlay: true,
       isSelected: function (unit) {
         var flow = (typeof S !== 'undefined' && S && S.combat && S.combat.raidFlow) ? S.combat.raidFlow : null;
         if (!flow || !unit) return false;
@@ -7810,6 +7928,10 @@
       missionId: missionId,
       wingNum: wingNum,
       clickHandler: 'window.selectLegacyRaidHexBoardTarget',
+      moveHandler: 'window.moveLegacyRaidHexBoardUnit',
+      mapTheme: 'raid-wing',
+      selectedUnit: flow && flow.selectedBoardUnit ? flow.selectedBoardUnit : null,
+      showMoveOverlay: true,
       isSelected: function (unit) {
         if (!flow || !unit) return false;
         if (unit.side === 'enemy') return Number(unit.id || 0) > 0 && Number(unit.id || 0) === Number(flow.selectedHostileId || 0);
@@ -8639,6 +8761,15 @@
     var id = Number(unitId || 0);
     var playerToken = !!isPlayer;
 
+    if (flow) {
+      flow.selectedBoardUnit = {
+        side: role,
+        id: id,
+        name: name,
+        isPlayer: playerToken
+      };
+    }
+
     if (role === 'enemy') {
       if (typeof window.setCombatFocusEnemy === 'function') window.setCombatFocusEnemy(id);
       if (flow) {
@@ -8664,6 +8795,75 @@
       window.refreshLegacyRaidCombatModal(Number(missionId || 0), Number(wingNum || 1));
     } else if (String(mode || '') === 'boss') {
       if (typeof openRaidWingPopup === 'function') openRaidWingPopup(Number(missionId || 0), Number(wingNum || 3));
+    }
+    return true;
+  };
+
+  window.moveLegacyRaidHexBoardUnit = function (mode, missionId, wingNum, side, unitId, unitName, isPlayer, targetQ, targetR, targetRange) {
+    var flow = S && S.combat && S.combat.raidFlow ? S.combat.raidFlow : null;
+    var role = String(side || 'ally');
+    var destination = normalizeLegacyRaidRange(String(targetRange || getLegacyRaidRangeFromHex(targetQ, targetR)));
+    var mId = Number(missionId || 0);
+    var wNum = Number(wingNum || 1);
+
+    if (role === 'enemy') {
+      if (typeof window.setLegacyRaidHostileRange === 'function') window.setLegacyRaidHostileRange(Number(unitId || 0), destination);
+    } else if (!!isPlayer) {
+      if (typeof window.setLegacyRaidPlayerRange === 'function') window.setLegacyRaidPlayerRange(destination);
+    } else {
+      if (flow) {
+        flow.allyRange = flow.allyRange || {};
+        flow.allyRange[String(unitName || '')] = destination;
+      }
+    }
+    if (typeof showNotif === 'function') showNotif(String(unitName || 'Unit') + ' moved to ' + destination + '.', 'info');
+    if (typeof window.refreshLegacyRaidCombatModal === 'function') window.refreshLegacyRaidCombatModal(mId, wNum);
+    return true;
+  };
+
+  window.resolveStarsMapInteractable = function (mode, missionId, wingNum, mapTheme, interactableId) {
+    var id = String(interactableId || '').toLowerCase();
+    var focusEnemy = (typeof getPrimaryCombatEnemy === 'function') ? getPrimaryCombatEnemy() : null;
+    var dealt = 0;
+
+    if (id === 'cover_node' || id === 'arena_pillar' || id === 'infernal_cover' || id === 'angelic_cover') {
+      if (typeof toggleCond === 'function' && S && S.conditions && !S.conditions.protected) toggleCond('protected');
+    }
+    if (id === 'high_ground' || id === 'crowd_hype' || id === 'halo_perch') {
+      if (S && S.combat) {
+        S.combat.actionsLeft = Math.max(0, Number(S.combat.actionsLeft || 0)) + 1;
+      }
+    }
+    if ((id === 'volatile_cache' || id === 'molten_vent' || id === 'mirror_lance' || id === 'judgment_lens') && focusEnemy) {
+      dealt = 2 + Math.floor(Math.random() * 3);
+      focusEnemy.stress = Math.min(Number(focusEnemy.maxStress || 8), Number(focusEnemy.stress || 0) + dealt);
+    }
+    if ((id === 'chain_winch' || id === 'sand_trap') && focusEnemy && typeof window.setLegacyRaidHostileRange === 'function') {
+      window.setLegacyRaidHostileRange(Number(focusEnemy.id || 0), id === 'chain_winch' ? 'Engaged' : 'Nearby');
+    }
+    if (id === 'aether_font' && S && S.conditions && typeof S.conditions === 'object') {
+      Object.keys(S.conditions).forEach(function (k) {
+        if (!S.conditions[k]) return;
+        S.conditions[k] = false;
+      });
+      if (typeof updateConditionButtons === 'function') updateConditionButtons();
+      if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+    }
+
+    if (typeof renderEnemies === 'function') renderEnemies();
+    if (typeof updateCombatUI === 'function') updateCombatUI();
+
+    var modeKey = String(mode || '').toLowerCase();
+    if (modeKey === 'wing' && typeof window.refreshLegacyRaidCombatModal === 'function') {
+      window.refreshLegacyRaidCombatModal(Number(missionId || 0), Number(wingNum || 1));
+    }
+    if (modeKey === 'arena' && typeof window.renderArenaCombatPopup === 'function') {
+      window.renderArenaCombatPopup();
+    }
+
+    if (typeof showNotif === 'function') {
+      var stressLine = dealt > 0 ? (' and dealt ' + dealt + ' stress') : '';
+      showNotif('Map feature triggered' + stressLine + '.', 'good');
     }
     return true;
   };
@@ -16780,6 +16980,7 @@
   window.spawnRandomGateWarMissionEvent=spawnRandomGateWarMissionEvent;
   window.syncRandomEndgameMissionSpawns=syncRandomEndgameMissionSpawns;
   window.buildLegacyRaidHexCombatBoard=buildLegacyRaidHexCombatBoard;
+  window.getStarsThemeInteractables=getStarsThemeInteractables;
   window.openSeaColosseumFromHex=openSeaColosseumFromHex;
   window.resolveSeaColosseumBout=resolveSeaColosseumBout;
   window.autoFailExpiredMissions=autoFailExpiredMissions;

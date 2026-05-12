@@ -4796,6 +4796,9 @@
     var match = getHoldingCrucibleMatch();
     if (!match) return false;
     var moved = holdingCrucibleMoveSelected(q, r);
+    if (!moved && String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || 'explore') === 'explore') {
+      if (typeof showNotif === 'function') showNotif('That hex is not currently reachable.', 'warn');
+    }
     if (moved && String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || 'explore') === 'explore') {
       recordCrucibleExpeditionHexClick(match);
       renderHoldingCruciblePopup();
@@ -5124,10 +5127,26 @@
     }
     if (String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || '') === 'explore') {
       if (!ally.position) return false;
-      var distance = (Math.abs(Number(ally.position.q || 0) - Number(nextQ || 0))
-        + Math.abs((Number(ally.position.q || 0) + Number(ally.position.r || 0)) - (Number(nextQ || 0) + Number(nextR || 0)))
-        + Math.abs(Number(ally.position.r || 0) - Number(nextR || 0))) / 2;
-      if (distance !== 1) return false;
+      var targetKey = String(Number(nextQ || 0)) + ',' + String(Number(nextR || 0));
+      var reachable = (typeof getCrucibleOpenHexes === 'function')
+        ? getCrucibleOpenHexes(ally, match, 1).filter(function (hex) {
+          return !ally.position || hex.q !== ally.position.q || hex.r !== ally.position.r;
+        })
+        : [];
+      var reachableKeys = reachable.map(function (hex) { return String(Number(hex.q || 0)) + ',' + String(Number(hex.r || 0)); });
+      if (match.hexMap && match.hexMap.hexes) {
+        Object.keys(match.hexMap.hexes).forEach(function (key) {
+          var cell = match.hexMap.hexes[key];
+          if (!cell || (cell.terrain !== 'barrier' && !cell.barrier)) return;
+          var q = Number(cell.q || 0);
+          var r = Number(cell.r || 0);
+          var distance = (Math.abs(Number(ally.position.q || 0) - q)
+            + Math.abs((Number(ally.position.q || 0) + Number(ally.position.r || 0)) - (q + r))
+            + Math.abs(Number(ally.position.r || 0) - r)) / 2;
+          if (distance === 1 && reachableKeys.indexOf(key) < 0) reachableKeys.push(key);
+        });
+      }
+      if (reachableKeys.indexOf(targetKey) < 0) return false;
       var targetBarrier = getCrucibleExpeditionBarrierCell(match, targetHex);
       if (!targetBarrier && typeof canMoveToHex === 'function' && !canMoveToHex(ally, targetHex, match.hexMap)) return false;
       var occupied = getUnitsInHex((match.allies || []).concat(match.enemies || []), targetHex, match.hexMap);

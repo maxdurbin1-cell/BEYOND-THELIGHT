@@ -2860,8 +2860,9 @@ function consumeVisibleManualRollValue(kind, sides, meta) {
     }
   }
   var value = Number.parseInt(raw, 10);
-  if (!Number.isFinite(value) || value < 1 || value > die) {
-    showNotif((kind === "action" ? "Action" : "Dread") + " result must be between 1 and " + die + ".", "warn");
+  // Allow exploded physical totals in manual mode (example: 13 on d12).
+  if (!Number.isFinite(value) || value < 1) {
+    showNotif((kind === "action" ? "Action" : "Dread") + " result must be 1 or higher.", "warn");
     input.focus();
     return null;
   }

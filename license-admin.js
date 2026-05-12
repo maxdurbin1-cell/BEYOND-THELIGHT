@@ -112,7 +112,7 @@
     }
 
     var adminEmail = String(body.adminEmail || "").trim();
-    setStatus("admin-config-status", "Server admin key is configured. Admin email is " + (adminEmail || "(not set)") + ". You can enter the key above, or first log in at /access with that admin email + admin key.", "ok");
+    setStatus("admin-config-status", "Server admin key is configured. Admin email is " + (adminEmail || "(not set)") + ". Enter the key VALUE above (not the literal text PAYWALL_ADMIN_KEY), or log in at /access with admin email + admin key.", "ok");
   }
 
   function formatTime(ts) {

@@ -2139,19 +2139,55 @@
     const w = ensureWorldState();
     const hex = hexById(hexId);
     if (!hex || !hex.hazard || hex.hazard.type !== 'barrier') return;
-    const check = rollAgainstDread("body", 6);
-    if (check.success) {
-      hex.hazard = null;
-      if (w) w.selectedHexId = hex.id;
-      if (typeof showNotif === "function") showNotif("Barrier crossed: route cleared (Body " + check.actionTotal + " vs DD6 " + check.dreadTotal + ").", "good");
-    } else {
-      applyNegativeCondition("weakened");
-      if (typeof showNotif === "function") showNotif("Crossing failed (Body " + check.actionTotal + " vs DD6 " + check.dreadTotal + ") — Weakened. Barrier holds.", "warn");
+    const finalizeBarrier = function (check) {
+      const success = !!(check && check.success);
+      const manual = !!(check && check.manual);
+      const actionTotal = Number(check && check.actionTotal || 0);
+      const dreadTotal = Number(check && check.dreadTotal || 0);
+      if (success) {
+        hex.hazard = null;
+        if (w) w.selectedHexId = hex.id;
+        if (typeof showNotif === "function") {
+          showNotif(manual
+            ? "Barrier crossed: route cleared (manual Body vs DD" + dreadTotal + ")."
+            : "Barrier crossed: route cleared (Body " + actionTotal + " vs DD6 " + dreadTotal + ").", "good");
+        }
+      } else {
+        applyNegativeCondition("weakened");
+        if (typeof showNotif === "function") {
+          showNotif(manual
+            ? "Crossing failed (manual Body vs DD" + dreadTotal + ") — Weakened. Barrier holds."
+            : "Crossing failed (Body " + actionTotal + " vs DD6 " + dreadTotal + ") — Weakened. Barrier holds.", "warn");
+        }
+      }
+      syncWorldMarkers();
+      advanceWorldTime("barrier crossing");
+      if (registerWorldAction("barrier")) return;
+      renderWorldThatWas();
+    };
+
+    if (typeof isGlobalManualRollMode === "function" && isGlobalManualRollMode() && typeof openGlobalManualActionDreadPrompt === "function") {
+      const bodyDie = (typeof getEffectiveDie === "function") ? getEffectiveDie("body") : ((S.stats && S.stats.body) || 4);
+      openGlobalManualActionDreadPrompt({
+        title: "Manual Roll - Barrier Crossing",
+        context: "World That Was barrier",
+        statKey: "body",
+        statLabel: "Body",
+        actionDie: bodyDie,
+        dreadDie: 6,
+        onResolve: function (outcome) {
+          const success = !!(outcome && outcome.success);
+          finalizeBarrier({
+            success: success,
+            manual: true,
+            dreadTotal: Number((outcome && outcome.dreadDie) || 6)
+          });
+        }
+      });
+      return;
     }
-    syncWorldMarkers();
-    advanceWorldTime("barrier crossing");
-    if (registerWorldAction("barrier")) return;
-    renderWorldThatWas();
+
+    finalizeBarrier(rollAgainstDread("body", 6));
   }
   window.resolveWtwBarrierCrossing = resolveWtwBarrierCrossing;
 

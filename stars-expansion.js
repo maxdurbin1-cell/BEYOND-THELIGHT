@@ -12826,33 +12826,57 @@ function rollPlanetObstacleTraversal() {
   const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
   if (!selected || !(selected.marker === 'peril' || selected.marker === 'barrier')) return;
   const actionDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
+  const finalizeTraversal = (outcome) => {
+    const success = !!(outcome && outcome.success);
+    const isManual = !!(outcome && outcome.manual);
+    const dreadDie = Number((outcome && outcome.dreadDie) || 6);
+    const checkText = isManual
+      ? `Wayfarer AD d${actionDie} vs Dread d${dreadDie}` + ((outcome && outcome.pushLuck) ? ' (Push Luck)' : '')
+      : (outcome && outcome.text) || 'Wayfarer traversal check';
+    selected.data = selected.data || {};
+    if (success) {
+      selected.data.obstacleCleared = true;
+      selected.note = `${selected.marker === 'peril' ? 'Peril route' : 'Barrier route'} cleared. Lost City style travel is now available from this hex.`;
+      showNotif(`${selected.marker === 'peril' ? 'Peril' : 'Barrier'} cleared.`, 'good');
+    } else {
+      if (typeof changeStress === 'function') changeStress(1);
+      if (typeof loseGamePhases === 'function') loseGamePhases(1);
+      selected.note = `${selected.marker === 'peril' ? 'Peril' : 'Barrier'} traversal failed. +1 Stress, lose 1 Phase.`;
+      showNotif(`${selected.marker === 'peril' ? 'Peril' : 'Barrier'} traversal failed.`, 'warn');
+    }
+    state.lastEvent = {
+      timestamp: Date.now(),
+      d10: 6,
+      outcome: `${selected.marker === 'peril' ? 'Peril' : 'Barrier'} Traversal`,
+      detail: `${checkText}. ${success ? 'Passage opened.' : 'Passage denied this phase.'}`,
+      rewardItem: '',
+      cellId: selected.id,
+      eventType: 'encounter',
+    };
+    renderPlanetExplorationPanel();
+  };
+
+  if (isGlobalManualRollMode()) {
+    openGlobalManualActionDreadPrompt({
+      title: 'Manual Roll - Obstacle Traversal',
+      context: (selected.marker === 'peril' ? 'Peril' : 'Barrier') + ' route check',
+      statKey: 'adventure',
+      statLabel: 'Adventure',
+      actionDie: actionDie,
+      dreadDie: 6,
+      onResolve: finalizeTraversal
+    });
+    return;
+  }
+
   const action = explodingRoll(actionDie);
   const dread = explodingRoll(6);
-  const check = {
+  finalizeTraversal({
     success: action.total >= dread.total,
     text: `Wayfarer AD d${actionDie}=${action.total} vs Dread d6=${dread.total}`,
-  };
-  selected.data = selected.data || {};
-  if (check.success) {
-    selected.data.obstacleCleared = true;
-    selected.note = `${selected.marker === 'peril' ? 'Peril route' : 'Barrier route'} cleared. Lost City style travel is now available from this hex.`;
-    showNotif(`${selected.marker === 'peril' ? 'Peril' : 'Barrier'} cleared.`, 'good');
-  } else {
-    if (typeof changeStress === 'function') changeStress(1);
-    if (typeof loseGamePhases === 'function') loseGamePhases(1);
-    selected.note = `${selected.marker === 'peril' ? 'Peril' : 'Barrier'} traversal failed. +1 Stress, lose 1 Phase.`;
-    showNotif(`${selected.marker === 'peril' ? 'Peril' : 'Barrier'} traversal failed.`, 'warn');
-  }
-  state.lastEvent = {
-    timestamp: Date.now(),
-    d10: 6,
-    outcome: `${selected.marker === 'peril' ? 'Peril' : 'Barrier'} Traversal`,
-    detail: `${check.text}. ${check.success ? 'Passage opened.' : 'Passage denied this phase.'}`,
-    rewardItem: '',
-    cellId: selected.id,
-    eventType: 'encounter',
-  };
-  renderPlanetExplorationPanel();
+    manual: false,
+    dreadDie: 6
+  });
 }
 
 function attemptPlanetBlackMarketAccess() {
@@ -14250,6 +14274,7 @@ function observePlanetAdjacentDirection(directionKey) {
   };
 
   if (isGlobalManualRollMode()) {
+    if (typeof closeModal === 'function') closeModal();
     openGlobalManualActionDreadPrompt({
       title: 'Manual Roll - Observe Adjacent',
       context: dir.label + ' observation',

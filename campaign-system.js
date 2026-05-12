@@ -1933,7 +1933,8 @@
       return;
     }
     try {
-      var combatState = ensureCampaignCombatState();
+      var sharedState = getMutableCampaignSharedState();
+      var combatState = ensureCampaignCombatState(sharedState);
       combatState.active = true;
       combatState.round = 1;
       combatState.currentActorIndex = 0;
@@ -1947,15 +1948,15 @@
       });
 
       var enemyList = [];
-      if (typeof window.S !== "undefined" && window.S && Array.isArray(window.S.enemies)) {
-        window.S.enemies.forEach(function (enemy, idx) {
+      var gameState = syncWindowStateAlias() || resolveGameState() || (typeof window !== "undefined" ? window.S : null);
+      var enemiesSource = gameState && Array.isArray(gameState.enemies) ? gameState.enemies : [];
+      enemiesSource.forEach(function (enemy, idx) {
           if (!enemy || enemy.ally) return;
           var enemyName = String(enemy.name || ("Enemy " + (idx + 1)));
           var baseToken = String(enemy.id != null ? enemy.id : ("enemy-" + idx));
           enemyList.push({ token: "enemy:" + baseToken + ":turn1", name: enemyName + " (Turn 1)" });
           enemyList.push({ token: "enemy:" + baseToken + ":turn2", name: enemyName + " (Turn 2)" });
-        });
-      }
+      });
 
       combatState.turnOrder = roster.map(function (p) { return String(p.token || ""); }).filter(Boolean);
       enemyList.forEach(function (enemy) {
@@ -1987,6 +1988,7 @@
       combatState.participants = wayfarers.concat(enemies);
       combatState.startedAt = Date.now();
       combatState.startedBy = String(state.playerName || ensureName() || "Wayfarer");
+      sharedState.campaignCombat = deepCloneJson(combatState) || combatState;
       appendSessionTimeline("combat", "Campaign combat started.", {
         startedBy: combatState.startedBy,
         participants: Array.isArray(combatState.turnOrder) ? combatState.turnOrder.length : 0
@@ -1996,7 +1998,10 @@
         if (state.role === "player") {
           syncPlayerSharedPatch({ campaignCombat: deepCloneJson(combatState) || {} }, "start-campaign-combat-player");
         } else {
-          syncSharedState("start-campaign-combat");
+          var syncOut = syncSharedSilent("start-campaign-combat");
+          if (syncOut && typeof syncOut.catch === "function") {
+            syncOut.catch(function () {});
+          }
         }
         broadcastRollResult(
           "Campaign Combat",

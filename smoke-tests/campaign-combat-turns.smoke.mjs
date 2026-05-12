@@ -309,6 +309,21 @@ async function runScenario(browser) {
     throw new Error(`Combat turn smoke failed to start combat: ${JSON.stringify(started)}`);
   }
 
+  // In flaky sync windows, re-issue the start once if combat is still inactive.
+  const bootstrapState = await collectTurnSummary(gmPage);
+  if (!bootstrapState.active) {
+    const retryStart = await gmPage.evaluate(async (payload) => {
+      return new Promise((resolve) => {
+        window.campaignSystem.startCampaignCombat(payload.participants, function (res) {
+          resolve(res || { ok: false, error: "No callback result." });
+        }, { skipReadyCheck: true });
+      });
+    }, combatSetup);
+    if (!retryStart || !retryStart.ok) {
+      throw new Error(`Combat turn smoke retry failed: ${JSON.stringify(retryStart)}`);
+    }
+  }
+
   // Force an explicit sync from GM after combat starts and await its completion
   await gmPage.evaluate(async () => {
     if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === "function") {

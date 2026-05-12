@@ -8144,11 +8144,19 @@
       strike: 'strike',
       steady_shot: 'shoot',
       shoot: 'shoot',
+      standard_shoot: 'shoot',
+      heavy_strike: 'strike',
+      heavy_shoot: 'shoot',
+      fast_strike: 'strike',
+      fast_shoot: 'shoot',
       defend_stance: 'defend',
       safeguard: 'defend',
       defend: 'defend',
       team_support: 'support',
       support: 'support',
+      move_out: 'move_out',
+      move_in: 'move_in',
+      reposition: 'move_out',
       titan_shield_wall: 'titan_shield_wall',
       titan_titans_grip: 'titan_titans_grip',
       titan_warriors_roar: 'titan_warriors_roar',
@@ -8204,6 +8212,17 @@
     } else if (act === 'support') {
       if (typeof rollSupport === 'function') rollSupport();
       else if (typeof showNotif === 'function') showNotif('Support action is unavailable right now.', 'warn');
+    } else if (act === 'move_out' || act === 'move_in') {
+      var rangeOrder = ['Engaged', 'Close', 'Nearby', 'Far'];
+      var currentRange = normalizeLegacyRaidRange(flow.playerRange || 'Close');
+      var currentIdx = rangeOrder.indexOf(currentRange);
+      if (currentIdx < 0) currentIdx = 1;
+      var nextIdx = Math.max(0, Math.min(rangeOrder.length - 1, currentIdx + (act === 'move_out' ? 1 : -1)));
+      if (nextIdx === currentIdx) {
+        if (typeof showNotif === 'function') showNotif('Already at movement boundary (' + currentRange + ').', 'warn');
+        return false;
+      }
+      window.setLegacyRaidPlayerRange(rangeOrder[nextIdx]);
     } else if (act.indexOf('move:') === 0) {
       var zone = act.split(':')[1] || 'Close';
       window.setLegacyRaidPlayerRange(zone);

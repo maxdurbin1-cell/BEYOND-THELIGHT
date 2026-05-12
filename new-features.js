@@ -1789,6 +1789,15 @@
     return String(list[Math.max(0, idx)] || list[0] || '');
   }
 
+  function escapeCrucibleExpeditionHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function buildCrucibleExpeditionProvinceDescriptorHtml(match) {
     if (!match || !match.hexMap || !match.hexMap.hexes || String(match.mode || '') !== 'expedition') return '';
     var cell = getCrucibleExpeditionCellFromPlayer(match);
@@ -1806,11 +1815,27 @@
     var fauna = pickCrucibleExpeditionStableText(Array.isArray(td.fauna) ? td.fauna : [String(td.fauna || 'No known fauna.')], cell, 'fauna');
     var wonder = pickCrucibleExpeditionStableText(Array.isArray(td.wonder) ? td.wonder : [String(td.wonder || 'A weathered structure.')], cell, 'wonder');
     return ''
-      + '<div style="margin-top:.34rem;display:grid;grid-template-columns:1fr 1fr;gap:.28rem;">'
-      + '<div class="wild-panel"><div class="wp-label">Land</div><div class="wp-text">' + land + '</div></div>'
-      + '<div class="weather-block ' + (weather.rough ? 'rough' : 'clear') + '"><div class="weather-label" style="color:' + (weather.rough ? 'var(--red2)' : 'var(--teal)') + ';">Weather</div><div style="font-size:.78rem;color:var(--text2);">' + String(weather.result || 'Unknown') + ' — ' + String(weather.desc || '') + '</div>' + (weather.rough ? '<div style="font-size:.72rem;color:var(--red);margin-top:.15rem;">⚠ Rough weather pressure is active on this hex.</div>' : '') + '</div>'
-      + '<div class="wild-panel"><div class="wp-label">Flora Fauna</div><div class="wp-text">' + flora + ' ' + fauna + '</div></div>'
-      + '<div class="wild-panel"><div class="wp-label">Wonder</div><div class="wp-text">' + wonder + '</div></div>'
+      + '<div class="card" style="margin-top:.35rem;">'
+      + '<div class="section-title">Province Detail</div>'
+      + '<div class="theos-region-kicker">' + escapeCrucibleExpeditionHtml(terrainName) + ' · Day ' + escapeCrucibleExpeditionHtml(String(cell.weatherRoll || 1)) + '</div>'
+      + '<p class="theos-region-copy">The active Expedition hex uses the same Province wilderness reading structure: land, weather, flora/fauna, and wonder are all surfaced from the current map cell.</p>'
+      + '<div class="theos-chip-row">'
+      + '<span class="theos-chip">Terrain: ' + escapeCrucibleExpeditionHtml(terrainName) + '</span>'
+      + '<span class="theos-chip">Climate: ' + escapeCrucibleExpeditionHtml(season.charAt(0).toUpperCase() + season.slice(1)) + '</span>'
+      + '<span class="theos-chip">Architecture: Expedition</span>'
+      + '<span class="theos-chip">Weather: ' + escapeCrucibleExpeditionHtml(String(weather.result || 'Unknown')) + '</span>'
+      + '</div>'
+      + '<div class="theos-kv-grid">'
+      + '<div><strong>Land</strong><span>' + escapeCrucibleExpeditionHtml(land) + '</span></div>'
+      + '<div><strong>Weather</strong><span>' + escapeCrucibleExpeditionHtml(String(weather.result || 'Unknown') + ' — ' + String(weather.desc || '')) + (weather.rough ? ' • Rough weather pressure is active.' : '') + '</span></div>'
+      + '<div><strong>Flora Fauna</strong><span>' + escapeCrucibleExpeditionHtml(flora + ' ' + fauna) + '</span></div>'
+      + '<div><strong>Wonder</strong><span>' + escapeCrucibleExpeditionHtml(wonder) + '</span></div>'
+      + '</div>'
+      + '<div class="theos-region-actions">'
+      + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExpeditionSearchHex();">Search Hex</button>'
+      + '<button class="btn btn-sm" onclick="holdingCrucibleExpeditionObserveAdjacent();">Observe Adjacent</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleExpeditionWildernessRoll();">Wilderness Roll</button>'
+      + '</div>'
       + '</div>';
   }
 
@@ -3152,11 +3177,6 @@
       });
     }
     var reachableKeys = reachableHexes.map(function (hex) { return String(hex.q) + ',' + String(hex.r); });
-    var guidance = '<div style="margin-bottom:.22rem;padding:.22rem .3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.7rem;color:var(--muted2);line-height:1.45;">'
-      + (isExpedition
-        ? ('Expedition Day ' + Number(expedition.day || 1) + ': each hex click advances the night. The outer ring collapses every ' + Number(expedition.collapseEveryClicks || 1) + ' click(s).')
-        : ('Click a token to select it. Click a highlighted hex to move the selected ' + (String(match.turnSide || 'ally') === 'enemy' ? 'enemy' : 'unit') + '. Opponent tokens set your current target.'))
-      + '</div>';
     var details = (selectedUnit && typeof getHexUnitDetailsHtml === 'function')
       ? ('<div style="margin-top:.22rem;padding:.22rem .3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">' + getHexUnitDetailsHtml(selectedUnit) + '</div>')
       : '';
@@ -3170,14 +3190,31 @@
       var interactablesPanel = (interactables.length && typeof buildInteractablePanelHtml === 'function')
         ? buildInteractablePanelHtml(interactables, selectedUnit)
         : '';
-      var provinceMeta = '<div style="margin-bottom:.25rem;padding:.24rem .3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.7rem;color:var(--muted2);line-height:1.45;">'
-        + '<strong style="color:var(--gold2);">Province Map</strong> · '
-        + 'Land / Weather / Flora Fauna / Wonder descriptors are read from the active hex · '
-        + 'Gates close at key nodes and portals can be sealed during the run.</div>';
-      return '<div style="margin-bottom:.25rem;">'
-        + guidance
-        + provinceMeta
+      var provinceMeta = '<div class="card" style="margin-bottom:.25rem;">'
+        + '<div class="section-title">Province Map</div>'
+        + '<div class="theos-region-kicker">Expedition Province Map · Day ' + Number(expedition.day || 1) + '</div>'
+        + '<p class="theos-region-copy">The Expedition board now uses the same Province-style layout and wilderness readout as the main Province tab.</p>'
+        + '<div class="theos-chip-row">'
+        + '<span class="theos-chip">Land</span>'
+        + '<span class="theos-chip">Weather</span>'
+        + '<span class="theos-chip">Flora Fauna</span>'
+        + '<span class="theos-chip">Wonder</span>'
+        + '<span class="theos-chip">Gates</span>'
+        + '<span class="theos-chip">Portals</span>'
+        + '</div>'
         + provinceSvg
+        + '<div class="theos-region-actions">'
+        + '<button class="btn btn-sm" onclick="holdingCrucibleExpeditionWildernessRoll();">Wilderness Roll</button>'
+        + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExpeditionSearchHex();">Search Hex</button>'
+        + '<button class="btn btn-sm" onclick="holdingCrucibleExpeditionObserveAdjacent();">Observe Adjacent</button>'
+        + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleExpeditionRandomEncounter();">Random Encounter</button>'
+        + '<button class="btn btn-sm" onclick="holdingCrucibleCloseExpeditionGate();">Close Gate</button>'
+        + '<button class="btn btn-sm btn-red" onclick="holdingCrucibleBreachExpeditionPortal();">Breach Portal</button>'
+        + '<button class="btn btn-sm" onclick="holdingCrucibleSolvePortalPuzzle();">Solve Portal Puzzle</button>'
+        + '</div>'
+        + '</div>';
+      return '<div style="margin-bottom:.25rem;">'
+        + provinceMeta
         + descriptorHtml
         + interactablesPanel
         + details

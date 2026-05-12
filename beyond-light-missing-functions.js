@@ -2903,16 +2903,21 @@ function resolveManualCheckOverride(success) {
 }
 
 function selectDie(kind, value) {
-  window.selectedDice[kind] = value;
-  const containerId = kind === "action" ? "actionDiceOpts" : "dreadDiceOpts";
-  const selectedClass = kind === "action" ? "sel" : "dread-sel";
+  if (!window.selectedDice || typeof window.selectedDice !== "object") {
+    window.selectedDice = { action: 4, dread: 6 };
+  }
+  var safeKind = kind === "dread" ? "dread" : "action";
+  var safeValue = Math.max(1, Number.parseInt(value, 10) || (safeKind === "action" ? 4 : 6));
+  window.selectedDice[safeKind] = safeValue;
+  const containerId = safeKind === "action" ? "actionDiceOpts" : "dreadDiceOpts";
+  const selectedClass = safeKind === "action" ? "sel" : "dread-sel";
   const container = document.getElementById(containerId);
   if (!container) {
     return;
   }
   container.querySelectorAll(".d-opt").forEach((opt) => {
     opt.classList.remove("sel", "dread-sel");
-    if (Number.parseInt(opt.dataset.v, 10) === value) {
+    if (Number.parseInt(opt.dataset.v, 10) === safeValue) {
       opt.classList.add(selectedClass);
     }
   });

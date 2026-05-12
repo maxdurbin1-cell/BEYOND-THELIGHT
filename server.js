@@ -15,6 +15,7 @@ const io = new Server(server, {
 });
 
 const PORT = Number(process.env.PORT || 3000);
+const HOST = String(process.env.HOST || process.env.BIND_HOST || "0.0.0.0").trim() || "0.0.0.0";
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const TOKEN_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789abcdefghijkmnopqrstuvwxyz";
 const STORE_PATH = path.resolve(process.env.CAMPAIGN_STORE_PATH || path.join(__dirname, "campaign-data.json"));
@@ -28,6 +29,7 @@ const GOD_KEY_HASH = String(process.env.PAYWALL_GOD_KEY_HASH || "").trim().toLow
 const GOD_KEY_PLAINTEXT = String(process.env.PAYWALL_GOD_KEY || "").trim();
 const PAYWALL_ADMIN_KEY = String(process.env.PAYWALL_ADMIN_KEY || "Turbo_GooseDT*24").trim();
 const PAYWALL_ADMIN_EMAIL = normalizeEmail(process.env.PAYWALL_ADMIN_EMAIL || "maxadurbin@gmail.com");
+const PAYWALL_DISABLED = ["1", "true", "yes", "on"].includes(String(process.env.PAYWALL_DISABLED || "").trim().toLowerCase());
 const PRICE_SINGLE_CENTS = 1000;
 const PRICE_BUNDLE4_CENTS = 2500;
 const GM_ONLY_EVENTS = {
@@ -434,6 +436,10 @@ function getSortedLicenses() {
 }
 
 function requirePaywallAccess(req, res, next) {
+  if (PAYWALL_DISABLED) {
+    next();
+    return;
+  }
   if (isPaywallPublicPath(req.path)) {
     next();
     return;
@@ -444,7 +450,9 @@ function requirePaywallAccess(req, res, next) {
     next();
     return;
   }
-  if (isHtmlRequest(req)) {
+  const wantsHtml = isHtmlRequest(req)
+    || (String(req.method || "").toUpperCase() === "GET" && (req.path === "/" || /\.html$/i.test(String(req.path || ""))));
+  if (wantsHtml) {
     res.redirect(302, "/access");
     return;
   }
@@ -2263,6 +2271,7 @@ process.on("SIGTERM", () => {
   process.exit(0);
 });
 
-server.listen(PORT, () => {
-  console.log(`BEYOND-THE-LIGHT campaign server running at http://localhost:${PORT}`);
+server.listen(PORT, HOST, () => {
+  const hostLabel = HOST === "0.0.0.0" ? "localhost" : HOST;
+  console.log(`BEYOND-THE-LIGHT campaign server running at http://${hostLabel}:${PORT}`);
 });

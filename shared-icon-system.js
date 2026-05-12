@@ -231,10 +231,8 @@
     var modal = document.getElementById('rollModal');
     var titleEl = document.getElementById('modalTitle');
     var contentEl = document.getElementById('modalContent');
-    if (!modal || !titleEl || !contentEl) return false;
-
-    titleEl.textContent = label || 'Portrait Preview';
-    contentEl.innerHTML = ''
+    var title = label || 'Portrait Preview';
+    var body = ''
       + '<div style="display:grid;gap:.65rem;">'
       + '<div style="font-size:.75rem;color:var(--muted2);">' + escHtml(sourceLabel || 'Custom portrait') + '</div>'
       + '<div style="border:1px solid var(--border2);border-radius:12px;overflow:hidden;background:var(--surface);max-width:100%;">'
@@ -245,6 +243,15 @@
       + '<button class="btn btn-sm" onclick="closeModal();">Close</button>'
       + '</div>'
       + '</div>';
+
+    if ((!modal || !titleEl || !contentEl) && typeof window.openModal === 'function') {
+      window.openModal(title, body);
+      return true;
+    }
+    if (!modal || !titleEl || !contentEl) return false;
+
+    titleEl.textContent = title;
+    contentEl.innerHTML = body;
     modal.style.display = 'flex';
     return true;
   }

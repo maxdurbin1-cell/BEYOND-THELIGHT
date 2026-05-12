@@ -4796,9 +4796,62 @@
     return true;
   }
 
+  function tryCrucibleExpeditionDirectMove(match, q, r) {
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition) return false;
+    if (String(match.expedition.phase || 'explore') !== 'explore') return false;
+    var player = getCrucibleExpeditionPlayer(match);
+    if (!player || !player.position || Number(player.hp || 0) <= 0) return false;
+    if (!match.hexMap || !match.hexMap.hexes) return false;
+
+    var nextQ = Number(q);
+    var nextR = Number(r);
+    var targetHex = { q: nextQ, r: nextR };
+    var key = String(nextQ) + ',' + String(nextR);
+    var cell = match.hexMap.hexes[key];
+    if (!cell) return false;
+
+    if (match.expedition.collapsed && match.expedition.collapsed[key]) {
+      if (typeof showNotif === 'function') showNotif('That hex is gone. The night already took it.', 'warn');
+      return true;
+    }
+
+    var distance = (Math.abs(Number(player.position.q || 0) - nextQ)
+      + Math.abs((Number(player.position.q || 0) + Number(player.position.r || 0)) - (nextQ + nextR))
+      + Math.abs(Number(player.position.r || 0) - nextR)) / 2;
+    if (distance !== 1) {
+      if (typeof showNotif === 'function') showNotif('Pick an adjacent hex.', 'warn');
+      return true;
+    }
+
+    var targetBarrier = getCrucibleExpeditionBarrierCell(match, targetHex);
+    if (!targetBarrier && (cell.obstacle || cell.door || cell.zone)) {
+      if (typeof showNotif === 'function') showNotif('That adjacent hex is blocked.', 'warn');
+      return true;
+    }
+
+    var occupied = getUnitsInHex((match.allies || []).concat(match.enemies || []), targetHex, match.hexMap);
+    if (occupied && occupied.length) {
+      if (typeof showNotif === 'function') showNotif('That hex is occupied.', 'warn');
+      return true;
+    }
+
+    match.turnSide = 'ally';
+    match.selectedAllyId = String(player.id || '');
+    if (!resolveCrucibleExpeditionBarrierCrossing(match, player, player.position, targetHex)) return true;
+
+    player.position = { q: nextQ, r: nextR };
+    resolveCrucibleExpeditionPerilHex(match, player, targetHex);
+    match.log = (match.log || []).concat([player.name + ' moved to [' + nextQ + ',' + nextR + '] (adjacent click move).']).slice(-120);
+    recordCrucibleExpeditionHexClick(match);
+    renderHoldingCruciblePopup();
+    renderHoldingUI();
+    return true;
+  }
+
   function holdingCrucibleHandleBoardHexClick(q, r) {
     var match = getHoldingCrucibleMatch();
     if (!match) return false;
+    if (tryCrucibleExpeditionDirectMove(match, q, r)) return true;
     if (String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || 'explore') === 'explore') {
       var player = getCrucibleExpeditionPlayer(match);
       if (player) {

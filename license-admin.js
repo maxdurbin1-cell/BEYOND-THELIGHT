@@ -197,7 +197,13 @@
 
   async function doAdminAccessTest() {
     setStatus("admin-test-status", "Testing admin access...", "");
-    var result = await postJson("/api/license/admin/test", {});
+    var result;
+    try {
+      result = await postJson("/api/license/admin/test", {});
+    } catch (_err) {
+      setStatus("admin-test-status", "Could not reach server for admin test.", "error");
+      return;
+    }
     if (!result.ok || !result.body || !result.body.ok) {
       var err = (result.body && result.body.error) ? result.body.error : "Admin access failed.";
       setStatus("admin-test-status", err, "error");
@@ -261,6 +267,7 @@
     loadAdminKeyPreference();
     loadAdminConfigStatus();
     initActions();
+    window.btlTestAdminAccess = doAdminAccessTest;
     doAdminAccessTest();
     doSearch();
   }

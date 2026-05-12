@@ -4871,7 +4871,7 @@
     }
 
     var targetBarrier = getCrucibleExpeditionBarrierCell(match, targetHex);
-    if (!targetBarrier && (cell.obstacle || cell.door || cell.zone)) {
+    if (!targetBarrier && (cell.obstacle || cell.door)) {
       if (typeof showNotif === 'function') showNotif('That adjacent hex is blocked.', 'warn');
       return true;
     }

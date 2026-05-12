@@ -1756,17 +1756,29 @@ function getManualRollValue(sides,meta){
     const visibleValue=window.consumeVisibleManualRollValue(meta&&meta.type?String(meta.type):'',die);
     if(visibleValue!==null)return visibleValue;
   }
-  return null;
+  if(!isManualRollModeEnabled())return null;
+  var label='d'+die;
+  if(meta&&typeof meta==='object'){
+    if(meta.label)label=String(meta.label);
+    else if(meta.type)label=String(meta.type).toUpperCase()+' d'+die;
+  }
+  var promptText='Manual Roll Mode is on.\nEnter your physical dice result for '+label+' (1-'+die+').';
+  for(var i=0;i<3;i++){
+    var raw=window.prompt(promptText,'');
+    if(raw===null)continue;
+    var parsed=Math.floor(Number(raw));
+    if(Number.isFinite(parsed)&&parsed>=1&&parsed<=die)return parsed;
+    if(typeof showNotif==='function')showNotif('Enter a value between 1 and '+die+'.','warn');
+  }
+  if(typeof showNotif==='function')showNotif('No manual roll entered. Using minimum value 1 for d'+die+'.','warn');
+  return 1;
 }
 function roll(n,meta){
   const sides=Math.max(1,parseInt(n,10)||1);
   let value=Math.floor(Math.random()*sides)+1;
-  var rollMeta=meta||null;
-  var manualEligible=!!(rollMeta&&(rollMeta.type==='action'||rollMeta.type==='dread'));
-  if(isManualRollModeEnabled()&&manualEligible){
+  if(isManualRollModeEnabled()){
     const manualValue=getManualRollValue(sides,meta||null);
     if(manualValue!==null)value=manualValue;
-    else if(typeof showNotif==='function')showNotif('Manual roll input invalid. Using auto-roll d'+sides+'='+value+'.','warn');
   }
   queueDiceRollVisual(sides,value,meta||null);
   return value;

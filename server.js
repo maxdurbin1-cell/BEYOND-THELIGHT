@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const http = require("http");
 const crypto = require("crypto");
+const os = require("os");
 const express = require("express");
 const { Server } = require("socket.io");
 
@@ -18,8 +19,10 @@ const PORT = Number(process.env.PORT || 3000);
 const HOST = String(process.env.HOST || process.env.BIND_HOST || "0.0.0.0").trim() || "0.0.0.0";
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const TOKEN_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789abcdefghijkmnopqrstuvwxyz";
+const BTL_DATA_DIR = path.resolve(process.env.BTL_DATA_DIR || path.join(os.homedir(), ".beyond-the-light"));
 const STORE_PATH = path.resolve(process.env.CAMPAIGN_STORE_PATH || path.join(__dirname, "campaign-data.json"));
-const LICENSE_STORE_PATH = path.resolve(process.env.LICENSE_STORE_PATH || path.join(__dirname, "license-data.json"));
+const LEGACY_LICENSE_STORE_PATH = path.join(__dirname, "license-data.json");
+const LICENSE_STORE_PATH = path.resolve(process.env.LICENSE_STORE_PATH || path.join(BTL_DATA_DIR, "license-data.json"));
 const ACCESS_PAGE_PATH = path.join(__dirname, "access.html");
 const LICENSE_ADMIN_PAGE_PATH = path.join(__dirname, "license-admin.html");
 const PAYWALL_SESSION_COOKIE = "btl_access_session";
@@ -298,17 +301,34 @@ function persistLicenseStoreSafe() {
 
 function loadLicenseStoreFromDisk() {
   try {
-    if (!fs.existsSync(LICENSE_STORE_PATH)) return;
-    const raw = fs.readFileSync(LICENSE_STORE_PATH, "utf8");
-    if (!raw.trim()) return;
-    const parsed = JSON.parse(raw);
-    if (parsed && parsed.licenses && typeof parsed.licenses === "object") {
-      licenseStore.licenses = parsed.licenses;
+    const candidates = [LICENSE_STORE_PATH];
+    const legacyPath = path.resolve(LEGACY_LICENSE_STORE_PATH);
+    if (legacyPath !== path.resolve(LICENSE_STORE_PATH)) {
+      candidates.push(legacyPath);
     }
-    if (parsed && parsed.sessions && typeof parsed.sessions === "object") {
-      licenseStore.sessions = parsed.sessions;
+
+    let loadedFrom = "";
+    for (let i = 0; i < candidates.length; i += 1) {
+      const candidate = candidates[i];
+      if (!fs.existsSync(candidate)) continue;
+      const raw = fs.readFileSync(candidate, "utf8");
+      if (!raw.trim()) continue;
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.licenses && typeof parsed.licenses === "object") {
+        licenseStore.licenses = parsed.licenses;
+      }
+      if (parsed && parsed.sessions && typeof parsed.sessions === "object") {
+        licenseStore.sessions = parsed.sessions;
+      }
+      licenseStore.updatedAt = Number(parsed && parsed.updatedAt) || Date.now();
+      loadedFrom = candidate;
+      break;
     }
-    licenseStore.updatedAt = Number(parsed && parsed.updatedAt) || Date.now();
+
+    if (loadedFrom && path.resolve(loadedFrom) !== path.resolve(LICENSE_STORE_PATH)) {
+      persistLicenseStoreSafe();
+      console.log(`Migrated license store from ${loadedFrom} to ${LICENSE_STORE_PATH}`);
+    }
   } catch (err) {
     console.warn("Could not load license store:", err && err.message ? err.message : err);
   }

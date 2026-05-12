@@ -4466,8 +4466,11 @@
     expedition.loaded = true;
     player.personalFlavor = { name: flavor };
     match.log = (match.log || []).concat(['Loadout applied: ' + armor + ' armor (' + (armorOpt ? armorOpt.defendDie + ' Defend, ' + armorOpt.actions + ' Actions' : '?') + '), ' + weapon + ' weapon, personal flavor: ' + flavor + '.']).slice(-120);
-    if (typeof closeModal === 'function') closeModal();
-    renderHoldingCruciblePopup();
+    if (typeof openModal === 'function') {
+      openModal('Expedition Province', buildCrucibleExpeditionPopupHtml(match));
+    } else if (typeof renderHoldingCruciblePopup === 'function') {
+      renderHoldingCruciblePopup();
+    }
     renderHoldingUI();
     return true;
   }

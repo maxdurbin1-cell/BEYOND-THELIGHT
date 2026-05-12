@@ -2099,6 +2099,13 @@
     return desc || 'Recovered from the collapsing province frontier.';
   }
 
+  function formatCrucibleExpeditionSaveLine(label, actionDie, actionTotal, dreadDie, dreadTotal, success, extra) {
+    return String(label || 'Save') + ': roll d' + Number(actionDie || 0) + ' = ' + Number(actionTotal || 0)
+      + ' vs DD' + Number(dreadDie || 0) + ' = ' + Number(dreadTotal || 0)
+      + ' (' + (success ? 'success' : 'failure') + ')'
+      + (extra ? ' ' + String(extra) : '');
+  }
+
   function resolveCrucibleExpeditionPerilHex(match, actor, hex) {
     if (!match || !match.hexMap || !match.hexMap.hexes || !hex) return true;
     var key = String(Number(hex.q || 0)) + ',' + String(Number(hex.r || 0));
@@ -2116,11 +2123,12 @@
       var diff = Math.max(1, Number(dread.total || 0) - Number(action.total || 0));
       if (typeof changeMentalStress === 'function') changeMentalStress(diff);
       if (typeof recordCrucibleExpeditionHexClick === 'function') recordCrucibleExpeditionHexClick(match, { skipEncounter: true });
-      if (typeof showNotif === 'function') showNotif('Peril failed (' + action.total + ' vs ' + dread.total + '): +1 Tick and +' + diff + ' Mental Stress.', 'warn');
-      match.log = (match.log || []).concat([String(actor && actor.name || 'Wayfarer') + ' failed Peril Save (' + action.total + ' vs ' + dread.total + '). +1 Tick, +' + diff + ' Mental Stress.']).slice(-120);
+      if (typeof showNotif === 'function') showNotif(formatCrucibleExpeditionSaveLine('Peril Save', controlDie, action.total, 4, dread.total, false, '+1 Tick, +' + diff + ' Mental Stress.'), 'warn');
+      match.log = (match.log || []).concat([String(actor && actor.name || 'Wayfarer') + ' ' + formatCrucibleExpeditionSaveLine('Peril Save', controlDie, action.total, 4, dread.total, false, '+1 Tick, +' + diff + ' Mental Stress.')]).slice(-120);
       return false;
     }
-    match.log = (match.log || []).concat([String(actor && actor.name || 'Wayfarer') + ' cleared Peril Save (' + action.total + ' vs ' + dread.total + ').']).slice(-120);
+    if (typeof showNotif === 'function') showNotif(formatCrucibleExpeditionSaveLine('Peril Save', controlDie, action.total, 4, dread.total, true), 'good');
+    match.log = (match.log || []).concat([String(actor && actor.name || 'Wayfarer') + ' ' + formatCrucibleExpeditionSaveLine('Peril Save', controlDie, action.total, 4, dread.total, true)]).slice(-120);
     return true;
   }
 
@@ -2145,10 +2153,11 @@
       var diff = Math.max(1, Number(dread.total || 0) - Number(action.total || 0));
       if (typeof changeMentalStress === 'function') changeMentalStress(diff);
       match.log = (match.log || []).concat(['Dangerous weather (' + String(sourceTag || 'Expedition') + '): failed Lead save (' + action.total + ' vs ' + dread.total + '). +' + diff + ' Mental Stress.']).slice(-120);
-      if (typeof showNotif === 'function') showNotif('Dangerous weather pressure: +' + diff + ' Mental Stress.', 'warn');
+      if (typeof showNotif === 'function') showNotif(formatCrucibleExpeditionSaveLine('Weather Save', leadDie, action.total, 6, dread.total, false, '+ ' + diff + ' Mental Stress.'), 'warn');
       return false;
     }
-    match.log = (match.log || []).concat(['Dangerous weather (' + String(sourceTag || 'Expedition') + '): Lead save passed (' + action.total + ' vs ' + dread.total + ').']).slice(-120);
+    if (typeof showNotif === 'function') showNotif(formatCrucibleExpeditionSaveLine('Weather Save', leadDie, action.total, 6, dread.total, true), 'good');
+    match.log = (match.log || []).concat(['Dangerous weather (' + String(sourceTag || 'Expedition') + '): ' + formatCrucibleExpeditionSaveLine('Weather Save', leadDie, action.total, 6, dread.total, true)]).slice(-120);
     return true;
   }
 
@@ -2166,13 +2175,26 @@
     var success = Number(playerRoll.total || 0) >= Number(dreadRoll.total || 0);
     if (success) {
       cell.barrier.passToken = String(match.expedition.day) + ':' + String(match.expedition.phase || 'explore');
-      if (typeof showNotif === 'function') showNotif('Barrier crossed (' + playerRoll.total + ' vs ' + dreadRoll.total + ').', 'good');
-      if (match && match.log) match.log = (match.log || []).concat([String(actor && actor.name || 'Wayfarer') + ' crossed a barrier (' + playerRoll.total + ' vs ' + dreadRoll.total + ').']).slice(-120);
+      if (typeof showNotif === 'function') showNotif(formatCrucibleExpeditionSaveLine('Barrier Save', bodyDie, playerRoll.total, 4, dreadRoll.total, true), 'good');
+      if (match && match.log) match.log = (match.log || []).concat([String(actor && actor.name || 'Wayfarer') + ' ' + formatCrucibleExpeditionSaveLine('Barrier Save', bodyDie, playerRoll.total, 4, dreadRoll.total, true)]).slice(-120);
       return true;
     }
     if (typeof recordCrucibleExpeditionHexClick === 'function') recordCrucibleExpeditionHexClick(match, { skipEncounter: true });
-    if (typeof showNotif === 'function') showNotif('Barrier crossing failed (' + playerRoll.total + ' vs ' + dreadRoll.total + '): +1 Tick.', 'warn');
-    if (match && match.log) match.log = (match.log || []).concat([String(actor && actor.name || 'Wayfarer') + ' failed to cross a barrier (' + playerRoll.total + ' vs ' + dreadRoll.total + '). +1 Tick.']).slice(-120);
+    if (typeof showNotif === 'function') showNotif(formatCrucibleExpeditionSaveLine('Barrier Save', bodyDie, playerRoll.total, 4, dreadRoll.total, false, '+1 Tick.'), 'warn');
+    if (match && match.log) match.log = (match.log || []).concat([String(actor && actor.name || 'Wayfarer') + ' ' + formatCrucibleExpeditionSaveLine('Barrier Save', bodyDie, playerRoll.total, 4, dreadRoll.total, false, '+1 Tick.')]).slice(-120);
+    return false;
+  }
+
+  function openCrucibleExpeditionCombatPopup(match) {
+    if (!match) return false;
+    if (typeof openModal === 'function') {
+      openModal('Expedition Combat', buildCrucibleExpeditionPopupHtml(match));
+      return true;
+    }
+    if (typeof renderHoldingCruciblePopup === 'function') {
+      renderHoldingCruciblePopup();
+      return true;
+    }
     return false;
   }
 
@@ -2352,6 +2374,7 @@
         });
         if (miniOk) match.log = (match.log || []).concat(['Mini Boss found in this hex: ' + mini.name + ' — ' + String(mini.desc || 'A ruin tyrant steps out of the dust.')]).slice(-120);
         if (miniOk) resolveCrucibleExpeditionDangerousWeather(match, 'Combat Start');
+        if (miniOk) openCrucibleExpeditionCombatPopup(match);
         return miniOk;
       }
     }
@@ -2386,6 +2409,7 @@
           'A major enemy emerges from the closing dark: ' + profile.name + ' — ' + String(profile.desc || 'No lore survives.') + (nerfRaid ? ' (portal mission succeeded: Lord reduced to d12 | 24 HP).' : '.')
         ]).slice(-120);
         resolveCrucibleExpeditionDangerousWeather(match, 'Boss Combat');
+        openCrucibleExpeditionCombatPopup(match);
       }
       return okBoss;
     }
@@ -2403,6 +2427,7 @@
       });
       if (monster) match.log = (match.log || []).concat(['Field Enemy ambush: d4 Dread, 4 HP — ' + String(field.desc || 'It hunts the open lanes.').trim()]).slice(-120);
       if (monster) resolveCrucibleExpeditionDangerousWeather(match, 'Combat Start');
+      if (monster) openCrucibleExpeditionCombatPopup(match);
       return monster;
     }
     if (roll < 0.18) {
@@ -2418,6 +2443,7 @@
       });
       if (fieldBoss) match.log = (match.log || []).concat(['Field Boss appears: DD6 | 12 HP — ' + String(fb.desc || 'A provincial apex predator descends.').trim()]).slice(-120);
       if (fieldBoss) resolveCrucibleExpeditionDangerousWeather(match, 'Combat Start');
+      if (fieldBoss) openCrucibleExpeditionCombatPopup(match);
       return fieldBoss;
     }
     if (roll < 0.25) {
@@ -2443,6 +2469,9 @@
     var label = String(chosen.name || 'Unknown Relic');
     if (type === 'fieldboss' || type === 'miniboss' || type === 'boss1' || type === 'boss2' || type === 'raidboss') {
       label = label + ' [' + rollCrucibleExpeditionAffix() + ']';
+    }
+    if ((chosen.cat === 'scrolls' || chosen.cat === 'weapon_mods' || chosen.cat === 'items' || chosen.cat === 'essentials') && Math.random() < 0.35) {
+      label = label + ' [AD+1]';
     }
     match.expedition.runLoot = Array.isArray(match.expedition.runLoot) ? match.expedition.runLoot : [];
     match.expedition.runLoot.push(label);
@@ -3574,6 +3603,7 @@
     if (!expedition || !enemy || String(expedition.phase || '') !== 'combat') return '';
     var isEnemyTurn = String(match.turnSide || 'ally') === 'enemy';
     var selectedAlly = getSelectedCrucibleAlly(match);
+    var player = getCrucibleExpeditionPlayer(match);
     var selectedEnemy = getSelectedCrucibleEnemy(match);
     var selectedTarget = getSelectedCrucibleTarget(match);
     var selectedAllyTarget = getSelectedCrucibleAllyTarget(match);
@@ -3607,6 +3637,7 @@
     }).join('');
     var canAct = !!(!isEnemyTurn && selectedAlly && Number(selectedAlly.hp || 0) > 0 && Number(selectedAlly.ap || 0) > 0);
     var canEnemyAct = !!(isEnemyTurn && selectedEnemy && Number(selectedEnemy.hp || 0) > 0 && Number(selectedEnemy.ap || 0) > 0);
+    var actionDieBonus = Number(expedition.actionDieBonus || 0);
     var turnRail = '<div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:.16rem;align-items:center;margin-bottom:.28rem;">'
       + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid ' + (!isEnemyTurn ? 'rgba(70,196,182,.45)' : 'var(--border2)') + ';background:' + (!isEnemyTurn ? 'rgba(70,196,182,.12)' : 'rgba(255,255,255,.02)') + ';font-size:.68rem;color:' + (!isEnemyTurn ? 'var(--teal)' : 'var(--muted2)') + ';">Your Team</div>'
       + '<div style="font-size:.78rem;color:var(--muted2);text-align:center;">→</div>'
@@ -3668,6 +3699,10 @@
       + '</div>'
       + '<div style="display:flex;gap:.18rem;flex-wrap:wrap;max-height:6.5rem;overflow:auto;">' + (targetRows || '<div style="font-size:.72rem;color:var(--muted2);">No enemies standing.</div>') + '</div>'
       + '</div>'
+      + '</div>'
+      + '<div style="font-size:.69rem;color:var(--muted2);margin-bottom:.22rem;">'
+      + 'Wayfarer action dice: ' + (player && Array.isArray(player.actionDice) ? player.actionDice.map(function (d) { return 'd' + d; }).join(', ') : 'd8, d6')
+      + (actionDieBonus > 0 ? ' · Loot bonus: +' + actionDieBonus + ' Action Die step' + (actionDieBonus > 1 ? 's' : '') : '')
       + '</div>'
       + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.18rem;">Enemy archive controls appear only while combat is active.</div>'
       + '</details>';
@@ -4423,6 +4458,10 @@
       player.attackDie = Math.max(4, Number(player.attackDie || 8) + 1);
       match.log = (match.log || []).concat(['Run weapon equipped: ' + String(pick) + ' (+1 attack die).']).slice(-120);
     }
+    if (/\[AD\+1\]/i.test(String(pick))) {
+      expedition.actionDieBonus = Math.max(0, Number(expedition.actionDieBonus || 0) + 1);
+      match.log = (match.log || []).concat(['Run relic surge: ' + String(pick) + ' grants +1 Action Die bonus.']).slice(-120);
+    }
     renderHoldingCruciblePopup();
     renderHoldingUI();
     return true;
@@ -4458,6 +4497,10 @@
         S.backpack[slot] = '';
       } else {
         expedition.runLoot.splice(Number(idx), 1);
+      }
+      if (/\[AD\+1\]/i.test(String(pick))) {
+        expedition.actionDieBonus = Math.max(0, Number(expedition.actionDieBonus || 0) + 1);
+        match.log = (match.log || []).concat(['Run relic surge: ' + String(pick) + ' grants +1 Action Die bonus.']).slice(-120);
       }
       match.log = (match.log || []).concat(['Run loot used: ' + String(pick) + '.']).slice(-120);
       renderHoldingCruciblePopup();
@@ -4622,7 +4665,10 @@
 
   function getCrucibleExpeditionWayfarerActionDice() {
     if (typeof S === 'undefined' || !S || !Array.isArray(S.soulArray)) return [8, 6];
-    return S.soulArray.slice();
+    var dice = S.soulArray.slice();
+    var bonus = Number(S && S.holding && S.holding.crucible && S.holding.crucible.expedition ? S.holding.crucible.expedition.actionDieBonus : 0);
+    for (var i = 0; i < bonus; i++) dice.push(8);
+    return dice;
   }
 
   function getCrucibleExpeditionAvailableRaidNodes() {
@@ -4772,6 +4818,7 @@
       flavor: flavor,
       actionDice: Array.isArray(actionDice) ? actionDice.slice() : []
     };
+    expedition.actionDieBonus = Math.max(0, Number(expedition.actionDieBonus || 0));
     expedition.loaded = true;
     var flavorParts = String(flavor || '').split(':');
     player.personalFlavor = { name: String(flavorParts[0] || flavor).trim(), detail: String(flavorParts.slice(1).join(':') || '').trim() };

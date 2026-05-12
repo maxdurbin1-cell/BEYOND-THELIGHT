@@ -46,6 +46,11 @@ nav{grid-column:1 / -1;display:flex;gap:.32rem;flex-wrap:wrap;align-items:center
 .global-quick-access .qa-label{font-size:.68rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted2);font-family:'Cinzel',serif;margin-right:.2rem;}
 .global-quick-access .qa-empty{font-size:.83rem;color:var(--muted2);}
 .global-quick-access .btn{font-size:.77rem;padding:.3rem .62rem;}
+.admin-mode-badge{position:fixed;right:1rem;bottom:1rem;z-index:1250;display:none;align-items:center;gap:.4rem;padding:.42rem .52rem;border:1px solid rgba(201,162,39,.46);border-radius:999px;background:linear-gradient(180deg,rgba(11,12,26,.94) 0%,rgba(8,10,18,.92) 100%);box-shadow:0 14px 30px rgba(0,0,0,.32);backdrop-filter:blur(5px);}
+.admin-mode-badge.show{display:inline-flex;}
+.admin-mode-dot{width:.48rem;height:.48rem;border-radius:50%;background:var(--gold2);box-shadow:0 0 10px rgba(232,192,80,.65);}
+.admin-mode-label{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold3);line-height:1;}
+.admin-mode-badge .btn{min-height:1.7rem;padding:.2rem .52rem;font-size:.68rem;letter-spacing:.08em;}
 @media (max-width:900px){.global-quick-access{top:var(--quick-access-top, 8.2rem);padding:.35rem .6rem;}}
 .section-title{font-family:'Cinzel',serif;font-size:.84rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);margin-bottom:.85rem;padding-bottom:.45rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.4rem;font-weight:700;}
 .section-title::before{content:'';width:3px;height:.7rem;background:var(--gold);opacity:.6;flex-shrink:0;}
@@ -447,6 +452,12 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 </header>
 
 <div id="globalQuickAccess" class="global-quick-access"></div>
+<div id="adminModeBadge" class="admin-mode-badge" aria-live="polite">
+  <span class="admin-mode-dot" aria-hidden="true"></span>
+  <span class="admin-mode-label">Admin Mode</span>
+  <button class="btn btn-sm" onclick="window.location.href='/admin/licenses'">Admin Panel</button>
+  <button class="btn btn-sm" onclick="window.location.href='/'">Game</button>
+</div>
 
   
 <main id="main-content">
@@ -19855,6 +19866,29 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(typeof showNotif==='function')showNotif('GM Dashboard failed to load','warn');
     });
   };
+
+  window.updateAdminModeBadge=function(){
+    var badge=document.getElementById('adminModeBadge');
+    if(!badge)return;
+    fetch('/api/license/status',{method:'GET'})
+      .then(function(res){return res.ok?res.json():null;})
+      .then(function(data){
+        var isAdmin=!!(data&&data.ok&&data.authorized&&data.session&&data.session.isAdmin);
+        if(isAdmin)badge.classList.add('show');
+        else badge.classList.remove('show');
+      })
+      .catch(function(){
+        badge.classList.remove('show');
+      });
+  };
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',function(){
+      window.updateAdminModeBadge();
+    });
+  }else{
+    window.updateAdminModeBadge();
+  }
 })();
 </script>
 

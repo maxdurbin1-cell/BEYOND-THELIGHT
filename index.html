@@ -1780,22 +1780,17 @@ function resolveManualRollKind(meta){
   if(type==='action'||type==='dread')return type;
   var label=String(m.label||'').toLowerCase();
   if(/\bdread\b/.test(label))return 'dread';
-  if(/\b(action|adventure|ad\d*|lead|leadership|control|spirit|body|strike|shoot|defend|mind|notice|agility|sneak|power|save|check)\b/.test(label))return 'action';
+  if(/\baction\b/.test(label))return 'action';
   return '';
 }
 function roll(n,meta){
   const sides=Math.max(1,parseInt(n,10)||1);
   let value=Math.floor(Math.random()*sides)+1;
   var manualKind=resolveManualRollKind(meta);
-  if(isManualRollModeEnabled()){
+  if(isManualRollModeEnabled()&&manualKind){
     var manualMeta=meta&&typeof meta==='object'?Object.assign({},meta):{};
-    if(!manualKind){
-      var nextKind=(typeof window!=='undefined'&&window.__manualFallbackNextKind==='dread')?'dread':'action';
-      manualKind=nextKind;
-      if(typeof window!=='undefined')window.__manualFallbackNextKind=(nextKind==='action')?'dread':'action';
-      if(!manualMeta.type)manualMeta.type=manualKind;
-      if(!manualMeta.label)manualMeta.label=(manualKind==='dread'?'Manual Dread':'Manual Action')+' d'+sides;
-    }
+    if(!manualMeta.type)manualMeta.type=manualKind;
+    if(!manualMeta.label)manualMeta.label=(manualKind==='dread'?'Manual Dread':'Manual Action')+' d'+sides;
     const manualValue=getManualRollValue(sides,manualMeta||null);
     if(manualValue!==null)value=manualValue;
     else {
@@ -12779,9 +12774,12 @@ function renderHexInfo(hex){
       const gateEnemyLine=gatePortal.gateType==='celestial'
         ? 'Celestial: 1 Seraphim (d12 | 24 HP)'
         : 'Hellscape: 2-4 Demons (d4 | 8 HP each)';
+      const gateSceneText=gatePortal.gateType==='celestial'
+        ? 'Through the breach, you glimpse a sky of hammered gold and floating marble bastions where hymn-banners crack in silent wind. The ground around the portal rings like struck glass.'
+        : 'Through the rift, you see a furnace horizon of chained basalt towers and ember rivers. The air tastes metallic, and every shadow looks like it is moving toward you.';
       html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:${gatePortal.gateType==='celestial'?'rgba(240,208,112,.55)':'rgba(255,132,80,.55)'};background:${gatePortal.gateType==='celestial'?'rgba(240,208,112,.08)':'rgba(255,132,80,.08)'};">
         <div class="nb-label" style="color:${gatePortal.gateType==='celestial'?'#f0d070':'#ff8450'};">🌀 Endgame Gate Portal</div>
-        <div style="font-size:.8rem;color:var(--text2);line-height:1.55;">${gateEnemyLine}<br>Defeat gate enemies, then solve the seal puzzle. On puzzle failure, two more enemies spawn.</div>
+        <div style="font-size:.8rem;color:var(--text2);line-height:1.55;">${gateEnemyLine}<br>${gateSceneText}<br>Defeat gate enemies, then solve the seal puzzle. On puzzle failure, two more enemies spawn.</div>
         <div style="margin-top:.3rem;"><button class="btn btn-xs btn-warn" onclick="if(typeof window.openEndgameGatePortal==='function')window.openEndgameGatePortal('province','${nk}',(Array.isArray(mapData)?mapData.map(function(h){return String(h.col)+','+String(h.row);}):[]));">Enter Gate Battle</button></div>
       </div>`;
     }
@@ -12999,6 +12997,7 @@ function renderHexInfo(hex){
       <div style="font-size:.82rem;color:var(--text2);">Resting here grants <strong style="color:var(--green2);">Empowered</strong> (Body/Strike/Shoot ↑).</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="acceptProvinceRestBoon(${hex.col},${hex.row},'empowered','Ruin Rest')">Accept Boon Rest (Long Rest +1 Day)</button></div>
     </div>`;
     html+=`<div class="ruin-room"><div class="ruin-room-title">Ruin Details</div><div style="font-size:.8rem;color:var(--muted3);"><strong>Built by:</strong> ${d.builder||'Unknown'}<br><strong>Purpose:</strong> ${d.builtFor||'Unknown'}<br><strong>Construction:</strong> ${d.construction||'Stone'}<br><strong>Entrance:</strong> ${d.entrance||'Open'}<br><strong>Rooms:</strong> ${d.rooms||4} total<br><strong>Novelty:</strong> ${d.novelty||'None'}</div></div>`;
+    html+=`<div class="npc-block" style="margin-top:.3rem;"><div class="nb-label">🎭 Scene Read</div><div style="font-size:.79rem;color:var(--text2);line-height:1.58;">From this hex, the skyline is a broken crown of collapsed arches and half-standing watchtowers. Wind snakes through exposed corridors carrying old ash and distant chimes. Inside, rooms are layered with scavenger marks, fractured mosaics, and narrow kill-lanes that make every doorway feel like a decision.</div></div>`;
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
       <button class="btn btn-sm btn-primary" onclick="requestJoinProvinceArea('ruins',${hex.col},${hex.row})">Join Area: Ruins</button>
     </div>`;
@@ -13016,6 +13015,7 @@ function renderHexInfo(hex){
       <div style="font-size:.82rem;color:var(--text2);">Camp at the mouth to gain <strong style="color:#7ed7ff;">Focused</strong> (Mind/Lead ↑) before a delve.</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="acceptProvinceRestBoon(${hex.col},${hex.row},'focused','Depths Camp')">Accept Boon Rest (Long Rest +1 Day)</button></div>
     </div>`;
     html+=`<div class="ruin-room"><div class="ruin-room-title" style="color:#7ed7ff;">Megadungeon Details</div><div style="font-size:.8rem;color:var(--muted3);"><strong>Entrance:</strong> ${d.entrance||'Buried stair'}<br><strong>Motif:</strong> ${d.motif||'Buried passages'}<br><strong>Seals:</strong> ${d.seal||'Unknown'}<br><strong>Current Floor:</strong> ${floorIndex} (DD${floorDie})<br><strong>Segments Mapped:</strong> ${totalSegments}<br><strong>Hidden Rooms Found:</strong> ${hiddenFound}</div></div>`;
+    html+=`<div class="npc-block" style="margin-top:.3rem;"><div class="nb-label">🎭 Scene Read</div><div style="font-size:.79rem;color:var(--text2);line-height:1.58;">The horizon drops into a throat of stone where lantern light is swallowed after a few steps. Below, each chamber feels colder than the last: wet iron scent, echoing drips, and walls etched by older expeditions that never marked a return route.</div></div>`;
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
       <button class="btn btn-sm btn-primary" onclick="requestJoinProvinceArea('depths',${hex.col},${hex.row})">Join Area: Infinite Dungeon</button>
     </div>`;
@@ -13031,6 +13031,7 @@ function renderHexInfo(hex){
       <div style="font-size:.82rem;color:var(--text2);">Camp in the stacks to gain <strong style="color:#9cb8ff;">Focused</strong> before descending into book-maze floors.</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="acceptProvinceRestBoon(${hex.col},${hex.row},'focused','Library Rest')">Accept Boon Rest (Long Rest +1 Day)</button></div>
     </div>`;
     html+=`<div class="ruin-room"><div class="ruin-room-title" style="color:#9cb8ff;">Infinite Library Details</div><div style="font-size:.8rem;color:var(--muted3);"><strong>Entrance:</strong> ${d.entrance||'Unknown'}<br><strong>Motif:</strong> ${d.motif||'Recursive shelves'}<br><strong>Seal Logic:</strong> ${d.seal||'Unknown'}<br><strong>Current Depth:</strong> ${depth}<br><strong>Rooms Traversed:</strong> ${roomIdx}<br><strong>Total Delves:</strong> ${delves}</div></div>`;
+    html+=`<div class="npc-block" style="margin-top:.3rem;"><div class="nb-label">🎭 Scene Read</div><div style="font-size:.79rem;color:var(--text2);line-height:1.58;">Ahead, aisles fold into impossible angles and shelf-ladders vanish into blue dusk above the rafters. In each room, candle-smoke writes and erases words in the air while distant pages turn in perfect rhythm, as if something vast is reading you back.</div></div>`;
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
       <button class="btn btn-sm btn-primary" onclick="requestJoinProvinceArea('library',${hex.col},${hex.row})">Join Area: Infinite Library Megastack</button>
     </div>`;

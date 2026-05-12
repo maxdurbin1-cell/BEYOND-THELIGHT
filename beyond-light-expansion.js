@@ -1478,6 +1478,25 @@
   }
   window.resolveLastSeaWeatherCheck = resolveLastSeaWeatherCheck;
 
+  function getSeaHexTravelNarrative(hex) {
+    if (!hex) return '';
+    if (hex.siteType === 'dungeon') {
+      return 'Jagged silhouettes of drowned fortifications cut the horizon, and brine fog moves like breath through shattered entry halls. Inside, each chamber smells of salt, rust, and old fires, with collapsed galleries that can hide both relics and ambushes.';
+    }
+    if (hex.siteType === 'colosseum') {
+      return 'You spot banner-masts and braziers long before landfall, and the roar of wagers carries over the surf. In the arena corridors, chalk marks, blood-dark sand, and iron gates frame every approach like the opening of a duel.';
+    }
+    return '';
+  }
+
+  function getSeaRaidNarrative(mt) {
+    var markerType = String((mt && mt.type) || '').toLowerCase();
+    if (markerType === 'informer') {
+      return 'You arrive under lantern-dim rafters where lookouts trade whispers and false names. Charts are pinned to warped tables, each route marked with fresh ink and crossed blades.';
+    }
+    return 'The confrontation wing is already awake: barricades, signal flares, and watchfires line the approach while shadows move between kill-zones. The field is cramped, loud, and seconds from violence.';
+  }
+
   function renderLastSeaInfo(cell) {
     const panel = document.getElementById("lastSeaInfo");
     if (!panel) {
@@ -1548,6 +1567,7 @@
           </div>
         </div>`
       : '';
+    const seaTravelNarrative = getSeaHexTravelNarrative(hex);
     panel.innerHTML = `
       <div class="sea-info-inner">
         <div class="hex-type-tag ${
@@ -1563,6 +1583,7 @@
         }">${hex.type === "sea" ? "Open Sea" : "Island Hex"}</div>
         <div class="hex-name">${hex.type === "sea" ? "Open Water" : hex.title || hex.islandName}</div>
         <div class="hex-desc" style="margin-bottom:.45rem;">${hex.desc}</div>
+        ${seaTravelNarrative ? `<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(126,215,255,.32);background:rgba(126,215,255,.06);"><div class="nb-label" style="color:#7ed7ff;">🎭 Scene Read</div><div style="font-size:.79rem;color:var(--text2);line-height:1.58;">${seaTravelNarrative}</div></div>` : ''}
         ${renderCurrentSeaWeather()}
         ${
           island
@@ -1589,9 +1610,9 @@
         }
         ${
           S.lastSea.missionTokens && S.lastSea.missionTokens[hex.key]
-            ? (() => { const mt = S.lastSea.missionTokens[hex.key]; const missionRef = (S && Array.isArray(S.activeMissions)) ? S.activeMissions.find(function (m) { return m && String(m.id || '') === String(mt.missionId || ''); }) : null; const isRaid = mt.missionType === 'legacy_raid' || !!(missionRef && missionRef.missionType === 'legacy_raid'); const isSoul = mt.missionType === 'soul_mission' || !!(missionRef && missionRef.missionType === 'soul_mission'); const raidLabel = isRaid ? (mt.type === 'informer' ? 'Raid Lore Wing' : 'Raid Confrontation Wing') : ''; const tokenLabel = isSoul ? (mt.type === 'informer' ? 'Soul Forge Lead' : 'Soul Forge Boss') : (raidLabel || (mt.type === 'site' ? 'Sea Mission Site' : mt.type === 'story' ? 'Story Objective' : 'Sea Informer')); const tokenIcon = isRaid ? '🐉' : isSoul ? (mt.icon || '⚒') : '📍'; return `<div class="npc-block" style="margin-bottom:.35rem;border-color:${isSoul ? 'rgba(255,111,145,.45)' : 'rgba(201,162,39,.45)'};background:${isSoul ? 'rgba(255,111,145,.08)' : 'rgba(201,162,39,.06)'};">
+            ? (() => { const mt = S.lastSea.missionTokens[hex.key]; const missionRef = (S && Array.isArray(S.activeMissions)) ? S.activeMissions.find(function (m) { return m && String(m.id || '') === String(mt.missionId || ''); }) : null; const isRaid = mt.missionType === 'legacy_raid' || !!(missionRef && missionRef.missionType === 'legacy_raid'); const isSoul = mt.missionType === 'soul_mission' || !!(missionRef && missionRef.missionType === 'soul_mission'); const raidLabel = isRaid ? (mt.type === 'informer' ? 'Raid Lore Wing' : 'Raid Confrontation Wing') : ''; const tokenLabel = isSoul ? (mt.type === 'informer' ? 'Soul Forge Lead' : 'Soul Forge Boss') : (raidLabel || (mt.type === 'site' ? 'Sea Mission Site' : mt.type === 'story' ? 'Story Objective' : 'Sea Informer')); const tokenIcon = isRaid ? '🐉' : isSoul ? (mt.icon || '⚒') : '📍'; const raidNarrative = isRaid ? getSeaRaidNarrative(mt) : ''; return `<div class="npc-block" style="margin-bottom:.35rem;border-color:${isSoul ? 'rgba(255,111,145,.45)' : 'rgba(201,162,39,.45)'};background:${isSoul ? 'rgba(255,111,145,.08)' : 'rgba(201,162,39,.06)'};">
                 <div class="nb-label" style="color:${isSoul ? '#ff6f91' : 'var(--gold2)'};">${tokenIcon} ${tokenLabel}</div>
-                <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title || 'Quest objective here.'}${isSoul ? '<br><span style="color:var(--muted2);">Endgame boss encounter. Defeat it to capture an affix, choose weapon or armor enhancement, then continue in the Merchant tab at the Soul Forge vendor.</span>' : ''}</div>
+                <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title || 'Quest objective here.'}${raidNarrative ? '<br>'+raidNarrative : ''}${isSoul ? '<br><span style="color:var(--muted2);">Endgame boss encounter. Defeat it to capture an affix, choose weapon or armor enhancement, then continue in the Merchant tab at the Soul Forge vendor.</span>' : ''}</div>
                 ${mt.missionId === 'sea_task' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-success" onclick="completeSeaTask('${hex.key}')">✓ Resolve Task (AD vs DD8)</button></div>` : ''}
                 ${mt.type === 'story' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(typeof openStorylineTab==='function')openStorylineTab();">Continue Storyline</button></div>` : ''}
               </div>`; })()

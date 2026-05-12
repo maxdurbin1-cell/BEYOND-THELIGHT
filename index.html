@@ -17527,6 +17527,8 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '<span>✕</span><strong>' + String(enemy.name || 'Hostile') + '</strong><span style="color:var(--muted2);">d' + Number(enemy.dread || 4) + ' · ' + hpNow + ' HP</span>'
       + '</div>';
     }).join('');
+    var allies = Array.isArray(S && S.enemies) ? S.enemies.filter(function (entry) { return entry && entry.ally; }) : [];
+    var enemies = Array.isArray(S && S.enemies) ? S.enemies.filter(function (entry) { return entry && !entry.ally; }) : [];
     flow = flow || {};
     flow.playerRange = String(flow.playerRange || (S && S.combat && S.combat.spacing) || 'Engaged');
     flow.allyRanges = flow.allyRanges && typeof flow.allyRanges === 'object' ? flow.allyRanges : {};
@@ -17589,8 +17591,6 @@ document.addEventListener('DOMContentLoaded',()=>{
           return '<option value="' + String(opt.value).replace(/"/g, '&quot;') + '">' + String(opt.textContent || opt.value) + '</option>';
         }).join('')
       : '';
-    var allies = Array.isArray(S && S.enemies) ? S.enemies.filter(function (entry) { return entry && entry.ally; }) : [];
-    var enemies = Array.isArray(S && S.enemies) ? S.enemies.filter(function (entry) { return entry && !entry.ally; }) : [];
     var allyActorOptions = allies.map(function (entry) {
       return '<option value="' + Number(entry.id || 0) + '">' + String(entry.name || 'Ally') + '</option>';
     }).join('');

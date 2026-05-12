@@ -6400,6 +6400,10 @@ function executeWayfarerAction(){
       var baseDie3=getEffectiveCombatDie(type3);
       var focusedEnemy3=typeof getPrimaryCombatEnemy==='function'?getPrimaryCombatEnemy():null;
       var enemyDie3=focusedEnemy3&&Number(focusedEnemy3.dread||0)>0?Number(focusedEnemy3.dread||0):(S.combat&&S.combat.enemyDread?S.combat.enemyDread:8);
+      if(S&&S.combat){
+        S.combat.fastAttackVulnerable=1;
+        S.combat.fastAttackUsedEncounter=true;
+      }
       window.selectedDice={action:baseDie3,dread:enemyDie3};
       window.fastAttackData={type:type3,advDie:advDie3};
       performCombatActionManualRoll(type3);
@@ -8134,6 +8138,12 @@ function getActiveEnemyActionEventPool(){
   return ENEMY_ACTION_EVENTS;
 }
 
+function normalizeGenericEnemySaveStat(statKey){
+  var key=String(statKey||'defend').toLowerCase();
+  if(key==='body'||key==='spirit'||key==='mind'||key==='defend')return key;
+  return 'defend';
+}
+
 function triggerEnemyActionEvent(){
   if(!requireCampaignTurn('enemy'))return;
   var actingEnemy=getPrimaryCombatEnemy();
@@ -8164,6 +8174,26 @@ function triggerEnemyActionEvent(){
     supportsSave=true;
     if(shouldNegateEnemyEventByFlavor(ev.element,ev.kind)){
       summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
+    }else if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
+      var defDieManual=(typeof getEffectiveDie==='function')?getEffectiveDie('defend'):(S.stats.defend||4);
+      var coverTierManual=getSceneCoverTierForZone(getCurrentPlayerZoneLabel());
+      var coverBonusManual=getCoverDefenseBonusForTier(coverTierManual);
+      openManualVsDreadPrompt('Enemy Event: Defend Check',defDieManual,dd,function(successManual,actionTotalManual,dreadTotalManual){
+        var targetDDManual=Math.max(1,Number(dreadTotalManual||0)+Number(coverBonusManual||0));
+        var failedManual=Number(actionTotalManual||0)<targetDDManual;
+        var dmgManual=Math.max(1,(targetDDManual-Number(actionTotalManual||0))+(ev.bonus||0));
+        var manualSummary='Defend d'+defDieManual+'='+Number(actionTotalManual||0)+' vs DD'+dd+'='+targetDDManual+' — '+(failedManual?('failed, '+dmgManual+' Stress.'):('blocked.'));
+        if(failedManual)changeStress(dmgManual);else applyPassiveDefendSuccessEffects();
+        var sourceLabelManual=(S&&S.combat&&S.combat.customEnemyActionSource)?String(S.combat.customEnemyActionSource):'';
+        var cadenceManual=Math.max(1,Number((S&&S.combat&&S.combat.customEnemyActionCadence)||1));
+        var resManual=document.getElementById('enemyActionResult');
+        if(resManual)resManual.innerHTML='<strong style="color:var(--red2);">'+ev.name+'</strong> — '+manualSummary+' <span style="font-size:.74rem;color:var(--muted2);">(manual · '+enemyRange.toUpperCase()+(sourceLabelManual?' · '+sourceLabelManual:'')+' · Cadence x'+cadenceManual+')</span>';
+        showNotif('Enemy Action: '+ev.name,'warn');
+        finalizeEnemyTurn(actingEnemy);
+        updateCombatUI();
+        if(typeof renderQP==='function')renderQP('combat');
+      });
+      return;
     }else{
       var defDie=(typeof getEffectiveDie==='function')?getEffectiveDie('defend'):(S.stats.defend||4);
       var pr=explodingRoll(defDie,{type:'action',major:true,label:'Defend'});
@@ -8184,9 +8214,33 @@ function triggerEnemyActionEvent(){
     supportsSave=true;
     if(shouldNegateEnemyEventByFlavor(ev.element,ev.kind)){
       summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
+    }else if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
+      var saveStatManual=normalizeGenericEnemySaveStat(ev.stat);
+      var saveDieManual=(typeof getEffectiveDie==='function')?getEffectiveDie(saveStatManual):(S.stats[saveStatManual]||4);
+      var saveLabelManual=String(saveStatManual||'defend').toUpperCase();
+      openManualVsDreadPrompt('Enemy Event: '+saveLabelManual+' Save',saveDieManual,dd,function(successManual,actionTotalManual,dreadTotalManual){
+        var okManual=Number(actionTotalManual||0)>=Number(dreadTotalManual||0);
+        if(!okManual){
+          actionFailed=true;
+          S.conditions[ev.condition]=true;
+          if(typeof updateConditionButtons==='function')updateConditionButtons();
+          if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
+        }
+        var manualSummary=saveLabelManual+' d'+saveDieManual+'='+Number(actionTotalManual||0)+' vs DD'+dd+'='+Number(dreadTotalManual||0)+' — '+(okManual?'saved.':'failed, '+ev.condition+' applied.');
+        var sourceLabelManual=(S&&S.combat&&S.combat.customEnemyActionSource)?String(S.combat.customEnemyActionSource):'';
+        var cadenceManual=Math.max(1,Number((S&&S.combat&&S.combat.customEnemyActionCadence)||1));
+        var resManual=document.getElementById('enemyActionResult');
+        if(resManual)resManual.innerHTML='<strong style="color:var(--red2);">'+ev.name+'</strong> — '+manualSummary+' <span style="font-size:.74rem;color:var(--muted2);">(manual · '+enemyRange.toUpperCase()+(sourceLabelManual?' · '+sourceLabelManual:'')+' · Cadence x'+cadenceManual+')</span>';
+        showNotif('Enemy Action: '+ev.name,'warn');
+        finalizeEnemyTurn(actingEnemy);
+        updateCombatUI();
+        if(typeof renderQP==='function')renderQP('combat');
+      });
+      return;
     }else{
-      var statDie=(typeof getEffectiveDie==='function')?getEffectiveDie(ev.stat):(S.stats[ev.stat]||4);
-      var sr=explodingRoll(statDie,{type:'action',major:true,label:String(ev.stat||'Check').toUpperCase()});
+      var saveStat=normalizeGenericEnemySaveStat(ev.stat);
+      var statDie=(typeof getEffectiveDie==='function')?getEffectiveDie(saveStat):(S.stats[saveStat]||4);
+      var sr=explodingRoll(statDie,{type:'action',major:true,label:String(saveStat||'Check').toUpperCase()});
       var ok=sr.total>=dr.total;
       if(!ok){
         actionFailed=true;
@@ -8194,7 +8248,7 @@ function triggerEnemyActionEvent(){
         if(typeof updateConditionButtons==='function')updateConditionButtons();
         if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
       }
-      summary=ev.stat.toUpperCase()+' d'+statDie+'='+sr.total+' vs DD'+dd+'='+dr.total+' — '+(ok?'saved.':'failed, '+ev.condition+' applied.');
+      summary=saveStat.toUpperCase()+' d'+statDie+'='+sr.total+' vs DD'+dd+'='+dr.total+' — '+(ok?'saved.':'failed, '+ev.condition+' applied.');
     }
   }else if(ev.kind==='directStress'){
     var playerCoverTier2=getSceneCoverTierForZone(getCurrentPlayerZoneLabel());
@@ -8211,6 +8265,26 @@ function triggerEnemyActionEvent(){
     supportsSave=true;
     if(shouldNegateEnemyEventByFlavor(ev.element,ev.kind)){
       summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
+    }else if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
+      var spiritDieManual=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):(S.stats.spirit||4);
+      openManualVsDreadPrompt('Enemy Event: SPIRIT Save',spiritDieManual,dd,function(successManual,actionTotalManual,dreadTotalManual){
+        var okManual=Number(actionTotalManual||0)>=Number(dreadTotalManual||0);
+        var manualSummary='Spirit d'+spiritDieManual+'='+Number(actionTotalManual||0)+' vs DD'+dd+'='+Number(dreadTotalManual||0)+' — resisted radiation leak.';
+        if(!okManual){
+          var rGainManual=Math.max(5,Number(dreadTotalManual||0)*(ev.scale||6));
+          if(typeof changeRads==='function')changeRads(rGainManual);
+          manualSummary='Spirit d'+spiritDieManual+'='+Number(actionTotalManual||0)+' vs DD'+dd+'='+Number(dreadTotalManual||0)+' — failed, +'+rGainManual+' Rads.';
+        }
+        var sourceLabelManual=(S&&S.combat&&S.combat.customEnemyActionSource)?String(S.combat.customEnemyActionSource):'';
+        var cadenceManual=Math.max(1,Number((S&&S.combat&&S.combat.customEnemyActionCadence)||1));
+        var resManual=document.getElementById('enemyActionResult');
+        if(resManual)resManual.innerHTML='<strong style="color:var(--red2);">'+ev.name+'</strong> — '+manualSummary+' <span style="font-size:.74rem;color:var(--muted2);">(manual · '+enemyRange.toUpperCase()+(sourceLabelManual?' · '+sourceLabelManual:'')+' · Cadence x'+cadenceManual+')</span>';
+        showNotif('Enemy Action: '+ev.name,'warn');
+        finalizeEnemyTurn(actingEnemy);
+        updateCombatUI();
+        if(typeof renderQP==='function')renderQP('combat');
+      });
+      return;
     }else{
       var spiritDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):(S.stats.spirit||4);
       var spiritRoll=explodingRoll(spiritDie,{type:'action',major:true,label:'SPIRIT'});
@@ -20111,6 +20185,58 @@ document.addEventListener('DOMContentLoaded',()=>{
   };
 
   window.openGmDashboard=function(){
+    if(window.settingsSystem&&typeof window.settingsSystem.isGMMode==='function'&&!window.settingsSystem.isGMMode()){
+      if(typeof showNotif==='function')showNotif('Switch to GM mode to use the GM Dashboard.','info');
+      if(window.settingsSystem&&typeof window.settingsSystem.openSettings==='function')window.settingsSystem.openSettings();
+      return;
+    }
+    window.loadGmDashboardModule().then(function(){
+      if(window.gmDashboard&&typeof window.gmDashboard.toggle==='function')window.gmDashboard.toggle();
+      else if(window.gmDashboard&&typeof window.gmDashboard.open==='function')window.gmDashboard.open();
+    }).catch(function(){
+      if(typeof showNotif==='function')showNotif('GM Dashboard failed to load','warn');
+    });
+  };
+
+  window.updateAdminModeBadge=function(){
+    var badge=document.getElementById('adminModeBadge');
+    if(!badge)return;
+    fetch('/api/license/status',{method:'GET'})
+      .then(function(res){return res.ok?res.json():null;})
+      .then(function(data){
+        var isAdmin=!!(data&&data.ok&&data.authorized&&data.session&&data.session.isAdmin);
+        if(isAdmin)badge.classList.add('show');
+        else badge.classList.remove('show');
+      })
+      .catch(function(){
+        badge.classList.remove('show');
+      });
+  };
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',function(){
+      window.updateAdminModeBadge();
+    });
+  }else{
+    window.updateAdminModeBadge();
+  }
+})();
+</script>
+
+<!-- SCRIPT INCLUDES FOR NEW SYSTEMS -->
+<script defer src="./world-consequence.js"></script>
+<script defer src="./faction-system.js"></script>
+<script defer src="./intro-system.js"></script>
+<script defer src="./storyline-choices-system.js"></script>
+<script defer src="./solo-reference.js"></script>
+<script defer src="./gm-dashboard.js"></script>
+<script defer src="./portrait-generator.js"></script>
+<script defer src="./colosseum-gate-system.js"></script>
+<script defer src="/socket.io/socket.io.js"></script>
+<script defer src="./campaign-system.js"></script>
+
+</body>
+</html>
     if(window.settingsSystem&&typeof window.settingsSystem.isGMMode==='function'&&!window.settingsSystem.isGMMode()){
       if(typeof showNotif==='function')showNotif('Switch to GM mode to use the GM Dashboard.','info');
       if(window.settingsSystem&&typeof window.settingsSystem.openSettings==='function')window.settingsSystem.openSettings();

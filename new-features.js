@@ -7965,13 +7965,20 @@
   
   // ── COMBAT MANUAL ROLL HANDLER ──────────────────────────────────────────────
   window.performCombatActionManualRoll = function(type) {
-    if (!type || ['strike', 'shoot', 'spell', 'hack'].indexOf(type) < 0) return;
+    if (!type || ['strike', 'shoot', 'spell', 'hack', 'defend', 'control', 'body', 'spirit', 'mind'].indexOf(type) < 0) return;
 
     var selected = (window.selectedDice && typeof window.selectedDice === 'object') ? window.selectedDice : { action: 4, dread: 6 };
     var actionDie = Number(selected.action || 4);
     var dreadDie = Number(selected.dread || 6);
-    var skillLabel = type === 'strike' ? 'Strike' : (type === 'shoot' ? 'Shoot' : (type === 'hack' ? 'Hack' : 'Spell'));
-    
+    var skillLabel = type === 'strike' ? 'Strike'
+      : (type === 'shoot' ? 'Shoot'
+      : (type === 'hack' ? 'Hack'
+      : (type === 'defend' ? 'Defend'
+      : (type === 'control' ? 'Control'
+      : (type === 'body' ? 'Body'
+      : (type === 'spirit' ? 'Spirit'
+      : (type === 'mind' ? 'Mind' : 'Spell')))))));
+
     var html = '<div style="font-size:.85rem;color:var(--text2);line-height:1.7;">'
       + '<div style="font-family:\'Cinzel\',serif;font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold2);margin-bottom:.4rem;">'
       + skillLabel + ' vs Dread d' + dreadDie
@@ -7981,18 +7988,18 @@
       + '<div><strong style="color:var(--text2);">' + skillLabel + ' d' + actionDie + '</strong> <span style="color:var(--muted2);">vs</span> <strong style="color:var(--red);">Dread d' + dreadDie + '</strong></div>'
       + '</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-bottom:.4rem;">'
-      + '<div><label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">' + skillLabel + ' d' + actionDie + '</label><input type="number" id="combatManualActionValue" min="1" max="' + actionDie + '" placeholder="1-' + actionDie + '" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;"></div>'
-      + '<div><label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Dread d' + dreadDie + '</label><input type="number" id="combatManualDreadValue" min="1" max="' + dreadDie + '" placeholder="1-' + dreadDie + '" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;"></div>'
+      + '<div><label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">' + skillLabel + ' d' + actionDie + '</label><input type="number" id="combatManualActionValue" min="1" placeholder="1+" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;"></div>'
+      + '<div><label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Dread d' + dreadDie + '</label><input type="number" id="combatManualDreadValue" min="1" placeholder="1+" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;"></div>'
       + '</div>'
       + '</div>'
       + '<div style="display:flex;gap:.35rem;justify-content:flex-end;">'
       + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
       + '<button class="btn btn-sm btn-teal" onclick="finalizeCombatManualRoll(\'' + type + '\')">⚄ Resolve</button>'
       + '</div>';
-    
+
     openModal('Manual ' + skillLabel + ' Roll', html);
   };
-  
+
   window.finalizeCombatManualRoll = function(type) {
     var actionInput = document.getElementById('combatManualActionValue');
     var dreadInput = document.getElementById('combatManualDreadValue');
@@ -8009,13 +8016,8 @@
       if (typeof showNotif === 'function') showNotif('Invalid dice entry', 'warn');
       return;
     }
-
-    var selected = (window.selectedDice && typeof window.selectedDice === 'object') ? window.selectedDice : { action: 4, dread: 6 };
-    var actionDie = Number(selected.action || 4);
-    var dreadDie = Number(selected.dread || 6);
-
-    if (actionValue < 1 || actionValue > actionDie || dreadValue < 1 || dreadValue > dreadDie) {
-      if (typeof showNotif === 'function') showNotif('Dice values out of range', 'warn');
+    if (actionValue < 1 || dreadValue < 1) {
+      if (typeof showNotif === 'function') showNotif('Dice values must be 1 or higher', 'warn');
       return;
     }
 
@@ -8024,22 +8026,65 @@
     var mode = 'standard';
     if (window.heavyAttackData && window.heavyAttackData.type === type) mode = 'heavy';
     else if (window.fastAttackData && window.fastAttackData.type === type) mode = 'fast';
+    else if (window.enemyManualReactionData && window.enemyManualReactionData.mode === 'arena-enemy-reaction') mode = 'enemy_reaction';
+    else if (window.manualRollData && window.manualRollData.mode === 'surprise-check') mode = 'surprise_check';
 
     var success = actionValue > dreadValue;
     var diff = Math.max(1, success ? actionValue - dreadValue : dreadValue - actionValue);
     var targetEnemy = (typeof getPrimaryCombatEnemy === 'function') ? getPrimaryCombatEnemy() : null;
     var resultEl = (typeof document !== 'undefined') ? document.getElementById('wayfarerActionResult') : null;
-    var label = mode === 'heavy' ? 'Heavy Attack' : (mode === 'fast' ? 'Fast Attack' : (type === 'strike' ? 'Strike' : (type === 'shoot' ? 'Shoot' : (type === 'hack' ? 'Hack' : 'Spell'))));
+    var label = mode === 'heavy' ? 'Heavy Attack' : (mode === 'fast' ? 'Fast Attack' : (type === 'strike' ? 'Strike' : (type === 'shoot' ? 'Shoot' : (type === 'hack' ? 'Hack' : (type === 'defend' ? 'Defend' : (type === 'control' ? 'Control' : (type === 'body' ? 'Body' : (type === 'spirit' ? 'Spirit' : (type === 'mind' ? 'Mind' : 'Spell'))))))))));
     var dccType = (type === 'hack' || type === 'spell') ? 'spell' : type;
+
+    if (mode === 'enemy_reaction') {
+      var reactionData = window.enemyManualReactionData && typeof window.enemyManualReactionData === 'object' ? window.enemyManualReactionData : {};
+      var actionName = String(reactionData.actionName || 'Enemy Action');
+      var enemyEntity = null;
+      if (typeof S !== 'undefined' && S && Array.isArray(S.enemies)) {
+        var enemyId = Number(reactionData.enemyId || 0);
+        if (enemyId > 0) enemyEntity = S.enemies.find(function(e){ return e && !e.ally && Number(e.id || 0) === enemyId; }) || null;
+      }
+      if (success) {
+        if (typeof showNotif === 'function') showNotif(actionName + ' blocked: ' + actionValue + ' vs Dread ' + dreadValue + '.', 'good');
+        if (resultEl) resultEl.innerHTML = '<span style="color:var(--teal);">' + actionName + ': ' + actionValue + ' vs Dread ' + dreadValue + ' - Blocked.</span>';
+      } else {
+        var incoming = Math.max(1, dreadValue - actionValue);
+        if (typeof changeStress === 'function') changeStress(incoming);
+        if (typeof applyEnemySpecialEffectsToWayfarer === 'function') applyEnemySpecialEffectsToWayfarer({ effects: reactionData.effects || {} }, actionName);
+        if (typeof showNotif === 'function') showNotif(actionName + ' lands: ' + dreadValue + ' vs ' + actionValue + ' for ' + incoming + ' Stress.', 'warn');
+        if (resultEl) resultEl.innerHTML = '<span style="color:var(--red2);">' + actionName + ': ' + actionValue + ' vs Dread ' + dreadValue + ' - Hit for ' + incoming + ' Stress.</span>';
+      }
+      if (enemyEntity && typeof finalizeEnemyTurn === 'function') finalizeEnemyTurn(enemyEntity);
+      if (typeof updateCombatUI === 'function') updateCombatUI();
+      if (typeof renderArenaCombatPopup === 'function') renderArenaCombatPopup();
+      window.enemyManualReactionData = null;
+      window.manualRollData = null;
+      window.heavyAttackData = null;
+      window.fastAttackData = null;
+      return;
+    }
+
+    if (mode === 'surprise_check') {
+      if (success) {
+        if (typeof S !== 'undefined' && S && S.combat) S.combat.surpriseBonus = Number(S.combat.surpriseBonus || 0) + 2;
+        if (typeof showNotif === 'function') showNotif('Surprise Check succeeded: +2 to attacks this round.', 'good');
+        if (resultEl) resultEl.innerHTML = '<span style="color:var(--teal);">Surprise Check: ' + actionValue + ' vs Dread ' + dreadValue + ' - SUCCESS! +2 attacks this round.</span>';
+      } else {
+        if (typeof addTMWOnFail === 'function') addTMWOnFail('manual-combat-failure');
+        if (typeof showNotif === 'function') showNotif('Surprise Check failed: enemy not surprised.', 'warn');
+        if (resultEl) resultEl.innerHTML = '<span style="color:var(--red2);">Surprise Check: ' + actionValue + ' vs Dread ' + dreadValue + ' - FAILED.</span>';
+      }
+      window.enemyManualReactionData = null;
+      window.manualRollData = null;
+      window.heavyAttackData = null;
+      window.fastAttackData = null;
+      return;
+    }
 
     if (success) {
       var dmg = Math.max(1, diff) + (mode === 'heavy' ? 2 : 0) + ((type === 'spell') ? 1 : 0);
-      if (targetEnemy && typeof applyStressToEnemy === 'function') {
+      if (targetEnemy && typeof applyStressToEnemy === 'function' && (type === 'strike' || type === 'shoot' || type === 'spell' || type === 'hack')) {
         applyStressToEnemy(targetEnemy, dmg, label + ' (Manual)');
-      }
-      if (mode === 'fast' && S && S.combat) {
-        S.combat.fastAttackVulnerable = 1;
-        S.combat.fastAttackUsedEncounter = true;
       }
       if (typeof addSuccessRoll === 'function') addSuccessRoll();
       if (typeof showDccSuccessOutcome === 'function') {
@@ -8050,7 +8095,8 @@
         });
       }
       if (resultEl) {
-        resultEl.innerHTML = '<span style="color:var(--teal);">' + label + ': ' + actionValue + ' vs Dread ' + dreadValue + ' - HIT! ' + dmg + ' Health damage.</span>';
+        if (type === 'strike' || type === 'shoot' || type === 'spell' || type === 'hack') resultEl.innerHTML = '<span style="color:var(--teal);">' + label + ': ' + actionValue + ' vs Dread ' + dreadValue + ' - HIT! ' + dmg + ' Health damage.</span>';
+        else resultEl.innerHTML = '<span style="color:var(--teal);">' + label + ': ' + actionValue + ' vs Dread ' + dreadValue + ' - SUCCESS.</span>';
       }
     } else {
       if (typeof addTMWOnFail === 'function') addTMWOnFail('manual-combat-failure');
@@ -8062,14 +8108,20 @@
         });
       }
       if (resultEl) {
-        resultEl.innerHTML = '<span style="color:var(--red2);">' + label + ': ' + actionValue + ' vs Dread ' + dreadValue + ' - MISS.</span>';
+        resultEl.innerHTML = '<span style="color:var(--red2);">' + label + ': ' + actionValue + ' vs Dread ' + dreadValue + ' - FAIL.</span>';
       }
+    }
+
+    if (mode === 'fast' && S && S.combat) {
+      S.combat.fastAttackVulnerable = 1;
+      S.combat.fastAttackUsedEncounter = true;
     }
 
     if (typeof clearConditionOnUse === 'function') clearConditionOnUse(type);
     if (typeof updateWayfarerActionBtn === 'function') updateWayfarerActionBtn();
     if (typeof renderCombatOptions === 'function') renderCombatOptions();
 
+    window.enemyManualReactionData = null;
     window.manualRollData = null;
     window.heavyAttackData = null;
     window.fastAttackData = null;
@@ -8190,6 +8242,14 @@
     buildPanelHtml: buildTrophyPanelHtml,
     renderTab: renderTrophyTab,
     defs: TROPHY_DEFS
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderTrophyTab);
+  } else {
+    renderTrophyTab();
+  }
+}());
   };
 
   if (document.readyState === 'loading') {

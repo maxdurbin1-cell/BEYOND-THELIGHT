@@ -1111,10 +1111,18 @@ function buildInteractablePanelHtml(interactables, selectedUnit) {
 
 function injectInteractablesIntoSvg(hexSvg, interactables, toPixelFn, hexSize) {
   if (!Array.isArray(interactables) || !interactables.length) return hexSvg;
+  var size = Number(hexSize || 28);
+  var pixelFn = (typeof toPixelFn === 'function')
+    ? toPixelFn
+    : function(q, r) {
+        var x = size * (3 / 2 * Number(q || 0));
+        var y = size * (Math.sqrt(3) / 2 * Number(q || 0) + Math.sqrt(3) * Number(r || 0));
+        return { x: 320 + x, y: 305 + y };
+      };
   var inserts = interactables.filter(function(i) { return i && i.active && i.position; }).map(function(item) {
-    var p = toPixelFn(item.position.q, item.position.r);
+    var p = pixelFn(item.position.q, item.position.r);
     var elevRing = item.elevation > 0
-      ? '<circle cx="' + p.x.toFixed(2) + '" cy="' + p.y.toFixed(2) + '" r="' + ((hexSize || 22) * 0.62).toFixed(2) + '" fill="none" stroke="rgba(255,220,80,.55)" stroke-width="1.5" stroke-dasharray="4 3"/>'
+      ? '<circle cx="' + p.x.toFixed(2) + '" cy="' + p.y.toFixed(2) + '" r="' + ((size || 22) * 0.62).toFixed(2) + '" fill="none" stroke="rgba(255,220,80,.55)" stroke-width="1.5" stroke-dasharray="4 3"/>'
       : '';
     return elevRing + '<text x="' + p.x.toFixed(2) + '" y="' + (p.y + 5).toFixed(2) + '" text-anchor="middle" font-size="14" opacity=".9">' + item.icon + '</text>';
   }).join('');
@@ -1136,7 +1144,9 @@ if (typeof window !== 'undefined') {
 
   window.crucibleTriggerInteractable = function(itemId, selectedUnitId) {
     if (typeof S === 'undefined' || !S) return;
-    var match = (S.holding && S.holding.crucible && S.holding.crucible.currentMatch) ? S.holding.crucible.currentMatch : null;
+    var match = (S.holding && S.holding.crucible)
+      ? (S.holding.crucible.currentMatch || S.holding.crucible.match || null)
+      : null;
     if (!match) { if (typeof showNotif === 'function') showNotif('No active combat match.', 'warn'); return; }
     var interactables = match.interactables;
     if (!Array.isArray(interactables)) { if (typeof showNotif === 'function') showNotif('No interactables in this fight.', 'info'); return; }
@@ -1156,6 +1166,7 @@ if (typeof window !== 'undefined') {
     var log = match.log = match.log || [];
     var ok = dispatchInteractableTrigger(item, triggeringUnit, allUnits, match.hexMap, log);
     if (ok && typeof showNotif === 'function') showNotif(item.name + ' triggered!', 'good');
-    if (typeof window.holdingCrucibleRenderBoard === 'function') window.holdingCrucibleRenderBoard();
+    if (typeof window.renderHoldingCruciblePopup === 'function') window.renderHoldingCruciblePopup();
+    if (typeof window.renderHoldingUI === 'function') window.renderHoldingUI();
   };
 }

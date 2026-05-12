@@ -1670,17 +1670,21 @@
 
   function seedCrucibleExpeditionMiniBossHexes(map, count) {
     if (!map || !map.hexes) return [];
-    var keys = Object.keys(map.hexes).filter(function (key) {
+    var ruinKeys = [];
+    var otherKeys = [];
+    Object.keys(map.hexes).forEach(function (key) {
       var cell = map.hexes[key];
-      if (!cell) return false;
-      if (cell.obstacle || cell.door || cell.zone || cell.temple) return false;
+      if (!cell || cell.obstacle || cell.door || cell.zone || cell.temple) return;
       var ring = Math.max(Math.abs(Number(cell.q || 0)), Math.abs(Number(cell.r || 0)), Math.abs(Number(cell.q || 0) + Number(cell.r || 0)));
-      return ring >= 2;
+      if (ring < 2) return;
+      if (String(cell.terrain || '') === 'ruin') ruinKeys.push(key);
+      else otherKeys.push(key);
     });
     var out = [];
-    for (var i = 0; i < Math.min(Number(count || 0), keys.length); i++) {
-      var idx = Math.floor(Math.random() * keys.length);
-      out.push(keys.splice(idx, 1)[0]);
+    for (var i = 0; i < Math.min(Number(count || 0), ruinKeys.length || otherKeys.length); i++) {
+      var pool = ruinKeys.length ? ruinKeys : otherKeys;
+      var idx = Math.floor(Math.random() * pool.length);
+      out.push(pool.splice(idx, 1)[0]);
     }
     return out;
   }
@@ -2100,6 +2104,7 @@
     match.selectedAllyTargetId = String(player.id || '');
     match.turnSide = 'ally';
     match.expedition.phase = 'combat';
+    match.expedition.uiTab = 'combat';
     match.expedition.currentCombatType = String(profile.combatType || 'fieldMonster');
     match.expedition.currentCombatProfile = enemy.profile;
     return true;
@@ -3063,6 +3068,9 @@
       if (rewardTag === 'fieldBoss') {
         match.log = (match.log || []).concat(['Field Boss trophy secured: affixed weapon/armor added to run loot.']).slice(-120);
       }
+      if (rewardTag === 'miniboss') {
+        match.log = (match.log || []).concat(['Mini Boss trophy secured: affixed weapon/armor added to run loot.']).slice(-120);
+      }
       if (rewardTag === 'boss1' || rewardTag === 'boss2') {
         var boon = grantCrucibleExpeditionBossBoon(match, rewardTag);
         if (boon) match.log = (match.log || []).concat(['Boss boon gained: ' + boon + '.']).slice(-120);
@@ -3183,6 +3191,9 @@
     
     if (isExpedition && typeof buildCrucibleExpeditionProvinceParityMapHtml === 'function') {
       var provinceSvg = buildCrucibleExpeditionProvinceParityMapHtml(match, selectedUnit, reachableKeys);
+      var moveChooserHtml = (String(expedition.phase || 'explore') === 'explore' && selectedUnit && typeof buildCrucibleExpeditionMoveOptionsHtml === 'function')
+        ? buildCrucibleExpeditionMoveOptionsHtml(match, selectedUnit, reachableHexes)
+        : '';
       var descriptorHtml = (typeof buildCrucibleExpeditionProvinceDescriptorHtml === 'function')
         ? buildCrucibleExpeditionProvinceDescriptorHtml(match)
         : '';
@@ -3222,6 +3233,7 @@
         + '<span class="theos-chip">Portals</span>'
         + '</div>'
         + combatHint
+        + moveChooserHtml
         + provinceSvg
         + coreActions
         + utilityActions
@@ -3450,6 +3462,7 @@
     var isCombatActive = String(expedition.phase || '') === 'combat' && !!enemy;
     var tabRow = '<div style="display:flex;gap:.22rem;margin-bottom:.3rem;">'
       + '<button class="btn btn-sm ' + (uiTab === 'province' ? 'btn-primary' : '') + '" onclick="holdingCrucibleExpeditionSwitchTab(\'province\')">Province</button>'
+      + (isCombatActive || uiTab === 'combat' ? '<button class="btn btn-sm ' + (uiTab === 'combat' ? 'btn-primary' : '') + '" onclick="holdingCrucibleExpeditionSwitchTab(\'combat\')">Combat</button>' : '')
       + '<button class="btn btn-sm ' + (uiTab === 'wayfarer' ? 'btn-primary' : '') + '" onclick="holdingCrucibleExpeditionSwitchTab(\'wayfarer\')">Wayfarer</button>'
       + '</div>';
     var top = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
@@ -3463,9 +3476,15 @@
       var loot = Array.isArray(expedition.runLoot) ? expedition.runLoot : [];
       var lootHtml = loot.length
         ? loot.map(function (it, idx) {
+          var found = (typeof findShopItem === 'function') ? findShopItem(it) : null;
+          var cat = String(found && found.cat || '').toLowerCase();
+          var canUse = cat === 'scrolls' || cat === 'items' || cat === 'essentials' || cat === 'remedies';
           return '<div style="display:flex;justify-content:space-between;gap:.2rem;border-bottom:1px solid var(--border2);padding:.12rem 0;">'
             + '<span style="font-size:.72rem;color:var(--text2);">' + String(it) + '</span>'
-            + '<button class="btn btn-xs" onclick="holdingCrucibleEquipExpeditionLoot(' + Number(idx) + ')">Equip</button>'
+            + '<span style="display:flex;gap:.18rem;">'
+            + '<button class="btn btn-xs" onclick="holdingCrucibleEquipExpeditionLoot(' + Number(idx) + ')">' + ((cat === 'armor' || cat === 'weapons') ? 'Equip' : 'Store') + '</button>'
+            + (canUse ? '<button class="btn btn-xs btn-teal" onclick="holdingCrucibleUseExpeditionLoot(' + Number(idx) + ')">Use</button>' : '')
+            + '</span>'
             + '</div>';
         }).join('')
         : '<div style="font-size:.72rem;color:var(--muted2);">No run loot yet.</div>';
@@ -3922,7 +3941,8 @@
   function holdingCrucibleExpeditionSwitchTab(tab) {
     var match = getHoldingCrucibleMatch();
     if (!match || String(match.mode || '') !== 'expedition' || !match.expedition) return false;
-    match.expedition.uiTab = String(tab || 'province') === 'wayfarer' ? 'wayfarer' : 'province';
+    var nextTab = String(tab || 'province');
+    match.expedition.uiTab = nextTab === 'wayfarer' || nextTab === 'combat' ? nextTab : 'province';
     renderHoldingCruciblePopup();
     return true;
   }
@@ -4173,6 +4193,60 @@
     renderHoldingCruciblePopup();
     renderHoldingUI();
     return true;
+  }
+
+  function holdingCrucibleUseExpeditionLoot(idx) {
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition) return false;
+    var expedition = match.expedition;
+    var list = Array.isArray(expedition.runLoot) ? expedition.runLoot : [];
+    var pick = list[Number(idx)];
+    if (!pick) return false;
+    var found = (typeof findShopItem === 'function') ? findShopItem(pick) : null;
+    if (!found || !found.item) {
+      if (typeof showNotif === 'function') showNotif('That loot cannot be used directly.', 'warn');
+      return false;
+    }
+    var cat = String(found.cat || '').toLowerCase();
+    if (cat === 'scrolls' || cat === 'items' || cat === 'essentials' || cat === 'remedies') {
+      var slot = -1;
+      if (!Array.isArray(S.backpack)) S.backpack = Array(10).fill('');
+      for (var i = 0; i < S.backpack.length; i++) {
+        if (!S.backpack[i]) { slot = i; break; }
+      }
+      if (slot < 0) {
+        if (typeof showNotif === 'function') showNotif('Backpack full. Free a slot before using this loot.', 'warn');
+        return false;
+      }
+      S.backpack[slot] = String(pick);
+      if (cat === 'scrolls') castScrollFromBackpack(slot);
+      else if (cat === 'items' || cat === 'essentials' || cat === 'remedies') useBackpackItem(slot);
+      if (Array.isArray(S.backpack) && S.backpack[slot]) {
+        S.backpack[slot] = '';
+      } else {
+        expedition.runLoot.splice(Number(idx), 1);
+      }
+      match.log = (match.log || []).concat(['Run loot used: ' + String(pick) + '.']).slice(-120);
+      renderHoldingCruciblePopup();
+      renderHoldingUI();
+      return true;
+    }
+    if (typeof showNotif === 'function') showNotif('That loot is not a usable item.', 'warn');
+    return false;
+  }
+
+  function buildCrucibleExpeditionMoveOptionsHtml(match, selectedUnit, reachableHexes) {
+    if (!match || !selectedUnit || !Array.isArray(reachableHexes) || !reachableHexes.length) {
+      return '<div style="font-size:.72rem;color:var(--muted2);">No movement available.</div>';
+    }
+    return '<div style="margin:.22rem 0 .3rem;padding:.28rem .32rem;border:1px solid rgba(70,196,182,.22);background:rgba(70,196,182,.06);border-radius:4px;">'
+      + '<div style="font-size:.68rem;color:var(--teal);margin-bottom:.14rem;">Move to a highlighted hex</div>'
+      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">' + reachableHexes.map(function (hex) {
+        var label = '[' + (Number(hex.q || 0) + 1) + ',' + (Number(hex.r || 0) + 1) + ']';
+        return '<button class="btn btn-xs btn-teal" onclick="holdingCrucibleHandleBoardHexClick(' + Number(hex.q || 0) + ',' + Number(hex.r || 0) + ');">Move ' + label + '</button>';
+      }).join('') + '</div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.12rem;">You can also click the highlighted hexes on the board.</div>'
+      + '</div>';
   }
 
   function getCrucibleExpeditionStartingArmorOptions() {
@@ -8838,6 +8912,7 @@
   window.holdingCrucibleBreachExpeditionPortal = holdingCrucibleBreachExpeditionPortal;
   window.holdingCrucibleSolvePortalPuzzle = holdingCrucibleSolvePortalPuzzle;
   window.holdingCrucibleEquipExpeditionLoot = holdingCrucibleEquipExpeditionLoot;
+  window.holdingCrucibleUseExpeditionLoot = holdingCrucibleUseExpeditionLoot;
   window.buildCrucibleExpeditionLoadoutSelectionHtml = buildCrucibleExpeditionLoadoutSelectionHtml;
   window.confirmCrucibleExpeditionLoadout = confirmCrucibleExpeditionLoadout;
   window.applyCrucibleExpeditionFleePenalty = applyCrucibleExpeditionFleePenalty;

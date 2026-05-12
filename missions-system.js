@@ -15310,8 +15310,8 @@
           +'<div style="font-size:.7rem;color:var(--muted2);">Success means you arrive undetected. Failure means you lose time and the site is alerted.</div>'
         +'</div>'
         +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
-          +'<button class="btn btn-sm btn-red" onclick="resolveMissionSiteApproach('+missionId+',false)">Failure</button>'
-          +'<button class="btn btn-sm btn-primary" onclick="resolveMissionSiteApproach('+missionId+',true)">Success</button>'
+          +'<button class="btn btn-sm btn-red" onclick="window.resolveMissionSiteApproach('+missionId+',false)">Failure</button>'
+          +'<button class="btn btn-sm btn-primary" onclick="window.resolveMissionSiteApproach('+missionId+',true)">Success</button>'
         +'</div>';
       var pendingModal=document.getElementById('rollModal');
       if (pendingModal&&!pendingModal.classList.contains('open')) pendingModal.classList.add('open');
@@ -15437,8 +15437,8 @@
       openModal('Room Trap','<div style="font-size:.84rem;color:var(--muted3);line-height:1.55;margin-bottom:.5rem;">'
         +room.find.text+'<br><br>Roll Adventure d'+getStat('adventure')+' vs Dread d'+(room.find.dd||6)+' and choose the outcome.</div>'
         +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
-          +'<button class="btn btn-sm btn-red" onclick="resolveMissionRoomTrapOutcome('+missionId+','+roomIdx+',false)">Failure</button>'
-          +'<button class="btn btn-sm btn-primary" onclick="resolveMissionRoomTrapOutcome('+missionId+','+roomIdx+',true)">Success</button>'
+          +'<button class="btn btn-sm btn-red" onclick="window.resolveMissionRoomTrapOutcome('+missionId+','+roomIdx+',false)">Failure</button>'
+          +'<button class="btn btn-sm btn-primary" onclick="window.resolveMissionRoomTrapOutcome('+missionId+','+roomIdx+',true)">Success</button>'
         +'</div>');
       return;
     }
@@ -16966,7 +16966,8 @@
   window.startMissionStep1=startMissionStep1; window.skipMissionStep1=skipMissionStep1; window.completeMissionInfoStep=completeMissionInfoStep;
   window.startMissionStep2=startMissionStep2; window.renderSiteModal=renderSiteModal; window.exploreRoom=exploreRoom;
   window.resolveRoomConfrontation=resolveRoomConfrontation; window.completeMissionSiteStep=completeMissionSiteStep;
-  window.resolveMissionRoomTrap=resolveMissionRoomTrap; window.startMissionRoomPuzzle=startMissionRoomPuzzle; window.resolveMissionRoomEnemy=resolveMissionRoomEnemy; window.openMissionRoomCombat=openMissionRoomCombat;
+  window.resolveMissionRoomTrap=resolveMissionRoomTrap; window.resolveMissionRoomTrapOutcome=resolveMissionRoomTrapOutcome; window.startMissionRoomPuzzle=startMissionRoomPuzzle; window.resolveMissionRoomEnemy=resolveMissionRoomEnemy; window.openMissionRoomCombat=openMissionRoomCombat;
+  window.resolveMissionSiteApproach=resolveMissionSiteApproach;
   window.startMissionStep3=startMissionStep3; window.resolveMission=resolveMission;
   window.resolveMissionOutcome=resolveMissionOutcome;
   window.openMissionFailureOutcomeModal=openMissionFailureOutcomeModal;

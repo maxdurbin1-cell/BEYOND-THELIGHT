@@ -4934,23 +4934,26 @@
       if (typeof showNotif === 'function') showNotif('Invalid destination hex.', 'warn');
       return false;
     }
-    var actor = getCrucibleExpeditionPlayer(match);
-    if (actor) {
-      match.turnSide = 'ally';
-      match.selectedAllyId = String(actor.id || '');
-    }
     var player = getCrucibleExpeditionPlayer(match);
-    var before = player && player.position ? (String(player.position.q) + ',' + String(player.position.r)) : '';
-    var handled = tryCrucibleExpeditionDirectMove(match, nextQ, nextR);
-    player = getCrucibleExpeditionPlayer(match);
-    var after = player && player.position ? (String(player.position.q) + ',' + String(player.position.r)) : '';
-    if (handled && before !== after) return true;
-    if (handled) return false;
+    if (!player || !player.position || Number(player.hp || 0) <= 0) {
+      if (typeof showNotif === 'function') showNotif('No active Wayfarer can move right now.', 'warn');
+      return false;
+    }
+    match.turnSide = 'ally';
+    match.selectedAllyId = String(player.id || '');
 
+    var before = String(Number(player.position.q || 0)) + ',' + String(Number(player.position.r || 0));
     var moved = holdingCrucibleMoveSelected(nextQ, nextR);
     if (moved) {
+      player = getCrucibleExpeditionPlayer(match);
+      var after = player && player.position
+        ? (String(Number(player.position.q || 0)) + ',' + String(Number(player.position.r || 0)))
+        : before;
+      if (after === before) {
+        if (typeof showNotif === 'function') showNotif('Move attempted but position did not change.', 'warn');
+        return false;
+      }
       recordCrucibleExpeditionHexClick(match);
-      renderHoldingCruciblePopup();
       renderHoldingUI();
       return true;
     }

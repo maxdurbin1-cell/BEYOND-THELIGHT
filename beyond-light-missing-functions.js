@@ -2669,11 +2669,21 @@ function consumeVisibleManualRollValue(kind, sides) {
   if (kind !== "action" && kind !== "dread") {
     return null;
   }
-  var selectedSides = Math.max(1, Number(window.selectedDice[kind] || sides || 1));
-  if (Number(sides || 0) !== selectedSides) {
+  var die = Math.max(1, Number(sides || window.selectedDice[kind] || 1));
+  var input = document.getElementById(kind === "action" ? "manualActionValue" : "manualDreadValue");
+  if (!input) return null;
+  var raw = String(input.value || "").trim();
+  if (!raw) {
     return null;
   }
-  return readManualCheckValue(kind, true);
+  var value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value) || value < 1 || value > die) {
+    showNotif((kind === "action" ? "Action" : "Dread") + " result must be between 1 and " + die + ".", "warn");
+    input.focus();
+    return null;
+  }
+  input.value = "";
+  return value;
 }
 
 const DCC_FLAVOR_TEMPLATES = [

@@ -1753,32 +1753,32 @@ function handleEnhancedManualFailure() {
 function getManualRollValue(sides,meta){
   const die=Math.max(1,parseInt(sides,10)||1);
   if(window&&typeof window.consumeVisibleManualRollValue==='function'){
-    const visibleValue=window.consumeVisibleManualRollValue(meta&&meta.type?String(meta.type):'',die);
+    const visibleValue=window.consumeVisibleManualRollValue(resolveManualRollKind(meta),die);
     if(visibleValue!==null)return visibleValue;
   }
-  if(!isManualRollModeEnabled())return null;
-  var label='d'+die;
-  if(meta&&typeof meta==='object'){
-    if(meta.label)label=String(meta.label);
-    else if(meta.type)label=String(meta.type).toUpperCase()+' d'+die;
-  }
-  var promptText='Manual Roll Mode is on.\nEnter your physical dice result for '+label+' (1-'+die+').';
-  for(var i=0;i<3;i++){
-    var raw=window.prompt(promptText,'');
-    if(raw===null)continue;
-    var parsed=Math.floor(Number(raw));
-    if(Number.isFinite(parsed)&&parsed>=1&&parsed<=die)return parsed;
-    if(typeof showNotif==='function')showNotif('Enter a value between 1 and '+die+'.','warn');
-  }
-  if(typeof showNotif==='function')showNotif('No manual roll entered. Using minimum value 1 for d'+die+'.','warn');
-  return 1;
+  return null;
+}
+
+function resolveManualRollKind(meta){
+  var m=meta&&typeof meta==='object'?meta:{};
+  var type=String(m.type||'').toLowerCase();
+  if(type==='action'||type==='dread')return type;
+  var label=String(m.label||'').toLowerCase();
+  if(/\bdread\b/.test(label))return 'dread';
+  if(/\b(action|lead|control|spirit|body|strike|shoot|adventure|defend)\b/.test(label))return 'action';
+  return '';
 }
 function roll(n,meta){
   const sides=Math.max(1,parseInt(n,10)||1);
   let value=Math.floor(Math.random()*sides)+1;
-  if(isManualRollModeEnabled()){
+  var manualKind=resolveManualRollKind(meta);
+  if(isManualRollModeEnabled()&&manualKind){
     const manualValue=getManualRollValue(sides,meta||null);
     if(manualValue!==null)value=manualValue;
+    else {
+      if(typeof showNotif==='function')showNotif('Manual Roll Mode: enter '+manualKind+' d'+sides+' in Manual Check before rolling.','warn');
+      value=1;
+    }
   }
   queueDiceRollVisual(sides,value,meta||null);
   return value;

@@ -1336,6 +1336,10 @@ function generateCharacter() {
   rollCareer();
   rollBackground();
   S.age = pick(["Youth (0-29)", "Endeavor (30-59)", "Twilight (60-100)"]);
+  if (typeof getCharacterYearsFromBand === 'function') {
+    S.characterYears = getCharacterYearsFromBand(S.age);
+    S.characterDeadOfAge = false;
+  }
   rollOmen();
   rollReason();
   rollFlavor();
@@ -1357,6 +1361,9 @@ function generateCharacter() {
   S.traumaConditions = { weakened: false, distracted: false, shaken: false, vulnerable: false };
   clearAllConditions();
   syncCharacterFields();
+  if (typeof updateCharacterAgeProgressUI === 'function') {
+    updateCharacterAgeProgressUI();
+  }
   updateAllStatDisplays();
   updateCreditsUI();
   updateRenown();

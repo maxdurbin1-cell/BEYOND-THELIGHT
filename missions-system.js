@@ -4189,13 +4189,37 @@
   function openRaidTreeNodeInspector(kind, nodeId) {
     if (typeof window !== 'undefined') {
       window.__raidTreeInspector = { kind: String(kind || 'legacy'), id: String(nodeId || '') };
+      if (typeof window.applyRaidTreeNodeSelection === 'function') {
+        window.applyRaidTreeNodeSelection(window.__raidTreeInspector.kind, window.__raidTreeInspector.id);
+      }
     }
     return renderRaidTreeInspectorPanel();
   }
 
   function clearRaidTreeInspector() {
     if (typeof window !== 'undefined') window.__raidTreeInspector = null;
+    if (typeof window !== 'undefined' && typeof window.applyRaidTreeNodeSelection === 'function') {
+      window.applyRaidTreeNodeSelection('', '');
+    }
     return renderRaidTreeInspectorPanel();
+  }
+
+  function applyRaidTreeNodeSelection(kind, nodeId) {
+    if (typeof document === 'undefined') return;
+    var selectedKind = String(kind || '');
+    var selectedId = String(nodeId || '');
+    var nodes = document.querySelectorAll('[data-raid-node="1"]');
+    nodes.forEach(function (el) {
+      if (!el || typeof el.classList === 'undefined') return;
+      var isMatch = selectedKind
+        && selectedId
+        && String(el.getAttribute('data-node-kind') || '') === selectedKind
+        && String(el.getAttribute('data-node-id') || '') === selectedId;
+      el.classList.toggle('raid-node-selected', !!isMatch);
+    });
+  }
+  if (typeof window !== 'undefined') {
+    window.applyRaidTreeNodeSelection = applyRaidTreeNodeSelection;
   }
 
   function renderLegacyRaidTreePanel() {
@@ -4821,8 +4845,14 @@
         : (node.rarity !== 'normal' ? '<div style="width:' + Math.round(r * .30) + 'px;height:' + Math.round(r * .30) + 'px;border-radius:50%;background:' + (node.rarity === 'keystone' ? 'rgba(255,170,88,.5)' : 'rgba(126,215,255,.38)') + ';pointer-events:none;"></div>' : '');
       var labelEsc = String(node.label || '').replace(/'/g, "\\'");
       var legacySpendClass = (!purchased && node.affordable) ? 'raid-node-spendable' : '';
+      var selectedInspector = (typeof window !== 'undefined' && window.__raidTreeInspector) ? window.__raidTreeInspector : null;
+      var isSelected = !!(selectedInspector
+        && String(selectedInspector.kind || '') === 'legacy'
+        && String(selectedInspector.id || '') === String(node.id || ''));
+      var selectedClass = isSelected ? ' raid-node-selected' : '';
       return '<button data-raid-node="1" type="button"'
-        + ' class="' + legacySpendClass + '"'
+        + ' data-node-kind="legacy" data-node-id="' + String(node.id || '') + '"'
+        + ' class="' + legacySpendClass + selectedClass + '"'
         + ' onclick="openRaidTreeNodeInspector(\'legacy\',\'' + node.id + '\')"'
         + ' onmouseenter="window.__raidTip&&window.__raidTip(event,\'' + labelEsc + '\')"'
         + ' onmouseleave="window.__raidTipHide&&window.__raidTipHide()"'
@@ -4867,8 +4897,14 @@
         : (node.rarity !== 'normal' ? ('<div style="width:' + Math.round(r * .30) + 'px;height:' + Math.round(r * .30) + 'px;border-radius:50%;background:' + accent + ';opacity:.45;pointer-events:none;"></div>') : '');
       var labelEsc = String(node.label || '').replace(/'/g, "\\'");
       var titanSpendClass = (!purchased && node.canBuy) ? 'raid-node-spendable' : '';
+      var selectedInspector = (typeof window !== 'undefined' && window.__raidTreeInspector) ? window.__raidTreeInspector : null;
+      var isSelected = !!(selectedInspector
+        && String(selectedInspector.kind || '') === 'titan'
+        && String(selectedInspector.id || '') === String(node.id || ''));
+      var selectedClass = isSelected ? ' raid-node-selected' : '';
       return '<button data-raid-node="1" type="button"'
-        + ' class="' + titanSpendClass + '"'
+        + ' data-node-kind="titan" data-node-id="' + String(node.id || '') + '"'
+        + ' class="' + titanSpendClass + selectedClass + '"'
         + ' onclick="openRaidTreeNodeInspector(\'titan\',\'' + node.id + '\')"'
         + ' onmouseenter="window.__raidTip&&window.__raidTip(event,\'' + labelEsc + '\')"'
         + ' onmouseleave="window.__raidTipHide&&window.__raidTipHide()"'
@@ -4878,7 +4914,7 @@
         + '</button>';
     }).join('');
 
-    panel.innerHTML = '<style id="raidTreeSpendableStyles">@keyframes raidSpendPulse{0%{box-shadow:0 0 10px rgba(126,215,255,.46),0 0 20px rgba(126,215,255,.16)}50%{box-shadow:0 0 18px rgba(156,232,255,.86),0 0 34px rgba(126,215,255,.34)}100%{box-shadow:0 0 10px rgba(126,215,255,.46),0 0 20px rgba(126,215,255,.16)}}@keyframes raidStartBadgeGlow{0%{filter:brightness(1);transform:translateY(0)}50%{filter:brightness(1.2);transform:translateY(-1px)}100%{filter:brightness(1);transform:translateY(0)}} .raid-node-spendable{animation:raidSpendPulse 1.4s ease-in-out infinite;} .raid-start-badge{animation:raidStartBadgeGlow 2.2s ease-in-out infinite;} .raid-start-identity{opacity:.96;}</style>'
+    panel.innerHTML = '<style id="raidTreeSpendableStyles">@keyframes raidSpendPulse{0%{box-shadow:0 0 10px rgba(126,215,255,.46),0 0 20px rgba(126,215,255,.16)}50%{box-shadow:0 0 18px rgba(156,232,255,.86),0 0 34px rgba(126,215,255,.34)}100%{box-shadow:0 0 10px rgba(126,215,255,.46),0 0 20px rgba(126,215,255,.16)}}@keyframes raidStartBadgeGlow{0%{filter:brightness(1);transform:translateY(0)}50%{filter:brightness(1.2);transform:translateY(-1px)}100%{filter:brightness(1);transform:translateY(0)}}@keyframes raidNodeSelectedPulse{0%{box-shadow:0 0 14px rgba(255,226,120,.68),0 0 28px rgba(255,191,80,.28)}50%{box-shadow:0 0 24px rgba(255,236,152,.95),0 0 42px rgba(255,191,80,.48)}100%{box-shadow:0 0 14px rgba(255,226,120,.68),0 0 28px rgba(255,191,80,.28)}} .raid-node-spendable{animation:raidSpendPulse 1.4s ease-in-out infinite;} .raid-node-selected{border-color:rgba(255,225,125,.98)!important;outline:2px solid rgba(255,225,125,.6)!important;outline-offset:-5px!important;filter:brightness(1.12);animation:raidNodeSelectedPulse 1.2s ease-in-out infinite;} .raid-start-badge{animation:raidStartBadgeGlow 2.2s ease-in-out infinite;} .raid-start-identity{opacity:.96;}</style>'
       + '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;padding:.34rem;border:1px solid rgba(201,162,39,.22);background:radial-gradient(150% 140% at 0% 0%, rgba(126,215,255,.12), rgba(16,28,42,.88) 35%, rgba(9,12,20,.98));">'
       + '<div style="border:1px solid rgba(201,162,39,.28);background:linear-gradient(165deg, rgba(201,162,39,.14), rgba(12,18,26,.94));padding:.52rem .6rem;box-shadow:inset 0 0 24px rgba(126,215,255,.08);">'
       + '<div style="display:flex;justify-content:space-between;gap:.45rem;align-items:flex-start;flex-wrap:wrap;">'
@@ -4886,6 +4922,10 @@
       + '<div style="font-size:.92rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Raid Progression: Atlas Skill Web</strong></div>'
       + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;max-width:960px;">Start from one of the glowing class hubs in the middle, then branch outward through connected rings. Pulsing nodes are purchasable right now.</div>'
       + '</div>'
+    var inspectorState = (typeof window !== 'undefined' && window.__raidTreeInspector) ? window.__raidTreeInspector : null;
+    if (inspectorState) {
+      applyRaidTreeNodeSelection(String(inspectorState.kind || ''), String(inspectorState.id || ''));
+    }
       + '<div style="font-size:.7rem;color:var(--teal);display:flex;gap:.45rem;flex-wrap:wrap;align-items:center;">' + medalSummaryHtml + '<span>Raid Points: ' + pointCount + '</span></div>'
       + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">'

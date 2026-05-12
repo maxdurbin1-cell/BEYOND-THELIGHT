@@ -1668,6 +1668,51 @@
     }
   }
 
+  function getCrucibleExpeditionProvinceBarrierHexes() {
+    var state = null;
+    if (typeof getProvinceMapState === 'function') {
+      try { state = getProvinceMapState(); } catch (_err) { state = null; }
+    }
+    if (!state && typeof mapData !== 'undefined' && Array.isArray(mapData)) {
+      state = { mapData: mapData };
+    }
+    var list = state && Array.isArray(state.mapData) ? state.mapData : [];
+    return list.filter(function (hex) {
+      return hex && String(hex.type || '').toLowerCase() === 'barrier';
+    }).map(function (hex) {
+      return { q: Number(hex.col || 0), r: Number(hex.row || 0) };
+    });
+  }
+
+  function stampCrucibleExpeditionProvinceBarriers(map) {
+    if (!map || !map.hexes) return [];
+    var stamped = [];
+    getCrucibleExpeditionProvinceBarrierHexes().forEach(function (hex) {
+      var key = String(Number(hex.q || 0)) + ',' + String(Number(hex.r || 0));
+      var cell = map.hexes[key];
+      if (!cell || cell.obstacle || cell.door || cell.zone || cell.temple || cell.portal || cell.gate) return;
+      cell.terrain = 'barrier';
+      cell.obstacle = true;
+      cell.barrier = { source: 'province', blocked: true, passToken: '' };
+      stamped.push(key);
+    });
+    return stamped;
+  }
+
+  function getCrucibleExpeditionRandomDropHex(map) {
+    if (!map || !map.hexes) return null;
+    var keys = Object.keys(map.hexes).filter(function (key) {
+      var cell = map.hexes[key];
+      if (!cell) return false;
+      if (cell.obstacle || cell.door || cell.zone || cell.temple || cell.portal || cell.gate) return false;
+      return true;
+    });
+    if (!keys.length) return null;
+    var pick = keys[Math.floor(Math.random() * keys.length)];
+    var parts = String(pick).split(',');
+    return { q: Number(parts[0] || 0), r: Number(parts[1] || 0), key: pick };
+  }
+
   function seedCrucibleExpeditionMiniBossHexes(map, count) {
     if (!map || !map.hexes) return [];
     var ruinKeys = [];
@@ -1729,7 +1774,7 @@
       cell.trap = cell.trap || { type: 'peril_hex', damageOnTrigger: 2 };
     });
 
-    var gates = pickCrucibleExpeditionFeatureHexes(map, 2, function (cell) {
+    var gates = pickCrucibleExpeditionFeatureHexes(map, 5, function (cell) {
       return !cell.trap && !cell.loot && !cell.portal;
     });
     gates.forEach(function (key) {
@@ -1909,6 +1954,7 @@
       else if (cell.terrain === 'ruin') { fill = 'rgba(64,56,48,.88)'; stroke = '#a09870'; icon = '◫'; }
       else if (cell.trap && cell.trap.type === 'peril_hex') { fill = 'rgba(120,56,32,.88)'; stroke = '#e05050'; icon = '⚠'; }
       else if (cell.terrain === 'temple') { fill = 'rgba(80,40,120,.88)'; stroke = '#b060d0'; icon = '✦'; }
+      else if (cell.terrain === 'barrier') { fill = 'rgba(56,50,52,.94)'; stroke = '#b08d6f'; icon = '⛨'; }
       else if (cell.terrain === 'gate') { fill = 'rgba(26,80,72,.9)'; stroke = '#2ec4b6'; icon = '◆'; }
       else if (cell.terrain === 'portal') { fill = 'rgba(90,16,64,.9)'; stroke = '#e080c0'; icon = '⬡'; }
       else {
@@ -1926,7 +1972,10 @@
       var px = toPx(u.position || { q: 0, r: 0 });
       var isPlayer = !!u.isPlayer;
       var unitColor = isPlayer ? '#f0d070' : (String(u.side || '') === 'ally' ? '#46de96' : '#eb626e');
-      svg += '<g><circle cx="' + px.x + '" cy="' + px.y + '" r="8.2" fill="rgba(10,12,22,.92)" stroke="' + unitColor + '" stroke-width="1.5"/>'
+      var unitClick = isPlayer
+        ? ' onclick="selectHoldingCrucibleUnit(\'' + String(u.id || '').replace(/'/g, '&#39;') + '\')" style="cursor:pointer;"'
+        : (String(u.side || '') === 'enemy' ? ' onclick="selectHoldingCrucibleEnemy(\'' + String(u.id || '').replace(/'/g, '&#39;') + '\')" style="cursor:pointer;"' : '');
+      svg += '<g' + unitClick + '><circle cx="' + px.x + '" cy="' + px.y + '" r="8.2" fill="rgba(10,12,22,.92)" stroke="' + unitColor + '" stroke-width="1.5"/>'
         + '<text x="' + px.x + '" y="' + (px.y + 2.8) + '" text-anchor="middle" font-size="7.2" fill="' + unitColor + '">' + String(u.name || 'U').charAt(0).toUpperCase() + '</text>'
         + (isPlayer ? ('<text x="' + px.x + '" y="' + (px.y - 11) + '" text-anchor="middle" font-size="6.2" fill="#f0d070">YOU</text>') : '')
         + '</g>';
@@ -1938,6 +1987,7 @@
       + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">◫ Ruins</span>'
       + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⚠ Peril</span>'
       + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">✦ Temple</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⛨ Barrier</span>'
       + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">◆ Gate</span>'
       + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⬡ Portal</span>'
       + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">✖ Collapsed edge</span>'
@@ -1947,6 +1997,7 @@
 
   function createCrucibleExpeditionState(hexMap) {
     var raidBoss = getCrucibleExpeditionRaidBossName();
+    stampCrucibleExpeditionProvinceBarriers(hexMap);
     var stamped = stampCrucibleExpeditionProvinceFeatures(hexMap, 1);
     return {
       active: true,
@@ -2006,6 +2057,43 @@
     return (match.allies || []).find(function (u) { return u && u.isPlayer && Number(u.hp || 0) > 0; }) || null;
   }
 
+  function getCrucibleExpeditionBarrierCell(match, hex) {
+    if (!match || !match.hexMap || !match.hexMap.hexes || !hex) return null;
+    var key = String(Number(hex.q || 0)) + ',' + String(Number(hex.r || 0));
+    var cell = match.hexMap.hexes[key] || null;
+    return cell && (cell.terrain === 'barrier' || cell.barrier) ? cell : null;
+  }
+
+  function isCrucibleExpeditionBarrierOpen(match, cell) {
+    if (!cell || !cell.barrier) return false;
+    var token = String(match && match.expedition ? (match.expedition.day + ':' + match.expedition.phase) : '');
+    return String(cell.barrier.passToken || '') === token;
+  }
+
+  function resolveCrucibleExpeditionBarrierCrossing(match, actor, fromHex, toHex) {
+    var cell = getCrucibleExpeditionBarrierCell(match, toHex);
+    if (!cell) return true;
+    if (isCrucibleExpeditionBarrierOpen(match, cell)) return true;
+    var leadDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S && S.stats && S.stats.lead) || 4);
+    var playerRoll = (typeof explodingRoll === 'function')
+      ? explodingRoll(leadDie, { type: 'action', major: true, label: 'Barrier Crossing' })
+      : { total: Math.floor(Math.random() * leadDie) + 1 };
+    var dreadRoll = (typeof explodingRoll === 'function')
+      ? explodingRoll(6, { type: 'dread', major: true, label: 'Barrier DD6' })
+      : { total: Math.floor(Math.random() * 6) + 1 };
+    var success = Number(playerRoll.total || 0) >= Number(dreadRoll.total || 0);
+    if (success) {
+      cell.barrier.passToken = String(match.expedition.day) + ':' + String(match.expedition.phase || 'explore');
+      if (typeof showNotif === 'function') showNotif('Barrier crossed (' + playerRoll.total + ' vs ' + dreadRoll.total + ').', 'good');
+      if (match && match.log) match.log = (match.log || []).concat([String(actor && actor.name || 'Wayfarer') + ' crossed a barrier (' + playerRoll.total + ' vs ' + dreadRoll.total + ').']).slice(-120);
+      return true;
+    }
+    if (typeof recordCrucibleExpeditionHexClick === 'function') recordCrucibleExpeditionHexClick(match);
+    if (typeof showNotif === 'function') showNotif('Barrier crossing failed (' + playerRoll.total + ' vs ' + dreadRoll.total + '). The night tightens.', 'warn');
+    if (match && match.log) match.log = (match.log || []).concat([String(actor && actor.name || 'Wayfarer') + ' failed to cross a barrier (' + playerRoll.total + ' vs ' + dreadRoll.total + ').']).slice(-120);
+    return false;
+  }
+
   function getCrucibleExpeditionOpenHexCount(match) {
     if (!match || !match.hexMap || !match.hexMap.hexes) return 0;
     var collapsed = (match.expedition && match.expedition.collapsed) ? match.expedition.collapsed : {};
@@ -2048,7 +2136,8 @@
     var newMap = (typeof generateCrucibleHexMap === 'function')
       ? generateCrucibleHexMap(Date.now() + nextDay, 12)
       : { seed: 1, size: 9, hexes: {}, objectives: [], spawns: { ally: { q: -1, r: -1 }, enemy: { q: 1, r: 1 } } };
-    stampCrucibleTemplesOnMap(newMap, 2);
+    stampCrucibleExpeditionProvinceBarriers(newMap);
+    stampCrucibleTemplesOnMap(newMap, 7);
     var stamped = stampCrucibleExpeditionProvinceFeatures(newMap, nextDay);
     match.hexMap = newMap;
     var expedition = match.expedition;
@@ -2070,8 +2159,9 @@
     (match.enemies || []).forEach(function (enemy) { if (enemy) enemy.hp = 0; });
     match.enemies = [];
     var player = getCrucibleExpeditionPlayer(match);
-    if (player && newMap.spawns && newMap.spawns.ally) {
-      player.position = { q: Number(newMap.spawns.ally.q || 0), r: Number(newMap.spawns.ally.r || 0) };
+    if (player) {
+      var dropHex = getCrucibleExpeditionRandomDropHex(newMap) || (newMap.spawns && newMap.spawns.ally) || { q: 0, r: 0 };
+      player.position = { q: Number(dropHex.q || 0), r: Number(dropHex.r || 0) };
       player.ap = 2;
     }
     resetCrucibleTeamForTurn(match.allies || []);
@@ -2422,9 +2512,10 @@
       var expeditionMap = (typeof generateCrucibleHexMap === 'function')
         ? generateCrucibleHexMap(Date.now(), 12)
         : { seed: 1, size: 9, hexes: {}, objectives: [], spawns: { ally: { q: -1, r: -1 }, enemy: { q: 1, r: 1 } } };
-      stampCrucibleTemplesOnMap(expeditionMap, 2);
+      stampCrucibleExpeditionProvinceBarriers(expeditionMap);
+      stampCrucibleTemplesOnMap(expeditionMap, 7);
       var wayfarerName = String((S && S.name) || 'Wayfarer');
-      var playerSpawn = (expeditionMap.spawns && expeditionMap.spawns.ally) ? expeditionMap.spawns.ally : { q: -1, r: -1 };
+      var playerSpawn = getCrucibleExpeditionRandomDropHex(expeditionMap) || ((expeditionMap.spawns && expeditionMap.spawns.ally) ? expeditionMap.spawns.ally : { q: -1, r: -1 });
       var player = {
         id: 'ally-player-' + String(Date.now()),
         name: wayfarerName,
@@ -2443,6 +2534,8 @@
       };
       resetCrucibleTeamForTurn([player]);
       var expeditionState = createCrucibleExpeditionState(expeditionMap);
+      var finalDrop = getCrucibleExpeditionRandomDropHex(expeditionMap) || playerSpawn;
+      player.position = { q: Number(finalDrop.q || -1), r: Number(finalDrop.r || -1) };
       crucible.match = {
         active: true,
         mode: modeSpec.id,
@@ -3178,13 +3271,29 @@
       : getSelectedCrucibleTarget(match);
     var allUnits = (match.allies || []).concat(match.enemies || []);
     var reachableHexes = [];
+    var reachableKeys = [];
     if (selectedUnit && typeof getCrucibleOpenHexes === 'function') {
       var moveBudget = (isExpedition && String(expedition.phase || 'explore') === 'explore') ? 1 : Number(selectedUnit.ap || 0);
       if (moveBudget > 0) reachableHexes = getCrucibleOpenHexes(selectedUnit, match, moveBudget).filter(function (hex) {
         return !selectedUnit.position || hex.q !== selectedUnit.position.q || hex.r !== selectedUnit.position.r;
       });
     }
-    var reachableKeys = reachableHexes.map(function (hex) { return String(hex.q) + ',' + String(hex.r); });
+    reachableKeys = reachableHexes.map(function (hex) { return String(hex.q) + ',' + String(hex.r); });
+    if (isExpedition && String(expedition.phase || 'explore') === 'explore' && match.hexMap && match.hexMap.hexes && selectedUnit && selectedUnit.position) {
+      Object.keys(match.hexMap.hexes).forEach(function (key) {
+        var cell = match.hexMap.hexes[key];
+        if (!cell || (cell.terrain !== 'barrier' && !cell.barrier)) return;
+        var q = Number(cell.q || 0);
+        var r = Number(cell.r || 0);
+        var distance = (Math.abs(Number(selectedUnit.position.q || 0) - q)
+          + Math.abs((Number(selectedUnit.position.q || 0) + Number(selectedUnit.position.r || 0)) - (q + r))
+          + Math.abs(Number(selectedUnit.position.r || 0) - r)) / 2;
+        if (distance === 1 && !reachableKeys.includes(key)) {
+          reachableHexes.push({ q: q, r: r });
+          reachableKeys.push(key);
+        }
+      });
+    }
     var details = (selectedUnit && typeof getHexUnitDetailsHtml === 'function')
       ? ('<div style="margin-top:.22rem;padding:.22rem .3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">' + getHexUnitDetailsHtml(selectedUnit) + '</div>')
       : '';
@@ -4899,9 +5008,11 @@
         + Math.abs((Number(ally.position.q || 0) + Number(ally.position.r || 0)) - (Number(nextQ || 0) + Number(nextR || 0)))
         + Math.abs(Number(ally.position.r || 0) - Number(nextR || 0))) / 2;
       if (distance !== 1) return false;
-      if (typeof canMoveToHex === 'function' && !canMoveToHex(ally, targetHex, match.hexMap)) return false;
+      var targetBarrier = getCrucibleExpeditionBarrierCell(match, targetHex);
+      if (!targetBarrier && typeof canMoveToHex === 'function' && !canMoveToHex(ally, targetHex, match.hexMap)) return false;
       var occupied = getUnitsInHex((match.allies || []).concat(match.enemies || []), targetHex, match.hexMap);
       if (occupied && occupied.length) return false;
+      if (!resolveCrucibleExpeditionBarrierCrossing(match, ally, ally.position, targetHex)) return false;
       ally.position = { q: Number(nextQ), r: Number(nextR) };
       match.log = (match.log || []).concat([ally.name + ' moved to [' + nextQ + ',' + nextR + '] (exploration move).']).slice(-120);
       renderHoldingCruciblePopup();

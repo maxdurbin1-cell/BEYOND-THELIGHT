@@ -3705,14 +3705,19 @@
       S.holding.crucible.match = null;
     }
     var match = getHoldingCrucibleMatch() || createHoldingCrucibleMatch();
-    if (typeof openModal === 'function') {
-      openModal(match && String(match.mode || '') === 'expedition' ? 'Expedition Province' : 'Crucible 6v6 Tactical Simulator', buildHoldingCruciblePopupHtml());
-    }
-    if (typeof showNotif === 'function' && match && Number(match.round || 1) === 1) {
-      var openedSpec = getCrucibleModeSpec(match.mode);
-      showNotif(openedSpec.id === 'expedition'
-        ? 'Crucible Expedition opened: 3-day rogue run initialized.'
-        : 'Crucible opened: 6v6 tactical training scenario ready.', 'good');
+    var isExpeditionNewMatch = String(match.mode || '') === 'expedition' && !(match.expedition && match.expedition.loaded);
+    if (isExpeditionNewMatch && typeof openModal === 'function') {
+      openModal('Expedition Loadout Selection', buildCrucibleExpeditionLoadoutSelectionHtml());
+    } else {
+      if (typeof openModal === 'function') {
+        openModal(match && String(match.mode || '') === 'expedition' ? 'Expedition Province' : 'Crucible 6v6 Tactical Simulator', buildHoldingCruciblePopupHtml());
+      }
+      if (typeof showNotif === 'function' && match && Number(match.round || 1) === 1) {
+        var openedSpec = getCrucibleModeSpec(match.mode);
+        showNotif(openedSpec.id === 'expedition'
+          ? 'Crucible Expedition opened: 3-day rogue run initialized.'
+          : 'Crucible opened: 6v6 tactical training scenario ready.', 'good');
+      }
     }
     renderHoldingUI();
     return true;
@@ -4167,6 +4172,220 @@
     }
     renderHoldingCruciblePopup();
     renderHoldingUI();
+    return true;
+  }
+
+  function getCrucibleExpeditionStartingArmorOptions() {
+    return [
+      { id: 'light', label: 'Light Armor', defendBonus: 0, avoidDesc: 'Minimal protection. +2 movement. Preferred by scouts and assassins.' },
+      { id: 'medium', label: 'Medium Armor', defendBonus: 1, avoidDesc: 'Balanced defense and mobility. Standard knight loadout.' },
+      { id: 'heavy', label: 'Heavy Armor', defendBonus: 2, avoidDesc: 'Maximum protection. -1 mobility. For tanks and bulwarks.' }
+    ];
+  }
+
+  function getCrucibleExpeditionStartingWeaponOptions() {
+    return [
+      { id: 'sword', label: 'Sword +2 Strike', strikeBonus: 2, range: 'Engaged', desc: 'Melee mastery. Works at close range.' },
+      { id: 'bow', label: 'Bow +2 Shoot', shootBonus: 2, range: 'Nearby', desc: 'Ranged precision. Works at medium range.' },
+      { id: 'spell', label: 'Damage Spell +3 Control', controlBonus: 3, range: ' Nearby', desc: 'Arcane power. Spell-based attacks.' }
+    ];
+  }
+
+  function getCrucibleExpeditionStartingPassiveFeatures() {
+    var allFeatures = [
+      { id: 'p1', label: 'Regenerator', desc: 'Recover your Adventure Die in Health each phase.' },
+      { id: 'p2', label: 'Lucky', desc: 'Reroll 1s on your Action Die.' },
+      { id: 'p3', label: 'Mule', desc: 'Backpack capacity becomes 20 slots.' },
+      { id: 'p4', label: 'Storm Veins', desc: 'Negate the first forced Trauma roll each scene.' },
+      { id: 'p5', label: 'Blessed Appetite', desc: 'Food use heals +1 extra Stress.' },
+      { id: 'p6', label: 'Black Salt Ward', desc: 'Negate first horror-tagged psychic effect daily.' },
+      { id: 'p7', label: 'After Successful Defend', desc: 'Gain a Free Strike action.' },
+      { id: 'p8', label: 'Failed Rolls Teamwork', desc: 'Failed rolls grant +2 Teamwork instead of +1.' },
+      { id: 'p9', label: 'Dual-Wielder', desc: 'Strike with 2 daggers for 1 AP.' },
+      { id: 'p10', label: 'Shadow Strike', desc: 'Advantage d8 vs surprised or unaware enemies.' },
+      { id: 'p11', label: 'Agile Escape', desc: 'Advantage d8 on Defend when dodging attacks.' },
+      { id: 'p12', label: 'Slippery Target', desc: 'Enemies suffer -1 on rolls to hit you.' },
+      { id: 'p13', label: 'Rhythm of the Bow', desc: 'Make an extra ranged attack for 1 AP total.' },
+      { id: 'p14', label: 'You Can\'t Escape Me', desc: 'Quarry cannot move away from you when engaged.' },
+      { id: 'p15', label: 'Harmony Defend d20', desc: 'Your Defend die is now d20 (Godbound).' },
+      { id: 'p16', label: 'Divine Protection', desc: 'Once per encounter, reduce damage by 1.' },
+      { id: 'p17', label: 'Sacred Armor', desc: 'Gain +1 to Defend while wearing armor.' },
+      { id: 'p18', label: 'Zealous Strike', desc: 'Add extra d4 damage vs corruption.' },
+      { id: 'p19', label: 'Faith Healing', desc: 'Once per day, heal Injuries and Scars.' },
+      { id: 'p20', label: 'Arcane Casting Edge', desc: 'Any magic cast grants Advantage d10.' },
+      { id: 'p21', label: 'Arcane Insight', desc: 'Advantage d8 to identify/disrupt magic.' },
+      { id: 'p22', label: 'Source Channeling', desc: 'Advantage d8 to cast spells.' },
+      { id: 'p23', label: 'Arcane Resilience', desc: 'Advantage d8 on Defend vs magical attacks.' },
+      { id: 'p24', label: 'Ethereal Connection', desc: 'Advantage d8 to perceive invisibility/illusions.' },
+      { id: 'p25', label: 'Arcane Aegis', desc: 'Once per encounter, reduce magic damage by 1.' }
+    ];
+    return allFeatures.slice(0, 100);
+  }
+
+  function getCrucibleExpeditionWayfarerActionDice() {
+    if (!S || !S.equipment) return 'd8';
+    var armorText = String(S.equipment.armor || '');
+    var m = armorText.match(/ad\s*(4|6|8|10|12|20)/i) || armorText.match(/(\d+)\s*action\s*die/i);
+    if (m && m[1]) {
+      var base = Number(m[1]);
+      if (base === 4 || base === 6 || base === 8 || base === 10 || base === 12 || base === 20) return 'd' + base;
+    }
+    var adventure = Number((typeof getStat === 'function' ? getStat('adventure') : null) || 8);
+    return 'd' + adventure;
+  }
+
+  function getCrucibleExpeditionAvailableRaidNodes() {
+    if (typeof hasTitanRaidNode !== 'function' || typeof getTitanRaidNode !== 'function') return [];
+    var allNodes = [
+      'titan_root_lead_d20',
+      'titan_root_defend_plus3',
+      'tact_root',
+      'fury_root',
+      'seek_root',
+      'exile_root_control_d20',
+      'godbound_root_defend_d20',
+      'weaver_root'
+    ];
+    return allNodes.filter(function (nodeId) {
+      try {
+        return hasTitanRaidNode(nodeId);
+      } catch (_e) {
+        return false;
+      }
+    }).map(function (nodeId) {
+      try {
+        var node = getTitanRaidNode(nodeId);
+        return node ? { id: nodeId, label: node.label || nodeId } : null;
+      } catch (_e) {
+        return null;
+      }
+    }).filter(function (n) { return n; });
+  }
+
+  function buildCrucibleExpeditionLoadoutSelectionHtml() {
+    var armorOptions = getCrucibleExpeditionStartingArmorOptions();
+    var weaponOptions = getCrucibleExpeditionStartingWeaponOptions();
+    var passiveFeatures = getCrucibleExpeditionStartingPassiveFeatures();
+    var actionDice = getCrucibleExpeditionWayfarerActionDice();
+    var raidNodes = getCrucibleExpeditionAvailableRaidNodes();
+    var selectedArmor = 'medium';
+    var selectedWeapon = 'sword';
+    var selectedPassives = ['p1', 'p2', 'p3'];
+    var html = '<div style="font-family:Cinzel,serif;color:var(--text2);line-height:1.6;max-height:70vh;overflow-y:auto;">'
+      + '<div style="margin-bottom:1rem;padding-bottom:.5rem;border-bottom:1px solid var(--border);">'
+        + '<h3 style="color:var(--gold2);font-size:1.2rem;margin-bottom:.5rem;">Expedition Loadout Selection</h3>'
+        + '<p style="font-size:.9rem;color:var(--muted2);">Choose your starting equipment before entering the province.</p>'
+      + '</div>'
+      + '<div style="margin-bottom:1.2rem;">'
+        + '<div style="font-weight:600;color:var(--teal2);margin-bottom:.4rem;font-size:.95rem;">Starting Armor</div>'
+        + armorOptions.map(function (opt) {
+          return '<label style="display:block;margin-bottom:.4rem;padding:.4rem;border:1px solid ' + (selectedArmor === opt.id ? 'var(--teal)' : 'var(--border)') + ';border-radius:4px;cursor:pointer;background:' + (selectedArmor === opt.id ? 'rgba(46,196,182,.1)' : 'transparent') + ';">'
+            + '<input type="radio" name="expeditionArmor" value="' + opt.id + '" ' + (selectedArmor === opt.id ? 'checked' : '') + ' onchange="window._expeditionLoadout.armor=this.value;" style="margin-right:.4rem;" />'
+            + '<strong>' + opt.label + '</strong> (Defend +' + opt.defendBonus + ')'
+            + '<div style="font-size:.8rem;color:var(--muted2);margin-top:.2rem;">' + opt.avoidDesc + '</div>'
+            + '</label>';
+        }).join('')
+      + '</div>'
+      + '<div style="margin-bottom:1.2rem;">'
+        + '<div style="font-weight:600;color:var(--teal2);margin-bottom:.4rem;font-size:.95rem;">Starting Weapon</div>'
+        + weaponOptions.map(function (opt) {
+          return '<label style="display:block;margin-bottom:.4rem;padding:.4rem;border:1px solid ' + (selectedWeapon === opt.id ? 'var(--teal)' : 'var(--border)') + ';border-radius:4px;cursor:pointer;background:' + (selectedWeapon === opt.id ? 'rgba(46,196,182,.1)' : 'transparent') + ';">'
+            + '<input type="radio" name="expeditionWeapon" value="' + opt.id + '" ' + (selectedWeapon === opt.id ? 'checked' : '') + ' onchange="window._expeditionLoadout.weapon=this.value;" style="margin-right:.4rem;" />'
+            + '<strong>' + opt.label + '</strong> (Range: ' + opt.range + ')'
+            + '<div style="font-size:.8rem;color:var(--muted2);margin-top:.2rem;">' + opt.desc + '</div>'
+            + '</label>';
+        }).join('')
+      + '</div>'
+      + '<div style="margin-bottom:1.2rem;">'
+        + '<div style="font-weight:600;color:var(--teal2);margin-bottom:.4rem;font-size:.95rem;">Select 3 Passive Features</div>'
+        + '<input type="text" placeholder="Search passives..." onkeyup="window._expeditionLoadout.filterPassives(this.value);" style="width:100%;margin-bottom:.4rem;padding:.4rem;font-size:.9rem;" />'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem;max-height:15rem;overflow-y:auto;">' + passiveFeatures.map(function (feat) {
+          return '<label style="padding:.3rem;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:' + (selectedPassives.indexOf(feat.id) >= 0 ? 'rgba(46,196,182,.1)' : 'transparent') + ';">'
+            + '<input type="checkbox" value="' + feat.id + '" ' + (selectedPassives.indexOf(feat.id) >= 0 ? 'checked' : '') + ' onchange="window._expeditionLoadout.togglePassive(this.value, this.checked);" style="margin-right:.2rem;" />'
+            + '<span style="font-size:.85rem;">' + feat.label + '</span>'
+            + '</label>';
+        }).join('')
+        + '</div>'
+        + '<div style="font-size:.8rem;color:var(--muted2);margin-top:.3rem;"><strong>Selected: ' + selectedPassives.length + '/3</strong></div>'
+      + '</div>'
+      + '<div style="margin-bottom:1.2rem;padding:.6rem;background:rgba(46,196,182,.05);border:1px solid rgba(46,196,182,.2);border-radius:4px;">'
+        + '<div style="font-weight:600;color:var(--teal2);margin-bottom:.4rem;">Character Resources</div>'
+        + '<div style="font-size:.9rem;margin-bottom:.3rem;"><strong>Wayfarer\'s Action Dice:</strong> ' + actionDice + '</div>'
+        + (raidNodes.length > 0 ? '<div style="font-size:.9rem;"><strong>Available Raid Nodes:</strong> ' + raidNodes.map(function (n) { return n.label; }).join(', ') + '</div>' : '<div style="font-size:.9rem;color:var(--muted2);">No Raid Nodes purchased yet.</div>')
+      + '</div>'
+      + '<div style="display:flex;gap:.4rem;justify-content:flex-end;margin-top:1rem;">'
+        + '<button class="btn btn-sm" onclick="closeModal();">Cancel</button>'
+        + '<button class="btn btn-sm btn-primary" onclick="window.confirmCrucibleExpeditionLoadout();">Start Expedition</button>'
+      + '</div>'
+      + '</div>';
+    if (typeof window._expeditionLoadout === 'undefined') {
+      window._expeditionLoadout = {
+        armor: selectedArmor,
+        weapon: selectedWeapon,
+        passives: selectedPassives.slice(),
+        togglePassive: function (id, checked) {
+          if (checked) {
+            if (this.passives.length < 3) this.passives.push(id);
+          } else {
+            this.passives = this.passives.filter(function (p) { return p !== id; });
+          }
+        },
+        filterPassives: function (query) {
+          var lower = String(query || '').toLowerCase();
+          var labels = document.querySelectorAll('[role="checkbox-group"] label');
+          labels.forEach(function (label) {
+            var text = label.textContent.toLowerCase();
+            label.style.display = text.indexOf(lower) >= 0 ? 'block' : 'none';
+          });
+        }
+      };
+    }
+    return html;
+  }
+
+  function confirmCrucibleExpeditionLoadout() {
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition) return false;
+    var loadout = window._expeditionLoadout || {};
+    var armor = String(loadout.armor || 'medium');
+    var weapon = String(loadout.weapon || 'sword');
+    var passives = Array.isArray(loadout.passives) ? loadout.passives : [];
+    var expedition = match.expedition;
+    var player = getCrucibleExpeditionPlayer(match);
+    if (!player) return false;
+    if (armor === 'light') {
+      player.defendDie = Math.max(4, Number(player.defendDie || 8));
+    } else if (armor === 'heavy') {
+      player.defendDie = Math.max(4, Number(player.defendDie || 8) + 2);
+    }
+    if (weapon === 'sword') {
+      player.attackDie = Math.max(4, Number(player.attackDie || 8) + 2);
+    } else if (weapon === 'bow') {
+      player.attackDie = Math.max(4, Number(player.attackDie || 8) + 2);
+    } else if (weapon === 'spell') {
+      player.attackDie = Math.max(4, Number(player.attackDie || 8) + 3);
+    }
+    expedition.loadout = {
+      armor: armor,
+      weapon: weapon,
+      passives: passives
+    };
+    expedition.loaded = true;
+    match.log = (match.log || []).concat(['Loadout applied: ' + armor + ' armor, ' + weapon + ' weapon, ' + passives.length + ' passive features.']).slice(-120);
+    if (typeof closeModal === 'function') closeModal();
+    renderHoldingCruciblePopup();
+    renderHoldingUI();
+    return true;
+  }
+
+  function applyCrucibleExpeditionFleePenalty(match) {
+    if (!match || !match.expedition || String(match.expedition.currentCombatType || '') !== 'fieldEnemy' && String(match.expedition.currentCombatType || '') !== 'fieldBoss') return false;
+    var player = getCrucibleExpeditionPlayer(match);
+    if (!player) return false;
+    player.hp = Math.max(0, Number(player.hp || 6) - 3);
+    match.expedition.fleePenalty = true;
+    match.log = (match.log || []).concat(['Penalty for fleeing: -3 damage taken.']).slice(-120);
+    if (typeof showNotif === 'function') showNotif('Fled from combat with penalty: -3 HP.', 'warn');
     return true;
   }
 
@@ -4709,6 +4928,15 @@
 
   function holdingCrucibleResetMatch() {
     ensureNewFeatureState();
+    var match = getHoldingCrucibleMatch();
+    if (match && String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || '') === 'combat') {
+      var combatType = String(match.expedition.currentCombatType || '');
+      if (combatType === 'fieldEnemy' || combatType === 'fieldBoss') {
+        if (typeof applyCrucibleExpeditionFleePenalty === 'function') {
+          applyCrucibleExpeditionFleePenalty(match);
+        }
+      }
+    }
     S.holding.crucible.match = null;
     createHoldingCrucibleMatch();
     renderHoldingCruciblePopup();
@@ -8510,6 +8738,14 @@
   window.holdingCrucibleBreachExpeditionPortal = holdingCrucibleBreachExpeditionPortal;
   window.holdingCrucibleSolvePortalPuzzle = holdingCrucibleSolvePortalPuzzle;
   window.holdingCrucibleEquipExpeditionLoot = holdingCrucibleEquipExpeditionLoot;
+  window.buildCrucibleExpeditionLoadoutSelectionHtml = buildCrucibleExpeditionLoadoutSelectionHtml;
+  window.confirmCrucibleExpeditionLoadout = confirmCrucibleExpeditionLoadout;
+  window.applyCrucibleExpeditionFleePenalty = applyCrucibleExpeditionFleePenalty;
+  window.getCrucibleExpeditionStartingArmorOptions = getCrucibleExpeditionStartingArmorOptions;
+  window.getCrucibleExpeditionStartingWeaponOptions = getCrucibleExpeditionStartingWeaponOptions;
+  window.getCrucibleExpeditionStartingPassiveFeatures = getCrucibleExpeditionStartingPassiveFeatures;
+  window.getCrucibleExpeditionWayfarerActionDice = getCrucibleExpeditionWayfarerActionDice;
+  window.getCrucibleExpeditionAvailableRaidNodes = getCrucibleExpeditionAvailableRaidNodes;
   window.holdingCrucibleMoveSelected = holdingCrucibleMoveSelected;
   window.holdingCrucibleTeleportSelected = holdingCrucibleTeleportSelected;
   window.holdingCrucibleUseExpeditionFlask = holdingCrucibleUseExpeditionFlask;

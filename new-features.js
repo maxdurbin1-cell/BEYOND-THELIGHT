@@ -3374,6 +3374,10 @@
     var isExpedition = String(match.mode || '') === 'expedition';
     var expedition = isExpedition ? (match.expedition || {}) : null;
     var selectedUnit = getSelectedCrucibleActiveUnit(match);
+    if (isExpedition && String(expedition.phase || 'explore') === 'explore') {
+      var expeditionPlayer = getCrucibleExpeditionPlayer(match);
+      if (expeditionPlayer) selectedUnit = expeditionPlayer;
+    }
     var selectedTarget = String(match.turnSide || 'ally') === 'enemy'
       ? getSelectedCrucibleAllyTarget(match)
       : getSelectedCrucibleTarget(match);
@@ -4795,6 +4799,13 @@
   function holdingCrucibleHandleBoardHexClick(q, r) {
     var match = getHoldingCrucibleMatch();
     if (!match) return false;
+    if (String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || 'explore') === 'explore') {
+      var player = getCrucibleExpeditionPlayer(match);
+      if (player) {
+        match.turnSide = 'ally';
+        match.selectedAllyId = String(player.id || '');
+      }
+    }
     var moved = holdingCrucibleMoveSelected(q, r);
     if (!moved && String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || 'explore') === 'explore') {
       if (typeof showNotif === 'function') showNotif('That hex is not currently reachable.', 'warn');
@@ -5114,6 +5125,13 @@
     var match = getHoldingCrucibleMatch();
     if (!match || !match.hexMap) return false;
     var ally = getSelectedCrucibleActiveUnit(match);
+    if (String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || '') === 'explore') {
+      ally = getCrucibleExpeditionPlayer(match) || ally;
+      if (ally) {
+        match.turnSide = 'ally';
+        match.selectedAllyId = String(ally.id || '');
+      }
+    }
     if (!ally || Number(ally.hp || 0) <= 0) return false;
     
     var targetHex = { q: Number(nextQ), r: Number(nextR) };

@@ -4208,6 +4208,7 @@
     if (typeof document === 'undefined') return;
     var selectedKind = String(kind || '');
     var selectedId = String(nodeId || '');
+    var hasSelection = !!(selectedKind && selectedId);
     var nodes = document.querySelectorAll('[data-raid-node="1"]');
     nodes.forEach(function (el) {
       if (!el || typeof el.classList === 'undefined') return;
@@ -4216,6 +4217,7 @@
         && String(el.getAttribute('data-node-kind') || '') === selectedKind
         && String(el.getAttribute('data-node-id') || '') === selectedId;
       el.classList.toggle('raid-node-selected', !!isMatch);
+      el.classList.toggle('raid-node-dim', !!(hasSelection && !isMatch));
     });
   }
   if (typeof window !== 'undefined') {
@@ -4914,7 +4916,7 @@
         + '</button>';
     }).join('');
 
-    panel.innerHTML = '<style id="raidTreeSpendableStyles">@keyframes raidSpendPulse{0%{box-shadow:0 0 10px rgba(126,215,255,.46),0 0 20px rgba(126,215,255,.16)}50%{box-shadow:0 0 18px rgba(156,232,255,.86),0 0 34px rgba(126,215,255,.34)}100%{box-shadow:0 0 10px rgba(126,215,255,.46),0 0 20px rgba(126,215,255,.16)}}@keyframes raidStartBadgeGlow{0%{filter:brightness(1);transform:translateY(0)}50%{filter:brightness(1.2);transform:translateY(-1px)}100%{filter:brightness(1);transform:translateY(0)}}@keyframes raidNodeSelectedPulse{0%{box-shadow:0 0 14px rgba(255,226,120,.68),0 0 28px rgba(255,191,80,.28)}50%{box-shadow:0 0 24px rgba(255,236,152,.95),0 0 42px rgba(255,191,80,.48)}100%{box-shadow:0 0 14px rgba(255,226,120,.68),0 0 28px rgba(255,191,80,.28)}} .raid-node-spendable{animation:raidSpendPulse 1.4s ease-in-out infinite;} .raid-node-selected{border-color:rgba(255,225,125,.98)!important;outline:2px solid rgba(255,225,125,.6)!important;outline-offset:-5px!important;filter:brightness(1.12);animation:raidNodeSelectedPulse 1.2s ease-in-out infinite;} .raid-start-badge{animation:raidStartBadgeGlow 2.2s ease-in-out infinite;} .raid-start-identity{opacity:.96;}</style>'
+    panel.innerHTML = '<style id="raidTreeSpendableStyles">@keyframes raidSpendPulse{0%{box-shadow:0 0 10px rgba(126,215,255,.46),0 0 20px rgba(126,215,255,.16)}50%{box-shadow:0 0 18px rgba(156,232,255,.86),0 0 34px rgba(126,215,255,.34)}100%{box-shadow:0 0 10px rgba(126,215,255,.46),0 0 20px rgba(126,215,255,.16)}}@keyframes raidStartBadgeGlow{0%{filter:brightness(1);transform:translateY(0)}50%{filter:brightness(1.2);transform:translateY(-1px)}100%{filter:brightness(1);transform:translateY(0)}}@keyframes raidNodeSelectedPulse{0%{box-shadow:0 0 14px rgba(255,226,120,.68),0 0 28px rgba(255,191,80,.28)}50%{box-shadow:0 0 24px rgba(255,236,152,.95),0 0 42px rgba(255,191,80,.48)}100%{box-shadow:0 0 14px rgba(255,226,120,.68),0 0 28px rgba(255,191,80,.28)}} .raid-node-spendable{animation:raidSpendPulse 1.4s ease-in-out infinite;} .raid-node-selected{border-color:rgba(255,225,125,.98)!important;outline:2px solid rgba(255,225,125,.6)!important;outline-offset:-5px!important;filter:brightness(1.12);animation:raidNodeSelectedPulse 1.2s ease-in-out infinite;} .raid-node-dim{opacity:.56;filter:saturate(.62) brightness(.78);} .raid-start-badge{animation:raidStartBadgeGlow 2.2s ease-in-out infinite;} .raid-start-identity{opacity:.96;}</style>'
       + '<div style="font-size:.84rem;color:var(--text2);line-height:1.56;padding:.34rem;border:1px solid rgba(201,162,39,.22);background:radial-gradient(150% 140% at 0% 0%, rgba(126,215,255,.12), rgba(16,28,42,.88) 35%, rgba(9,12,20,.98));">'
       + '<div style="border:1px solid rgba(201,162,39,.28);background:linear-gradient(165deg, rgba(201,162,39,.14), rgba(12,18,26,.94));padding:.52rem .6rem;box-shadow:inset 0 0 24px rgba(126,215,255,.08);">'
       + '<div style="display:flex;justify-content:space-between;gap:.45rem;align-items:flex-start;flex-wrap:wrap;">'

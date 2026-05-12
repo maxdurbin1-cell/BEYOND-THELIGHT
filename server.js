@@ -15,6 +15,8 @@ const io = new Server(server, {
   }
 });
 
+const NODE_ENV = String(process.env.NODE_ENV || "development").trim().toLowerCase();
+const IS_PRODUCTION = NODE_ENV === "production";
 const PORT = Number(process.env.PORT || 3000);
 const HOST = String(process.env.HOST || process.env.BIND_HOST || "0.0.0.0").trim() || "0.0.0.0";
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -33,6 +35,7 @@ const GOD_KEY_PLAINTEXT = String(process.env.PAYWALL_GOD_KEY || "").trim();
 const PAYWALL_ADMIN_KEY = String(process.env.PAYWALL_ADMIN_KEY || "Turbo_GooseDT*24").trim();
 const PAYWALL_ADMIN_EMAIL = normalizeEmail(process.env.PAYWALL_ADMIN_EMAIL || "maxadurbin@gmail.com");
 const PAYWALL_DISABLED = ["1", "true", "yes", "on"].includes(String(process.env.PAYWALL_DISABLED || "").trim().toLowerCase());
+const PAYWALL_BYPASS_LOCALHOST = ["1", "true", "yes", "on"].includes(String(process.env.PAYWALL_BYPASS_LOCALHOST || (IS_PRODUCTION ? "" : "1")).trim().toLowerCase());
 const PRICE_SINGLE_CENTS = 1000;
 const PRICE_BUNDLE4_CENTS = 2500;
 const GM_ONLY_EVENTS = {
@@ -460,6 +463,10 @@ function requirePaywallAccess(req, res, next) {
     next();
     return;
   }
+  if (PAYWALL_BYPASS_LOCALHOST && isLoopbackRequest(req)) {
+    next();
+    return;
+  }
   if (isPaywallPublicPath(req.path)) {
     next();
     return;
@@ -477,6 +484,22 @@ function requirePaywallAccess(req, res, next) {
     return;
   }
   res.status(401).json({ ok: false, error: "Access code required." });
+}
+
+function isLoopbackRequest(req) {
+  const host = String((req && req.hostname) || "").toLowerCase().trim();
+  const forwarded = String((req && req.headers && req.headers["x-forwarded-for"]) || "");
+  const firstForwarded = forwarded.split(",")[0].trim();
+  const ip = String((req && (req.ip || req.socket && req.socket.remoteAddress)) || "").trim();
+  return host === "localhost"
+    || host === "127.0.0.1"
+    || host === "::1"
+    || ip === "127.0.0.1"
+    || ip === "::1"
+    || ip === "::ffff:127.0.0.1"
+    || firstForwarded === "127.0.0.1"
+    || firstForwarded === "::1"
+    || firstForwarded === "::ffff:127.0.0.1";
 }
 
 function hashPassword(password, salt) {

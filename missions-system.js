@@ -2609,6 +2609,11 @@
     return state.notables;
   }
 
+  function isPinnacleHexTraversable(run, phase, col, row) {
+    var tile = getPinnacleFloorTileType(run, phase, col, row);
+    return tile !== 'void';
+  }
+
   function getPinnacleHexTileLabel(tileType, notable, isCursor) {
     if (isCursor) return '@';
     if (notable && notable.kind === 'treasure') return '$';
@@ -2639,6 +2644,7 @@
         var notable = state.notables[key];
         var discovered = !!state.discovered[key] || (cIdx === 0 && rIdx === 0);
         var isCursor = (Number(state.col || 0) === cIdx && Number(state.row || 0) === rIdx);
+        var clickable = isPinnacleHexTraversable(run, phase, cIdx, rIdx);
         var bg = palette.path;
         if (tile === 'start') bg = palette.start;
         else if (tile === 'boss') bg = palette.boss;
@@ -2648,7 +2654,13 @@
         if (!discovered && !isCursor) bg = 'rgba(0,0,0,.34)';
         var border = isCursor ? ('2px solid ' + palette.cursor) : '1px solid rgba(0,0,0,.26)';
         var label = discovered || isCursor ? getPinnacleHexTileLabel(tile, notable, isCursor) : '•';
-        return '<div style="width:19px;height:19px;border:' + border + ';display:flex;align-items:center;justify-content:center;font-size:.58rem;color:#111;background:' + bg + ';">' + label + '</div>';
+        var clickAttrs = '';
+        if (clickable && mission && Number(mission.id || 0) > 0) {
+          clickAttrs = ' onclick="window.setPinnacleHexCrawlDestination(' + Number(mission.id || 0) + ',\'' + String(run.lastRegionTag || 'province') + '\',' + cIdx + ',' + rIdx + ')" style="width:19px;height:19px;border:' + border + ';display:flex;align-items:center;justify-content:center;font-size:.58rem;color:#111;background:' + bg + ';cursor:pointer;"';
+        } else {
+          clickAttrs = ' style="width:19px;height:19px;border:' + border + ';display:flex;align-items:center;justify-content:center;font-size:.58rem;color:#111;background:' + bg + ';"';
+        }
+        return '<div' + clickAttrs + '>' + label + '</div>';
       }).join('') + '</div>';
     }).join('');
 
@@ -2658,7 +2670,7 @@
       + (isHeaven ? 'Heaven Hex Crawl' : 'Hell Hex Crawl') + ' · Phase ' + Number(phase || 1)
       + '</div>'
       + '<div style="display:flex;flex-direction:column;gap:2px;margin-bottom:.16rem;">' + tileRows + '</div>'
-      + '<div style="font-size:.62rem;color:var(--muted2);line-height:1.45;">@ your team · $ vault · E enemy camp · ? puzzle · B boss tower · distance ' + dist + '</div>'
+        + '<div style="font-size:.62rem;color:var(--muted2);line-height:1.45;">@ your team · $ vault · E enemy camp · ? puzzle · B boss tower · distance ' + dist + ' · click a hex to move</div>'
       + '</div>';
   }
 
@@ -2692,10 +2704,32 @@
 
     var cards = [];
     if (tile === 'hazard') {
-      var dmg = 1 + Math.floor(Math.random() * 2);
-      if (typeof changeHealth === 'function') changeHealth(dmg);
+      var isHeaven = !!(run && run.floors && run.floors['p' + String(Number(phase || 1))] && String(run.floors['p' + String(Number(phase || 1))].theme || '').indexOf('celestial') >= 0);
+      var hellTraps = [
+        { title: 'Hidden spikes erupt from the floor', stat: 'control', dd: 6, failText: 'take 4 Stress.', apply: function () { if (typeof changeStress === 'function') changeStress(4); else if (typeof changeHealth === 'function') changeHealth(2); } },
+        { title: 'Poison gas hisses from stone statues', stat: 'body', dd: 6, failText: 'gain Distracted condition.', apply: function () { if (S && S.conditions && Object.prototype.hasOwnProperty.call(S.conditions, 'distracted')) S.conditions.distracted = true; if (typeof updateConditionButtons === 'function') updateConditionButtons(); if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays(); } },
+        { title: 'A pitfall trap collapses underfoot', stat: 'notice', dd: 4, failText: 'take 3 Stress and get trapped below.', apply: function () { if (typeof changeStress === 'function') changeStress(3); else if (typeof changeHealth === 'function') changeHealth(2); state.floorFlags.trappedBelow = true; } }
+      ];
+      var heavenTraps = [
+        { title: 'Radiant sigils flare across the platform', stat: 'spirit', dd: 6, failText: 'take 3 Stress from judgment light.', apply: function () { if (typeof changeStress === 'function') changeStress(3); else if (typeof changeHealth === 'function') changeHealth(1); } },
+        { title: 'Harsh hymn-resonance disorients movement', stat: 'mind', dd: 6, failText: 'gain Shaken condition.', apply: function () { if (S && S.conditions && Object.prototype.hasOwnProperty.call(S.conditions, 'shaken')) S.conditions.shaken = true; if (typeof updateConditionButtons === 'function') updateConditionButtons(); if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays(); } },
+        { title: 'A skybridge segment shears away', stat: 'control', dd: 6, failText: 'take 2 Stress and lose momentum.', apply: function () { if (typeof changeStress === 'function') changeStress(2); else if (typeof changeHealth === 'function') changeHealth(1); state.floorBoons.laneMomentum = Math.max(0, Number(state.floorBoons.laneMomentum || 0) - 1); } }
+      ];
+      var trapPool = isHeaven ? heavenTraps : hellTraps;
+      var trap = trapPool[Math.floor(Math.random() * trapPool.length)] || trapPool[0];
+      var statKey = String(trap.stat || 'control').toLowerCase();
+      var statDie = (typeof getEffectiveDie === 'function')
+        ? Math.max(4, Number(getEffectiveDie(statKey) || 4))
+        : Math.max(4, Number((S && S.stats && S.stats[statKey]) || (S && S.adventure) || 4));
+      var playerRoll = (typeof explodingRoll === 'function') ? explodingRoll(statDie) : { total: roll(statDie) };
+      var trapRoll = (typeof explodingRoll === 'function') ? explodingRoll(Math.max(4, Number(trap.dd || 6))) : { total: roll(Math.max(4, Number(trap.dd || 6))) };
+      if (Number(playerRoll.total || 0) >= Number(trapRoll.total || 0)) {
+        cards.push('<div style="border:1px solid rgba(122,236,139,.55);background:rgba(122,236,139,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Trap Avoided</strong>: ' + trap.title + ' (' + statKey.toUpperCase() + ' d' + statDie + ' vs DD' + Number(trap.dd || 6) + ').</div>');
+      } else {
+        try { if (trap.apply) trap.apply(); } catch (_trapApplyErr) {}
+        cards.push('<div style="border:1px solid rgba(255,122,122,.5);background:rgba(255,122,122,.12);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Trap Triggered</strong>: ' + trap.title + '. ' + trap.failText + '</div>');
+      }
       state.floorFlags.hazardTouched = true;
-      cards.push('<div style="border:1px solid rgba(255,122,122,.5);background:rgba(255,122,122,.12);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Trap Field</strong>: infernal spikes hit for +' + dmg + ' Health pressure.</div>');
     } else if (tile === 'lane') {
       state.floorBoons.laneMomentum = Math.min(2, Number(state.floorBoons.laneMomentum || 0) + 1);
       cards.push('<div style="border:1px solid rgba(255,214,122,.5);background:rgba(255,214,122,.12);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Wind Lane</strong>: momentum gathered. Boss Dread will drop on entry.</div>');
@@ -2711,7 +2745,7 @@
         else S.credits = Math.max(0, Number(S.credits || 0) + credits);
         var loot = null;
         if (typeof rollShopLoot === 'function') {
-          var rolled = rollShopLoot('hard') || [];
+          var rolled = rollShopLoot('impossible') || [];
           if (rolled.length) {
             loot = String(rolled[0]);
             if (typeof addToBackpack === 'function') {
@@ -2719,30 +2753,78 @@
             }
           }
         }
-        cards.push('<div style="border:1px solid rgba(250,219,94,.55);background:rgba(250,219,94,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Treasure Vault</strong>: +' + credits + ' Credits' + (loot ? ' and ' + loot : '') + '.</div>');
+        if (!loot) {
+          loot = 'Ancient Salvage Cache';
+          if (typeof addToBackpack === 'function') {
+            try { addToBackpack(loot); } catch (_vaultFallbackErr) {}
+          }
+        }
+        cards.push('<div style="border:1px solid rgba(250,219,94,.55);background:rgba(250,219,94,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Treasure Vault</strong>: +' + credits + ' Credits and ' + loot + ' secured.</div>');
       } else if (notable.kind === 'enemy') {
-        var campDie = 6 + Math.floor(Math.random() * 5);
+        var campCount = 1 + Math.floor(Math.random() * 4);
+        var campHp = campCount * 8;
+        var campDie = 4;
         var ad = Math.max(4, Number((S && S.adventure) || 6));
-        var aRoll = typeof explodingRoll === 'function' ? explodingRoll(ad) : { total: roll(ad) };
-        var dRoll = typeof explodingRoll === 'function' ? explodingRoll(campDie) : { total: roll(campDie) };
-        if (Number(aRoll.total || 0) >= Number(dRoll.total || 0)) {
+        var rounds = 0;
+        var squadPressure = 0;
+        while (campHp > 0 && rounds < 5) {
+          rounds += 1;
+          var aRoll = typeof explodingRoll === 'function' ? explodingRoll(ad) : { total: roll(ad) };
+          var dRoll = typeof explodingRoll === 'function' ? explodingRoll(campDie) : { total: roll(campDie) };
+          if (Number(aRoll.total || 0) >= Number(dRoll.total || 0)) {
+            campHp = Math.max(0, campHp - (4 + Math.floor(Math.random() * 5)));
+          } else {
+            squadPressure += 1;
+          }
+        }
+        if (campHp <= 0) {
           state.floorBoons.campClears = Math.min(2, Number(state.floorBoons.campClears || 0) + 1);
-          cards.push('<div style="border:1px solid rgba(122,236,139,.55);background:rgba(122,236,139,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Enemy Camp Cleared</strong>: you rout a rival patrol and gain battle intel.</div>');
+          cards.push('<div style="border:1px solid rgba(122,236,139,.55);background:rgba(122,236,139,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Enemy Camp Cleared</strong>: ' + campCount + ' enemies (d4 | 8 HP each) defeated. You gain battle intel.</div>');
         } else {
-          if (typeof changeHealth === 'function') changeHealth(1);
-          cards.push('<div style="border:1px solid rgba(255,122,122,.55);background:rgba(255,122,122,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Enemy Ambush</strong>: the camp wounds your squad (+1 Health pressure).</div>');
+          if (typeof changeHealth === 'function') changeHealth(1 + squadPressure);
+          cards.push('<div style="border:1px solid rgba(255,122,122,.55);background:rgba(255,122,122,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Enemy Camp Holdout</strong>: ' + campCount + ' enemies (d4 | 8 HP each) force a retreat. +' + (1 + squadPressure) + ' Health pressure.</div>');
         }
       } else if (notable.kind === 'puzzle') {
-        var puzzleDie = 8 + Math.floor(Math.random() * 3);
-        var spirit = Math.max(4, Number((S && S.spirit) || 6));
-        var pRoll = typeof explodingRoll === 'function' ? explodingRoll(spirit) : { total: roll(spirit) };
-        var dread = typeof explodingRoll === 'function' ? explodingRoll(puzzleDie) : { total: roll(puzzleDie) };
-        if (Number(pRoll.total || 0) >= Number(dread.total || 0)) {
-          state.floorBoons.puzzleSolved = true;
-          cards.push('<div style="border:1px solid rgba(132,198,255,.55);background:rgba(132,198,255,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Puzzle Solved</strong>: hazard pressure is dampened for this phase.</div>');
+        var usedSharedPuzzle = false;
+        if (typeof window !== 'undefined' && typeof window.openSharedPuzzleChallenge === 'function') {
+          var floorNow = run && run.floors ? run.floors['p' + String(Number(phase || 1))] : null;
+          var heavenGate = !!(floorNow && String(floorNow.theme || '').indexOf('celestial') >= 0);
+          var raidPuzzleModes = heavenGate
+            ? ['constellation', 'symbol_match', 'weight_balance']
+            : ['pipe_flow', 'tumbler_lock', 'food_chain'];
+          var pickMode = raidPuzzleModes[Math.floor(Math.random() * raidPuzzleModes.length)] || (heavenGate ? 'constellation' : 'pipe_flow');
+          usedSharedPuzzle = !!window.openSharedPuzzleChallenge({
+            source: 'gate',
+            mode: pickMode,
+            title: (heavenGate ? 'Celestial Seal Puzzle' : 'Hell Rift Puzzle') + ' · Pinnacle Hex',
+            prompt: 'Solve this raid-style puzzle to stabilize the floor.',
+            reward: { credits: 0, renown: 0, item: '' },
+            onSuccess: function () {
+              state.floorBoons.puzzleSolved = true;
+              state.lastEncounterHtml = '<div style="border:1px solid rgba(132,198,255,.55);background:rgba(132,198,255,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Puzzle Solved</strong>: hazard pressure is dampened for this phase.</div>';
+              if (typeof showNotif === 'function') showNotif('Pinnacle puzzle solved. Hazard pressure reduced.', 'good');
+            },
+            onFail: function () {
+              if (typeof changeHealth === 'function') changeHealth(1);
+              state.lastEncounterHtml = '<div style="border:1px solid rgba(255,122,122,.55);background:rgba(255,122,122,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Puzzle Backlash</strong>: wrong sequence triggers a trap (+1 Health pressure).</div>';
+              if (typeof showNotif === 'function') showNotif('Pinnacle puzzle failed. Trap backlash triggered.', 'warn');
+            }
+          });
+        }
+        if (usedSharedPuzzle) {
+          cards.push('<div style="border:1px solid rgba(132,198,255,.55);background:rgba(132,198,255,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Seal Puzzle</strong>: raid-style puzzle opened. Resolve it to stabilize this floor.</div>');
         } else {
-          if (typeof changeHealth === 'function') changeHealth(1);
-          cards.push('<div style="border:1px solid rgba(255,122,122,.55);background:rgba(255,122,122,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Puzzle Backlash</strong>: wrong sequence triggers a trap (+1 Health pressure).</div>');
+          var puzzleDie = 8 + Math.floor(Math.random() * 3);
+          var spirit = Math.max(4, Number((S && S.spirit) || 6));
+          var pRoll = typeof explodingRoll === 'function' ? explodingRoll(spirit) : { total: roll(spirit) };
+          var dread = typeof explodingRoll === 'function' ? explodingRoll(puzzleDie) : { total: roll(puzzleDie) };
+          if (Number(pRoll.total || 0) >= Number(dread.total || 0)) {
+            state.floorBoons.puzzleSolved = true;
+            cards.push('<div style="border:1px solid rgba(132,198,255,.55);background:rgba(132,198,255,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Puzzle Solved</strong>: hazard pressure is dampened for this phase.</div>');
+          } else {
+            if (typeof changeHealth === 'function') changeHealth(1);
+            cards.push('<div style="border:1px solid rgba(255,122,122,.55);background:rgba(255,122,122,.14);padding:.3rem .35rem;margin-bottom:.16rem;"><strong>Puzzle Backlash</strong>: wrong sequence triggers a trap (+1 Health pressure).</div>');
+          }
         }
       }
       notable.resolved = true;
@@ -2780,6 +2862,39 @@
     resolvePinnacleHexTileEncounter(mission, run, phase);
     if (typeof showNotif === 'function') {
       showNotif('Hex crawl: position ' + (Number(state.col || 0) + 1) + ',' + (Number(state.row || 0) + 1) + '.', 'info');
+    }
+    return openPinnacleTeleporterEncounter(mission.id, regionTag || run.lastRegionTag || 'province');
+  }
+
+  function setPinnacleHexCrawlDestination(missionId, regionTag, col, row) {
+    var mission = getMission(missionId);
+    if (!mission || mission.missionType !== 'pinnacle_megadungeon') return false;
+    var run = ensurePinnacleMegadungeonRunState(mission);
+    if (!run) return false;
+    var phase = Math.max(1, Math.min(2, Number(run.phase || 1)));
+    var state = ensurePinnacleHexCrawlState(run, mission, phase);
+    ensurePinnacleHexNotables(run, mission, phase);
+
+    var targetCol = Math.max(0, Math.min(6, Number(col || 0)));
+    var targetRow = Math.max(0, Math.min(4, Number(row || 0)));
+    if (!isPinnacleHexTraversable(run, phase, targetCol, targetRow)) {
+      if (typeof showNotif === 'function') showNotif('That hex is collapsed and cannot be traversed.', 'warn');
+      return false;
+    }
+
+    var c = Number(state.col || 0);
+    var r = Number(state.row || 0);
+    while (c !== targetCol || r !== targetRow) {
+      if (c !== targetCol) c += (targetCol > c ? 1 : -1);
+      else if (r !== targetRow) r += (targetRow > r ? 1 : -1);
+      state.discovered[c + ',' + r] = true;
+    }
+    state.col = targetCol;
+    state.row = targetRow;
+
+    resolvePinnacleHexTileEncounter(mission, run, phase);
+    if (typeof showNotif === 'function') {
+      showNotif('Hex crawl: moved to ' + (targetCol + 1) + ',' + (targetRow + 1) + '.', 'info');
     }
     return openPinnacleTeleporterEncounter(mission.id, regionTag || run.lastRegionTag || 'province');
   }
@@ -16683,6 +16798,7 @@
   window.ensurePinnacleHexCrawlState=ensurePinnacleHexCrawlState;
   window.buildPinnacleHexCrawlMinimapHtml=buildPinnacleHexCrawlMinimapHtml;
   window.advancePinnacleHexCrawl=advancePinnacleHexCrawl;
+  window.setPinnacleHexCrawlDestination=setPinnacleHexCrawlDestination;
   window.renderEndgameTabPanel=renderEndgameTabPanel;
   window.handleLegacyRaidMarkerInteraction=handleLegacyRaidMarkerInteraction;
   window.openLegacyRaidMissionPopup=openLegacyRaidMissionPopup;

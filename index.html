@@ -17380,6 +17380,68 @@ document.addEventListener('DOMContentLoaded',()=>{
     return true;
   }
 
+  function executeArenaCombatTabAction() {
+    var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
+    if (!flow || !flow.active) return false;
+    var src = document.getElementById('wayfarerActionSel');
+    var arenaSel = document.getElementById('arenaWayfarerActionSel');
+    if (!src || !arenaSel || typeof executeWayfarerAction !== 'function') {
+      if (typeof showNotif === 'function') showNotif('Combat tab actions are unavailable.', 'warn');
+      return false;
+    }
+    src.value = String(arenaSel.value || src.value || '');
+    if (typeof updateWayfarerActionBtn === 'function') updateWayfarerActionBtn();
+    executeWayfarerAction();
+    if (S && S.quickPanel) {
+      S.quickPanel.lastCombatRoll = (document.getElementById('wayfarerActionResult') || {}).innerHTML
+        || (document.getElementById('attackResult') || {}).innerHTML
+        || (document.getElementById('defendResult') || {}).innerHTML
+        || S.quickPanel.lastCombatRoll;
+    }
+    renderArenaCombatPopup();
+    return true;
+  }
+
+  function executeArenaAllyAction() {
+    var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
+    if (!flow || !flow.active) return false;
+    var allies = Array.isArray(S && S.enemies) ? S.enemies.filter(function (entry) { return entry && entry.ally; }) : [];
+    if (!allies.length) return false;
+    var allySel = document.getElementById('arenaAllyActorSel');
+    var actionSel = document.getElementById('arenaAllyActionSel');
+    var targetSel = document.getElementById('arenaAllyTargetSel');
+    var allyId = allySel ? Number(allySel.value || 0) : 0;
+    var action = actionSel ? String(actionSel.value || 'attack') : 'attack';
+    var target = targetSel ? String(targetSel.value || 'self') : 'self';
+    var ally = allies.find(function (entry) { return Number(entry.id) === allyId; }) || allies[0];
+    if (!ally) return false;
+
+    if (action === 'attack') {
+      if (target.indexOf('enemy:') === 0 && typeof setCombatFocusEnemy === 'function') setCombatFocusEnemy(Number(target.split(':')[1] || 0));
+      if (typeof enemyAttack === 'function') enemyAttack(ally.id);
+    } else if (action === 'defend') {
+      if (target === 'player' && typeof toggleCond === 'function' && S && S.conditions && !S.conditions.protected) toggleCond('protected');
+      else if (typeof applyEnemyCombatCondition === 'function') applyEnemyCombatCondition(ally, 'Protected', 1);
+    } else if (action === 'support') {
+      if (target === 'player' && S && S.combat) {
+        S.combat.actionsLeft = Math.max(0, Number(S.combat.actionsLeft || 0)) + 1;
+        if (typeof updateCombatUI === 'function') updateCombatUI();
+      }
+    }
+
+    if (typeof renderEnemies === 'function') renderEnemies();
+    renderArenaCombatPopup();
+    return true;
+  }
+
+  function executeArenaEnemyAction() {
+    var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
+    if (!flow || !flow.active) return false;
+    if (typeof triggerEnemyActionEvent === 'function') triggerEnemyActionEvent();
+    renderArenaCombatPopup();
+    return true;
+  }
+
   function getRuntimeMissionById(missionId) {
     var list = S && Array.isArray(S.activeMissions) ? S.activeMissions : [];
     var target = String(missionId || '');
@@ -17494,10 +17556,43 @@ document.addEventListener('DOMContentLoaded',()=>{
       : (mode === 'endless'
         ? 'Clear the full chain for bonus credits, renown, and loot.'
         : 'Challenge bracket: win all bouts to claim full colosseum rewards.')));
-    var actionButtons = '<button class="btn btn-sm btn-primary" onclick="executeArenaPlayerAction(\'strike\');">Strike</button>'
-      + '<button class="btn btn-sm btn-primary" onclick="executeArenaPlayerAction(\'shoot\');">Shoot</button>'
-      + '<button class="btn btn-sm" onclick="executeArenaPlayerAction(\'defend\');">Defend</button>'
+    var combatTabSel = document.getElementById('wayfarerActionSel');
+    var combatTabActionOptions = combatTabSel
+      ? Array.prototype.map.call(combatTabSel.options, function (opt) {
+          if (!opt || !opt.value) return '';
+          return '<option value="' + String(opt.value).replace(/"/g, '&quot;') + '">' + String(opt.textContent || opt.value) + '</option>';
+        }).join('')
+      : '';
+    var allies = Array.isArray(S && S.enemies) ? S.enemies.filter(function (entry) { return entry && entry.ally; }) : [];
+    var enemies = Array.isArray(S && S.enemies) ? S.enemies.filter(function (entry) { return entry && !entry.ally; }) : [];
+    var allyActorOptions = allies.map(function (entry) {
+      return '<option value="' + Number(entry.id || 0) + '">' + String(entry.name || 'Ally') + '</option>';
+    }).join('');
+    var allyTargetOptions = '<option value="self">Self</option><option value="player">Wayfarer</option>'
+      + enemies.map(function (entry) {
+          return '<option value="enemy:' + Number(entry.id || 0) + '">' + String(entry.name || 'Enemy') + '</option>';
+        }).join('');
+    var actionButtons = '<div style="display:grid;grid-template-columns:1fr auto;gap:.22rem;align-items:end;min-width:300px;">'
+      + '<label style="font-size:.64rem;color:var(--muted2);">Wayfarer Action<select id="arenaWayfarerActionSel" style="width:100%;margin-top:.08rem;">' + (combatTabActionOptions || '<option value="standard_strike">Strike</option><option value="standard_shoot">Shoot</option>') + '</select></label>'
+      + '<button class="btn btn-sm btn-primary" onclick="executeArenaCombatTabAction();">Use Action</button>'
+      + '</div>'
+      + '<div style="display:flex;gap:.15rem;flex-wrap:wrap;align-items:center;">'
+      + '<span style="font-size:.64rem;color:var(--muted2);">Move:</span>'
+      + '<button class="btn btn-xs" onclick="setCombatSpacing(\'Engaged\',true);renderArenaCombatPopup();">Engaged</button>'
+      + '<button class="btn btn-xs" onclick="setCombatSpacing(\'Close\',true);renderArenaCombatPopup();">Close</button>'
+      + '<button class="btn btn-xs" onclick="setCombatSpacing(\'Nearby\',true);renderArenaCombatPopup();">Nearby</button>'
+      + '<button class="btn btn-xs" onclick="setCombatSpacing(\'Far\',true);renderArenaCombatPopup();">Far</button>'
+      + '</div>'
+      + '<button class="btn btn-sm btn-warn" onclick="executeArenaEnemyAction();">Enemy Action</button>'
       + '<button class="btn btn-sm btn-teal" onclick="executeArenaSpecialAction();">' + specialName + '</button>';
+    if (allies.length) {
+      actionButtons += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:.18rem;align-items:end;">'
+        + '<label style="font-size:.64rem;color:var(--muted2);">Ally<select id="arenaAllyActorSel" style="width:100%;margin-top:.08rem;">' + allyActorOptions + '</select></label>'
+        + '<label style="font-size:.64rem;color:var(--muted2);">Action<select id="arenaAllyActionSel" style="width:100%;margin-top:.08rem;"><option value="attack">Attack</option><option value="defend">Defend</option><option value="support">Support</option></select></label>'
+        + '<label style="font-size:.64rem;color:var(--muted2);">Target<select id="arenaAllyTargetSel" style="width:100%;margin-top:.08rem;">' + allyTargetOptions + '</select></label>'
+        + '<button class="btn btn-sm" onclick="executeArenaAllyAction();">Ally Action</button>'
+        + '</div>';
+    }
     var extraButtons = '';
     if ((mode === 'endless' || mode === 'challenge') && flow && Array.isArray(flow.queue) && Number(flow.index || 0) < flow.queue.length - 1 && !arenaCombatHasAliveHostiles()) {
       extraButtons += '<button class="btn btn-sm btn-warn" onclick="advanceArenaCombatWave();">Next Combatant</button>';
@@ -17596,6 +17691,11 @@ document.addEventListener('DOMContentLoaded',()=>{
     var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
     var enemy = getArenaCurrentEnemy();
     if (!flow || !enemy) return false;
+    if (typeof getEnemyActionsRemaining === 'function' && Number(getEnemyActionsRemaining() || 0) <= 0) {
+      if (typeof showNotif === 'function') showNotif('No enemy actions remaining this cycle.', 'warn');
+      return false;
+    }
+    if (typeof maybeResetActionsAfterDefend === 'function') maybeResetActionsAfterDefend();
     flow.specialUses = Number(flow.specialUses || 0) + 1;
     var hitDie = Math.max(4, Number(enemy.dread || 4));
     var hit = (typeof explodingRoll === 'function') ? explodingRoll(hitDie) : { total: roll(hitDie) };
@@ -17614,6 +17714,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       + ' vs your ' + reactionLabel + ' d' + Number(reaction.die || 4) + '=' + Number(reaction.total || 0)
       + ' — ' + (landed ? ('Hit for ' + dmg + ' damage.') : 'Blocked.');
     if (typeof showNotif === 'function') showNotif(S.quickPanel.lastCombatRoll, 'warn');
+    if (typeof finalizeEnemyTurn === 'function') finalizeEnemyTurn(enemy);
     if (typeof updateCombatUI === 'function') updateCombatUI();
     renderArenaCombatPopup();
     return true;
@@ -17698,6 +17799,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   window.openArenaCombatPopup = openArenaCombatPopup;
   window.renderArenaCombatPopup = renderArenaCombatPopup;
   window.executeArenaPlayerAction = executeArenaPlayerAction;
+  window.executeArenaCombatTabAction = executeArenaCombatTabAction;
+  window.executeArenaAllyAction = executeArenaAllyAction;
+  window.executeArenaEnemyAction = executeArenaEnemyAction;
   window.seedArenaCombat = seedArenaCombat;
 
   function buildQPMissions() {

@@ -28,6 +28,8 @@ Set these before running the server:
 - `LICENSE_STORE_PATH`: optional path for license/session data file.
 - `PAYWALL_SESSION_TTL_MS`: optional cookie session duration in milliseconds.
 
+For production durability, set `LICENSE_STORE_PATH` to a persistent volume path (not an ephemeral container filesystem).
+
 If both `PAYWALL_GOD_KEY` and `PAYWALL_GOD_KEY_HASH` are set, the hash is used.
 
 ## Run
@@ -116,4 +118,5 @@ Buyers go to `/access`, enter email + code, then access persists in that browser
 
 - Code redemption is tied to the email assigned during issuance.
 - The God Key bypasses purchase-code checks.
-- License and session data are stored in `license-data.json` by default.
+- License and session data are stored in `license-data.json` in the project directory by default.
+- The server also keeps a `.bak` backup file and can auto-migrate from an older home-directory license file.

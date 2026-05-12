@@ -23,8 +23,9 @@ const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const TOKEN_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789abcdefghijkmnopqrstuvwxyz";
 const BTL_DATA_DIR = path.resolve(process.env.BTL_DATA_DIR || path.join(os.homedir(), ".beyond-the-light"));
 const STORE_PATH = path.resolve(process.env.CAMPAIGN_STORE_PATH || path.join(__dirname, "campaign-data.json"));
-const LEGACY_LICENSE_STORE_PATH = path.join(__dirname, "license-data.json");
-const LICENSE_STORE_PATH = path.resolve(process.env.LICENSE_STORE_PATH || path.join(BTL_DATA_DIR, "license-data.json"));
+const LEGACY_LICENSE_STORE_PATH = path.join(BTL_DATA_DIR, "license-data.json");
+const LICENSE_STORE_PATH = path.resolve(process.env.LICENSE_STORE_PATH || path.join(__dirname, "license-data.json"));
+const LICENSE_STORE_BACKUP_PATH = `${LICENSE_STORE_PATH}.bak`;
 const ACCESS_PAGE_PATH = path.join(__dirname, "access.html");
 const LICENSE_ADMIN_PAGE_PATH = path.join(__dirname, "license-admin.html");
 const PAYWALL_SESSION_COOKIE = "btl_access_session";
@@ -290,8 +291,13 @@ function persistLicenseStoreNow() {
     licenses: licenseStore.licenses && typeof licenseStore.licenses === "object" ? licenseStore.licenses : {},
     sessions: licenseStore.sessions && typeof licenseStore.sessions === "object" ? licenseStore.sessions : {}
   };
+  const serialized = JSON.stringify(data, null, 2);
+  const tmpPath = `${LICENSE_STORE_PATH}.tmp`;
+
   fs.mkdirSync(path.dirname(LICENSE_STORE_PATH), { recursive: true });
-  fs.writeFileSync(LICENSE_STORE_PATH, JSON.stringify(data, null, 2), "utf8");
+  fs.writeFileSync(tmpPath, serialized, "utf8");
+  fs.renameSync(tmpPath, LICENSE_STORE_PATH);
+  fs.writeFileSync(LICENSE_STORE_BACKUP_PATH, serialized, "utf8");
 }
 
 function persistLicenseStoreSafe() {
@@ -304,15 +310,26 @@ function persistLicenseStoreSafe() {
 
 function loadLicenseStoreFromDisk() {
   try {
-    const candidates = [LICENSE_STORE_PATH];
+    const candidates = [LICENSE_STORE_PATH, LICENSE_STORE_BACKUP_PATH];
     const legacyPath = path.resolve(LEGACY_LICENSE_STORE_PATH);
+    const legacyBackupPath = `${legacyPath}.bak`;
     if (legacyPath !== path.resolve(LICENSE_STORE_PATH)) {
       candidates.push(legacyPath);
+      candidates.push(legacyBackupPath);
+    }
+
+    const uniqueCandidates = [];
+    const seen = new Set();
+    for (let i = 0; i < candidates.length; i += 1) {
+      const candidate = path.resolve(candidates[i]);
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      uniqueCandidates.push(candidate);
     }
 
     let loadedFrom = "";
-    for (let i = 0; i < candidates.length; i += 1) {
-      const candidate = candidates[i];
+    for (let i = 0; i < uniqueCandidates.length; i += 1) {
+      const candidate = uniqueCandidates[i];
       if (!fs.existsSync(candidate)) continue;
       const raw = fs.readFileSync(candidate, "utf8");
       if (!raw.trim()) continue;

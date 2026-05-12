@@ -3630,6 +3630,8 @@
       + '<div class="campaign-actions" style="margin-top:.35rem;">'
       + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.syncSharedNow()">Sync Shared World</button>'
       + (isGm ? '' : '<button class="btn btn-xs" onclick="window.campaignSystem.requestResync()">Request Resync</button>')
+      + '<button class="btn btn-xs" onclick="window.campaignSystem.reconnectNow()">Reconnect</button>'
+      + '<button class="btn btn-xs btn-warn" onclick="window.campaignSystem.recoverSyncNow()">Fix Desync</button>'
       + '<button class="btn btn-xs" onclick="window.campaignSystem.showOnboarding(true)">Show Onboarding</button>'
       + '</div>'
       + '<div class="campaign-muted">'
@@ -4870,6 +4872,61 @@
     safeNotif("Authoritative world state broadcasted to campaign.", "good");
   }
 
+  async function reconnectNow() {
+    if (!ensureSocket()) {
+      safeNotif("Multiplayer requires the local campaign server.", "warn");
+      return;
+    }
+    if (state.socket && !state.connected && typeof state.socket.connect === "function") {
+      state.socket.connect();
+      safeNotif("Reconnect requested.", "info");
+      return;
+    }
+    if (state.code && state.role) {
+      await joinCampaign(state.role, {
+        code: state.code,
+        name: state.playerName || ensureName(),
+        token: state.token,
+        silent: true
+      });
+      refreshSyncHealth();
+      renderSettingsSection();
+      renderDockPanel();
+      safeNotif("Reconnect handshake complete.", "good");
+      return;
+    }
+    safeNotif("No active campaign session to reconnect.", "warn");
+  }
+
+  async function recoverSyncNow() {
+    if (!state.code) {
+      safeNotif("Join a campaign first.", "warn");
+      return;
+    }
+    if (!state.connected) {
+      await reconnectNow();
+      return;
+    }
+    if (state.role === "gm") {
+      await forceAuthoritativeResync();
+      return;
+    }
+    await requestResync();
+  }
+
+  function getSyncStatus() {
+    return {
+      mode: String(state.syncHealth || "idle"),
+      text: String(state.syncText || "Idle"),
+      lastSyncAt: Number(state.lastSyncAt || 0),
+      lastCampaignStateAt: Number(state.lastCampaignStateAt || 0),
+      pendingSyncCount: Number(state.pendingSyncCount || 0),
+      syncConflictCount: Number(state.syncConflictCount || 0),
+      connected: !!state.connected,
+      code: String(state.code || "")
+    };
+  }
+
   async function clearProvinceSelections() {
     if (!state.socket) {
       safeNotif("Only connected GM can clear player cursors.", "warn");
@@ -5582,9 +5639,12 @@
         campaign: state.campaign
       };
     },
+    getSyncStatus: getSyncStatus,
     getSharedState: function () {
       return getCampaignSharedState();
     },
+    reconnectNow: reconnectNow,
+    recoverSyncNow: recoverSyncNow,
     isCampaignPlayerReadOnlyForSharedWorld: isCampaignPlayerReadOnlyForSharedWorld,
     guardSharedWorldMutation: guardSharedWorldMutation
   };

@@ -13550,6 +13550,7 @@ function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
         }) || null;
     const isLanding = cell.id === state.landedCellId;
     const isSelected = selected && cell.id === selected.id;
+    const hasSelection = !!selected;
     const isStoryObjective = state.storyObjectiveCellId === cell.id;
     const task = cell.taskId ? state.tasks.find((t) => t.id === cell.taskId) : null;
     const isWayfarerContract = !!(task && !task.resolved && task.source === 'wayfarer');
@@ -13655,7 +13656,7 @@ function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
         </g>`;
     })();
 
-    return `<g class="planet-hex" onclick="explorePlanetCell(${cell.id})" style="cursor:pointer;">
+    return `<g class="planet-hex${isSelected ? ' sel' : ''}${(hasSelection && !isSelected) ? ' dim' : ''}" onclick="explorePlanetCell(${cell.id})" style="cursor:pointer;transition:opacity .16s ease,filter .16s ease;${(hasSelection && !isSelected) ? 'opacity:.56;filter:saturate(.62) brightness(.78);' : ''}${isSelected ? 'filter:brightness(1.12);' : ''}">
       <polygon points="${pts}" fill="${visual.fill}" stroke="${visual.stroke}" stroke-width="${strokeWidth}" fill-opacity="${cell.explored ? 0.92 : 0.66}" />
       ${depthOverlay}
       ${factionOverlay}
@@ -20002,7 +20003,8 @@ function renderExocraftPanel() {
       ${owned.length ? owned.map((name) => {
         const info = EXOCRAFTS.find((entry) => entry.name === name);
         const isOn = active === name;
-        return `<div style="padding:.35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);margin-bottom:.25rem;">
+        const hasActive = !!active;
+        return `<div style="padding:.35rem;border:1px solid ${isOn ? 'rgba(232,192,80,.8)' : 'var(--border2)'};background:rgba(255,255,255,.02);margin-bottom:.25rem;${isOn ? 'box-shadow:0 0 14px rgba(232,192,80,.35);filter:brightness(1.1);' : ''}${(hasActive && !isOn) ? 'opacity:.56;filter:saturate(.62) brightness(.78);' : ''}">
           <strong style="color:${isOn ? 'var(--gold2)' : 'var(--text)'};">${info ? info.logo + ' ' : ''}${name}</strong>
           <div style="font-size:.75rem;color:var(--muted2);line-height:1.45;">${info ? `${info.power} · ${info.mounts} mounts.` : 'Exocraft'} ${info ? info.desc : ''}</div>
           <div style="margin-top:.25rem;"><button class="btn btn-xs ${isOn ? '' : 'btn-teal'}" onclick="setActiveExocraft('${name.replace(/'/g, "\\'")}')">${isOn ? 'Active' : 'Set Active'}</button></div>

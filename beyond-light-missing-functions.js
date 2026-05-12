@@ -1780,6 +1780,7 @@ function saveCharacter() {
     writeSoloCheckpoint(envelope);
     _lastSoloLoadedChecksum = envelope.checksum;
     _lastSoloAutoSaveAt = Date.now();
+    if (typeof refreshHeaderHeartbeat === 'function') refreshHeaderHeartbeat();
     showNotif("Character saved + checkpointed", "good");
   } catch (error) {
     showNotif("Could not save character", "warn");
@@ -1853,6 +1854,7 @@ function restoreBackupAsPrimary() {
       restoredFrom: "backup",
       restoredAt: Date.now()
     }));
+    if (typeof refreshHeaderHeartbeat === 'function') refreshHeaderHeartbeat();
     showNotif("Backup promoted to primary", "good");
   } catch (_err) {
     showNotif("Backup restore failed", "warn");
@@ -2635,8 +2637,68 @@ function maybePromptSoloGuidance() {
   }
 }
 
+function getHeaderHeartbeatStatus() {
+  const metaRaw = localStorage.getItem(SOLO_SAVE_META_KEY);
+  let lastSavedAt = 0;
+  if (metaRaw) {
+    try {
+      const parsed = JSON.parse(metaRaw);
+      lastSavedAt = Number(parsed && parsed.lastSavedAt || 0);
+    } catch (_err) {
+      lastSavedAt = 0;
+    }
+  }
+  const saveText = lastSavedAt
+    ? (function () {
+        try { return new Date(lastSavedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+        catch (_e) { return '-'; }
+      })()
+    : '-';
+
+  let syncLabel = 'Offline';
+  let syncMode = 'stale';
+  try {
+    if (window.campaignSystem && typeof window.campaignSystem.getSyncStatus === 'function') {
+      const sync = window.campaignSystem.getSyncStatus() || {};
+      syncLabel = String(sync.text || sync.mode || syncLabel || 'Offline');
+      syncMode = String(sync.mode || '').toLowerCase();
+      if (syncMode !== 'online' && syncMode !== 'syncing' && syncMode !== 'stale') syncMode = 'stale';
+    }
+  } catch (_err) {}
+
+  let dirty = false;
+  try {
+    dirty = typeof hasUnsavedSoloChanges === 'function' ? !!hasUnsavedSoloChanges() : false;
+  } catch (_err) {
+    dirty = false;
+  }
+
+  return {
+    saveText: saveText,
+    syncLabel: syncLabel,
+    syncMode: syncMode,
+    dirty: dirty
+  };
+}
+
+function refreshHeaderHeartbeat() {
+  const root = document.getElementById('headerHeartbeat');
+  const dot = document.getElementById('headerHeartbeatDot');
+  const text = document.getElementById('headerHeartbeatText');
+  if (!root || !dot || !text) return;
+  const hb = getHeaderHeartbeatStatus();
+  dot.classList.remove('online', 'syncing', 'stale');
+  dot.classList.add(hb.syncMode);
+  text.textContent = 'Save: ' + String(hb.saveText || '-')
+    + ' · Sync: ' + String(hb.syncLabel || 'Offline')
+    + ' · State: ' + (hb.dirty ? 'Dirty' : 'Clean');
+}
+
+window.refreshHeaderHeartbeat = refreshHeaderHeartbeat;
+
 setTimeout(function () {
   maybePromptSoloGuidance();
+  if (typeof refreshHeaderHeartbeat === 'function') refreshHeaderHeartbeat();
 }, 1500);
 
 setInterval(function () {
@@ -2652,6 +2714,7 @@ setInterval(function () {
   } catch (_err) {
     document.body.classList.remove("solo-unsaved");
   }
+  if (typeof refreshHeaderHeartbeat === 'function') refreshHeaderHeartbeat();
 }, 4000);
 
 setInterval(function () {
@@ -2668,6 +2731,7 @@ setInterval(function () {
     writeSoloEnvelope(envelope);
     _lastSoloLoadedChecksum = envelope.checksum;
     _lastSoloAutoSaveAt = now;
+    if (typeof refreshHeaderHeartbeat === 'function') refreshHeaderHeartbeat();
   } catch (_err) {
     // Silent autosave failures should not interrupt gameplay.
   }

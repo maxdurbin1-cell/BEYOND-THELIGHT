@@ -1749,6 +1749,173 @@
     return { ruins: ruins, portals: portals, gates: gates };
   }
 
+  function ensureCrucibleExpeditionProvinceMetadata(map, day) {
+    if (!map || !map.hexes) return;
+    var useDay = Math.max(1, Number(day || 1));
+    var terrainPool = (typeof TERRAIN_TYPES !== 'undefined' && Array.isArray(TERRAIN_TYPES) && TERRAIN_TYPES.length)
+      ? TERRAIN_TYPES
+      : [{ name: 'Hills', color: '#354027' }];
+    var seed = Math.max(1, Number(map.seed || 1)) + (useDay * 97);
+    Object.keys(map.hexes).forEach(function (key) {
+      var cell = map.hexes[key];
+      if (!cell) return;
+      var q = Number(cell.q || 0);
+      var r = Number(cell.r || 0);
+      var h1 = Math.abs(Math.sin((q + 31) * 917 + (r + 17) * 613 + seed * 19));
+      var h2 = Math.abs(Math.sin((q + 7) * 431 + (r + 41) * 263 + seed * 29));
+      var tIdx = Math.floor((h1 - Math.floor(h1)) * terrainPool.length) % terrainPool.length;
+      var picked = terrainPool[Math.max(0, tIdx)] || terrainPool[0];
+      if (!cell.provinceTerrainName) cell.provinceTerrainName = String((picked && picked.name) || 'Hills');
+      if (!cell.provinceTerrainColor) cell.provinceTerrainColor = String((picked && picked.color) || '#354027');
+      if (!cell.weatherRoll) cell.weatherRoll = 1 + (Math.floor((h2 - Math.floor(h2)) * 6) % 6);
+    });
+  }
+
+  function getCrucibleExpeditionCellFromPlayer(match) {
+    if (!match || !match.hexMap || !match.hexMap.hexes) return null;
+    var player = getCrucibleExpeditionPlayer(match);
+    if (!player || !player.position) return null;
+    var key = String(player.position.q) + ',' + String(player.position.r);
+    return match.hexMap.hexes[key] || null;
+  }
+
+  function pickCrucibleExpeditionStableText(list, cell, channel) {
+    if (!Array.isArray(list) || !list.length) return '';
+    var c = cell || {};
+    var q = Number(c.q || 0);
+    var r = Number(c.r || 0);
+    var h = Math.abs(Math.sin((q + 53) * 877 + (r + 11) * 487 + String(channel || 'base').length * 211));
+    var idx = Math.floor((h - Math.floor(h)) * list.length) % list.length;
+    return String(list[Math.max(0, idx)] || list[0] || '');
+  }
+
+  function buildCrucibleExpeditionProvinceDescriptorHtml(match) {
+    if (!match || !match.hexMap || !match.hexMap.hexes || String(match.mode || '') !== 'expedition') return '';
+    var cell = getCrucibleExpeditionCellFromPlayer(match);
+    if (!cell) return '';
+    var terrainName = String(cell.provinceTerrainName || 'Hills');
+    var td = (typeof TERRAIN_DESC !== 'undefined' && TERRAIN_DESC && TERRAIN_DESC[terrainName])
+      ? TERRAIN_DESC[terrainName]
+      : { land: ['Open land.'], flora: ['Sparse growth.'], fauna: ['No readings.'], wonder: ['A half-buried monument.'] };
+    var season = String((typeof S !== 'undefined' && S && S.currentSeason) ? S.currentSeason : 'spring');
+    var weatherTable = (typeof WEATHER !== 'undefined' && WEATHER && Array.isArray(WEATHER[season])) ? WEATHER[season] : [];
+    var wr = Math.max(1, Math.min(6, Number(cell.weatherRoll || 1)));
+    var weather = weatherTable[wr - 1] || { result: 'Still Air', desc: 'No immediate weather pressure.', rough: false };
+    var land = pickCrucibleExpeditionStableText(Array.isArray(td.land) ? td.land : [String(td.land || 'Open land.')], cell, 'land');
+    var flora = pickCrucibleExpeditionStableText(Array.isArray(td.flora) ? td.flora : [String(td.flora || 'Sparse growth.')], cell, 'flora');
+    var fauna = pickCrucibleExpeditionStableText(Array.isArray(td.fauna) ? td.fauna : [String(td.fauna || 'No known fauna.')], cell, 'fauna');
+    var wonder = pickCrucibleExpeditionStableText(Array.isArray(td.wonder) ? td.wonder : [String(td.wonder || 'A weathered structure.')], cell, 'wonder');
+    return ''
+      + '<div style="margin-top:.34rem;display:grid;grid-template-columns:1fr 1fr;gap:.28rem;">'
+      + '<div class="wild-panel"><div class="wp-label">Land</div><div class="wp-text">' + land + '</div></div>'
+      + '<div class="weather-block ' + (weather.rough ? 'rough' : 'clear') + '"><div class="weather-label" style="color:' + (weather.rough ? 'var(--red2)' : 'var(--teal)') + ';">Weather</div><div style="font-size:.78rem;color:var(--text2);">' + String(weather.result || 'Unknown') + ' — ' + String(weather.desc || '') + '</div>' + (weather.rough ? '<div style="font-size:.72rem;color:var(--red);margin-top:.15rem;">⚠ Rough weather pressure is active on this hex.</div>' : '') + '</div>'
+      + '<div class="wild-panel"><div class="wp-label">Flora Fauna</div><div class="wp-text">' + flora + ' ' + fauna + '</div></div>'
+      + '<div class="wild-panel"><div class="wp-label">Wonder</div><div class="wp-text">' + wonder + '</div></div>'
+      + '</div>';
+  }
+
+  function buildCrucibleExpeditionProvinceParityMapHtml(match, selectedUnit, reachableKeys) {
+    if (!match || !match.hexMap || !match.hexMap.hexes) return '<div style="font-size:.74rem;color:var(--muted2);">No province map available.</div>';
+    var map = match.hexMap;
+    var collapsed = (match.expedition && match.expedition.collapsed) ? match.expedition.collapsed : {};
+    var cells = Object.keys(map.hexes).map(function (k) { return map.hexes[k]; }).filter(Boolean);
+    if (!cells.length) return '<div style="font-size:.74rem;color:var(--muted2);">No province map cells.</div>';
+    var minQ = Infinity, maxQ = -Infinity, minR = Infinity, maxR = -Infinity;
+    cells.forEach(function (c) {
+      var q = Number(c.q || 0), r = Number(c.r || 0);
+      if (q < minQ) minQ = q;
+      if (q > maxQ) maxQ = q;
+      if (r < minR) minR = r;
+      if (r > maxR) maxR = r;
+    });
+    var size = 23;
+    var w = 760;
+    var h = 620;
+    var qSpan = Math.max(1, maxQ - minQ + 1);
+    var rSpan = Math.max(1, maxR - minR + 1);
+    var xStep = size * 1.52;
+    var yStep = Math.sqrt(3) * size;
+    var mapW = qSpan * xStep + size * 2;
+    var mapH = rSpan * yStep + size * 2;
+    var offX = (w - mapW) / 2 + size;
+    var offY = (h - mapH) / 2 + size;
+    var reach = {};
+    (Array.isArray(reachableKeys) ? reachableKeys : []).forEach(function (k) { reach[String(k)] = true; });
+
+    function points(cx, cy, r) {
+      var pts = [];
+      for (var i = 0; i < 6; i++) {
+        var a = Math.PI / 180 * (60 * i - 30);
+        pts.push((cx + r * Math.cos(a)).toFixed(2) + ',' + (cy + r * Math.sin(a)).toFixed(2));
+      }
+      return pts.join(' ');
+    }
+
+    function toPx(cell) {
+      var q = Number(cell.q || 0) - minQ;
+      var r = Number(cell.r || 0) - minR;
+      return {
+        x: offX + q * xStep,
+        y: offY + r * yStep + ((Number(cell.q || 0) % 2) ? (yStep / 2) : 0)
+      };
+    }
+
+    var units = (match.allies || []).concat(match.enemies || []).filter(function (u) { return u && u.position && Number(u.hp || 0) > 0; });
+    var unitsByKey = {};
+    units.forEach(function (u) {
+      var key = String(Number(u.position.q || 0)) + ',' + String(Number(u.position.r || 0));
+      if (!unitsByKey[key]) unitsByKey[key] = [];
+      unitsByKey[key].push(u);
+    });
+
+    var svg = '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" style="border:1px solid var(--border2);background:radial-gradient(circle at 50% 45%, rgba(70,196,182,.10), rgba(6,8,12,.95));border-radius:8px;margin-bottom:.2rem;">';
+    cells.forEach(function (cell) {
+      var k = String(Number(cell.q || 0)) + ',' + String(Number(cell.r || 0));
+      var px = toPx(cell);
+      var isCollapsed = !!collapsed[k];
+      var fill = 'rgba(26,32,16,.9)';
+      var stroke = 'rgba(37,40,72,.95)';
+      var icon = '';
+      if (isCollapsed) { fill = 'rgba(28,28,34,.95)'; stroke = 'rgba(160,70,70,.75)'; icon = '✖'; }
+      else if (cell.terrain === 'ruin') { fill = 'rgba(64,56,48,.88)'; stroke = '#a09870'; icon = '◫'; }
+      else if (cell.trap && cell.trap.type === 'peril_hex') { fill = 'rgba(120,56,32,.88)'; stroke = '#e05050'; icon = '⚠'; }
+      else if (cell.terrain === 'temple') { fill = 'rgba(80,40,120,.88)'; stroke = '#b060d0'; icon = '✦'; }
+      else if (cell.terrain === 'gate') { fill = 'rgba(26,80,72,.9)'; stroke = '#2ec4b6'; icon = '◆'; }
+      else if (cell.terrain === 'portal') { fill = 'rgba(90,16,64,.9)'; stroke = '#e080c0'; icon = '⬡'; }
+      else {
+        fill = String(cell.provinceTerrainColor || '#1a2010');
+      }
+      var canClick = !!reach[k] && !isCollapsed;
+      var strokeWidth = canClick ? '2' : '1.1';
+      var clickAttr = canClick ? (' onclick="holdingCrucibleHandleBoardHexClick(' + Number(cell.q || 0) + ',' + Number(cell.r || 0) + ')" style="cursor:pointer;"') : '';
+      svg += '<g><polygon points="' + points(px.x, px.y, size - 1) + '" fill="' + fill + '" stroke="' + (canClick ? '#f0d070' : stroke) + '" stroke-width="' + strokeWidth + '"' + clickAttr + '/>';
+      if (icon) svg += '<text x="' + px.x + '" y="' + (px.y + 3) + '" text-anchor="middle" font-size="11" fill="' + (isCollapsed ? '#f2a3a3' : '#e8d9bd') + '" pointer-events="none">' + icon + '</text>';
+      svg += '</g>';
+    });
+
+    units.forEach(function (u) {
+      var px = toPx(u.position || { q: 0, r: 0 });
+      var isPlayer = !!u.isPlayer;
+      var unitColor = isPlayer ? '#f0d070' : (String(u.side || '') === 'ally' ? '#46de96' : '#eb626e');
+      svg += '<g><circle cx="' + px.x + '" cy="' + px.y + '" r="8.2" fill="rgba(10,12,22,.92)" stroke="' + unitColor + '" stroke-width="1.5"/>'
+        + '<text x="' + px.x + '" y="' + (px.y + 2.8) + '" text-anchor="middle" font-size="7.2" fill="' + unitColor + '">' + String(u.name || 'U').charAt(0).toUpperCase() + '</text>'
+        + (isPlayer ? ('<text x="' + px.x + '" y="' + (px.y - 11) + '" text-anchor="middle" font-size="6.2" fill="#f0d070">YOU</text>') : '')
+        + '</g>';
+    });
+
+    svg += '</svg>';
+    svg += '<div style="display:flex;gap:.16rem;flex-wrap:wrap;font-size:.66rem;color:var(--muted2);line-height:1.35;margin-top:.04rem;">'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">YOU = active Wayfarer</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">◫ Ruins</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⚠ Peril</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">✦ Temple</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">◆ Gate</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⬡ Portal</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">✖ Collapsed edge</span>'
+      + '</div>';
+    return svg;
+  }
+
   function createCrucibleExpeditionState(hexMap) {
     var raidBoss = getCrucibleExpeditionRaidBossName();
     var stamped = stampCrucibleExpeditionProvinceFeatures(hexMap, 1);
@@ -2994,6 +3161,29 @@
       ? ('<div style="margin-top:.22rem;padding:.22rem .3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">' + getHexUnitDetailsHtml(selectedUnit) + '</div>')
       : '';
     
+    if (isExpedition && typeof buildCrucibleExpeditionProvinceParityMapHtml === 'function') {
+      var provinceSvg = buildCrucibleExpeditionProvinceParityMapHtml(match, selectedUnit, reachableKeys);
+      var descriptorHtml = (typeof buildCrucibleExpeditionProvinceDescriptorHtml === 'function')
+        ? buildCrucibleExpeditionProvinceDescriptorHtml(match)
+        : '';
+      var interactables = Array.isArray(match.interactables) ? match.interactables : [];
+      var interactablesPanel = (interactables.length && typeof buildInteractablePanelHtml === 'function')
+        ? buildInteractablePanelHtml(interactables, selectedUnit)
+        : '';
+      var provinceMeta = '<div style="margin-bottom:.25rem;padding:.24rem .3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.7rem;color:var(--muted2);line-height:1.45;">'
+        + '<strong style="color:var(--gold2);">Province Map</strong> · '
+        + 'Land / Weather / Flora Fauna / Wonder descriptors are read from the active hex · '
+        + 'Gates close at key nodes and portals can be sealed during the run.</div>';
+      return '<div style="margin-bottom:.25rem;">'
+        + guidance
+        + provinceMeta
+        + provinceSvg
+        + descriptorHtml
+        + interactablesPanel
+        + details
+        + '</div>';
+    }
+
     if (typeof renderCrucibleHexMap === 'function') {
       var svgBoard = renderCrucibleHexMap(match.hexMap, allUnits, selectedUnit ? selectedUnit.id : '', {
         selectedTargetId: selectedTarget ? selectedTarget.id : '',

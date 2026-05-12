@@ -8952,8 +8952,80 @@ function applyStressToCurrentEnemy(stress,source){
     if(typeof showNotif==='function')showNotif('Siphon Energy: recovered '+stress+' Health from the hit.','good');
   }
 }
-function renderEnemies(){const c=document.getElementById('enemyList');if(!c)return;if(!S.enemies.length){c.innerHTML='<div style="font-size:.82rem;color:var(--muted2);">No enemies tracked.</div>';return;}c.innerHTML=S.enemies.map(e=>{ensureEnemyEffectState(e);syncEnemyConditionList(e);var condText=e.conditions&&e.conditions.length?'<div style="font-size:.68rem;color:'+ (e.ally?'var(--teal)':'var(--orange)') +';margin-top:.18rem;">'+e.conditions.join(' · ')+'</div>':'';var factionBadge=e.faction?`<span style="font-size:.6rem;background:rgba(122,120,152,.18);border:1px solid var(--border2);border-radius:3px;padding:.05rem .22rem;color:var(--muted2);margin-left:.3rem;">${e.faction}</span>`:'';var sideBadge=e.ally?'<span style="font-size:.6rem;color:var(--teal);background:rgba(46,196,182,.12);border:1px solid var(--teal);border-radius:3px;padding:.05rem .22rem;margin-left:.25rem;">ALLY</span>':'<span style="font-size:.6rem;color:var(--red2);background:rgba(201,64,64,.1);border:1px solid var(--red);border-radius:3px;padding:.05rem .22rem;margin-left:.25rem;">HOSTILE</span>';return `<div class="enemy-card"><div style="flex:1;"><div style="font-family:'Cinzel',serif;font-size:.7rem;color:${e.ally?'var(--teal)':'var(--gold2)'};display:flex;align-items:center;flex-wrap:wrap;gap:.1rem;">${e.name}${sideBadge}${factionBadge}</div><div style="font-size:.72rem;color:var(--muted2);">${getEnemyDisplayDread(e)} | ${e.stress}/${e.maxStress} Stress</div>${condText}<div style="display:flex;flex-wrap:wrap;gap:.15rem;margin-top:.25rem;">${Array.from({length:e.maxStress},(_,i)=>`<div class="e-pip${i<e.stress?' filled':''}" onclick="enemyPip(${e.id},${i})"></div>`).join('')}</div></div><div style="display:flex;flex-direction:column;gap:.2rem;"><button class="btn btn-xs btn-red" onclick="removeEnemy(${e.id})">✕</button><button class="btn btn-xs" onclick="enemyAttack(${e.id})">⚔ Atk</button><button class="btn btn-xs" title="Toggle ally/hostile side" onclick="toggleEnemySide(${e.id})">${e.ally?'→ Hostile':'→ Ally'}</button></div></div>`;}).join('');}
-function renderEnemies(){const c=document.getElementById('enemyList');if(!c)return;if(!S.enemies.length){c.innerHTML='<div style="font-size:.82rem;color:var(--muted2);">No enemies tracked.</div>';if(typeof renderEnemyFocusSelect==='function')renderEnemyFocusSelect();return;}c.innerHTML=S.enemies.map(e=>{ensureEnemyEffectState(e);syncEnemyConditionList(e);var condText=e.conditions&&e.conditions.length?'<div style="font-size:.68rem;color:'+ (e.ally?'var(--teal)':'var(--orange)') +';margin-top:.18rem;">'+e.conditions.join(' · ')+'</div>':'';var factionBadge=e.faction?`<span style="font-size:.6rem;background:rgba(122,120,152,.18);border:1px solid var(--border2);border-radius:3px;padding:.05rem .22rem;color:var(--muted2);margin-left:.3rem;">${e.faction}</span>`:'';var sideBadge=e.ally?'<span style="font-size:.6rem;color:var(--teal);background:rgba(46,196,182,.12);border:1px solid var(--teal);border-radius:3px;padding:.05rem .22rem;margin-left:.25rem;">ALLY</span>':'<span style="font-size:.6rem;color:var(--red2);background:rgba(201,64,64,.1);border:1px solid var(--red);border-radius:3px;padding:.05rem .22rem;margin-left:.25rem;">HOSTILE</span>';return `<div class="enemy-card"><div style="flex:1;"><div style="font-family:'Cinzel',serif;font-size:.7rem;color:${e.ally?'var(--teal)':'var(--gold2)'};display:flex;align-items:center;flex-wrap:wrap;gap:.1rem;">${e.name}${sideBadge}${factionBadge}</div><div style="font-size:.72rem;color:var(--muted2);">${getEnemyDisplayDread(e)} | ${e.stress}/${e.maxStress} Stress</div>${condText}<div style="display:flex;flex-wrap:wrap;gap:.15rem;margin-top:.25rem;">${Array.from({length:e.maxStress},(_,i)=>`<div class="e-pip${i<e.stress?' filled':''}" onclick="enemyPip(${e.id},${i})"></div>`).join('')}</div></div><div style="display:flex;flex-direction:column;gap:.2rem;"><button class="btn btn-xs btn-red" onclick="removeEnemy(${e.id})">✕</button><button class="btn btn-xs" onclick="enemyAttack(${e.id})">⚔ Atk</button><button class="btn btn-xs" title="Toggle ally/hostile side" onclick="toggleEnemySide(${e.id})">${e.ally?'→ Hostile':'→ Ally'}</button></div></div>`;}).join('');if(typeof renderEnemyFocusSelect==='function')renderEnemyFocusSelect();}
+function getNamedEnemyProfileByName(enemyName){
+  var key=String(enemyName||'').trim().toLowerCase();
+  if(!key||!NAMED_ENEMY_BESTIARY||typeof NAMED_ENEMY_BESTIARY!=='object')return null;
+  var pools=Object.keys(NAMED_ENEMY_BESTIARY);
+  for(var i=0;i<pools.length;i++){
+    var pool=NAMED_ENEMY_BESTIARY[pools[i]];
+    if(!Array.isArray(pool))continue;
+    for(var j=0;j<pool.length;j++){
+      var profile=pool[j];
+      if(profile&&String(profile.name||'').trim().toLowerCase()===key)return profile;
+    }
+  }
+  return null;
+}
+
+function getEnemyLoreAppearance(enemy,bestiaryProfile){
+  if(enemy&&typeof enemy.appearance==='string'&&enemy.appearance.trim())return enemy.appearance.trim();
+  if(bestiaryProfile&&typeof bestiaryProfile.appearance==='string'&&bestiaryProfile.appearance.trim())return bestiaryProfile.appearance.trim();
+  var dd=Math.max(4,Number(enemy&&enemy.dread||4));
+  if(dd>=20)return 'Titanic frame wrapped in relic armor, trailing void-light and ritual scars.';
+  if(dd>=12)return 'Heavy war-shape with plated limbs, broken sigils, and predator posture.';
+  if(dd>=8)return 'Lean hunter silhouette with fractured armor and ember-bright eyes.';
+  if(dd>=6)return 'Rough skirmisher build in scavenged layers, quick and aggressive.';
+  return 'Wire-fast raider profile with improvised gear and twitchy movement.';
+}
+
+function openCombatEnemyLore(enemyId){
+  var id=Number(enemyId||0);
+  if(!Array.isArray(S.enemies))return;
+  var enemy=S.enemies.find(function(e){return e&&Number(e.id)===id;});
+  if(!enemy)return;
+  var profile=getNamedEnemyProfileByName(enemy.name);
+  var description=(typeof enemy.desc==='string'&&enemy.desc.trim())
+    ? enemy.desc.trim()
+    : (profile&&profile.desc?String(profile.desc):'A hostile presence pressing the current combat scene.');
+  var appearance=getEnemyLoreAppearance(enemy,profile);
+  var faction=enemy.faction?String(enemy.faction):'Unknown origin';
+  var side=enemy.ally?'Ally':'Hostile';
+  var html=''
+    + '<div style="font-size:.8rem;color:var(--muted2);margin-bottom:.35rem;">Combat Intel</div>'
+    + '<div style="font-size:.9rem;color:var(--text);margin-bottom:.3rem;"><strong>'+String(enemy.name||'Unknown')+'</strong> '
+    + '<span style="font-size:.68rem;color:'+(enemy.ally?'var(--teal)':'var(--red2)')+';">'+side+'</span></div>'
+    + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.45rem;">'
+    + 'Dread '+getEnemyDisplayDread(enemy)+' | Stress '+Number(enemy.stress||0)+'/'+Number(enemy.maxStress||0)+' | Faction: '+faction
+    + '</div>'
+    + '<div style="margin-bottom:.35rem;">'
+    + '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.08rem;">Description</div>'
+    + '<div style="font-size:.78rem;color:var(--text2);line-height:1.5;">'+description+'</div>'
+    + '</div>'
+    + '<div>'
+    + '<div style="font-size:.68rem;color:var(--gold2);margin-bottom:.08rem;">Appearance</div>'
+    + '<div style="font-size:.78rem;color:var(--text2);line-height:1.5;">'+appearance+'</div>'
+    + '</div>';
+  if(typeof openModal==='function')openModal('Enemy Lore',html);
+}
+
+function renderEnemies(){
+  const c=document.getElementById('enemyList');
+  if(!c)return;
+  if(!S.enemies.length){
+    c.innerHTML='<div style="font-size:.82rem;color:var(--muted2);">No enemies tracked.</div>';
+    if(typeof renderEnemyFocusSelect==='function')renderEnemyFocusSelect();
+    return;
+  }
+  c.innerHTML=S.enemies.map(e=>{
+    ensureEnemyEffectState(e);
+    syncEnemyConditionList(e);
+    var condText=e.conditions&&e.conditions.length?'<div style="font-size:.68rem;color:'+ (e.ally?'var(--teal)':'var(--orange)') +';margin-top:.18rem;">'+e.conditions.join(' · ')+'</div>':'';
+    var factionBadge=e.faction?`<span style="font-size:.6rem;background:rgba(122,120,152,.18);border:1px solid var(--border2);border-radius:3px;padding:.05rem .22rem;color:var(--muted2);margin-left:.3rem;">${e.faction}</span>`:'';
+    var sideBadge=e.ally?'<span style="font-size:.6rem;color:var(--teal);background:rgba(46,196,182,.12);border:1px solid var(--teal);border-radius:3px;padding:.05rem .22rem;margin-left:.25rem;">ALLY</span>':'<span style="font-size:.6rem;color:var(--red2);background:rgba(201,64,64,.1);border:1px solid var(--red);border-radius:3px;padding:.05rem .22rem;margin-left:.25rem;">HOSTILE</span>';
+    return `<div class="enemy-card"><div style="flex:1;"><div style="font-family:'Cinzel',serif;font-size:.7rem;color:${e.ally?'var(--teal)':'var(--gold2)'};display:flex;align-items:center;flex-wrap:wrap;gap:.1rem;">${e.name}<button class="btn btn-xs" title="Enemy lore" onclick="openCombatEnemyLore(${e.id})">?</button>${sideBadge}${factionBadge}</div><div style="font-size:.72rem;color:var(--muted2);">${getEnemyDisplayDread(e)} | ${e.stress}/${e.maxStress} Stress</div>${condText}<div style="display:flex;flex-wrap:wrap;gap:.15rem;margin-top:.25rem;">${Array.from({length:e.maxStress},(_,i)=>`<div class="e-pip${i<e.stress?' filled':''}" onclick="enemyPip(${e.id},${i})"></div>`).join('')}</div></div><div style="display:flex;flex-direction:column;gap:.2rem;"><button class="btn btn-xs btn-red" onclick="removeEnemy(${e.id})">✕</button><button class="btn btn-xs" onclick="enemyAttack(${e.id})">⚔ Atk</button><button class="btn btn-xs" title="Toggle ally/hostile side" onclick="toggleEnemySide(${e.id})">${e.ally?'→ Hostile':'→ Ally'}</button></div></div>`;
+  }).join('');
+  if(typeof renderEnemyFocusSelect==='function')renderEnemyFocusSelect();
+}
 function enemyPip(id,i){
   const e=S.enemies.find(x=>x.id===id);
   if(!e)return;

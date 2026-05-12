@@ -19345,6 +19345,14 @@ function renderStarsCombatZone(layoutId) {
       </g>`;
   });
 
+  const hostileIntel = (Array.isArray(S.enemies) ? S.enemies.filter(e => e && !e.ally) : []).map((enemy) => {
+    const id = Number(enemy && enemy.id || 0);
+    const dd = Number(enemy && enemy.dread || (S.combat && S.combat.enemyDread) || 4);
+    const stress = Number(enemy && enemy.stress || 0);
+    const maxStress = Number(enemy && enemy.maxStress || Math.max(8, dd * 2));
+    return `<span style="display:inline-flex;gap:.2rem;align-items:center;padding:.12rem .3rem;border:1px solid var(--border2);border-radius:3px;background:rgba(255,255,255,.03);"><strong style="color:var(--text2);font-size:.7rem;">${String(enemy.name || 'Enemy')}</strong><span style="font-size:.66rem;color:var(--muted2);">DD${dd} | ${stress}/${maxStress}</span><button class="btn btn-xs" title="Enemy lore" onclick="if(typeof openCombatEnemyLore==='function')openCombatEnemyLore(${id})">?</button></span>`;
+  }).join('');
+
   container.innerHTML = `
     <div style="font-size:.75rem;color:var(--muted2);margin-bottom:.35rem;">
       <strong style="color:var(--text);">${openerOverrideActive ? starsZoneOpenerOverride.terrainText : layout.name}</strong> — ${layout.desc}
@@ -19367,6 +19375,7 @@ function renderStarsCombatZone(layoutId) {
     <svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;">
       ${svgContent}
     </svg>
+    ${hostileIntel ? `<div style="margin-top:.38rem;font-size:.72rem;color:var(--muted2);display:flex;gap:.25rem;flex-wrap:wrap;"><span style="color:var(--gold2);">Enemy Intel:</span>${hostileIntel}</div>` : ''}
     <div style="font-size:.7rem;color:var(--muted2);margin-top:.3rem;">
       ⬛ Full Cover (cannot be targeted) &nbsp;|&nbsp; — Partial Cover (+1 Defend) &nbsp;|&nbsp; ☢ Rad Zone
     </div>`;

@@ -1282,6 +1282,28 @@ app.post("/api/license/admin/revoke", (req, res) => {
   });
 });
 
+app.post("/api/license/admin/storage", (req, res) => {
+  const adminCheck = validateAdminKey(req);
+  if (!adminCheck.ok) {
+    res.status(adminCheck.status).json({ ok: false, error: adminCheck.error });
+    return;
+  }
+
+  const resolvedActivePath = path.resolve(LICENSE_STORE_PATH);
+  const resolvedLegacyPath = path.resolve(LEGACY_LICENSE_STORE_PATH);
+  const activeExists = fs.existsSync(resolvedActivePath);
+  const legacyExists = resolvedLegacyPath !== resolvedActivePath ? fs.existsSync(resolvedLegacyPath) : false;
+
+  res.json({
+    ok: true,
+    activePath: resolvedActivePath,
+    activeExists,
+    usingLegacyPath: resolvedActivePath === resolvedLegacyPath,
+    legacyPath: resolvedLegacyPath,
+    legacyExists
+  });
+});
+
 app.post("/api/license/admin/test", (req, res) => {
   const adminCheck = validateAdminKey(req);
   if (!adminCheck.ok) {

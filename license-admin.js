@@ -207,9 +207,35 @@
     if (!result.ok || !result.body || !result.body.ok) {
       var err = (result.body && result.body.error) ? result.body.error : "Admin access failed.";
       setStatus("admin-test-status", err, "error");
+      setStatus("license-storage-status", "", "");
       return;
     }
     setStatus("admin-test-status", "Admin access confirmed. You can issue codes.", "ok");
+    await loadStoragePathHint();
+  }
+
+  async function loadStoragePathHint() {
+    var result;
+    try {
+      result = await postJson("/api/license/admin/storage", {});
+    } catch (_err) {
+      setStatus("license-storage-status", "Could not load license storage path.", "warn");
+      return;
+    }
+
+    if (!result.ok || !result.body || !result.body.ok) {
+      var err = (result.body && result.body.error) ? result.body.error : "Could not read license storage path.";
+      setStatus("license-storage-status", err, "warn");
+      return;
+    }
+
+    var activePath = String(result.body.activePath || "(unknown)");
+    var existsText = result.body.activeExists ? "present" : "not created yet";
+    var msg = "License codes persist at: " + activePath + " (" + existsText + ").";
+    if (result.body.legacyExists && !result.body.usingLegacyPath) {
+      msg += " Legacy file also detected at " + String(result.body.legacyPath || "") + ".";
+    }
+    setStatus("license-storage-status", msg, "ok");
   }
 
   async function toggleLicense(code, disable) {

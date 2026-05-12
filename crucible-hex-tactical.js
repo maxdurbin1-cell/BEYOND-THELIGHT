@@ -65,6 +65,7 @@ function canUseCruciblePersonalFlavorRange(distance) {
 
 function getCrucibleOpenHexes(unit, match, maxDistance) {
   if (!unit || !unit.position || !match || !match.hexMap || !match.hexMap.hexes) return [];
+  var collapsed = (match.expedition && match.expedition.collapsed) ? match.expedition.collapsed : {};
   var apLimit = Math.max(0, Number(maxDistance != null ? maxDistance : unit.ap || 0));
   if (apLimit <= 0) return [];
   var occupied = {};
@@ -79,6 +80,7 @@ function getCrucibleOpenHexes(unit, match, maxDistance) {
     return { key: key, cell: cell, hex: hex };
   }).filter(function (entry) {
     if (!entry || !entry.hex || !entry.cell) return false;
+    if (collapsed[entry.key]) return false;
     if (entry.cell.obstacle || entry.cell.door) return false;
     if (occupied[entry.key]) return false;
     return hexDistance(unit.position, entry.hex) <= apLimit;
@@ -297,6 +299,7 @@ function isHexWalkable(hex, map) {
 
 function canMoveToHex(unit, targetHex, map) {
   if (!unit || !targetHex || !map) return false;
+  if (map.expeditionCollapsed && map.expeditionCollapsed[hexToKey(targetHex)]) return false;
   if (!isHexWalkable(targetHex, map)) return false;
   
   // Check trap proximity (can enter, but triggers trap)
@@ -578,6 +581,10 @@ function renderCrucibleHexMap(map, units, selectedUnitId, options) {
   if (!map || !map.hexes) return '<div>No map data.</div>';
   var opts = options || {};
   var activeSide = String(opts.turnSide || 'ally');
+  var collapsedLookup = {};
+  (Array.isArray(opts.collapsedHexKeys) ? opts.collapsedHexKeys : []).forEach(function (key) {
+    collapsedLookup[String(key || '')] = true;
+  });
   var reachableLookup = {};
   (Array.isArray(opts.reachableHexKeys) ? opts.reachableHexKeys : []).forEach(function (key) {
     reachableLookup[String(key || '')] = true;
@@ -613,12 +620,21 @@ function renderCrucibleHexMap(map, units, selectedUnitId, options) {
   Object.keys(map.hexes).forEach(function(key) {
     var cell = map.hexes[key];
     if (!cell) return;
+    var cellKey = hexToKey(cell);
+    var isCollapsed = !!collapsedLookup[cellKey];
 
     var pix = pixelCoord(cell, hexSize, originX, originY);
     var color = '#1c2430';
     var opacity = 0.9;
     var strokeColor = 'rgba(255,255,255,.26)';
     var strokeWidth = 1.1;
+
+    if (isCollapsed) {
+      color = 'rgba(28,28,34,.95)';
+      strokeColor = 'rgba(160,70,70,.6)';
+      strokeWidth = 1.4;
+      opacity = 0.8;
+    }
 
     if (cell.obstacle) {
       color = 'rgba(200,80,80,.55)';
@@ -636,14 +652,16 @@ function renderCrucibleHexMap(map, units, selectedUnitId, options) {
     } else if (cell.terrain === 'spawn') {
       color = 'rgba(86,189,109,.35)';
       strokeColor = 'rgba(145,240,170,.75)';
+    } else if (cell.terrain === 'temple') {
+      color = 'rgba(120,162,242,.35)';
+      strokeColor = 'rgba(175,205,255,.8)';
     }
 
-    var cellKey = hexToKey(cell);
     var isReachable = !!reachableLookup[cellKey];
-    var clickAttr = isReachable
+    var clickAttr = (isReachable && !isCollapsed)
       ? ' style="cursor:pointer;" onclick="holdingCrucibleHandleBoardHexClick(' + Number(cell.q) + ',' + Number(cell.r) + ')" ondragover="holdingCrucibleHandleHexDragOver(event,' + Number(cell.q) + ',' + Number(cell.r) + ')" ondrop="return holdingCrucibleDropOnHex(' + Number(cell.q) + ',' + Number(cell.r) + ')"'
       : '';
-    if (isReachable) {
+    if (isReachable && !isCollapsed) {
       strokeColor = 'rgba(255,220,120,.95)';
       strokeWidth = 2.1;
     }
@@ -652,12 +670,16 @@ function renderCrucibleHexMap(map, units, selectedUnitId, options) {
     hexHTML += '<text x="' + pix.x + '" y="' + (pix.y + hexSize * 0.5) + '" text-anchor="middle" font-size="7" fill="rgba(255,255,255,.45)">' + cell.q + ',' + cell.r + '</text>';
     
     // Terrain icon
-    if (cell.obstacle) {
+    if (isCollapsed) {
+      hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="12" fill="rgba(240,110,110,.95)">✖</text>';
+    } else if (cell.obstacle) {
       hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="14" fill="rgba(255,255,255,.95)">■</text>';
     } else if (cell.trap) {
       hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="14" fill="rgba(255,238,182,.95)">⚠</text>';
     } else if (cell.loot) {
       hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="12" fill="rgba(255,255,230,.95)">' + (cell.loot.type === 'weapon' ? '⚔' : (cell.loot.type === 'armor' ? '🛡' : '❤')) + '</text>';
+    } else if (cell.terrain === 'temple') {
+      hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="12" fill="rgba(225,236,255,.95)">⛩</text>';
     } else if (cell.zone) {
       hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="12" fill="rgba(210,255,247,.95)" font-weight="bold">' + cell.zone.id.charAt(5) + '</text>';
     }
@@ -697,7 +719,9 @@ function renderCrucibleHexMap(map, units, selectedUnitId, options) {
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">■ Obstacle (blocked)</span>'
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⚠ Trap</span>'
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⚔/🛡/❤ Loot</span>'
+    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⛩ Temple (flask refill)</span>'
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">A/B/C Objective zones</span>'
+    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">✖ Collapsed hex (void)</span>'
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">Gold ring = selected unit</span>'
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">Drag active-side token onto glowing hex to move</span>'
   + '</div>';

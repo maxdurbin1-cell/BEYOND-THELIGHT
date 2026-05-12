@@ -164,7 +164,13 @@
         currentWinStreak: 0,
         lastAt: 0,
         preferredMode: 'control',
-        match: null
+        match: null,
+        expedition: {
+          runs: 0,
+          clears: 0,
+          bestDay: 0,
+          lastRunResult: ''
+        }
       }
     }, prevHolding);
     S.holding.wayfarerHome = Object.assign({
@@ -205,10 +211,24 @@
         currentWinStreak: 0,
         lastAt: 0,
         preferredMode: 'control',
-        match: null
+        match: null,
+        expedition: {
+          runs: 0,
+          clears: 0,
+          bestDay: 0,
+          lastRunResult: ''
+        }
       };
     }
     if (!S.holding.crucible.preferredMode) S.holding.crucible.preferredMode = 'control';
+    if (!S.holding.crucible.expedition || typeof S.holding.crucible.expedition !== 'object') {
+      S.holding.crucible.expedition = {
+        runs: 0,
+        clears: 0,
+        bestDay: 0,
+        lastRunResult: ''
+      };
+    }
     if (!S.holding.governance || typeof S.holding.governance !== 'object') {
       S.holding.governance = {
         patrolStance: 'balanced',
@@ -1525,12 +1545,280 @@
       killPoints: 1,
       zonePoints: 0,
       playerKillBonus: 1
+    },
+    expedition: {
+      id: 'expedition',
+      label: 'Expedition',
+      objective: '3-day rogue incursion. Survive shrinking hexes, beat Day 1 and Day 2 bosses, then slay the Night Lord.',
+      scoreToWin: 3,
+      killPoints: 0,
+      zonePoints: 0
     }
   };
 
   function getCrucibleModeSpec(mode) {
     var key = String(mode || '').toLowerCase();
     return CRUCIBLE_MODE_SPECS[key] || CRUCIBLE_MODE_SPECS.control;
+  }
+
+  function getCrucibleShopLootPool() {
+    var data = (typeof SHOP_DATA !== 'undefined' && SHOP_DATA) ? SHOP_DATA : {};
+    var pool = [];
+    ['weapons', 'weapon_mods', 'armor', 'items', 'essentials'].forEach(function (key) {
+      var list = Array.isArray(data[key]) ? data[key] : [];
+      for (var i = 0; i < list.length; i++) {
+        var entry = list[i];
+        if (!entry || !entry.name) continue;
+        pool.push({
+          name: String(entry.name),
+          stat: entry.stat ? String(entry.stat) : '',
+          cat: String(key)
+        });
+      }
+    });
+    return pool;
+  }
+
+  function rollCrucibleExpeditionAffix() {
+    var affixes = ['Ashbound', 'Moonchained', 'Thornwake', 'Hollowglass', 'Dreadforged', 'Graven', 'Saltfire', 'Umbral'];
+    return affixes[Math.floor(Math.random() * affixes.length)] || 'Ashbound';
+  }
+
+  function addCrucibleItemToBackpack(itemName) {
+    if (!itemName) return false;
+    if (!Array.isArray(S.backpack)) S.backpack = Array(10).fill('');
+    var slot = S.backpack.indexOf('');
+    if (slot < 0) return false;
+    S.backpack[slot] = String(itemName);
+    if (typeof renderBackpackUI === 'function') renderBackpackUI();
+    return true;
+  }
+
+  function getCrucibleExpeditionNightLordName() {
+    var pool = ['Azrael', 'Mephisto', 'The Hollow Saint', 'The Bone Regent', 'The Blackened Throne', 'The Rift Shepherd'];
+    return pool[Math.floor(Math.random() * pool.length)] || 'Azrael';
+  }
+
+  function getHexRadiusFromMap(map) {
+    if (!map || !map.hexes) return 0;
+    var maxDist = 0;
+    Object.keys(map.hexes).forEach(function (key) {
+      var cell = map.hexes[key];
+      if (!cell) return;
+      var dist = Math.max(Math.abs(Number(cell.q || 0)), Math.abs(Number(cell.r || 0)), Math.abs(Number(cell.q || 0) + Number(cell.r || 0)));
+      if (dist > maxDist) maxDist = dist;
+    });
+    return maxDist;
+  }
+
+  function stampCrucibleTemplesOnMap(map, count) {
+    if (!map || !map.hexes) return;
+    var keys = Object.keys(map.hexes).filter(function (key) {
+      var cell = map.hexes[key];
+      return cell && !cell.obstacle && !cell.door && !cell.zone && !cell.trap && !cell.loot;
+    });
+    for (var i = 0; i < Math.min(Number(count || 0), keys.length); i++) {
+      var pickIdx = Math.floor(Math.random() * keys.length);
+      var key = keys.splice(pickIdx, 1)[0];
+      var cell = map.hexes[key];
+      if (!cell) continue;
+      cell.terrain = 'temple';
+      cell.temple = { used: false };
+    }
+  }
+
+  function createCrucibleExpeditionState(hexMap) {
+    var nightLord = getCrucibleExpeditionNightLordName();
+    return {
+      active: true,
+      day: 1,
+      phase: 'explore',
+      clickedHexes: 0,
+      collapseEveryClicks: 2,
+      collapseRing: 0,
+      maxRing: getHexRadiusFromMap(hexMap),
+      collapsed: {},
+      flasks: 3,
+      maxFlasks: 7,
+      currentBossIndex: 0,
+      currentCombatType: '',
+      bosses: [
+        { name: 'Grave Sentinel', die: 8, hp: 16, type: 'dayBoss' },
+        { name: 'Crown Devourer', die: 10, hp: 20, type: 'dayBoss' },
+        { name: nightLord, die: 20, hp: 40, type: 'nightLord' }
+      ],
+      loreSnippets: [
+        'A castle hangs from broken chains above an empty floodplain.',
+        'Skeletons kneel in formation around a throne that still burns underwater.',
+        'A giant stone hand surfaces beneath the village chapel.'
+      ],
+      runLog: ['Expedition opened. The province remembers older maps than yours.']
+    };
+  }
+
+  function getCrucibleExpeditionPlayer(match) {
+    if (!match) return null;
+    return (match.allies || []).find(function (u) { return u && u.isPlayer && Number(u.hp || 0) > 0; }) || null;
+  }
+
+  function getCrucibleExpeditionOpenHexCount(match) {
+    if (!match || !match.hexMap || !match.hexMap.hexes) return 0;
+    var collapsed = (match.expedition && match.expedition.collapsed) ? match.expedition.collapsed : {};
+    var count = 0;
+    Object.keys(match.hexMap.hexes).forEach(function (key) {
+      var cell = match.hexMap.hexes[key];
+      if (!cell || collapsed[key]) return;
+      count += 1;
+    });
+    return count;
+  }
+
+  function collapseCrucibleExpeditionEdge(match) {
+    if (!match || !match.expedition || !match.hexMap || !match.hexMap.hexes) return 0;
+    var expedition = match.expedition;
+    expedition.collapseRing = Math.max(0, Number(expedition.collapseRing || 0) + 1);
+    var threshold = Math.max(0, Number(expedition.maxRing || 0) - Number(expedition.collapseRing || 0) + 1);
+    var collapsed = expedition.collapsed || {};
+    var player = getCrucibleExpeditionPlayer(match);
+    var enemy = getLivingTeamUnits(match.enemies || [])[0] || null;
+    var changed = 0;
+    Object.keys(match.hexMap.hexes).forEach(function (key) {
+      var cell = match.hexMap.hexes[key];
+      if (!cell || collapsed[key]) return;
+      var dist = Math.max(Math.abs(Number(cell.q || 0)), Math.abs(Number(cell.r || 0)), Math.abs(Number(cell.q || 0) + Number(cell.r || 0)));
+      if (dist < threshold) return;
+      var occupiedByPlayer = !!(player && player.position && Number(player.position.q) === Number(cell.q) && Number(player.position.r) === Number(cell.r));
+      var occupiedByEnemy = !!(enemy && enemy.position && Number(enemy.position.q) === Number(cell.q) && Number(enemy.position.r) === Number(cell.r));
+      if (occupiedByPlayer || occupiedByEnemy) return;
+      collapsed[key] = true;
+      changed += 1;
+    });
+    expedition.collapsed = collapsed;
+    return changed;
+  }
+
+  function resetCrucibleExpeditionMapForDay(match, day) {
+    if (!match || !match.expedition) return false;
+    var nextDay = Math.max(1, Number(day || 1));
+    var newMap = (typeof generateCrucibleHexMap === 'function')
+      ? generateCrucibleHexMap(Date.now() + nextDay, 9)
+      : { seed: 1, size: 9, hexes: {}, objectives: [], spawns: { ally: { q: -1, r: -1 }, enemy: { q: 1, r: 1 } } };
+    stampCrucibleTemplesOnMap(newMap, 2);
+    match.hexMap = newMap;
+    var expedition = match.expedition;
+    expedition.day = nextDay;
+    expedition.phase = 'explore';
+    expedition.clickedHexes = 0;
+    expedition.collapseEveryClicks = nextDay === 1 ? 2 : 1;
+    expedition.collapseRing = 0;
+    expedition.maxRing = getHexRadiusFromMap(newMap);
+    expedition.collapsed = {};
+    expedition.currentCombatType = '';
+    (match.enemies || []).forEach(function (enemy) { if (enemy) enemy.hp = 0; });
+    match.enemies = [];
+    var player = getCrucibleExpeditionPlayer(match);
+    if (player && newMap.spawns && newMap.spawns.ally) {
+      player.position = { q: Number(newMap.spawns.ally.q || 0), r: Number(newMap.spawns.ally.r || 0) };
+      player.ap = 2;
+    }
+    resetCrucibleTeamForTurn(match.allies || []);
+    match.turnSide = 'ally';
+    return true;
+  }
+
+  function spawnCrucibleExpeditionEnemy(match, profile) {
+    if (!match || !profile || !match.hexMap) return false;
+    var player = getCrucibleExpeditionPlayer(match);
+    if (!player) return false;
+    var enemySpawn = (match.hexMap.spawns && match.hexMap.spawns.enemy) ? match.hexMap.spawns.enemy : { q: 2, r: 2 };
+    var enemy = buildCrucibleUnit(profile.name || 'Field Horror', 'enemy', profile.role || 'assault', 0, { q: Number(enemySpawn.q || 2), r: Number(enemySpawn.r || 2) });
+    enemy.hp = Math.max(1, Number(profile.hp || 4));
+    enemy.maxHp = enemy.hp;
+    enemy.attackDie = Math.max(4, Number(profile.die || 6));
+    enemy.defendDie = Math.max(4, Math.floor(enemy.attackDie / 2) + 2);
+    enemy.ap = 2;
+    enemy.isNightLord = !!profile.isNightLord;
+    match.enemies = [enemy];
+    match.selectedEnemyId = String(enemy.id || '');
+    match.selectedTargetId = String(enemy.id || '');
+    match.selectedAllyTargetId = String(player.id || '');
+    match.turnSide = 'ally';
+    match.expedition.phase = 'combat';
+    match.expedition.currentCombatType = String(profile.combatType || 'fieldMonster');
+    return true;
+  }
+
+  function maybeTriggerCrucibleExpeditionEncounter(match, forceBoss) {
+    if (!match || !match.expedition || !match.active) return false;
+    var expedition = match.expedition;
+    if (String(expedition.phase || '') !== 'explore') return false;
+    var openHexes = getCrucibleExpeditionOpenHexCount(match);
+    var shouldForceBoss = !!forceBoss || openHexes <= 1;
+    if (shouldForceBoss) {
+      var boss = expedition.bosses[Math.max(0, Number(expedition.currentBossIndex || 0))] || expedition.bosses[0];
+      if (!boss) return false;
+      var isNightLord = Number(expedition.currentBossIndex || 0) >= 2;
+      var okBoss = spawnCrucibleExpeditionEnemy(match, {
+        name: boss.name,
+        die: Number(boss.die || (isNightLord ? 20 : 8)),
+        hp: Number(boss.hp || (isNightLord ? 40 : 16)),
+        combatType: isNightLord ? 'nightLord' : 'dayBoss',
+        role: isNightLord ? 'tank' : 'assault',
+        isNightLord: isNightLord
+      });
+      if (okBoss) {
+        match.log = (match.log || []).concat(['A major enemy emerges from the closing dark: ' + boss.name + '.']).slice(-120);
+      }
+      return okBoss;
+    }
+    var roll = Math.random();
+    if (roll < 0.2) {
+      var monster = spawnCrucibleExpeditionEnemy(match, {
+        name: 'Field Monster',
+        die: 4,
+        hp: 4,
+        combatType: 'fieldMonster',
+        role: 'assault'
+      });
+      if (monster) match.log = (match.log || []).concat(['Field monster ambush: d4 attack, 4 HP.']).slice(-120);
+      return monster;
+    }
+    if (roll < 0.3) {
+      var bossFight = spawnCrucibleExpeditionEnemy(match, {
+        name: 'Field Boss',
+        die: 6,
+        hp: 12,
+        combatType: 'fieldBoss',
+        role: 'tank'
+      });
+      if (bossFight) match.log = (match.log || []).concat(['Field boss encountered: d6 attack, 12 HP, affix loot on kill.']).slice(-120);
+      return bossFight;
+    }
+    return false;
+  }
+
+  function grantCrucibleExpeditionLoot(match, rewardType) {
+    if (!match || !match.expedition) return '';
+    var type = String(rewardType || '').toLowerCase();
+    var pool = getCrucibleShopLootPool();
+    if (!pool.length) return '';
+    var preferredCats = type === 'fieldboss' || type === 'dayboss' || type === 'nightlord'
+      ? ['weapons', 'weapon_mods', 'armor']
+      : ['items', 'essentials', 'weapon_mods'];
+    var picks = pool.filter(function (entry) { return preferredCats.indexOf(entry.cat) >= 0; });
+    if (!picks.length) picks = pool.slice();
+    var chosen = picks[Math.floor(Math.random() * picks.length)] || picks[0];
+    if (!chosen) return '';
+    var label = String(chosen.name || 'Unknown Relic');
+    if (type === 'fieldboss' || type === 'dayboss' || type === 'nightlord') {
+      label = label + ' [' + rollCrucibleExpeditionAffix() + ']';
+    }
+    if (!addCrucibleItemToBackpack(label)) {
+      if (!Array.isArray(S.holding.vault)) S.holding.vault = [];
+      S.holding.vault.push(label);
+      return label + ' (sent to Vault)';
+    }
+    return label;
   }
 
   function getHoldingPreferredCrucibleMode() {
@@ -1685,6 +1973,58 @@
     ensureNewFeatureState();
     var crucible = S.holding.crucible;
     var modeSpec = getCrucibleModeSpec(crucible.preferredMode || 'control');
+    if (modeSpec.id === 'expedition') {
+      var expeditionMap = (typeof generateCrucibleHexMap === 'function')
+        ? generateCrucibleHexMap(Date.now(), 9)
+        : { seed: 1, size: 9, hexes: {}, objectives: [], spawns: { ally: { q: -1, r: -1 }, enemy: { q: 1, r: 1 } } };
+      stampCrucibleTemplesOnMap(expeditionMap, 2);
+      var wayfarerName = String((S && S.name) || 'Wayfarer');
+      var playerSpawn = (expeditionMap.spawns && expeditionMap.spawns.ally) ? expeditionMap.spawns.ally : { q: -1, r: -1 };
+      var player = {
+        id: 'ally-player-' + String(Date.now()),
+        name: wayfarerName,
+        side: 'ally',
+        role: 'player',
+        position: { q: Number(playerSpawn.q || -1), r: Number(playerSpawn.r || -1) },
+        hp: Math.max(8, Number((S && S.health) || 12)),
+        maxHp: Math.max(8, Number((S && S.health) || 12)),
+        attackDie: Math.max(getCrucibleStatDie('strike', 8), getCrucibleStatDie('shoot', 8)),
+        defendDie: getCrucibleStatDie('defend', 8),
+        ap: 2,
+        isPlayer: true,
+        personalFlavor: null,
+        conditions: {},
+        equipment: { weapon: null, armor: null }
+      };
+      resetCrucibleTeamForTurn([player]);
+      var expeditionState = createCrucibleExpeditionState(expeditionMap);
+      crucible.match = {
+        active: true,
+        mode: modeSpec.id,
+        round: 1,
+        turnSide: 'ally',
+        allies: [player],
+        enemies: [],
+        selectedAllyId: player.id,
+        selectedEnemyId: '',
+        selectedTargetId: '',
+        selectedAllyTargetId: player.id,
+        score: { ally: 0, enemy: 0 },
+        hexMap: expeditionMap,
+        interactables: [],
+        roundWins: { ally: 0, enemy: 0 },
+        expedition: expeditionState,
+        log: [
+          'Expedition launched: Day 1 in a collapsing province.',
+          'Lore: ' + expeditionState.loreSnippets[Math.floor(Math.random() * expeditionState.loreSnippets.length)]
+        ],
+        startedAt: Date.now(),
+        finishedAt: 0,
+        winner: ''
+      };
+      crucible.expedition.runs = Math.max(0, Number(crucible.expedition.runs || 0) + 1);
+      return crucible.match;
+    }
     var squadSize = modeSpec.id === 'elimination' ? 3 : 6;
     var playerName = String((S && S.name) || 'Wayfarer');
 
@@ -2226,6 +2566,77 @@
 
   function finalizeHoldingCrucibleMatch(match) {
     if (!match || !match.active) return false;
+    if (String(match.mode || '') === 'expedition' && match.expedition) {
+      var expedition = match.expedition;
+      var player = getCrucibleExpeditionPlayer(match);
+      var enemiesAliveExp = getLivingTeamUnits(match.enemies).length;
+      var playerDown = !player || Number(player.hp || 0) <= 0;
+      var expMeta = (S && S.holding && S.holding.crucible && S.holding.crucible.expedition) ? S.holding.crucible.expedition : null;
+      if (playerDown) {
+        if (expMeta) {
+          expMeta.bestDay = Math.max(Number(expMeta.bestDay || 0), Number(expedition.day || 1));
+          expMeta.lastRunResult = 'Run ended on Day ' + Number(expedition.day || 1);
+        }
+        if (S && S.holding && S.holding.crucible) {
+          S.holding.crucible.losses = Math.max(0, Number(S.holding.crucible.losses || 0) + 1);
+          S.holding.crucible.currentWinStreak = 0;
+          S.holding.crucible.lastResult = 'Expedition failed on Day ' + Number(expedition.day || 1);
+        }
+        match.active = false;
+        match.finishedAt = Date.now();
+        match.winner = 'enemies';
+        match.log = (match.log || []).concat(['Run over. Return to the safe hub before attempting another expedition.']).slice(-120);
+        if (typeof showNotif === 'function') showNotif('Expedition failed. Run over.', 'warn');
+        return true;
+      }
+      if (enemiesAliveExp > 0) return false;
+      if (String(expedition.phase || '') !== 'combat') return false;
+      var rewardTag = String(expedition.currentCombatType || 'fieldMonster');
+      var reward = grantCrucibleExpeditionLoot(match, rewardTag);
+      if (reward) {
+        match.log = (match.log || []).concat(['Loot acquired: ' + reward + '.']).slice(-120);
+      }
+      if (rewardTag === 'dayBoss') {
+        expedition.currentBossIndex = Math.max(0, Number(expedition.currentBossIndex || 0) + 1);
+        if (Number(expedition.day || 1) === 1) {
+          resetCrucibleExpeditionMapForDay(match, 2);
+          match.log = (match.log || []).concat(['Day 1 boss slain. The province resets for Day 2; collapse cadence accelerates.']).slice(-120);
+          return true;
+        }
+        expedition.day = 3;
+        expedition.phase = 'explore';
+        expedition.collapseEveryClicks = 1;
+        expedition.currentBossIndex = 2;
+        maybeTriggerCrucibleExpeditionEncounter(match, true);
+        match.log = (match.log || []).concat(['Teleport rupture: the Night Lord arrives.']).slice(-120);
+        return true;
+      }
+      if (rewardTag === 'nightlord') {
+        if (expMeta) {
+          expMeta.clears = Math.max(0, Number(expMeta.clears || 0) + 1);
+          expMeta.bestDay = Math.max(Number(expMeta.bestDay || 0), 3);
+          expMeta.lastRunResult = 'Night Lord defeated';
+        }
+        if (S && S.holding && S.holding.crucible) {
+          S.holding.crucible.wins = Math.max(0, Number(S.holding.crucible.wins || 0) + 1);
+          S.holding.crucible.currentWinStreak = Math.max(0, Number(S.holding.crucible.currentWinStreak || 0) + 1);
+          S.holding.crucible.bestWinStreak = Math.max(Number(S.holding.crucible.bestWinStreak || 0), Number(S.holding.crucible.currentWinStreak || 0));
+          S.holding.crucible.lastResult = 'Expedition clear: Night Lord defeated';
+        }
+        match.active = false;
+        match.finishedAt = Date.now();
+        match.winner = 'allies';
+        if (typeof showNotif === 'function') showNotif('Night Lord defeated. Expedition clear.', 'good');
+        return true;
+      }
+      expedition.phase = 'explore';
+      expedition.currentCombatType = '';
+      match.enemies = [];
+      resetCrucibleTeamForTurn(match.allies || []);
+      match.turnSide = 'ally';
+      maybeTriggerCrucibleExpeditionEncounter(match, false);
+      return true;
+    }
     var mode = getCrucibleModeSpec(match.mode);
     var winner = determineCrucibleWinner(match);
     if (!winner && mode.id === 'elimination') {
@@ -2279,6 +2690,8 @@
 
   function buildHoldingCrucibleBoardHtml(match) {
     if (!match || !match.hexMap) return '<div style="font-size:.74rem;color:var(--muted2);">No tactical map.</div>';
+    var isExpedition = String(match.mode || '') === 'expedition';
+    var expedition = isExpedition ? (match.expedition || {}) : null;
     var selectedUnit = getSelectedCrucibleActiveUnit(match);
     var selectedTarget = String(match.turnSide || 'ally') === 'enemy'
       ? getSelectedCrucibleAllyTarget(match)
@@ -2292,8 +2705,9 @@
     }
     var reachableKeys = reachableHexes.map(function (hex) { return String(hex.q) + ',' + String(hex.r); });
     var guidance = '<div style="margin-bottom:.22rem;padding:.22rem .3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.7rem;color:var(--muted2);line-height:1.45;">'
-      + 'Click a token to select it. Click a highlighted hex to move the selected ' + (String(match.turnSide || 'ally') === 'enemy' ? 'enemy' : 'unit') + '. '
-      + 'Opponent tokens set your current target.'
+      + (isExpedition
+        ? ('Expedition Day ' + Number(expedition.day || 1) + ': each hex click advances the night. The outer ring collapses every ' + Number(expedition.collapseEveryClicks || 1) + ' click(s).')
+        : ('Click a token to select it. Click a highlighted hex to move the selected ' + (String(match.turnSide || 'ally') === 'enemy' ? 'enemy' : 'unit') + '. Opponent tokens set your current target.'))
       + '</div>';
     var details = (selectedUnit && typeof getHexUnitDetailsHtml === 'function')
       ? ('<div style="margin-top:.22rem;padding:.22rem .3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">' + getHexUnitDetailsHtml(selectedUnit) + '</div>')
@@ -2303,7 +2717,8 @@
       var svgBoard = renderCrucibleHexMap(match.hexMap, allUnits, selectedUnit ? selectedUnit.id : '', {
         selectedTargetId: selectedTarget ? selectedTarget.id : '',
         reachableHexKeys: reachableKeys,
-        turnSide: String(match.turnSide || 'ally')
+        turnSide: String(match.turnSide || 'ally'),
+        collapsedHexKeys: isExpedition ? Object.keys(expedition.collapsed || {}) : []
       });
       var interactables = Array.isArray(match.interactables) ? match.interactables : [];
       if (interactables.length && typeof injectInteractablesIntoSvg === 'function') {
@@ -2371,6 +2786,8 @@
     var alliesAlive = getLivingTeamUnits(match.allies).length;
     var enemiesAlive = getLivingTeamUnits(match.enemies).length;
     var mode = getCrucibleModeSpec(match.mode);
+    var isExpedition = mode.id === 'expedition';
+    var expedition = isExpedition ? (match.expedition || {}) : null;
     maybeSyncCrucibleSelection(match);
     var isEnemyTurn = String(match.turnSide || 'ally') === 'enemy';
     var selectedAlly = getSelectedCrucibleAlly(match);
@@ -2405,6 +2822,11 @@
     var scoreLine = mode.id === 'elimination'
       ? ('Round Wins ' + Number(match.roundWins && match.roundWins.ally || 0) + ' - ' + Number(match.roundWins && match.roundWins.enemy || 0) + ' (target ' + Number(mode.scoreToWin || 5) + ')')
       : ('Score ' + Number(match.score && match.score.ally || 0) + ' - ' + Number(match.score && match.score.enemy || 0) + ' (target ' + Number(mode.scoreToWin || 0) + ')');
+    if (isExpedition) {
+      scoreLine = 'Day ' + Number(expedition.day || 1)
+        + ' · Flasks ' + Number(expedition.flasks || 0) + '/' + Number(expedition.maxFlasks || 7)
+        + ' · Open Hexes ' + Number(getCrucibleExpeditionOpenHexCount(match) || 0);
+    }
     var wayfarerOptions = getCrucibleWayfarerActionOptionsHtml();
     var wayfarerTargetOptions = buildCrucibleEnemyTargetOptions(match, 'attack', selectedAlly);
     var teamTargetOptions = buildCrucibleTeamTargetOptions(match, 'attack', selectedAlly);
@@ -2443,6 +2865,7 @@
       + '<option value="defend">Defend (+3 next defend)</option>'
       + '<option value="attack" selected>Attack (Engaged/Close)</option>'
       + '<option value="support">Support (+3 next attack)</option>'
+      + (isExpedition ? '<option value="move">Move Action (random)</option>' : '')
       + '</select></label>'
       + '<label style="font-size:.66rem;color:var(--muted2);">Target'
       + '<select id="crucibleEnemyTargetSelect" style="width:100%;margin-top:.08rem;" ' + (!isEnemyTurn ? 'disabled' : '') + '>' + enemyTargetOptions + '</select></label>'
@@ -2459,6 +2882,12 @@
       + '<button class="btn btn-sm" onclick="holdingCrucibleResetMatch();">Reset Match</button>'
       + '<button class="btn btn-sm" onclick="closeModal();">Close</button>'
       + '</div>';
+    if (isExpedition) {
+      phaseButtonsHtml += '<div style="display:flex;gap:.22rem;flex-wrap:wrap;margin:-.15rem 0 .32rem 0;">'
+        + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleUseExpeditionFlask();">Use Flask</button>'
+        + '<button class="btn btn-sm btn-teal" onclick="holdingCruciblePrayAtTemple();">Pray At Temple</button>'
+        + '</div>';
+    }
     var movementHtml = '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.35rem;">'
       + (canMoveActive && typeof getHexMovementButtonsHtml === 'function'
         ? ('<div style="width:100%;margin-bottom:.15rem;font-size:.7rem;"><strong style="color:var(--gold);">Movement:</strong></div>' + getHexMovementButtonsHtml(selectedActiveUnit, match) + '<button class="btn btn-sm btn-teal" style="margin-top:.2rem;" onclick="holdingCrucibleTeleportSelected();">Teleport Random Hex</button>')
@@ -2468,9 +2897,12 @@
       return '<div style="font-size:.72rem;color:var(--text2);line-height:1.45;border-bottom:1px solid var(--border2);padding:.12rem 0;">' + String(line || '') + '</div>';
     }).join('');
     return '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
-      + '<div style="font-family:Cinzel,serif;font-size:.88rem;color:var(--gold2);margin-bottom:.2rem;">Crucible 6v6 Tactical Simulator</div>'
+      + '<div style="font-family:Cinzel,serif;font-size:.88rem;color:var(--gold2);margin-bottom:.2rem;">' + (isExpedition ? 'Crucible Expedition' : 'Crucible 6v6 Tactical Simulator') + '</div>'
       + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.15rem;">Round ' + Number(match.round || 1) + ' · ' + currentTurn + ' · Allies ' + alliesAlive + '/' + Number((match.allies||[]).length || 0) + ' · Enemies ' + enemiesAlive + '/' + Number((match.enemies||[]).length || 0) + '</div>'
       + '<div style="font-size:.74rem;color:var(--teal);margin-bottom:.28rem;">Mode: ' + mode.label + ' · Objective: ' + mode.objective + ' · ' + scoreLine + '</div>'
+      + (isExpedition ? '<div style="font-size:.69rem;color:var(--gold2);margin-top:-.12rem;margin-bottom:.24rem;">'
+        + 'Boss Path: Day 1 d8|16 HP -> Day 2 d10|20 HP -> Night Lord d20|40 HP. Field Monster d4|4 HP. Field Boss d6|12 HP with affix loot.'
+        + '</div>' : '')
       + turnRail
       + turnControlsHtml
       + phaseButtonsHtml
@@ -2505,7 +2937,7 @@
 
   function openHoldingCrucibleModePrompt() {
     ensureNewFeatureState();
-    var specs = ['control', 'clash', 'elimination', 'rumble'].map(function (key) { return getCrucibleModeSpec(key); });
+    var specs = ['control', 'clash', 'elimination', 'rumble', 'expedition'].map(function (key) { return getCrucibleModeSpec(key); });
     var html = '<div style="font-size:.84rem;color:var(--text2);line-height:1.55;">'
       + '<div style="font-family:Cinzel,serif;font-size:.86rem;color:var(--gold2);margin-bottom:.2rem;">Select Crucible Game Mode</div>'
       + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;">Arena footprint 60x60 ft · three lanes · vertical platforms · cover objects · power ammo spawns · central contested zone + two flanking routes.</div>'
@@ -2536,7 +2968,10 @@
       openModal('Crucible 6v6 Tactical Simulator', buildHoldingCruciblePopupHtml());
     }
     if (typeof showNotif === 'function' && match && Number(match.round || 1) === 1) {
-      showNotif('Crucible opened: 6v6 tactical training scenario ready.', 'good');
+      var openedSpec = getCrucibleModeSpec(match.mode);
+      showNotif(openedSpec.id === 'expedition'
+        ? 'Crucible Expedition opened: 3-day rogue run initialized.'
+        : 'Crucible opened: 6v6 tactical training scenario ready.', 'good');
     }
     renderHoldingUI();
     return true;
@@ -2641,6 +3076,9 @@
         return '<option value="' + friendlySide + ':' + String(unit.id).replace(/"/g, '&quot;') + '">' + String(unit.name || 'Unit') + '</option>';
       }).join('');
     }
+    if (act === 'move') {
+      return '<option value="self">No target</option>';
+    }
     if (act === 'attack' || act === 'strike' || act === 'shoot') {
       var targets = opposingUnits.filter(function (enemy) {
         return !!(actor && enemy && canCrucibleUnitAttack(actor, enemy));
@@ -2720,7 +3158,25 @@
       : selectHoldingCrucibleUnit(unitId);
   }
 
+  function recordCrucibleExpeditionHexClick(match) {
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition) return false;
+    var expedition = match.expedition;
+    expedition.clickedHexes = Math.max(0, Number(expedition.clickedHexes || 0) + 1);
+    var cadence = Math.max(1, Number(expedition.collapseEveryClicks || 1));
+    if (expedition.clickedHexes % cadence === 0) {
+      var collapsedNow = collapseCrucibleExpeditionEdge(match);
+      if (collapsedNow > 0) {
+        match.log = (match.log || []).concat(['Night pressure: ' + collapsedNow + ' edge hexes collapsed.']).slice(-120);
+      }
+    }
+    maybeTriggerCrucibleExpeditionEncounter(match, getCrucibleExpeditionOpenHexCount(match) <= 1);
+    return true;
+  }
+
   function holdingCrucibleHandleBoardHexClick(q, r) {
+    var match = getHoldingCrucibleMatch();
+    if (!match) return false;
+    recordCrucibleExpeditionHexClick(match);
     return holdingCrucibleMoveSelected(q, r);
   }
 
@@ -3007,6 +3463,16 @@
       if (typeof executePersonalFlavor === 'function') executePersonalFlavor(actor, 'crucible-' + Number(match.round || 1), match.hexMap, logs);
       else logs.push(actor.name + ' used Personal Flavor.');
       match.selectedAllyTargetId = String(flavorTarget.id || '');
+    } else if (action === 'move') {
+      var destination = (typeof getCrucibleRandomOpenHex === 'function') ? getCrucibleRandomOpenHex(actor, match, 3) : null;
+      if (!destination) {
+        if (typeof showNotif === 'function') showNotif('No valid hex to move into.', 'warn');
+        return false;
+      }
+      if (!spendCrucibleUnitAp(actor, 1)) return false;
+      actor.position = { q: Number(destination.q), r: Number(destination.r) };
+      var nightLordMove = !!(String(match.mode || '') === 'expedition' && actor.isNightLord);
+      logs.push(actor.name + (nightLordMove ? ' warped through the battlefield' : ' moved') + ' to [' + Number(destination.q) + ',' + Number(destination.r) + '].');
     }
 
     match.log = (match.log || []).concat(logs).slice(-120);
@@ -3024,8 +3490,19 @@
     if (!ally || Number(ally.hp || 0) <= 0 || Number(ally.ap || 0) <= 0) return false;
     
     var targetHex = { q: Number(nextQ), r: Number(nextR) };
+    if (String(match.mode || '') === 'expedition' && match.expedition && match.expedition.collapsed) {
+      var key = String(targetHex.q) + ',' + String(targetHex.r);
+      match.hexMap.expeditionCollapsed = match.expedition.collapsed;
+      if (match.expedition.collapsed[key]) {
+        if (typeof showNotif === 'function') showNotif('That hex is gone. The night already took it.', 'warn');
+        return false;
+      }
+    }
     if (typeof moveUnitToHex === 'function') {
       if (moveUnitToHex(ally, targetHex, match.hexMap, match.log)) {
+        if (String(match.mode || '') === 'expedition') {
+          maybeTriggerCrucibleExpeditionEncounter(match, false);
+        }
         renderHoldingCruciblePopup();
         return true;
       }
@@ -3071,6 +3548,56 @@
     renderHoldingCruciblePopup();
     renderHoldingUI();
     if (typeof showNotif === 'function') showNotif(ally.name + ' teleported to [' + target.q + ',' + target.r + '].', 'good');
+    return true;
+  }
+
+  function holdingCrucibleUseExpeditionFlask() {
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition) return false;
+    var player = getCrucibleExpeditionPlayer(match);
+    if (!player) return false;
+    if (Number(match.expedition.flasks || 0) <= 0) {
+      if (typeof showNotif === 'function') showNotif('No flasks left. Find a temple.', 'warn');
+      return false;
+    }
+    if (Number(player.hp || 0) >= Number(player.maxHp || 0)) {
+      if (typeof showNotif === 'function') showNotif('Health already full.', 'info');
+      return false;
+    }
+    match.expedition.flasks = Math.max(0, Number(match.expedition.flasks || 0) - 1);
+    player.hp = Number(player.maxHp || player.hp || 0);
+    if (S) S.health = Number(player.hp || 0);
+    match.log = (match.log || []).concat(['Wayfarer drank a flask and restored all HP.']).slice(-120);
+    renderHoldingCruciblePopup();
+    renderHoldingUI();
+    return true;
+  }
+
+  function holdingCruciblePrayAtTemple() {
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition) return false;
+    var player = getCrucibleExpeditionPlayer(match);
+    if (!player || !player.position || !match.hexMap || !match.hexMap.hexes) return false;
+    var key = String(player.position.q) + ',' + String(player.position.r);
+    var cell = match.hexMap.hexes[key];
+    if (!cell || cell.terrain !== 'temple' || !cell.temple) {
+      if (typeof showNotif === 'function') showNotif('Stand on a temple hex to refill flasks.', 'warn');
+      return false;
+    }
+    if (cell.temple.used) {
+      if (typeof showNotif === 'function') showNotif('This temple has gone silent.', 'warn');
+      return false;
+    }
+    if (Number(match.expedition.flasks || 0) >= Number(match.expedition.maxFlasks || 7)) {
+      if (typeof showNotif === 'function') showNotif('Flasks already at maximum.', 'info');
+      return false;
+    }
+    cell.temple.used = true;
+    match.expedition.flasks = Math.min(Number(match.expedition.maxFlasks || 7), Number(match.expedition.flasks || 0) + 1);
+    match.log = (match.log || []).concat(['Temple blessing: +1 flask.']).slice(-120);
+    if (typeof showNotif === 'function') showNotif('Temple restored one flask.', 'good');
+    renderHoldingCruciblePopup();
+    renderHoldingUI();
     return true;
   }
 
@@ -3172,13 +3699,19 @@
     createHoldingCrucibleMatch();
     renderHoldingCruciblePopup();
     renderHoldingUI();
-    if (typeof showNotif === 'function') showNotif('Crucible match reset. New 6v6 scenario generated.', 'info');
+    if (typeof showNotif === 'function') {
+      var mode = getCrucibleModeSpec(S.holding.crucible.preferredMode || 'control');
+      showNotif(mode.id === 'expedition'
+        ? 'Expedition run reset. You return to the safe hub.'
+        : 'Crucible match reset. New 6v6 scenario generated.', 'info');
+    }
     return true;
   }
 
   function buildHoldingCruciblePanelHtml() {
     ensureNewFeatureState();
     var c = S.holding.crucible || {};
+    var expeditionMeta = c.expedition || { runs: 0, clears: 0, bestDay: 0, lastRunResult: '' };
     var mode = getCrucibleModeSpec(c.preferredMode || 'control');
     var match = getHoldingCrucibleMatch();
     var total = Math.max(1, Number(c.wins || 0) + Number(c.losses || 0));
@@ -3193,15 +3726,17 @@
       + '<div style="border:1px solid var(--border2);padding:.3rem .38rem;background:rgba(255,255,255,.02);"><div style="font-size:.62rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Best Streak</div><div style="font-size:.92rem;color:var(--teal);">' + Number(c.bestWinStreak || 0) + '</div></div>'
       + '</div>'
       + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;">' + status + '</div>'
+      + '<div style="font-size:.69rem;color:var(--gold2);margin-bottom:.25rem;">Expedition Runs: ' + Number(expeditionMeta.runs || 0) + ' · Clears: ' + Number(expeditionMeta.clears || 0) + ' · Best Day: ' + Number(expeditionMeta.bestDay || 0) + (expeditionMeta.lastRunResult ? (' · Last: ' + String(expeditionMeta.lastRunResult)) : '') + '</div>'
       + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.3rem;">Preferred Mode: ' + mode.label + ' · ' + mode.objective + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.3rem;">'
       + '<button class="btn btn-xs ' + (mode.id === 'control' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'control\');">Control</button>'
       + '<button class="btn btn-xs ' + (mode.id === 'clash' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'clash\');">Clash</button>'
       + '<button class="btn btn-xs ' + (mode.id === 'elimination' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'elimination\');">Elimination</button>'
       + '<button class="btn btn-xs ' + (mode.id === 'rumble' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'rumble\');">Rumble</button>'
+      + '<button class="btn btn-xs ' + (mode.id === 'expedition' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'expedition\');">Expedition</button>'
       + '</div>'
       + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;">'
-      + '<button class="btn btn-sm btn-primary" onclick="openHoldingCrucibleMatch();">Enter Crucible 6v6</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="openHoldingCrucibleMatch();">' + (mode.id === 'expedition' ? 'Enter Expedition Run' : 'Enter Crucible 6v6') + '</button>'
         + (match ? '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAttackSelected();">Attack (Selected)</button>' : '')
         + (match ? '<button class="btn btn-sm" onclick="holdingCrucibleAdvanceRound();">End Team Turn</button>' : '')
       + (match ? '<button class="btn btn-sm" onclick="holdingCrucibleAutoResolve();">Auto Resolve</button>' : '')
@@ -6953,6 +7488,8 @@
   window.selectHoldingCrucibleAllyTarget = selectHoldingCrucibleAllyTarget;
   window.holdingCrucibleMoveSelected = holdingCrucibleMoveSelected;
   window.holdingCrucibleTeleportSelected = holdingCrucibleTeleportSelected;
+  window.holdingCrucibleUseExpeditionFlask = holdingCrucibleUseExpeditionFlask;
+  window.holdingCruciblePrayAtTemple = holdingCruciblePrayAtTemple;
   window.refreshCrucibleWayfarerActionOptions = refreshCrucibleWayfarerActionOptions;
   window.refreshCrucibleTeamActionOptions = refreshCrucibleTeamActionOptions;
   window.refreshCrucibleEnemyActionOptions = refreshCrucibleEnemyActionOptions;
@@ -8033,7 +8570,17 @@
     var diff = Math.max(1, success ? actionValue - dreadValue : dreadValue - actionValue);
     var targetEnemy = (typeof getPrimaryCombatEnemy === 'function') ? getPrimaryCombatEnemy() : null;
     var resultEl = (typeof document !== 'undefined') ? document.getElementById('wayfarerActionResult') : null;
-    var label = mode === 'heavy' ? 'Heavy Attack' : (mode === 'fast' ? 'Fast Attack' : (type === 'strike' ? 'Strike' : (type === 'shoot' ? 'Shoot' : (type === 'hack' ? 'Hack' : (type === 'defend' ? 'Defend' : (type === 'control' ? 'Control' : (type === 'body' ? 'Body' : (type === 'spirit' ? 'Spirit' : (type === 'mind' ? 'Mind' : 'Spell'))))))))));
+    var label = 'Spell';
+    if (mode === 'heavy') label = 'Heavy Attack';
+    else if (mode === 'fast') label = 'Fast Attack';
+    else if (type === 'strike') label = 'Strike';
+    else if (type === 'shoot') label = 'Shoot';
+    else if (type === 'hack') label = 'Hack';
+    else if (type === 'defend') label = 'Defend';
+    else if (type === 'control') label = 'Control';
+    else if (type === 'body') label = 'Body';
+    else if (type === 'spirit') label = 'Spirit';
+    else if (type === 'mind') label = 'Mind';
     var dccType = (type === 'hack' || type === 'spell') ? 'spell' : type;
 
     if (mode === 'enemy_reaction') {
@@ -8242,14 +8789,6 @@
     buildPanelHtml: buildTrophyPanelHtml,
     renderTab: renderTrophyTab,
     defs: TROPHY_DEFS
-  };
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', renderTrophyTab);
-  } else {
-    renderTrophyTab();
-  }
-}());
   };
 
   if (document.readyState === 'loading') {

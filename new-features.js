@@ -1614,6 +1614,14 @@
         { name: 'Basilica Warden', look: 'A cathedral sentinel fused with cracked altar iron.', desc: 'It punishes greed, then loots the dead.' },
         { name: 'Hollow Harbormaster', look: 'A drowned captain wrapped in harbor chains.', desc: 'Its whistle calls storms inside your lungs.' }
       ],
+      fieldboss: [
+        { name: 'Ruin Butcher', look: 'A giant carrion-knight draped in broken banners.', desc: 'It marks each kill with a church bell chord.' },
+        { name: 'Gate Devourer', look: 'A hulking maw-creature wrapped in snapped portcullis chains.', desc: 'It gnaws iron and spits sparks over the province road.' }
+      ],
+      portal: [
+        { name: 'Portal Thrall', look: 'A warped soldier leaking black light from split armor seams.', desc: 'It crawls out of the breach before remembering gravity.' },
+        { name: 'Rift Whelp', look: 'A thin predator with too many knees and no shadow.', desc: 'It shakes when the portal screams.' }
+      ],
       day1: [
         { name: 'The Iron Chancel', look: 'A kneeling war-idol with a furnace where its face should be.', desc: 'A cathedral engine that never accepted peace.' },
         { name: 'Crown of Thorns', look: 'A crowned executioner in living briar mail.', desc: 'It remembers every oath broken in this province.' }
@@ -1677,8 +1685,73 @@
     return out;
   }
 
+  function pickCrucibleExpeditionFeatureHexes(map, count, blocker) {
+    if (!map || !map.hexes) return [];
+    var keys = Object.keys(map.hexes).filter(function (key) {
+      var cell = map.hexes[key];
+      if (!cell || cell.obstacle || cell.door || cell.zone) return false;
+      if (cell.terrain === 'spawn' || cell.terrain === 'temple') return false;
+      return typeof blocker === 'function' ? blocker(cell, key) : true;
+    });
+    var out = [];
+    var cap = Math.max(0, Number(count || 0));
+    for (var i = 0; i < cap && keys.length; i++) {
+      var idx = Math.floor(Math.random() * keys.length);
+      out.push(keys.splice(idx, 1)[0]);
+    }
+    return out;
+  }
+
+  function stampCrucibleExpeditionProvinceFeatures(map, day) {
+    if (!map || !map.hexes) return { ruins: [], portals: [], gates: [] };
+    var useDay = Math.max(1, Number(day || 1));
+    var ruins = pickCrucibleExpeditionFeatureHexes(map, 4, function (cell) {
+      return !cell.trap && !cell.loot && !cell.portal && !cell.gate;
+    });
+    ruins.forEach(function (key) {
+      var cell = map.hexes[key];
+      if (!cell) return;
+      cell.terrain = 'ruin';
+      cell.ruin = { searched: false };
+    });
+
+    var perils = pickCrucibleExpeditionFeatureHexes(map, 5, function (cell) {
+      return !cell.trap && !cell.portal && !cell.gate;
+    });
+    perils.forEach(function (key) {
+      var cell = map.hexes[key];
+      if (!cell) return;
+      cell.terrain = 'trap';
+      cell.trap = cell.trap || { type: 'peril_hex', damageOnTrigger: 2 };
+    });
+
+    var gates = pickCrucibleExpeditionFeatureHexes(map, 2, function (cell) {
+      return !cell.trap && !cell.loot && !cell.portal;
+    });
+    gates.forEach(function (key) {
+      var cell = map.hexes[key];
+      if (!cell) return;
+      cell.terrain = 'gate';
+      cell.gate = { closed: false, used: false };
+    });
+
+    var portalCount = useDay <= 2 ? 3 : 1;
+    var portals = pickCrucibleExpeditionFeatureHexes(map, portalCount, function (cell) {
+      return !cell.trap && !cell.loot && !cell.gate && !cell.portal;
+    });
+    portals.forEach(function (key) {
+      var cell = map.hexes[key];
+      if (!cell) return;
+      cell.terrain = 'portal';
+      cell.portal = { active: true, closed: false, day: useDay, puzzleSolved: false };
+    });
+
+    return { ruins: ruins, portals: portals, gates: gates };
+  }
+
   function createCrucibleExpeditionState(hexMap) {
     var raidBoss = getCrucibleExpeditionRaidBossName();
+    var stamped = stampCrucibleExpeditionProvinceFeatures(hexMap, 1);
     return {
       active: true,
       uiTab: 'province',
@@ -1691,6 +1764,13 @@
       collapsed: {},
       flasks: 3,
       maxFlasks: 7,
+      portalsClosed: 0,
+      gatesClosed: 0,
+      portalQuestTarget: 5,
+      raidBossNerfed: false,
+      portalEvent: null,
+      pendingPortalPuzzle: false,
+      provinceFeatures: stamped,
       currentBossIndex: 0,
       currentCombatType: '',
       currentCombatProfile: null,
@@ -1773,6 +1853,7 @@
       ? generateCrucibleHexMap(Date.now() + nextDay, 9)
       : { seed: 1, size: 9, hexes: {}, objectives: [], spawns: { ally: { q: -1, r: -1 }, enemy: { q: 1, r: 1 } } };
     stampCrucibleTemplesOnMap(newMap, 2);
+    var stamped = stampCrucibleExpeditionProvinceFeatures(newMap, nextDay);
     match.hexMap = newMap;
     var expedition = match.expedition;
     expedition.day = nextDay;
@@ -1784,6 +1865,10 @@
     expedition.collapsed = {};
     expedition.currentCombatType = '';
     expedition.currentCombatProfile = null;
+    expedition.portalEvent = null;
+    expedition.pendingPortalPuzzle = false;
+    expedition.provinceFeatures = stamped;
+    expedition.raidBossNerfed = Number(expedition.portalsClosed || 0) >= Number(expedition.portalQuestTarget || 5);
     expedition.miniBossHexKeys = seedCrucibleExpeditionMiniBossHexes(newMap, 3);
     expedition.miniBossDefeated = {};
     (match.enemies || []).forEach(function (enemy) { if (enemy) enemy.hp = 0; });
@@ -1844,6 +1929,7 @@
     if (!match || !match.expedition || !match.active) return false;
     var expedition = match.expedition;
     if (String(expedition.phase || '') !== 'explore') return false;
+    if (expedition.portalEvent && Number(expedition.portalEvent.remaining || 0) > 0) return false;
     var player = getCrucibleExpeditionPlayer(match);
     if (player && player.position) {
       var playerKey = String(player.position.q) + ',' + String(player.position.r);
@@ -1872,6 +1958,12 @@
       var profile = pickCrucibleExpeditionEnemyProfile(tier === 'raid' ? 'raid' : tier);
       if (boss.fixedName) profile.name = String(boss.fixedName);
       var isRaidBoss = tier === 'raid';
+      var nerfRaid = isRaidBoss && Number(expedition.portalsClosed || 0) >= Number(expedition.portalQuestTarget || 5);
+      if (nerfRaid) {
+        boss.die = 12;
+        boss.hp = 24;
+        expedition.raidBossNerfed = true;
+      }
       var okBoss = spawnCrucibleExpeditionEnemy(match, {
         name: profile.name,
         look: profile.look,
@@ -1885,13 +1977,13 @@
       if (okBoss) {
         match.log = (match.log || []).concat([
           getCrucibleExpeditionCinematicPrompt(match, profile),
-          'A major enemy emerges from the closing dark: ' + profile.name + '.'
+          'A major enemy emerges from the closing dark: ' + profile.name + (nerfRaid ? ' (portal mission succeeded: Lord reduced to d12 | 24 HP).' : '.')
         ]).slice(-120);
       }
       return okBoss;
     }
     var roll = Math.random();
-    if (roll < 0.22) {
+    if (roll < 0.12) {
       var field = pickCrucibleExpeditionEnemyProfile('field');
       var monster = spawnCrucibleExpeditionEnemy(match, {
         name: field.name,
@@ -1905,6 +1997,25 @@
       if (monster) match.log = (match.log || []).concat(['Field Enemy ambush: d4 Dread, 4 HP.']).slice(-120);
       return monster;
     }
+    if (roll < 0.18) {
+      var fb = pickCrucibleExpeditionEnemyProfile('fieldboss');
+      var fieldBoss = spawnCrucibleExpeditionEnemy(match, {
+        name: fb.name,
+        look: fb.look,
+        desc: fb.desc,
+        die: 6,
+        hp: 12,
+        combatType: 'fieldBoss',
+        role: 'tank'
+      });
+      if (fieldBoss) match.log = (match.log || []).concat(['Field Boss appears: DD6 | 12 HP.']).slice(-120);
+      return fieldBoss;
+    }
+    if (roll < 0.25) {
+      var collapsed = collapseCrucibleExpeditionEdge(match);
+      match.log = (match.log || []).concat(['Weather shift: thunder-black winds cross the province. ' + (collapsed > 0 ? (collapsed + ' hexes collapsed early.') : 'No additional collapse this time.')]).slice(-120);
+      return false;
+    }
     return false;
   }
 
@@ -1913,20 +2024,49 @@
     var type = String(rewardType || '').toLowerCase();
     var pool = getCrucibleShopLootPool();
     if (!pool.length) return '';
-    var preferredCats = type === 'miniboss' || type === 'boss1' || type === 'boss2' || type === 'raidboss'
-      ? ['weapons', 'weapon_mods', 'armor']
+    var preferredCats = type === 'fieldboss' || type === 'miniboss' || type === 'boss1' || type === 'boss2' || type === 'raidboss'
+      ? ['weapons', 'armor']
       : ['items', 'essentials', 'weapon_mods'];
     var picks = pool.filter(function (entry) { return preferredCats.indexOf(entry.cat) >= 0; });
     if (!picks.length) picks = pool.slice();
     var chosen = picks[Math.floor(Math.random() * picks.length)] || picks[0];
     if (!chosen) return '';
     var label = String(chosen.name || 'Unknown Relic');
-    if (type === 'miniboss' || type === 'boss1' || type === 'boss2' || type === 'raidboss') {
+    if (type === 'fieldboss' || type === 'miniboss' || type === 'boss1' || type === 'boss2' || type === 'raidboss') {
       label = label + ' [' + rollCrucibleExpeditionAffix() + ']';
     }
     match.expedition.runLoot = Array.isArray(match.expedition.runLoot) ? match.expedition.runLoot : [];
     match.expedition.runLoot.push(label);
     return label;
+  }
+
+  function grantCrucibleExpeditionBossBoon(match, tag) {
+    if (!match || !match.expedition) return '';
+    var expedition = match.expedition;
+    var player = getCrucibleExpeditionPlayer(match);
+    if (!player) return '';
+    var boons = [
+      { id: 'flask', label: 'Extra HP Flask (+1 max, +1 current)' },
+      { id: 'strike', label: '+d8 Strike power' },
+      { id: 'shoot', label: '+d8 Shoot power' },
+      { id: 'defend', label: '+d8 Defend power' },
+      { id: 'flavor', label: 'Random Personal Flavor blessing' }
+    ];
+    var pickBoon = boons[Math.floor(Math.random() * boons.length)] || boons[0];
+    if (pickBoon.id === 'flask') {
+      expedition.maxFlasks = Math.max(1, Number(expedition.maxFlasks || 7) + 1);
+      expedition.flasks = Math.min(Number(expedition.maxFlasks || 7), Number(expedition.flasks || 0) + 1);
+    } else if (pickBoon.id === 'defend') {
+      player.defendDie = Math.max(4, Number(player.defendDie || 8) + 8);
+    } else if (pickBoon.id === 'flavor') {
+      var flavorPool = ['Echo Step', 'Solar Needle', 'Runesmith', 'Duelist Footwork', 'Moon Listener'];
+      player.personalFlavor = { name: flavorPool[Math.floor(Math.random() * flavorPool.length)] || 'Echo Step' };
+    } else {
+      player.attackDie = Math.max(4, Number(player.attackDie || 8) + 8);
+    }
+    expedition.boonLog = Array.isArray(expedition.boonLog) ? expedition.boonLog : [];
+    expedition.boonLog.push('Day ' + Number(expedition.day || 1) + ' boon: ' + pickBoon.label + '.');
+    return pickBoon.label;
   }
 
   function getHoldingPreferredCrucibleMode() {
@@ -2700,11 +2840,40 @@
       if (enemiesAliveExp > 0) return false;
       if (String(expedition.phase || '') !== 'combat') return false;
       var rewardTag = String(expedition.currentCombatType || 'fieldMonster');
+      if (rewardTag === 'portalWave') {
+        expedition.portalEvent = expedition.portalEvent || { remaining: 0, hexKey: '' };
+        expedition.portalEvent.remaining = Math.max(0, Number(expedition.portalEvent.remaining || 0) - 1);
+        var portalWavesLeft = Number(expedition.portalEvent.remaining || 0);
+        if (portalWavesLeft > 0) {
+          var portalEnemy = pickCrucibleExpeditionEnemyProfile('portal');
+          spawnCrucibleExpeditionEnemy(match, {
+            name: portalEnemy.name,
+            look: portalEnemy.look,
+            desc: portalEnemy.desc,
+            die: 4,
+            hp: 4,
+            combatType: 'portalWave',
+            role: 'assault'
+          });
+          match.log = (match.log || []).concat(['Portal swarm continues: ' + portalWavesLeft + ' wave(s) remain.']).slice(-120);
+          return true;
+        }
+        expedition.phase = 'portalPuzzle';
+        expedition.pendingPortalPuzzle = true;
+        match.enemies = [];
+        match.log = (match.log || []).concat(['The breach weakens. Solve the portal puzzle to seal it.']).slice(-120);
+        return true;
+      }
       var reward = grantCrucibleExpeditionLoot(match, rewardTag);
       if (reward) {
         match.log = (match.log || []).concat(['Loot acquired: ' + reward + '.']).slice(-120);
       }
+      if (rewardTag === 'fieldBoss') {
+        match.log = (match.log || []).concat(['Field Boss trophy secured: affixed weapon/armor added to run loot.']).slice(-120);
+      }
       if (rewardTag === 'boss1' || rewardTag === 'boss2') {
+        var boon = grantCrucibleExpeditionBossBoon(match, rewardTag);
+        if (boon) match.log = (match.log || []).concat(['Boss boon gained: ' + boon + '.']).slice(-120);
         expedition.currentBossIndex = Math.max(0, Number(expedition.currentBossIndex || 0) + 1);
         if (rewardTag === 'boss1' || Number(expedition.day || 1) === 1) {
           resetCrucibleExpeditionMapForDay(match, 2);
@@ -2809,8 +2978,9 @@
       : getSelectedCrucibleTarget(match);
     var allUnits = (match.allies || []).concat(match.enemies || []);
     var reachableHexes = [];
-    if (selectedUnit && Number(selectedUnit.ap || 0) > 0 && typeof getCrucibleOpenHexes === 'function') {
-      reachableHexes = getCrucibleOpenHexes(selectedUnit, match, Number(selectedUnit.ap || 0)).filter(function (hex) {
+    if (selectedUnit && typeof getCrucibleOpenHexes === 'function') {
+      var moveBudget = (isExpedition && String(expedition.phase || 'explore') === 'explore') ? 1 : Number(selectedUnit.ap || 0);
+      if (moveBudget > 0) reachableHexes = getCrucibleOpenHexes(selectedUnit, match, moveBudget).filter(function (hex) {
         return !selectedUnit.position || hex.q !== selectedUnit.position.q || hex.r !== selectedUnit.position.r;
       });
     }
@@ -2924,6 +3094,9 @@
     var uiTab = String(expedition.uiTab || 'province');
     var player = getCrucibleExpeditionPlayer(match);
     var enemy = getCrucibleExpeditionCurrentEnemy(match);
+    var portalGoal = Number(expedition.portalQuestTarget || 5);
+    var portalsClosed = Number(expedition.portalsClosed || 0);
+    var portalStatus = portalsClosed >= portalGoal ? 'Raid Boss weakened (d12 | 24 HP)' : ('Need ' + Math.max(0, portalGoal - portalsClosed) + ' more before Day 3');
     var openHexes = getCrucibleExpeditionOpenHexCount(match);
     var tabRow = '<div style="display:flex;gap:.22rem;margin-bottom:.3rem;">'
       + '<button class="btn btn-sm ' + (uiTab === 'province' ? 'btn-primary' : '') + '" onclick="holdingCrucibleExpeditionSwitchTab(\'province\')">Province</button>'
@@ -2932,7 +3105,8 @@
     var top = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
       + '<div style="font-family:Cinzel,serif;font-size:.92rem;color:var(--gold2);margin-bottom:.15rem;">Expedition Province Map</div>'
       + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.12rem;">Day ' + Number(expedition.day || 1) + ' · Flasks ' + Number(expedition.flasks || 0) + '/' + Number(expedition.maxFlasks || 7) + ' · Open Hexes ' + Number(openHexes || 0) + '</div>'
-      + '<div style="font-size:.69rem;color:var(--teal);margin-bottom:.28rem;">Day 1 closes edges every 2 hexes. Day 2+ closes every hex. When one hex remains, a cinematic boss prompt triggers.</div>'
+      + '<div style="font-size:.69rem;color:var(--teal);margin-bottom:.08rem;">Day 1 closes edges every 2 hexes. Day 2+ closes every hex. When one hex remains, a cinematic boss prompt triggers.</div>'
+      + '<div style="font-size:.69rem;color:var(--gold2);margin-bottom:.28rem;">Portal Mission: ' + portalsClosed + '/' + portalGoal + ' closed in Nights 1-2 · ' + portalStatus + '</div>'
       + tabRow;
 
     if (uiTab === 'wayfarer') {
@@ -2986,9 +3160,13 @@
 
     return top
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.3rem;">'
+      + '<button class="btn btn-sm" onclick="holdingCrucibleExpeditionWildernessRoll();">Wilderness Roll</button>'
       + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExpeditionSearchHex();">Search Hex (Loot)</button>'
       + '<button class="btn btn-sm" onclick="holdingCrucibleExpeditionObserveAdjacent();">Observe Adjacent</button>'
       + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleExpeditionRandomEncounter();">Random Encounter</button>'
+      + '<button class="btn btn-sm" onclick="holdingCrucibleCloseExpeditionGate();">Close Gate</button>'
+      + '<button class="btn btn-sm btn-red" onclick="holdingCrucibleBreachExpeditionPortal();">Breach Portal</button>'
+      + '<button class="btn btn-sm" onclick="holdingCrucibleSolvePortalPuzzle();">Solve Portal Puzzle</button>'
       + '<button class="btn btn-sm" onclick="holdingCrucibleExpeditionSwitchTab(\'wayfarer\')">Open Wayfarer</button>'
       + '<button class="btn btn-sm" onclick="holdingCrucibleResetMatch();">Abandon Run</button>'
       + '</div>'
@@ -3418,13 +3596,25 @@
       if (typeof showNotif === 'function') showNotif('Finish this fight before searching.', 'warn');
       return false;
     }
-    var roll = Math.random();
-    if (roll < 0.55) {
-      var item = grantCrucibleExpeditionLoot(match, 'fieldEnemy');
-      if (item) match.log = (match.log || []).concat(['Search result: found ' + item + '.']).slice(-120);
-      else match.log = (match.log || []).concat(['Search result: empty reliquary.']).slice(-120);
+    if (String(expedition.phase || '') === 'portalPuzzle') {
+      if (typeof showNotif === 'function') showNotif('Solve the active portal puzzle first.', 'warn');
+      return false;
+    }
+    var playerKey = getCrucibleExpeditionPlayerHexKey(match);
+    var cell = (match.hexMap && match.hexMap.hexes) ? match.hexMap.hexes[playerKey] : null;
+    if (cell && cell.ruin && !cell.ruin.searched) {
+      cell.ruin.searched = true;
+      var ruinItem = grantCrucibleExpeditionLoot(match, 'fieldEnemy');
+      match.log = (match.log || []).concat([ruinItem ? ('Ruins searched: recovered ' + ruinItem + '.') : 'Ruins searched: dust and broken idols.']).slice(-120);
     } else {
-      match.log = (match.log || []).concat(['Search result: claw marks, no salvage.']).slice(-120);
+      var roll = Math.random();
+      if (roll < 0.55) {
+        var item = grantCrucibleExpeditionLoot(match, 'fieldEnemy');
+        if (item) match.log = (match.log || []).concat(['Search result: found ' + item + '.']).slice(-120);
+        else match.log = (match.log || []).concat(['Search result: empty reliquary.']).slice(-120);
+      } else {
+        match.log = (match.log || []).concat(['Search result: claw marks, no salvage.']).slice(-120);
+      }
     }
     recordCrucibleExpeditionHexClick(match);
     renderHoldingCruciblePopup();
@@ -3445,6 +3635,10 @@
       if (d > 1) return;
       if (match.expedition.collapsed && match.expedition.collapsed[key]) nearby.push('Void at [' + key + ']');
       else if (cell.temple && !cell.temple.used) nearby.push('Temple at [' + key + ']');
+      else if (cell.portal && !cell.portal.closed) nearby.push('Active Portal at [' + key + ']');
+      else if (cell.gate && !cell.gate.closed) nearby.push('Gate Node at [' + key + ']');
+      else if (cell.ruin && !cell.ruin.searched) nearby.push('Ruins at [' + key + ']');
+      else if (cell.trap && cell.trap.type === 'peril_hex') nearby.push('Peril Hex at [' + key + ']');
       else if (Array.isArray(match.expedition.miniBossHexKeys) && match.expedition.miniBossHexKeys.indexOf(key) >= 0 && !match.expedition.miniBossDefeated[key]) nearby.push('Heavy footsteps near [' + key + ']');
     });
     match.log = (match.log || []).concat([nearby.length ? ('Observe Adjacent: ' + nearby.join(' · ')) : 'Observe Adjacent: only wind and dust.']).slice(-120);
@@ -3459,11 +3653,159 @@
       if (typeof showNotif === 'function') showNotif('An enemy is already active.', 'warn');
       return false;
     }
-    var spawned = maybeTriggerCrucibleExpeditionEncounter(match, false);
-    if (!spawned) {
-      match.log = (match.log || []).concat(['Random Encounter: no contact.']).slice(-120);
+    if (String(match.expedition.phase || '') === 'portalPuzzle') {
+      if (typeof showNotif === 'function') showNotif('Solve the active portal puzzle first.', 'warn');
+      return false;
+    }
+    var roll = Math.random();
+    if (roll < 0.35) {
+      maybeTriggerCrucibleExpeditionEncounter(match, false);
+    } else if (roll < 0.58) {
+      var item = grantCrucibleExpeditionLoot(match, 'fieldEnemy');
+      match.log = (match.log || []).concat([item ? ('Random Encounter: found loot cache - ' + item + '.') : 'Random Encounter: empty cache.']).slice(-120);
+    } else if (roll < 0.76) {
+      var fb = pickCrucibleExpeditionEnemyProfile('fieldboss');
+      spawnCrucibleExpeditionEnemy(match, {
+        name: fb.name,
+        look: fb.look,
+        desc: fb.desc,
+        die: 6,
+        hp: 12,
+        combatType: 'fieldBoss',
+        role: 'tank'
+      });
+      match.log = (match.log || []).concat(['Random Encounter: Field Boss engaged (DD6 | 12 HP).']).slice(-120);
+    } else {
+      var collapsed = collapseCrucibleExpeditionEdge(match);
+      match.log = (match.log || []).concat(['Random Encounter: weather shift rolls in. ' + (collapsed > 0 ? (collapsed + ' edge hexes collapse.') : 'No collapse this turn.')]).slice(-120);
     }
     recordCrucibleExpeditionHexClick(match);
+    renderHoldingCruciblePopup();
+    renderHoldingUI();
+    return true;
+  }
+
+  function getCrucibleExpeditionPlayerHexKey(match) {
+    var player = getCrucibleExpeditionPlayer(match);
+    if (!player || !player.position) return '';
+    return String(player.position.q) + ',' + String(player.position.r);
+  }
+
+  function holdingCrucibleExpeditionWildernessRoll() {
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition) return false;
+    var table = [
+      'Ruins: old reliquary chambers whisper beneath this hex.',
+      'Peril Hex: unstable ground, razor shale, and false footing.',
+      'Monster Signs: fresh tracks crossing the ruin roads.',
+      'Loot Glimmer: scavenger cache hidden in broken masonry.',
+      'Weather Shift: ash rain rolls over the province.'
+    ];
+    var line = table[Math.floor(Math.random() * table.length)] || table[0];
+    match.log = (match.log || []).concat(['Wilderness Roll: ' + line]).slice(-120);
+    if (line.indexOf('Weather Shift') === 0) {
+      var collapsed = collapseCrucibleExpeditionEdge(match);
+      if (collapsed > 0) match.log = (match.log || []).concat(['Weather pressure collapsed ' + collapsed + ' edge hexes.']).slice(-120);
+    }
+    renderHoldingCruciblePopup();
+    return true;
+  }
+
+  function holdingCrucibleCloseExpeditionGate() {
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition || !match.hexMap || !match.hexMap.hexes) return false;
+    var key = getCrucibleExpeditionPlayerHexKey(match);
+    var cell = match.hexMap.hexes[key];
+    if (!cell || !cell.gate) {
+      if (typeof showNotif === 'function') showNotif('Stand on a gate hex to close it.', 'warn');
+      return false;
+    }
+    if (cell.gate.closed) {
+      if (typeof showNotif === 'function') showNotif('This gate is already sealed.', 'info');
+      return false;
+    }
+    cell.gate.closed = true;
+    cell.gate.used = true;
+    match.expedition.gatesClosed = Math.max(0, Number(match.expedition.gatesClosed || 0) + 1);
+    var player = getCrucibleExpeditionPlayer(match);
+    var jump = getCrucibleRandomOpenHex(player, match, 999);
+    if (jump && player) {
+      player.position = { q: Number(jump.q), r: Number(jump.r) };
+      match.log = (match.log || []).concat(['Gate sealed. Transit jump to [' + jump.q + ',' + jump.r + '].']).slice(-120);
+    } else {
+      match.log = (match.log || []).concat(['Gate sealed.']).slice(-120);
+    }
+    recordCrucibleExpeditionHexClick(match);
+    renderHoldingCruciblePopup();
+    renderHoldingUI();
+    return true;
+  }
+
+  function holdingCrucibleBreachExpeditionPortal() {
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition || !match.hexMap || !match.hexMap.hexes) return false;
+    if (String(match.expedition.phase || '') === 'combat') {
+      if (typeof showNotif === 'function') showNotif('Finish current combat first.', 'warn');
+      return false;
+    }
+    var key = getCrucibleExpeditionPlayerHexKey(match);
+    var cell = match.hexMap.hexes[key];
+    if (!cell || !cell.portal || cell.portal.closed) {
+      if (typeof showNotif === 'function') showNotif('Stand on an active portal hex to breach it.', 'warn');
+      return false;
+    }
+    var waves = Math.max(1, Math.min(4, Math.floor(Math.random() * 4) + 1));
+    match.expedition.portalEvent = { hexKey: key, remaining: waves, startedDay: Number(match.expedition.day || 1) };
+    var foe = pickCrucibleExpeditionEnemyProfile('portal');
+    spawnCrucibleExpeditionEnemy(match, {
+      name: foe.name,
+      look: foe.look,
+      desc: foe.desc,
+      die: 4,
+      hp: 4,
+      combatType: 'portalWave',
+      role: 'assault'
+    });
+    match.log = (match.log || []).concat(['Portal breach initiated: ' + waves + ' wave(s) of DD4 | 4 HP enemies before puzzle lock.']).slice(-120);
+    renderHoldingCruciblePopup();
+    renderHoldingUI();
+    return true;
+  }
+
+  function holdingCrucibleSolvePortalPuzzle() {
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition || !match.hexMap || !match.hexMap.hexes) return false;
+    if (String(match.expedition.phase || '') !== 'portalPuzzle') {
+      if (typeof showNotif === 'function') showNotif('No active portal puzzle to solve.', 'warn');
+      return false;
+    }
+    var ev = match.expedition.portalEvent || {};
+    var hexKey = String(ev.hexKey || getCrucibleExpeditionPlayerHexKey(match));
+    var cell = match.hexMap.hexes[hexKey];
+    if (!cell || !cell.portal || cell.portal.closed) return false;
+    var actionDie = getCrucibleStatDie('mind', 8);
+    var action = (typeof explodingRoll === 'function') ? explodingRoll(actionDie, { type: 'action', major: true, label: 'Portal Puzzle' }) : { total: Math.floor(Math.random() * actionDie) + 1 };
+    var dread = (typeof explodingRoll === 'function') ? explodingRoll(8, { type: 'dread', major: true, label: 'Portal Lock DD8' }) : { total: Math.floor(Math.random() * 8) + 1 };
+    var success = Number(action.total || 0) >= Number(dread.total || 0);
+    if (success) {
+      cell.portal.closed = true;
+      cell.portal.active = false;
+      cell.portal.puzzleSolved = true;
+      match.expedition.portalsClosed = Math.max(0, Number(match.expedition.portalsClosed || 0) + 1);
+      match.expedition.raidBossNerfed = Number(match.expedition.portalsClosed || 0) >= Number(match.expedition.portalQuestTarget || 5);
+      match.expedition.phase = 'explore';
+      match.expedition.pendingPortalPuzzle = false;
+      match.expedition.portalEvent = null;
+      match.log = (match.log || []).concat(['Portal solved (' + Number(action.total || 0) + ' vs ' + Number(dread.total || 0) + '). Total portals closed: ' + Number(match.expedition.portalsClosed || 0) + '.']).slice(-120);
+      if (typeof showNotif === 'function') showNotif('Portal sealed.', 'good');
+    } else {
+      match.expedition.phase = 'explore';
+      match.expedition.pendingPortalPuzzle = false;
+      match.log = (match.log || []).concat(['Portal puzzle failed (' + Number(action.total || 0) + ' vs ' + Number(dread.total || 0) + '). The breach lashes back.']).slice(-120);
+      var collapse = collapseCrucibleExpeditionEdge(match);
+      if (collapse > 0) match.log = (match.log || []).concat([collapse + ' edge hexes collapsed from backlash.']).slice(-120);
+      if (typeof showNotif === 'function') showNotif('Portal puzzle failed.', 'warn');
+    }
     renderHoldingCruciblePopup();
     renderHoldingUI();
     return true;
@@ -3497,8 +3839,13 @@
   function holdingCrucibleHandleBoardHexClick(q, r) {
     var match = getHoldingCrucibleMatch();
     if (!match) return false;
-    recordCrucibleExpeditionHexClick(match);
-    return holdingCrucibleMoveSelected(q, r);
+    var moved = holdingCrucibleMoveSelected(q, r);
+    if (moved && String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || 'explore') === 'explore') {
+      recordCrucibleExpeditionHexClick(match);
+      renderHoldingCruciblePopup();
+      renderHoldingUI();
+    }
+    return moved;
   }
 
   function holdingCrucibleStartDrag(side, unitId) {
@@ -3808,7 +4155,7 @@
     var match = getHoldingCrucibleMatch();
     if (!match || !match.hexMap) return false;
     var ally = getSelectedCrucibleActiveUnit(match);
-    if (!ally || Number(ally.hp || 0) <= 0 || Number(ally.ap || 0) <= 0) return false;
+    if (!ally || Number(ally.hp || 0) <= 0) return false;
     
     var targetHex = { q: Number(nextQ), r: Number(nextR) };
     if (String(match.mode || '') === 'expedition' && match.expedition && match.expedition.collapsed) {
@@ -3819,11 +4166,23 @@
         return false;
       }
     }
+    if (String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || '') === 'explore') {
+      if (!ally.position) return false;
+      var distance = (Math.abs(Number(ally.position.q || 0) - Number(nextQ || 0))
+        + Math.abs((Number(ally.position.q || 0) + Number(ally.position.r || 0)) - (Number(nextQ || 0) + Number(nextR || 0)))
+        + Math.abs(Number(ally.position.r || 0) - Number(nextR || 0))) / 2;
+      if (distance !== 1) return false;
+      if (typeof canMoveToHex === 'function' && !canMoveToHex(ally, targetHex, match.hexMap)) return false;
+      var occupied = getUnitsInHex((match.allies || []).concat(match.enemies || []), targetHex, match.hexMap);
+      if (occupied && occupied.length) return false;
+      ally.position = { q: Number(nextQ), r: Number(nextR) };
+      match.log = (match.log || []).concat([ally.name + ' moved to [' + nextQ + ',' + nextR + '] (exploration move).']).slice(-120);
+      renderHoldingCruciblePopup();
+      return true;
+    }
+    if (Number(ally.ap || 0) <= 0) return false;
     if (typeof moveUnitToHex === 'function') {
       if (moveUnitToHex(ally, targetHex, match.hexMap, match.log)) {
-        if (String(match.mode || '') === 'expedition') {
-          maybeTriggerCrucibleExpeditionEncounter(match, false);
-        }
         renderHoldingCruciblePopup();
         return true;
       }
@@ -7812,6 +8171,10 @@
   window.holdingCrucibleExpeditionSearchHex = holdingCrucibleExpeditionSearchHex;
   window.holdingCrucibleExpeditionObserveAdjacent = holdingCrucibleExpeditionObserveAdjacent;
   window.holdingCrucibleExpeditionRandomEncounter = holdingCrucibleExpeditionRandomEncounter;
+  window.holdingCrucibleExpeditionWildernessRoll = holdingCrucibleExpeditionWildernessRoll;
+  window.holdingCrucibleCloseExpeditionGate = holdingCrucibleCloseExpeditionGate;
+  window.holdingCrucibleBreachExpeditionPortal = holdingCrucibleBreachExpeditionPortal;
+  window.holdingCrucibleSolvePortalPuzzle = holdingCrucibleSolvePortalPuzzle;
   window.holdingCrucibleEquipExpeditionLoot = holdingCrucibleEquipExpeditionLoot;
   window.holdingCrucibleMoveSelected = holdingCrucibleMoveSelected;
   window.holdingCrucibleTeleportSelected = holdingCrucibleTeleportSelected;

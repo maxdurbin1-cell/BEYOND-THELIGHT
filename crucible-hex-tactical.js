@@ -655,6 +655,15 @@ function renderCrucibleHexMap(map, units, selectedUnitId, options) {
     } else if (cell.terrain === 'temple') {
       color = 'rgba(120,162,242,.35)';
       strokeColor = 'rgba(175,205,255,.8)';
+    } else if (cell.terrain === 'ruin') {
+      color = 'rgba(158,134,95,.34)';
+      strokeColor = 'rgba(214,190,142,.8)';
+    } else if (cell.terrain === 'gate') {
+      color = 'rgba(92,132,194,.36)';
+      strokeColor = 'rgba(160,202,255,.85)';
+    } else if (cell.terrain === 'portal') {
+      color = 'rgba(147,90,214,.34)';
+      strokeColor = 'rgba(210,168,255,.86)';
     }
 
     var isReachable = !!reachableLookup[cellKey];
@@ -680,6 +689,12 @@ function renderCrucibleHexMap(map, units, selectedUnitId, options) {
       hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="12" fill="rgba(255,255,230,.95)">' + (cell.loot.type === 'weapon' ? '⚔' : (cell.loot.type === 'armor' ? '🛡' : '❤')) + '</text>';
     } else if (cell.terrain === 'temple') {
       hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="12" fill="rgba(225,236,255,.95)">⛩</text>';
+    } else if (cell.terrain === 'ruin') {
+      hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="12" fill="rgba(255,236,190,.95)">🏚</text>';
+    } else if (cell.terrain === 'gate') {
+      hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="12" fill="rgba(218,232,255,.95)">🜂</text>';
+    } else if (cell.terrain === 'portal') {
+      hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="12" fill="rgba(238,217,255,.95)">◉</text>';
     } else if (cell.zone) {
       hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="12" fill="rgba(210,255,247,.95)" font-weight="bold">' + cell.zone.id.charAt(5) + '</text>';
     }
@@ -720,6 +735,9 @@ function renderCrucibleHexMap(map, units, selectedUnitId, options) {
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⚠ Trap</span>'
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⚔/🛡/❤ Loot</span>'
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⛩ Temple (flask refill)</span>'
+    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">🏚 Ruins</span>'
+    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">🜂 Gate</span>'
+    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">◉ Portal</span>'
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">A/B/C Objective zones</span>'
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">✖ Collapsed hex (void)</span>'
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">Gold ring = selected unit</span>'

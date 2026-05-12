@@ -764,3 +764,398 @@ function getHexUnitDetailsHtml(unit) {
     + flavor
     + '</div>';
 }
+
+// ============================================================================
+// ENVIRONMENTAL COMBAT — INTERACTABLES, VERTICALITY, SHOVE, EXPLOSIONS
+// ============================================================================
+
+var ENVIRONMENTAL_INTERACTABLE_TABLE = [
+  { id:'explosive_rune',     name:'Explosive Rune',         icon:'💥', category:'explosive',    elevation:0, flavor:'Arcane glyphs carved into the stone pulse with unstable energy.', effect:'Any unit ending movement here triggers a d6 explosion (2-hex radius, Body save vs d6 or take damage).', triggerVerb:'Detonate Rune', triggerCost:1, triggerFn:'triggerInteractableExplosion', radius:2, active:true, hexOffset:{q:1,r:-2}  },
+  { id:'powder_keg',         name:'Powder Keg',             icon:'🛢', category:'explosive',    elevation:0, flavor:'A barrel of volatile black powder, left from a previous raid.', effect:'Strike it to detonate: 3-hex radius explosion, d8+2 damage. Destroys surrounding terrain.', triggerVerb:'Strike Keg',    triggerCost:1, triggerFn:'triggerInteractableExplosion', radius:3, active:true, hexOffset:{q:-2,r:1}  },
+  { id:'fire_brazier',       name:'Fire Brazier',           icon:'🔥', category:'explosive',    elevation:0, flavor:'A standing iron brazier heaped with burning coals.', effect:'Shove an enemy into it: d4 fire damage + Burning condition (−1 Defend until extinguished).', triggerVerb:'Shove Into',     triggerCost:1, triggerFn:'triggerInteractableShoveInto',  radius:0, active:true, hexOffset:{q:2,r:0}   },
+  { id:'gas_vent',           name:'Gas Vent',               icon:'🌫', category:'explosive',    elevation:0, flavor:'Steam and foul gas seep through cracks in the floor.', effect:'Igniting deals 1 damage per turn to all units in 1-hex radius for 2 rounds.', triggerVerb:'Ignite Vent',   triggerCost:1, triggerFn:'triggerInteractableExplosion', radius:1, active:true, hexOffset:{q:0,r:2}   },
+  { id:'unstable_platform',  name:'Unstable Platform',      icon:'🪨', category:'verticality',  elevation:1, flavor:'A wooden scaffolding platform bolted to the wall — visibly cracking.', effect:'Moving onto it costs +1 AP. Each turn: Body save vs d6 or platform collapses (fall 1 tier, d4 fall damage).', triggerVerb:'Cut Support', triggerCost:1, triggerFn:'triggerInteractableCollapse', radius:1, active:true, hexOffset:{q:-1,r:-2} },
+  { id:'rooftop_archer',     name:'Rooftop Archer (NPC)',   icon:'🏹', category:'npc',          elevation:2, flavor:'A bowman perches on the rooftop above, watching the chaos below.', effect:'Signal them (1 AP) for a free d8 ranged shot on any target at Close/Nearby range. Enemies can shove them off for d6 fall damage.', triggerVerb:'Signal Archer', triggerCost:1, triggerFn:'triggerInteractableNpcAssist',  radius:0, active:true, hexOffset:{q:2,r:-2}  },
+  { id:'collapsing_bridge',  name:'Collapsing Bridge',      icon:'🌉', category:'verticality',  elevation:1, flavor:'A rope-and-plank bridge spans a pit. The ropes are fraying fast.', effect:'Cut the rope (1 AP): any unit on the bridge falls (d6 damage). Blocks the gap but double-serves as a ramp.', triggerVerb:'Cut Rope',      triggerCost:1, triggerFn:'triggerInteractableCollapse', radius:1, active:true, hexOffset:{q:0,r:-2}  },
+  { id:'hanging_chandelier', name:'Hanging Chandelier',     icon:'🕯', category:'verticality',  elevation:2, flavor:'A heavy iron chandelier swings on a chain above the battlefield.', effect:'Shoot the chain (Shoot vs d8) to drop it: d6 damage to all units in a 2-hex column below. Lights any oil slick beneath.', triggerVerb:'Shoot Chain',   triggerCost:1, triggerFn:'triggerInteractableCollapse', radius:2, active:true, hexOffset:{q:-1,r:2}  },
+  { id:'high_ground_pillar', name:'High Ground Pillar',     icon:'🗿', category:'verticality',  elevation:1, flavor:'A crumbling stone pillar rises from the arena floor.', effect:'Climbing costs 2 AP. While on it: +1 to Shoot attacks. Being shoved off deals +1 fall damage per elevation tier.', triggerVerb:'Climb Pillar',  triggerCost:2, triggerFn:'triggerInteractableClimb',    radius:0, active:true, hexOffset:{q:1,r:1}   },
+  { id:'stone_wall_section', name:'Stone Wall Section',     icon:'🧱', category:'destructible', elevation:0, flavor:'A section of crumbling ancient wall, weakened by prior battles.', effect:'Destroy with 4+ damage: opens a new movement path. Provides Cover (+2 Defend) to adjacent allies while intact.', triggerVerb:'Smash Wall',    triggerCost:1, triggerFn:'triggerInteractableDestroy',  radius:0, active:true, hexOffset:{q:-2,r:-1} },
+  { id:'oil_slick',          name:'Oil Slick',              icon:'🫧', category:'hazard',       elevation:0, flavor:'Spilled alchemical oil coats the floor in a slippery sheen.', effect:'Moving through costs +1 AP and triggers Body save vs d6 (fail = prone, −1 AP next turn). Ignite to create 1-hex fire: d4/turn for 2 rounds.', triggerVerb:'Ignite Oil',    triggerCost:1, triggerFn:'triggerInteractableExplosion', radius:1, active:true, hexOffset:{q:0,r:-1}  },
+  { id:'sewer_grate',        name:'Sewer Grate',            icon:'⬛', category:'destructible', elevation:0, flavor:'A heavy iron grate covers a passage into the sewers below.', effect:'Pry it open (1 AP + check vs d6): creates an underground bypass crossing 2 hexes of terrain.', triggerVerb:'Pry Open',      triggerCost:1, triggerFn:'triggerInteractableDestroy',  radius:0, active:true, hexOffset:{q:2,r:2}   },
+  { id:'trapped_civilian',   name:'Trapped Civilian',       icon:'🧑', category:'npc',          elevation:0, flavor:'A terrified civilian is pinned under rubble in the middle of the fight.', effect:'Free them (1 AP): earn 1 Luck Token (reroll any one die this combat). Enemies near them deal +1 morale damage.', triggerVerb:'Free Civilian', triggerCost:1, triggerFn:'triggerInteractableNpcAssist',  radius:0, active:true, hexOffset:{q:-1,r:1}  },
+  { id:'lever_mechanism',    name:'Lever Mechanism',        icon:'🔧', category:'destructible', elevation:0, flavor:'A rusted lever connected to something deeper in the structure.', effect:'Pull it (1 AP): randomly opens a door or drops a wall-trap on the nearest enemy in range.', triggerVerb:'Pull Lever',    triggerCost:1, triggerFn:'triggerInteractableDestroy',  radius:2, active:true, hexOffset:{q:-2,r:2}  },
+  { id:'crumbling_ceiling',  name:'Crumbling Ceiling',      icon:'⛰', category:'hazard',       elevation:0, flavor:'Deep cracks run across the ceiling — it groans with every strike.', effect:'Start of each round: 1-in-6 chance it collapses (d6 damage in 1-hex radius, creates impassable Rubble).', triggerVerb:'Brace Ceiling', triggerCost:1, triggerFn:'triggerInteractableCollapse', radius:1, active:true, hexOffset:{q:1,r:-1}  }
+];
+
+function generateCombatInteractables(seed, mapSize, count) {
+  var seedNum = Math.max(1, Number(seed || Date.now()));
+  var targetCount = Math.max(2, Math.min(3, Number(count || 2)));
+  var halfMap = Math.floor(Math.max(3, Number(mapSize || 7)) / 2);
+  var pool = ENVIRONMENTAL_INTERACTABLE_TABLE.slice();
+  for (var i = pool.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.abs(Math.sin(seedNum + i) * 10000) % (i + 1));
+    var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+  }
+  var chosen = [];
+  var usedCategories = {};
+  for (var pi = 0; pi < pool.length && chosen.length < targetCount; pi++) {
+    var entry = pool[pi];
+    if (!entry) continue;
+    if (chosen.length < targetCount - 1 && usedCategories[entry.category]) continue;
+    usedCategories[entry.category] = true;
+    var offset = entry.hexOffset || {q:0, r:0};
+    var q = Math.max(-halfMap + 1, Math.min(halfMap - 1, Number(offset.q)));
+    var r = Math.max(-halfMap + 1, Math.min(halfMap - 1, Number(offset.r)));
+    chosen.push({
+      id:          entry.id + '_' + String(seedNum % 9999),
+      templateId:  entry.id,
+      name:        entry.name,
+      icon:        entry.icon,
+      category:    entry.category,
+      elevation:   Number(entry.elevation || 0),
+      flavor:      entry.flavor,
+      effect:      entry.effect,
+      triggerVerb: entry.triggerVerb,
+      triggerCost: Number(entry.triggerCost || 1),
+      triggerFn:   entry.triggerFn,
+      radius:      Number(entry.radius || 0),
+      active:      true,
+      triggered:   false,
+      position:    { q: q, r: r }
+    });
+  }
+  return chosen;
+}
+
+function installInteractablesOnMap(map, interactables) {
+  if (!map || !map.hexes || !Array.isArray(interactables)) return;
+  interactables.forEach(function(item) {
+    if (!item || !item.position) return;
+    var key = hexToKey(item.position);
+    var cell = map.hexes[key];
+    if (!cell || cell.obstacle) return;
+    cell.interactable = item.id;
+    cell.interactableRef = item;
+    cell.elevation = item.elevation;
+    if (item.elevation > 0) cell.terrain = 'elevated';
+    else if (item.category === 'explosive') cell.terrain = 'explosive';
+    else if (item.category === 'hazard') cell.terrain = 'hazard';
+    else if (item.category === 'npc') cell.terrain = 'npc_present';
+    else cell.terrain = 'destructible';
+  });
+}
+
+// ── SHOVE ──────────────────────────────────────────────────────────────────
+function executeShovePush(shover, target, map, allUnits, log) {
+  if (!shover || !target || !map) { if (log) log.push('Shove failed: missing context.'); return false; }
+  if (getUnitDistance(shover, target) > 1) { if (log) log.push(shover.name + ' cannot shove — must be Engaged.'); return false; }
+  if (Number(shover.ap || 0) < 1) { if (log) log.push(shover.name + ' has no AP to shove.'); return false; }
+  var dq = Number(target.position.q) - Number(shover.position.q);
+  var dr = Number(target.position.r) - Number(shover.position.r);
+  var landQ = Number(target.position.q) + dq;
+  var landR = Number(target.position.r) + dr;
+  var landKey = landQ + ',' + landR;
+  var landCell = map.hexes[landKey];
+  shover.ap = Math.max(0, Number(shover.ap) - 1);
+  var shoverDie = 6, targetDie = 6;
+  if (shover.character && typeof getEffectiveDie === 'function') shoverDie = getEffectiveDie('body') || 6;
+  if (target.character && typeof getEffectiveDie === 'function') targetDie = getEffectiveDie('body') || 6;
+  var shoveRoll = Math.floor(Math.random() * shoverDie) + 1;
+  var resistRoll = Math.floor(Math.random() * targetDie) + 1;
+  if (shoveRoll <= resistRoll) {
+    if (log) log.push('💪 ' + shover.name + ' shove resisted by ' + target.name + ' [' + shoveRoll + ' vs ' + resistRoll + ']!');
+    return false;
+  }
+  if (log) log.push('💪 ' + shover.name + ' shoved ' + target.name + ' [' + shoveRoll + ' vs ' + resistRoll + ']!');
+  if (!landCell || landCell.obstacle) {
+    target.hp = Math.max(0, Number(target.hp) - 2);
+    if (log) log.push('🧱 ' + target.name + ' slammed into a wall! 2 impact damage (HP: ' + target.hp + ').');
+    return true;
+  }
+  var fromCell = map.hexes[hexToKey(target.position)];
+  var fromElevation = fromCell ? Number(fromCell.elevation || 0) : 0;
+  var elevDrop = fromElevation - Number(landCell.elevation || 0);
+  if (elevDrop > 0) {
+    var fallDamage = elevDrop * 2;
+    target.hp = Math.max(0, Number(target.hp) - fallDamage);
+    if (log) log.push('⬇ ' + target.name + ' fell ' + elevDrop + ' tier(s)! ' + fallDamage + ' fall damage (HP: ' + target.hp + ').');
+  }
+  var blocked = Array.isArray(allUnits) && allUnits.some(function(u) {
+    return u && u.id !== target.id && u.position && u.position.q === landQ && u.position.r === landR;
+  });
+  if (blocked) { target.hp = Math.max(0, Number(target.hp) - 1); if (log) log.push('💥 ' + target.name + ' collided with another unit! 1 collision damage.'); return true; }
+  target.position = { q: landQ, r: landR };
+  if (log) log.push('➡ ' + target.name + ' pushed to [' + landQ + ',' + landR + '].');
+  if (landCell.interactableRef && landCell.interactableRef.active) {
+    triggerInteractableOnStep(target, landCell.interactableRef, map, allUnits, log);
+  }
+  return true;
+}
+
+// ── EXPLOSIONS ─────────────────────────────────────────────────────────────
+function resolveExplosionAt(centerHex, radius, damageDie, allUnits, map, log) {
+  var die = Math.max(4, Number(damageDie || 6));
+  var rad = Math.max(0, Number(radius || 1));
+  var center = centerHex || { q: 0, r: 0 };
+  var hit = 0;
+  (Array.isArray(allUnits) ? allUnits : []).forEach(function(unit) {
+    if (!unit || !unit.position || Number(unit.hp || 0) <= 0) return;
+    if (hexDistance(center, unit.position) > rad) return;
+    var rawDmg = Math.floor(Math.random() * die) + 1;
+    var saveRoll = Math.floor(Math.random() * 6) + 1;
+    var expRoll  = Math.floor(Math.random() * die) + 1;
+    var finalDmg = saveRoll >= expRoll ? Math.ceil(rawDmg / 2) : rawDmg;
+    unit.hp = Math.max(0, Number(unit.hp) - finalDmg);
+    hit++;
+    if (log) log.push('💥 Explosion hit ' + unit.name + ': d' + die + '=' + rawDmg + (saveRoll >= expRoll ? ' (half-saved)' : '') + ' → ' + finalDmg + ' dmg (HP: ' + unit.hp + ').');
+  });
+  if (map && map.hexes) {
+    getHexesWithinDistance(center, rad).forEach(function(h) {
+      var cell = map.hexes[hexToKey(h)];
+      if (!cell) return;
+      if (cell.interactableRef) { cell.interactableRef.active = false; cell.interactableRef.triggered = true; }
+      if (cell.terrain === 'explosive' || cell.terrain === 'hazard') cell.terrain = 'rubble';
+    });
+  }
+  if (log && hit === 0) log.push('💥 Explosion at [' + center.q + ',' + center.r + '] — no units in blast radius.');
+  return hit;
+}
+
+// ── AUTO-STEP TRIGGER ──────────────────────────────────────────────────────
+function triggerInteractableOnStep(unit, item, map, allUnits, log) {
+  if (!item || !item.active) return;
+  if ((item.templateId === 'explosive_rune' || item.templateId === 'gas_vent') && item.category === 'explosive') {
+    item.active = false; item.triggered = true;
+    if (log) log.push('⚡ ' + unit.name + ' stepped on ' + item.name + '!');
+    resolveExplosionAt(item.position, item.radius, 6, allUnits, map, log);
+  } else if (item.templateId === 'oil_slick') {
+    var bodyDie = 6;
+    if (unit.character && typeof getEffectiveDie === 'function') bodyDie = getEffectiveDie('body') || 6;
+    var roll = Math.floor(Math.random() * bodyDie) + 1;
+    var dc   = Math.floor(Math.random() * 6) + 1;
+    if (roll < dc) {
+      unit.conditions = unit.conditions || {};
+      unit.conditions.prone = 1;
+      if (log) log.push('🫧 ' + unit.name + ' slipped on oil! Prone: −1 AP next turn [' + roll + ' vs ' + dc + '].');
+    } else {
+      if (log) log.push('🫧 ' + unit.name + ' kept footing on oil slick [' + roll + ' vs ' + dc + '].');
+    }
+  }
+}
+
+// ── NAMED TRIGGER FUNCTIONS ────────────────────────────────────────────────
+function triggerInteractableExplosion(item, triggeringUnit, allUnits, map, log) {
+  if (!item || !item.active) { if (log) log.push((item && item.name || 'Item') + ' is no longer active.'); return false; }
+  if (triggeringUnit && Number(triggeringUnit.ap || 0) < Number(item.triggerCost || 1)) { if (log) log.push('Not enough AP (' + item.triggerCost + ' needed).'); return false; }
+  if (triggeringUnit) triggeringUnit.ap = Math.max(0, Number(triggeringUnit.ap) - Number(item.triggerCost || 1));
+  item.active = false; item.triggered = true;
+  if (log) log.push('💥 ' + (triggeringUnit ? triggeringUnit.name + ' triggered ' : 'Auto: ') + item.name + '!');
+  resolveExplosionAt(item.position, item.radius, 6, allUnits, map, log);
+  return true;
+}
+
+function triggerInteractableCollapse(item, triggeringUnit, allUnits, map, log) {
+  if (!item || !item.active) { if (log) log.push((item && item.name || 'Item') + ' is no longer active.'); return false; }
+  if (triggeringUnit && Number(triggeringUnit.ap || 0) < Number(item.triggerCost || 1)) { if (log) log.push('Not enough AP (' + item.triggerCost + ' needed).'); return false; }
+  if (triggeringUnit) triggeringUnit.ap = Math.max(0, Number(triggeringUnit.ap) - Number(item.triggerCost || 1));
+  item.active = false; item.triggered = true;
+  if (log) log.push('🪨 ' + (triggeringUnit ? triggeringUnit.name + ' collapsed ' : 'Collapse: ') + item.name + '!');
+  var elevBonus = (item.elevation || 0) * 2;
+  (Array.isArray(allUnits) ? allUnits : []).forEach(function(unit) {
+    if (!unit || !unit.position || Number(unit.hp || 0) <= 0) return;
+    if (hexDistance(item.position, unit.position) > item.radius) return;
+    var raw = Math.floor(Math.random() * 6) + 1;
+    var total = raw + elevBonus;
+    unit.hp = Math.max(0, Number(unit.hp) - total);
+    if (log) log.push('⬇ ' + unit.name + ' caught in collapse! d6=' + raw + (elevBonus ? '+' + elevBonus + ' fall' : '') + ' = ' + total + ' dmg (HP: ' + unit.hp + ').');
+  });
+  if (map && map.hexes) {
+    getHexesWithinDistance(item.position, item.radius).forEach(function(h) {
+      var cell = map.hexes[hexToKey(h)];
+      if (cell) { cell.elevation = 0; cell.terrain = 'rubble'; cell.obstacle = true; }
+    });
+  }
+  return true;
+}
+
+function triggerInteractableNpcAssist(item, triggeringUnit, allUnits, map, log) {
+  if (!item || !item.active) { if (log) log.push((item && item.name || 'Item') + ' already resolved.'); return false; }
+  if (triggeringUnit && Number(triggeringUnit.ap || 0) < Number(item.triggerCost || 1)) { if (log) log.push('Not enough AP (' + item.triggerCost + ' needed).'); return false; }
+  if (triggeringUnit) triggeringUnit.ap = Math.max(0, Number(triggeringUnit.ap) - Number(item.triggerCost || 1));
+  item.active = false; item.triggered = true;
+  if (item.templateId === 'rooftop_archer') {
+    var enemies = (Array.isArray(allUnits) ? allUnits : []).filter(function(u) { return u && u.side === 'enemy' && Number(u.hp || 0) > 0; });
+    if (enemies.length) {
+      var tgt = enemies[Math.floor(Math.random() * enemies.length)];
+      var shot = Math.floor(Math.random() * 8) + 1, def = Math.floor(Math.random() * 6) + 1;
+      var dmg = Math.max(0, shot - def);
+      if (dmg > 0) tgt.hp = Math.max(0, Number(tgt.hp) - dmg);
+      if (log) log.push('🏹 Rooftop archer shot ' + tgt.name + ' [d8=' + shot + ' vs d6=' + def + '] → ' + (dmg > 0 ? dmg + ' dmg' : 'deflected') + ' (HP: ' + tgt.hp + ').');
+    } else { if (log) log.push('🏹 Rooftop archer signalled — no valid targets.'); }
+  } else if (item.templateId === 'trapped_civilian') {
+    if (triggeringUnit) {
+      triggeringUnit.luckTokens = Math.min(3, Number(triggeringUnit.luckTokens || 0) + 1);
+      if (log) log.push('🧑 ' + triggeringUnit.name + ' freed the civilian! Gained 1 Luck Token. Tokens: ' + triggeringUnit.luckTokens + '.');
+    }
+  } else { if (log) log.push('✦ ' + (triggeringUnit ? triggeringUnit.name : 'Ally') + ' resolved ' + item.name + '.'); }
+  return true;
+}
+
+function triggerInteractableDestroy(item, triggeringUnit, allUnits, map, log) {
+  if (!item || !item.active) { if (log) log.push((item && item.name || 'Item') + ' already resolved.'); return false; }
+  if (triggeringUnit && Number(triggeringUnit.ap || 0) < Number(item.triggerCost || 1)) { if (log) log.push('Not enough AP (' + item.triggerCost + ' needed).'); return false; }
+  if (triggeringUnit) triggeringUnit.ap = Math.max(0, Number(triggeringUnit.ap) - Number(item.triggerCost || 1));
+  item.active = false; item.triggered = true;
+  if (map && map.hexes) {
+    var cell = map.hexes[hexToKey(item.position)];
+    if (cell) { cell.obstacle = false; cell.terrain = 'open'; cell.interactable = null; cell.interactableRef = null; }
+    if (item.templateId === 'lever_mechanism') {
+      var nearest = null, nearDist = 999;
+      (Array.isArray(allUnits) ? allUnits : []).forEach(function(u) {
+        if (!u || u.side !== 'enemy' || !u.position || Number(u.hp || 0) <= 0) return;
+        var d = hexDistance(item.position, u.position);
+        if (d <= item.radius && d < nearDist) { nearest = u; nearDist = d; }
+      });
+      if (nearest) {
+        var trapDmg = Math.floor(Math.random() * 6) + 1;
+        nearest.hp = Math.max(0, Number(nearest.hp) - trapDmg);
+        if (log) log.push('🔧 Lever triggered! Wall-trap hit ' + nearest.name + ' for ' + trapDmg + ' dmg (HP: ' + nearest.hp + ').');
+      } else { if (log) log.push('🔧 Lever pulled — a hidden passage opens nearby.'); }
+    } else { if (log) log.push('🔨 ' + (triggeringUnit ? triggeringUnit.name : 'A unit') + ' destroyed ' + item.name + ' — path opened.'); }
+  }
+  return true;
+}
+
+function triggerInteractableClimb(item, triggeringUnit, allUnits, map, log) {
+  if (!item || !item.active) return false;
+  if (triggeringUnit && Number(triggeringUnit.ap || 0) < Number(item.triggerCost || 1)) { if (log) log.push('Not enough AP (' + item.triggerCost + ' needed).'); return false; }
+  if (triggeringUnit) {
+    triggeringUnit.ap = Math.max(0, Number(triggeringUnit.ap) - Number(item.triggerCost || 1));
+    triggeringUnit.position = { q: item.position.q, r: item.position.r };
+    triggeringUnit.elevationBonus = Number(item.elevation || 1);
+    if (log) log.push('🗿 ' + triggeringUnit.name + ' climbed ' + item.name + '! Elevation ' + item.elevation + ': +' + item.elevation + ' Shoot bonus.');
+  }
+  return true;
+}
+
+function dispatchInteractableTrigger(item, triggeringUnit, allUnits, map, log) {
+  if (!item) return false;
+  var fn = String(item.triggerFn || '');
+  if (fn === 'triggerInteractableExplosion')  return triggerInteractableExplosion(item, triggeringUnit, allUnits, map, log);
+  if (fn === 'triggerInteractableCollapse')   return triggerInteractableCollapse(item, triggeringUnit, allUnits, map, log);
+  if (fn === 'triggerInteractableNpcAssist')  return triggerInteractableNpcAssist(item, triggeringUnit, allUnits, map, log);
+  if (fn === 'triggerInteractableDestroy')    return triggerInteractableDestroy(item, triggeringUnit, allUnits, map, log);
+  if (fn === 'triggerInteractableClimb')      return triggerInteractableClimb(item, triggeringUnit, allUnits, map, log);
+  if (fn === 'triggerInteractableShoveInto') {
+    var nearest = null, nearDist = 999;
+    var oppSide = triggeringUnit ? (triggeringUnit.side === 'ally' ? 'enemy' : 'ally') : 'enemy';
+    (Array.isArray(allUnits) ? allUnits : []).forEach(function(u) {
+      if (!u || !u.position || u.side !== oppSide || Number(u.hp || 0) <= 0) return;
+      var d = hexDistance(item.position, u.position);
+      if (d < nearDist) { nearest = u; nearDist = d; }
+    });
+    if (nearest && triggeringUnit) return executeShovePush(triggeringUnit, nearest, map, allUnits, log);
+    if (log) log.push('No valid shove target near ' + item.name + '.');
+    return false;
+  }
+  if (log) log.push('Unknown trigger: ' + fn);
+  return false;
+}
+
+// ── ROUND START AUTO-CHECKS ────────────────────────────────────────────────
+function processInteractableRoundStart(interactables, allUnits, map, log) {
+  if (!Array.isArray(interactables)) return;
+  interactables.forEach(function(item) {
+    if (!item || !item.active || item.templateId !== 'crumbling_ceiling') return;
+    var roll = Math.floor(Math.random() * 6) + 1;
+    if (roll === 1) { if (log) log.push('🪨 Crumbling ceiling collapses! (rolled 1/6)'); triggerInteractableCollapse(item, null, allUnits, map, log); }
+    else if (log) log.push('🪨 Crumbling ceiling groans... (' + roll + '/6, safe this round)');
+  });
+}
+
+// ── INTERACTABLE PANEL HTML ────────────────────────────────────────────────
+function buildInteractablePanelHtml(interactables, selectedUnit) {
+  if (!Array.isArray(interactables) || !interactables.length) return '';
+  var activeItems = interactables.filter(function(i) { return i && i.active; });
+  if (!activeItems.length) return '<div style="font-size:.7rem;color:var(--muted2);margin-top:.22rem;">All battlefield interactables have been resolved.</div>';
+  var unitAp = selectedUnit ? Number(selectedUnit.ap || 0) : 0;
+  var catColor = function(cat) {
+    return cat === 'explosive' ? 'var(--red2)' : cat === 'verticality' ? 'var(--teal)' : cat === 'npc' ? 'var(--gold2)' : cat === 'destructible' ? '#c8a0ff' : 'var(--muted2)';
+  };
+  var cards = activeItems.map(function(item) {
+    var cc = catColor(item.category);
+    var elevLabel = item.elevation > 0 ? (' · Elevation ' + item.elevation) : '';
+    var canAfford = unitAp >= item.triggerCost;
+    var unitIdArg = selectedUnit ? '"' + String(selectedUnit.id || '').replace(/"/g, '') + '"' : 'null';
+    return '<div style="border:1px solid var(--border2);border-left:2px solid ' + cc + ';padding:.32rem .4rem;margin-bottom:.2rem;background:rgba(255,255,255,.025);">'
+      + '<div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.12rem;">'
+        + '<span style="font-size:.95rem;">' + item.icon + '</span>'
+        + '<div><div style="font-size:.74rem;color:var(--text);font-weight:600;">' + item.name + '</div>'
+        + '<div style="font-size:.61rem;color:' + cc + ';text-transform:uppercase;letter-spacing:.06em;">' + item.category + elevLabel + '</div></div>'
+      + '</div>'
+      + '<div style="font-size:.71rem;color:var(--muted2);line-height:1.44;margin-bottom:.1rem;font-style:italic;">' + item.flavor + '</div>'
+      + '<div style="font-size:.69rem;color:var(--text2);line-height:1.44;margin-bottom:.14rem;"><strong style="color:var(--gold2);">Effect:</strong> ' + item.effect + '</div>'
+      + '<div style="display:flex;gap:.16rem;flex-wrap:wrap;align-items:center;">'
+        + '<button class="btn btn-xs btn-primary"' + (canAfford ? '' : ' disabled style="opacity:.45;" title="Need ' + item.triggerCost + ' AP"') + ' onclick="crucibleTriggerInteractable(\'' + item.id + '\',' + unitIdArg + ')">'
+          + item.triggerVerb + ' (' + item.triggerCost + ' AP)'
+        + '</button>'
+        + '<span style="font-size:.61rem;color:var(--muted2);">Hex [' + item.position.q + ',' + item.position.r + ']' + (item.radius > 0 ? ' · Radius ' + item.radius : '') + '</span>'
+      + '</div>'
+    + '</div>';
+  }).join('');
+  return '<div style="margin-top:.3rem;">'
+    + '<div style="font-family:\'Cinzel\',serif;font-size:.65rem;letter-spacing:.09em;color:var(--gold2);text-transform:uppercase;margin-bottom:.18rem;">⚔ Battlefield Interactables (' + activeItems.length + ' active)</div>'
+    + cards
+  + '</div>';
+}
+
+function injectInteractablesIntoSvg(hexSvg, interactables, toPixelFn, hexSize) {
+  if (!Array.isArray(interactables) || !interactables.length) return hexSvg;
+  var inserts = interactables.filter(function(i) { return i && i.active && i.position; }).map(function(item) {
+    var p = toPixelFn(item.position.q, item.position.r);
+    var elevRing = item.elevation > 0
+      ? '<circle cx="' + p.x.toFixed(2) + '" cy="' + p.y.toFixed(2) + '" r="' + ((hexSize || 22) * 0.62).toFixed(2) + '" fill="none" stroke="rgba(255,220,80,.55)" stroke-width="1.5" stroke-dasharray="4 3"/>'
+      : '';
+    return elevRing + '<text x="' + p.x.toFixed(2) + '" y="' + (p.y + 5).toFixed(2) + '" text-anchor="middle" font-size="14" opacity=".9">' + item.icon + '</text>';
+  }).join('');
+  return hexSvg.replace('</svg>', inserts + '</svg>');
+}
+
+// ── EXPORTS ────────────────────────────────────────────────────────────────
+if (typeof window !== 'undefined') {
+  window.generateCombatInteractables       = generateCombatInteractables;
+  window.installInteractablesOnMap         = installInteractablesOnMap;
+  window.buildInteractablePanelHtml        = buildInteractablePanelHtml;
+  window.injectInteractablesIntoSvg        = injectInteractablesIntoSvg;
+  window.dispatchInteractableTrigger       = dispatchInteractableTrigger;
+  window.executeShovePush                  = executeShovePush;
+  window.resolveExplosionAt                = resolveExplosionAt;
+  window.processInteractableRoundStart     = processInteractableRoundStart;
+  window.triggerInteractableOnStep         = triggerInteractableOnStep;
+  window.ENVIRONMENTAL_INTERACTABLE_TABLE  = ENVIRONMENTAL_INTERACTABLE_TABLE;
+
+  window.crucibleTriggerInteractable = function(itemId, selectedUnitId) {
+    if (typeof S === 'undefined' || !S) return;
+    var match = (S.holding && S.holding.crucible && S.holding.crucible.currentMatch) ? S.holding.crucible.currentMatch : null;
+    if (!match) { if (typeof showNotif === 'function') showNotif('No active combat match.', 'warn'); return; }
+    var interactables = match.interactables;
+    if (!Array.isArray(interactables)) { if (typeof showNotif === 'function') showNotif('No interactables in this fight.', 'info'); return; }
+    var item = null;
+    for (var ii = 0; ii < interactables.length; ii++) {
+      if (String(interactables[ii] && interactables[ii].id || '') === String(itemId || '')) { item = interactables[ii]; break; }
+    }
+    if (!item) { if (typeof showNotif === 'function') showNotif('Interactable not found.', 'warn'); return; }
+    if (!item.active) { if (typeof showNotif === 'function') showNotif(item.name + ' has already been triggered.', 'info'); return; }
+    var allUnits = [].concat(match.allies || [], match.enemies || []);
+    var triggeringUnit = null;
+    if (selectedUnitId) {
+      for (var jj = 0; jj < allUnits.length; jj++) {
+        if (String(allUnits[jj] && allUnits[jj].id || '') === String(selectedUnitId || '')) { triggeringUnit = allUnits[jj]; break; }
+      }
+    }
+    var log = match.log = match.log || [];
+    var ok = dispatchInteractableTrigger(item, triggeringUnit, allUnits, match.hexMap, log);
+    if (ok && typeof showNotif === 'function') showNotif(item.name + ' triggered!', 'good');
+    if (typeof window.holdingCrucibleRenderBoard === 'function') window.holdingCrucibleRenderBoard();
+  };
+}

@@ -1693,6 +1693,13 @@
       ? generateCrucibleHexMap(Date.now(), 9)
       : { seed: 1, size: 9, hexes: {}, objectives: [], spawns: { ally: { q: -1, r: -1 }, enemy: { q: 1, r: 1 } } };
 
+    // Generate environmental interactables and stamp them onto the map
+    var _interactablesSeed = Date.now() + 1;
+    var _interactables = (typeof generateCombatInteractables === 'function')
+      ? generateCombatInteractables(_interactablesSeed, 9, 2 + (Math.random() < 0.5 ? 1 : 0))
+      : [];
+    if (typeof installInteractablesOnMap === 'function') installInteractablesOnMap(hexMap, _interactables);
+
     // Place units in spawn zones with staggered positions
     var allySpawn = hexMap.spawns && hexMap.spawns.ally || { q: -1, r: -1 };
     var enemySpawn = hexMap.spawns && hexMap.spawns.enemy || { q: 1, r: 1 };
@@ -1764,6 +1771,7 @@
       selectedAllyTargetId: allies[0] ? allies[0].id : '',
       score: { ally: 0, enemy: 0 },
       hexMap: hexMap,
+      interactables: _interactables,
       roundWins: { ally: 0, enemy: 0 },
       log: ['Crucible match opened: 6v6 hex tactical simulation (' + modeSpec.label + '). Allies spawned at [' + allySpawn.q + ',' + allySpawn.r + '].'],
       startedAt: Date.now(),
@@ -2131,6 +2139,9 @@
       unit.ap = 0;
     });
     match.round = Math.max(1, Number(match.round || 1) + 1);
+    if (typeof processInteractableRoundStart === 'function' && Array.isArray(match.interactables)) {
+      processInteractableRoundStart(match.interactables, match.allies.concat(match.enemies), match.hexMap, match.log);
+    }
     resetCrucibleTeamForTurn(match.allies);
     match.turnSide = 'ally';
     maybeSyncCrucibleSelection(match);
@@ -2289,13 +2300,22 @@
       : '';
     
     if (typeof renderCrucibleHexMap === 'function') {
+      var svgBoard = renderCrucibleHexMap(match.hexMap, allUnits, selectedUnit ? selectedUnit.id : '', {
+        selectedTargetId: selectedTarget ? selectedTarget.id : '',
+        reachableHexKeys: reachableKeys,
+        turnSide: String(match.turnSide || 'ally')
+      });
+      var interactables = Array.isArray(match.interactables) ? match.interactables : [];
+      if (interactables.length && typeof injectInteractablesIntoSvg === 'function') {
+        svgBoard = injectInteractablesIntoSvg(svgBoard, interactables, null, 28);
+      }
+      var interactablesPanel = (interactables.length && typeof buildInteractablePanelHtml === 'function')
+        ? buildInteractablePanelHtml(interactables, selectedUnit)
+        : '';
       return '<div style="margin-bottom:.25rem;">'
         + guidance
-        + renderCrucibleHexMap(match.hexMap, allUnits, selectedUnit ? selectedUnit.id : '', {
-          selectedTargetId: selectedTarget ? selectedTarget.id : '',
-          reachableHexKeys: reachableKeys,
-          turnSide: String(match.turnSide || 'ally')
-        })
+        + svgBoard
+        + interactablesPanel
         + details
         + '</div>';
     }

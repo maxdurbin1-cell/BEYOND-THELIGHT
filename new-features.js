@@ -4354,7 +4354,8 @@
     var raidNodes = getCrucibleExpeditionAvailableRaidNodes();
     var selectedArmor = 'medium';
     var selectedWeapon = 'sword';
-    var selectedFlavor = flavorOptions[0] || 'Lucky';
+    var currentFlavor = (window._expeditionLoadout && window._expeditionLoadout.flavor) ? String(window._expeditionLoadout.flavor) : '';
+    var selectedFlavor = flavorOptions.find(function (flavor) { return String(flavor || '') === currentFlavor; }) || flavorOptions[0] || 'Lucky';
     var diceDisplay = Array.isArray(actionDice) ? actionDice.map(function (d) { return 'd' + d; }).join(', ') : 'd8, d6';
     var html = '<div style="font-family:\'Cinzel\',serif;color:var(--text2);line-height:1.6;max-height:70vh;overflow-y:auto;">'
       + '<div style="margin-bottom:1rem;padding-bottom:.5rem;border-bottom:1px solid var(--border);">'
@@ -4389,7 +4390,7 @@
           var flavorName = String(flavor || '').split(':')[0].trim();
           var flavorDesc = String(flavor || '').split(':').slice(1).join(':').trim();
           return '<label style="padding:.3rem;border:1px solid var(--border);border-radius:3px;cursor:pointer;background:' + (selectedFlavor === flavor ? 'rgba(46,196,182,.1)' : 'transparent') + ';display:flex;align-items:flex-start;gap:.3rem;">'
-            + '<input type="radio" name="expeditionFlavor" value="' + flavorName + '" ' + (selectedFlavor === flavor ? 'checked' : '') + ' onchange="window._expeditionLoadout.flavor=this.value;" style="margin-top:.1rem;flex-shrink:0;" />'
+            + '<input type="radio" name="expeditionFlavor" value="' + String(flavor).replace(/"/g, '&quot;') + '" ' + (selectedFlavor === flavor ? 'checked' : '') + ' onchange="window._expeditionLoadout.flavor=this.value;" style="margin-top:.1rem;flex-shrink:0;" />'
             + '<div style="flex:1;font-size:.8rem;">'
               + '<strong style="color:var(--teal2);">' + flavorName + '</strong>'
               + '<div style="color:var(--muted2);margin-top:.1rem;" title="' + flavorDesc + '">' + flavorDesc.substr(0, 60) + (flavorDesc.length > 60 ? '...' : '') + '</div>'
@@ -4397,6 +4398,7 @@
             + '</label>';
         }).join('')
         + '</div>'
+        + '<div style="font-size:.82rem;color:var(--muted2);margin-top:.45rem;">Selected Personal Flavor: <strong style="color:var(--gold2);">' + String(selectedFlavor || 'Lucky').split(':')[0].trim() + '</strong>' + (String(selectedFlavor || '').indexOf(':') >= 0 ? ' - ' + String(selectedFlavor).split(':').slice(1).join(':').trim() : '') + '</div>'
       + '</div>'
       + '<div style="margin-bottom:1.2rem;padding:.6rem;background:rgba(46,196,182,.05);border:1px solid rgba(46,196,182,.2);border-radius:4px;">'
         + '<div style="font-weight:600;color:var(--teal2);margin-bottom:.4rem;">Character Resources</div>'
@@ -4412,7 +4414,7 @@
       window._expeditionLoadout = {
         armor: selectedArmor,
         weapon: selectedWeapon,
-        flavor: selectedFlavor.split(':')[0].trim(),
+        flavor: selectedFlavor,
         filterFlavors: function (query) {
           var lower = String(query || '').toLowerCase();
           var labels = document.querySelectorAll('#flavorList label');
@@ -4464,7 +4466,8 @@
       actionDice: Array.isArray(actionDice) ? actionDice.slice() : []
     };
     expedition.loaded = true;
-    player.personalFlavor = { name: flavor };
+    var flavorParts = String(flavor || '').split(':');
+    player.personalFlavor = { name: String(flavorParts[0] || flavor).trim(), detail: String(flavorParts.slice(1).join(':') || '').trim() };
     match.log = (match.log || []).concat(['Loadout applied: ' + armor + ' armor (' + (armorOpt ? armorOpt.defendDie + ' Defend, ' + armorOpt.actions + ' Actions' : '?') + '), ' + weapon + ' weapon, personal flavor: ' + flavor + '.']).slice(-120);
     if (typeof openModal === 'function') {
       openModal('Expedition Province', buildCrucibleExpeditionPopupHtml(match));

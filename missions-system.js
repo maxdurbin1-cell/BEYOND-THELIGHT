@@ -4924,10 +4924,6 @@
       + '<div style="font-size:.92rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Raid Progression: Atlas Skill Web</strong></div>'
       + '<div style="font-size:.7rem;color:var(--muted2);line-height:1.45;max-width:960px;">Start from one of the glowing class hubs in the middle, then branch outward through connected rings. Pulsing nodes are purchasable right now.</div>'
       + '</div>'
-    var inspectorState = (typeof window !== 'undefined' && window.__raidTreeInspector) ? window.__raidTreeInspector : null;
-    if (inspectorState) {
-      applyRaidTreeNodeSelection(String(inspectorState.kind || ''), String(inspectorState.id || ''));
-    }
       + '<div style="font-size:.7rem;color:var(--teal);display:flex;gap:.45rem;flex-wrap:wrap;align-items:center;">' + medalSummaryHtml + '<span>Raid Points: ' + pointCount + '</span></div>'
       + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">'
@@ -10219,6 +10215,10 @@
       openRaidWingPopup(mission.id, 3, (ensureRaidHexMap(mission).wings[3] || []).length - 1);
       return true;
     }
+        var inspectorState = (typeof window !== 'undefined' && window.__raidTreeInspector) ? window.__raidTreeInspector : null;
+        if (inspectorState) {
+          applyRaidTreeNodeSelection(String(inspectorState.kind || ''), String(inspectorState.id || ''));
+        }
     if (key === 'revive_ally') {
       if (!spendLegacyRaidTeamwork(costs.revive, 'Raid emergency revive')) return false;
       var wayfarers = getRaidWayfarersForWing(mission, 3);

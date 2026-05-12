@@ -1075,7 +1075,12 @@
 
     w.trainZones = Array.isArray(w.trainZones) ? w.trainZones : [];
     w.currentZone = w.currentZone || "Cyber Hub";
-    w.minimalMapMode = !!w.minimalMapMode;
+    if (typeof w.minimalMapMode === "string") {
+      const modeText = w.minimalMapMode.trim().toLowerCase();
+      w.minimalMapMode = modeText === "true" || modeText === "1" || modeText === "yes" || modeText === "on";
+    } else {
+      w.minimalMapMode = !!w.minimalMapMode;
+    }
     w.storyObjectiveHexId = w.storyObjectiveHexId || null;
     w.ui = w.ui || {};
     w.ui.openAccordions = w.ui.openAccordions || {

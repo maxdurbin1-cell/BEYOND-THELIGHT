@@ -10999,9 +10999,21 @@
     var key = String(wingNum);
     if (mission.legacyRaidWingGrid[key] && mission.legacyRaidWingGrid[key].size === 12) {
       var existing = mission.legacyRaidWingGrid[key];
-      var cap = getLegacyRaidTickCap();
-      existing.ticks = Math.max(0, Math.min(cap, Number(existing.ticks || cap)));
-      return existing;
+      var existingCells = existing && existing.cells && typeof existing.cells === 'object' ? existing.cells : null;
+      var hasCells = !!(existingCells && Object.keys(existingCells).length);
+      var startId = String(existing && existing.startId || '');
+      var currentId = String(existing && existing.currentId || '');
+      var exitId = String(existing && existing.exitId || '');
+      var isValidExisting = hasCells
+        && !!existingCells[startId]
+        && !!existingCells[currentId]
+        && !!existingCells[exitId];
+      if (isValidExisting) {
+        var cap = getLegacyRaidTickCap();
+        existing.ticks = Math.max(0, Math.min(cap, Number(existing.ticks || cap)));
+        return existing;
+      }
+      delete mission.legacyRaidWingGrid[key];
     }
 
     var size = 12;

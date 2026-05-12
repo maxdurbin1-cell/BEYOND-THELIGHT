@@ -3745,6 +3745,15 @@
       + "</div>";
   }
 
+  function ensureWorldThatWasTabVisible() {
+    if (typeof document === "undefined") return;
+    var tabBtn = document.getElementById("tabnav-worldthatwas");
+    if (!tabBtn) return;
+    if (tabBtn.style && tabBtn.style.display === "none") {
+      tabBtn.style.display = "";
+    }
+  }
+
   function returnToGalaxy() {
     const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('galaxy'\"]");
     if (typeof switchTab === "function") switchTab("galaxy", btn || null);
@@ -3763,6 +3772,7 @@
   function openWorldThatWasFromGalaxy() {
     const w = ensureWorldState();
     if (!w) return;
+    ensureWorldThatWasTabVisible();
     mountWorldThatWasPanel();
     if (!w.generated || !w.hexes.length) {
       generateWorldThatWasMap();
@@ -3810,6 +3820,7 @@
 
   function initWorldThatWas() {
     ensureWorldState();
+    ensureWorldThatWasTabVisible();
     patchTabSwitch();
     patchStarSelection();
   }
@@ -3823,6 +3834,7 @@
   window.returnWorldToProvince = returnToProvince;
   window.returnWorldToLastSea = returnToLastSea;
   window.toggleWorldMapMode = toggleWorldMapMode;
+  window.openWorldThatWasFromGalaxy = openWorldThatWasFromGalaxy;
 
   window.wtwBuyService = spendService;
   window.wtwResolveEvent = resolveZoneEventWithJoin;

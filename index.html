@@ -878,6 +878,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
       <option value="topdown">Perspective: Top-Down</option>
       <option value="level">Perspective: Level 3D</option>
     </select>
+    <button class="btn btn-sm" id="mapHexAssetsBtn" onclick="openMapHexAssetManager()">Hex Assets</button>
     <button class="btn btn-sm" id="mapAtlasBtn" style="display:none;" onclick="if(typeof switchTab==='function'){var b=document.getElementById('tabnav-theos');switchTab('theos',b||null);}">Atlas</button>
     <select id="mapOverlaySel" onchange="setMapOverlay(this.value)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
       <option value="none">Overlay: None</option>
@@ -890,6 +891,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <span id="currentProvinceIndicator" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--teal);margin-left:.4rem;"></span>
     <span id="hexCoords" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--muted2);margin-left:.4rem;"></span>
   </div>
+  <input id="mapHexAssetInput" type="file" accept="image/*" style="display:none;" onchange="handleMapHexAssetImport(this.files)">
   <div class="map-legend">
     <div class="leg-item"><div class="leg-dot" style="background:#8b3030;border:1px solid #e8c050;"></div>Seat</div>
     <div class="leg-item"><div class="leg-dot" style="background:#7a4020;"></div>Holding</div>
@@ -11761,6 +11763,9 @@ function ensureMapVisualSettings(){
   if(['none','contour','vegetation','survey'].indexOf(S.mapVisuals.overlay)<0)S.mapVisuals.overlay='none';
   if(!getMapHexStylePack(S.mapVisuals.style)||(!MAP_HEX_STYLE_PRESETS[S.mapVisuals.style]&&!MAP_HEX_CUSTOM_STYLE_PACKS[S.mapVisuals.style]))S.mapVisuals.style='classic';
   if(['topdown','level'].indexOf(S.mapVisuals.perspective)<0)S.mapVisuals.perspective='topdown';
+  if(!S.mapVisuals.terrainAssets||typeof S.mapVisuals.terrainAssets!=='object')S.mapVisuals.terrainAssets={};
+  if(typeof S.mapVisuals.useTerrainAssets!=='boolean')S.mapVisuals.useTerrainAssets=true;
+  if(typeof S.mapVisuals.assetTerrainTarget!=='string')S.mapVisuals.assetTerrainTarget='';
   return S.mapVisuals;
 }
 function getMapVisualSettings(){
@@ -11769,7 +11774,9 @@ function getMapVisualSettings(){
     hex3d:!!cfg.hex3d,
     overlay:cfg.overlay||'none',
     style:cfg.style||'classic',
-    perspective:cfg.perspective||'topdown'
+    perspective:cfg.perspective||'topdown',
+    useTerrainAssets:!!cfg.useTerrainAssets,
+    terrainAssets:cfg.terrainAssets||{}
   };
 }
 window.getMapVisualSettings=getMapVisualSettings;
@@ -11864,6 +11871,169 @@ function randomizeMapOverlay(){
   showNotif('Map overlay set to '+next+'.','good');
 }
 window.randomizeMapOverlay=randomizeMapOverlay;
+function getMapTerrainAssetKeys(){
+  const names=(Array.isArray(TERRAIN_TYPES)?TERRAIN_TYPES:[]).map(function(t){
+    return String((t&&t.name)||'').trim();
+  }).filter(Boolean);
+  return Array.from(new Set(names));
+}
+function normalizeTerrainAssetKey(value){
+  return String(value||'').trim().toLowerCase();
+}
+function getTerrainAssetForHex(hex,mapFx){
+  if(!hex||hex.type!=='wilderness')return null;
+  const cfg=mapFx||getMapVisualSettings();
+  if(!cfg||!cfg.useTerrainAssets)return null;
+  const terrainName=hex.terrain&&hex.terrain.name?hex.terrain.name:'';
+  const key=normalizeTerrainAssetKey(terrainName);
+  if(!key)return null;
+  const entry=(cfg.terrainAssets&&cfg.terrainAssets[key])||null;
+  if(!entry||!entry.src)return null;
+  return {
+    src:String(entry.src),
+    scale:Math.max(.6,Math.min(1.8,Number(entry.scale||1))),
+    elevationBonus:Math.max(0,Math.min(3,Number(entry.elevationBonus||0))),
+    stacked:entry.stacked!==false
+  };
+}
+window.getTerrainAssetForHex=getTerrainAssetForHex;
+function openMapHexAssetManager(){
+  const cfg=ensureMapVisualSettings();
+  const terrainKeys=getMapTerrainAssetKeys();
+  if(!cfg.assetTerrainTarget&&terrainKeys.length)cfg.assetTerrainTarget=terrainKeys[0];
+  const selectedName=String(cfg.assetTerrainTarget||terrainKeys[0]||'');
+  const selectedKey=normalizeTerrainAssetKey(selectedName);
+  const selectedAsset=(cfg.terrainAssets&&cfg.terrainAssets[selectedKey])||null;
+  const list=Object.keys(cfg.terrainAssets||{}).sort().map(function(k){
+    const item=cfg.terrainAssets[k]||{};
+    const title=k.charAt(0).toUpperCase()+k.slice(1);
+    return '<div style="display:flex;justify-content:space-between;gap:.4rem;padding:.2rem .3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">'
+      + '<span>'+escapeHtmlLite(title)+'</span>'
+      + '<span style="font-size:.68rem;color:var(--muted2);">scale '+Number(item.scale||1).toFixed(2)+' · lift +'+Number(item.elevationBonus||0)+'</span>'
+      + '</div>';
+  }).join('');
+  const html=''
+    + '<div style="font-size:.8rem;color:var(--text2);line-height:1.6;margin-bottom:.35rem;">Import PNG/WebP tiles and map them to terrain names. These are local files, so you can use free packs from itch or your own art.</div>'
+    + '<div style="display:flex;gap:.28rem;align-items:center;flex-wrap:wrap;margin-bottom:.35rem;">'
+    + '<span style="font-size:.72rem;color:var(--muted2);">Terrain</span>'
+    + '<select id="mapAssetTerrainSel" onchange="syncMapAssetModalFields()" style="min-width:10rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.75rem;">'
+    + terrainKeys.map(function(name){
+      const sel=name===selectedName?' selected':'';
+      return '<option value="'+escapeHtmlLite(name)+'"'+sel+'>'+escapeHtmlLite(name)+'</option>';
+    }).join('')
+    + '</select>'
+    + '<button class="btn btn-xs btn-teal" onclick="startMapHexAssetImportForSelectedTerrain()">Upload Art</button>'
+    + '<button class="btn btn-xs" onclick="clearMapHexAssetForSelectedTerrain()">Clear Terrain Art</button>'
+    + '</div>'
+    + '<div style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;margin-bottom:.35rem;">'
+    + '<label style="font-size:.72rem;color:var(--muted2);">Scale <input id="mapAssetScaleInput" type="number" min="0.6" max="1.8" step="0.05" value="'+Number((selectedAsset&&selectedAsset.scale)||1).toFixed(2)+'" style="width:4.4rem;margin-left:.2rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);"></label>'
+    + '<label style="font-size:.72rem;color:var(--muted2);">Elevation +<input id="mapAssetElevInput" type="number" min="0" max="3" step="1" value="'+String(Number((selectedAsset&&selectedAsset.elevationBonus)||0))+'" style="width:3rem;margin-left:.2rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);"></label>'
+    + '<label style="font-size:.72rem;color:var(--muted2);display:inline-flex;align-items:center;gap:.2rem;"><input id="mapAssetStackedInput" type="checkbox" '+((!selectedAsset||selectedAsset.stacked!==false)?'checked':'')+'> stacked</label>'
+    + '<button class="btn btn-xs" onclick="saveMapHexAssetMetaForSelectedTerrain()">Save Terrain Settings</button>'
+    + '</div>'
+    + '<div style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;margin-bottom:.4rem;">'
+    + '<button class="btn btn-xs '+(cfg.useTerrainAssets?'btn-teal':'btn-red')+'" onclick="toggleMapTerrainAssetsUsage()">Terrain Art: '+(cfg.useTerrainAssets?'On':'Off')+'</button>'
+    + '<span style="font-size:.72rem;color:var(--muted2);">Mapped terrains: '+Object.keys(cfg.terrainAssets||{}).length+'</span>'
+    + '</div>'
+    + '<div style="max-height:26vh;overflow:auto;display:grid;gap:.2rem;">'+(list||'<div style="font-size:.75rem;color:var(--muted2);">No terrain art imported yet.</div>')+'</div>';
+  openModal('Hex Terrain Asset Manager',html);
+}
+window.openMapHexAssetManager=openMapHexAssetManager;
+function syncMapAssetModalFields(){
+  const cfg=ensureMapVisualSettings();
+  const sel=document.getElementById('mapAssetTerrainSel');
+  if(!sel)return;
+  cfg.assetTerrainTarget=String(sel.value||'');
+  const key=normalizeTerrainAssetKey(cfg.assetTerrainTarget);
+  const item=(cfg.terrainAssets&&cfg.terrainAssets[key])||{};
+  const scale=document.getElementById('mapAssetScaleInput');
+  const elev=document.getElementById('mapAssetElevInput');
+  const stacked=document.getElementById('mapAssetStackedInput');
+  if(scale)scale.value=Number(item.scale||1).toFixed(2);
+  if(elev)elev.value=String(Number(item.elevationBonus||0));
+  if(stacked)stacked.checked=item.stacked!==false;
+}
+window.syncMapAssetModalFields=syncMapAssetModalFields;
+function startMapHexAssetImportForSelectedTerrain(){
+  const cfg=ensureMapVisualSettings();
+  const sel=document.getElementById('mapAssetTerrainSel');
+  const name=String((sel&&sel.value)||cfg.assetTerrainTarget||'').trim();
+  if(!name){showNotif('Choose a terrain first.','warn');return;}
+  cfg.assetTerrainTarget=name;
+  const picker=document.getElementById('mapHexAssetInput');
+  if(!picker){showNotif('Asset picker is unavailable.','warn');return;}
+  picker.value='';
+  picker.click();
+}
+window.startMapHexAssetImportForSelectedTerrain=startMapHexAssetImportForSelectedTerrain;
+function saveMapHexAssetMetaForSelectedTerrain(){
+  const cfg=ensureMapVisualSettings();
+  const sel=document.getElementById('mapAssetTerrainSel');
+  const terrainName=String((sel&&sel.value)||cfg.assetTerrainTarget||'').trim();
+  if(!terrainName)return;
+  const key=normalizeTerrainAssetKey(terrainName);
+  const existing=(cfg.terrainAssets&&cfg.terrainAssets[key])||{};
+  const scaleEl=document.getElementById('mapAssetScaleInput');
+  const elevEl=document.getElementById('mapAssetElevInput');
+  const stackedEl=document.getElementById('mapAssetStackedInput');
+  existing.scale=Math.max(.6,Math.min(1.8,Number(scaleEl&&scaleEl.value||existing.scale||1)));
+  existing.elevationBonus=Math.max(0,Math.min(3,Number(elevEl&&elevEl.value||existing.elevationBonus||0)));
+  existing.stacked=!!(stackedEl?stackedEl.checked:(existing.stacked!==false));
+  cfg.terrainAssets[key]=existing;
+  refreshAllHexMaps();
+  showNotif('Saved terrain settings for '+terrainName+'.','good');
+}
+window.saveMapHexAssetMetaForSelectedTerrain=saveMapHexAssetMetaForSelectedTerrain;
+function clearMapHexAssetForSelectedTerrain(){
+  const cfg=ensureMapVisualSettings();
+  const sel=document.getElementById('mapAssetTerrainSel');
+  const terrainName=String((sel&&sel.value)||cfg.assetTerrainTarget||'').trim();
+  if(!terrainName)return;
+  const key=normalizeTerrainAssetKey(terrainName);
+  if(cfg.terrainAssets&&cfg.terrainAssets[key])delete cfg.terrainAssets[key];
+  refreshAllHexMaps();
+  openMapHexAssetManager();
+  showNotif('Cleared terrain art for '+terrainName+'.','good');
+}
+window.clearMapHexAssetForSelectedTerrain=clearMapHexAssetForSelectedTerrain;
+function toggleMapTerrainAssetsUsage(){
+  const cfg=ensureMapVisualSettings();
+  cfg.useTerrainAssets=!cfg.useTerrainAssets;
+  refreshAllHexMaps();
+  openMapHexAssetManager();
+}
+window.toggleMapTerrainAssetsUsage=toggleMapTerrainAssetsUsage;
+function handleMapHexAssetImport(files){
+  const cfg=ensureMapVisualSettings();
+  const list=files&&files.length?files:null;
+  if(!list||!list[0])return;
+  const terrainName=String(cfg.assetTerrainTarget||'').trim();
+  if(!terrainName){showNotif('Choose a terrain first.','warn');return;}
+  const key=normalizeTerrainAssetKey(terrainName);
+  const file=list[0];
+  if(!/^image\//i.test(String(file.type||''))){showNotif('Choose an image file.','warn');return;}
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const src=String((ev&&ev.target&&ev.target.result)||'');
+      if(!src){showNotif('Could not read image data.','warn');return;}
+      const existing=(cfg.terrainAssets&&cfg.terrainAssets[key])||{};
+      existing.src=src;
+      existing.scale=Math.max(.6,Math.min(1.8,Number(existing.scale||1)));
+      existing.elevationBonus=Math.max(0,Math.min(3,Number(existing.elevationBonus||0)));
+      existing.stacked=existing.stacked!==false;
+      cfg.terrainAssets[key]=existing;
+      refreshAllHexMaps();
+      openMapHexAssetManager();
+      showNotif('Imported terrain art for '+terrainName+'.','good');
+    }catch(_err){
+      showNotif('Import failed for this file.','warn');
+    }
+  };
+  reader.onerror=function(){ showNotif('Could not read the selected file.','warn'); };
+  reader.readAsDataURL(file);
+}
+window.handleMapHexAssetImport=handleMapHexAssetImport;
 function hexPointArray(cx,cy,r){
   return Array.from({length:6},function(_,i){
     const a=Math.PI/180*(60*i-30);
@@ -12282,6 +12452,40 @@ function getMapHexPaintForHex(hex,mapFx){
     strokeWidthMul:Math.max(0.8,Number(stylePack.strokeWidthMul||1))
   };
 }
+function hexTerrainElevationBase(hex){
+  if(!hex)return 0;
+  if(hex.type&&hex.type!=='wilderness'){
+    const type=String(hex.type).toLowerCase();
+    if(type==='seat'||type==='holding')return 2;
+    if(type==='monument'||type==='temple'||type==='ruins'||type==='depths')return 2;
+    if(type==='barrier')return 3;
+    return 1;
+  }
+  const name=String((hex.terrain&&hex.terrain.name)||'').toLowerCase();
+  if(name.indexOf('mountain')>=0)return 4;
+  if(name.indexOf('crag')>=0)return 3;
+  if(name.indexOf('hill')>=0)return 2;
+  if(name.indexOf('valley')>=0)return 1;
+  if(name.indexOf('forest')>=0||name.indexOf('glade')>=0)return 1;
+  if(name.indexOf('desert')>=0||name.indexOf('heath')>=0||name.indexOf('meadow')>=0)return 1;
+  if(name.indexOf('bog')>=0||name.indexOf('marsh')>=0||name.indexOf('lake')>=0)return 0;
+  return 1;
+}
+function hexElevationNoise(col,row){
+  const q=Number(col||0);
+  const r=Number(row||0);
+  const x=Math.sin((q+1)*12.9898+(r+1)*78.233)*43758.5453;
+  return x-Math.floor(x);
+}
+function getHexElevationTier(hex,mapFx){
+  if(!hex)return 0;
+  const cfg=mapFx||getMapVisualSettings();
+  const base=hexTerrainElevationBase(hex);
+  const noise=Math.round((hexElevationNoise(hex.col,hex.row)-0.5)*2);
+  const terrainAsset=getTerrainAssetForHex(hex,cfg);
+  const bonus=terrainAsset?Math.max(0,Math.min(3,Number(terrainAsset.elevationBonus||0))):0;
+  return Math.max(0,Math.min(6,base+noise+bonus));
+}
 window.registerMapHexStylePack=function(name,pack){
   const key=String(name||'').trim().toLowerCase();
   if(!key||!pack||typeof pack!=='object')return false;
@@ -12530,11 +12734,17 @@ function renderHexMap(){
   const svg=document.getElementById('hexMapSvg');
   svg.setAttribute('width',svgW);svg.setAttribute('height',svgH);svg.innerHTML='';
   applyMapOverlayStyle(svg,'province');
+  const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+  svg.appendChild(defs);
   const hasProvinceSelection=!!selectedHex;
   mapData.forEach(hex=>{
+    const terrainAsset=getTerrainAssetForHex(hex,mapFx);
+    const elevationTier=getHexElevationTier(hex,mapFx);
+    const elevationLift=(mapFx.hex3d&&levelPerspective)?(elevationTier*2.8):0;
+    const hexDepth=(mapFx.hex3d&&levelPerspective)?(levelDepth+Math.max(0,elevationTier*2.2)):levelDepth;
     const projected=projectPoint(hexToPixel(hex.col,hex.row));
     const x=projected.x;
-    const y=projected.y;
+    const y=projected.y-elevationLift;
     const markerKey=`${hex.col},${hex.row}`;
     const r=HEX_SIZE-1;
     const ptsData=hexPointArray(x,y,r);
@@ -12552,11 +12762,11 @@ function renderHexMap(){
         side.setAttribute('points',hexPointsFromArray([
           {x:p1.x,y:p1.y},
           {x:p2.x,y:p2.y},
-          {x:p2.x,y:p2.y+levelDepth},
-          {x:p1.x,y:p1.y+levelDepth}
+          {x:p2.x,y:p2.y+hexDepth},
+          {x:p1.x,y:p1.y+hexDepth}
         ]));
-        side.setAttribute('fill',mapHexShadeColor(paint.fill,-20-(idx*4)));
-        side.setAttribute('stroke',mapHexShadeColor(paint.stroke,-10));
+        side.setAttribute('fill',mapHexShadeColor(paint.fill,-20-(idx*4)-(Math.min(4,elevationTier)*2)));
+        side.setAttribute('stroke',mapHexShadeColor(paint.stroke,-10-(Math.min(4,elevationTier)*1.4)));
         side.setAttribute('stroke-width',String((hex.type==='wilderness'?0.6:1.1)*paint.strokeWidthMul));
         side.setAttribute('pointer-events','none');
         g.appendChild(side);
@@ -12568,6 +12778,40 @@ function renderHexMap(){
     poly.setAttribute('stroke',paint.stroke);
     poly.setAttribute('stroke-width',String((hex.type==='wilderness'?(mapFx.hex3d?0.9:0.5):(mapFx.hex3d?1.8:1.5))*paint.strokeWidthMul));
     g.appendChild(poly);
+    if(terrainAsset){
+      const clipId='hexAssetClip-'+String(hex.col)+'-'+String(hex.row);
+      const clip=document.createElementNS('http://www.w3.org/2000/svg','clipPath');
+      clip.setAttribute('id',clipId);
+      const clipPoly=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+      clipPoly.setAttribute('points',pts);
+      clip.appendChild(clipPoly);
+      defs.appendChild(clip);
+
+      const tex=document.createElementNS('http://www.w3.org/2000/svg','image');
+      const liftScale=(mapFx.hex3d&&levelPerspective&&terrainAsset.stacked)?(elevationTier*0.06):0;
+      const imgScale=Math.max(.55,Math.min(2,terrainAsset.scale+liftScale));
+      const texW=(HEX_SIZE*2)*imgScale;
+      const texH=(HEX_SIZE*2)*imgScale;
+      tex.setAttribute('x',String(x-(texW/2)));
+      tex.setAttribute('y',String(y-(texH/2)-((mapFx.hex3d&&levelPerspective&&terrainAsset.stacked)?(elevationTier*1.2):0)));
+      tex.setAttribute('width',String(texW));
+      tex.setAttribute('height',String(texH));
+      tex.setAttribute('preserveAspectRatio','xMidYMid slice');
+      tex.setAttribute('clip-path','url(#'+clipId+')');
+      tex.setAttribute('opacity','0.95');
+      tex.setAttribute('pointer-events','none');
+      tex.setAttributeNS('http://www.w3.org/1999/xlink','href',terrainAsset.src);
+      tex.setAttribute('href',terrainAsset.src);
+      g.appendChild(tex);
+
+      const texOutline=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+      texOutline.setAttribute('points',pts);
+      texOutline.setAttribute('fill','none');
+      texOutline.setAttribute('stroke',paint.stroke);
+      texOutline.setAttribute('stroke-width',String((hex.type==='wilderness'?(mapFx.hex3d?0.9:0.5):(mapFx.hex3d?1.8:1.5))*paint.strokeWidthMul));
+      texOutline.setAttribute('pointer-events','none');
+      g.appendChild(texOutline);
+    }
     if(mapFx.hex3d){
       const topA=(Math.PI/180)*(-30),topB=(Math.PI/180)*(30),rightA=(Math.PI/180)*(30),rightB=(Math.PI/180)*(90);
       const hi=document.createElementNS('http://www.w3.org/2000/svg','line');
@@ -12582,7 +12826,7 @@ function renderHexMap(){
       shadow.setAttribute('stroke','rgba(0,0,0,.28)');shadow.setAttribute('stroke-width','1.2');shadow.setAttribute('pointer-events','none');
       g.appendChild(shadow);
 
-      if(hex.type==='wilderness'){
+      if(hex.type==='wilderness'&&!terrainAsset){
         const gtxt=terrainMiniGlyph(hex);
         if(gtxt&&gtxt!=='·'){
           const terr=document.createElementNS('http://www.w3.org/2000/svg','text');

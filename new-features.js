@@ -2027,7 +2027,37 @@
       cell.depths = { entered: false, floor: 1 };
     });
 
+    stampCrucibleExpeditionVarietyTerrains(map);
     return { ruins: ruins, portals: portals, gates: gates, dwellings: dwellings, holdings: holdings, tradeRoutes: tradeRoutes, lostCities: lostCities, libraries: libraries, depths: depths };
+  }
+
+  var PROVINCE_VARIETY_TERRAINS = [
+    'field', 'forest', 'swamp', 'lake',
+    'farm', 'rift', 'stones',
+    'desert_mountain', 'desert_cave', 'ravine',
+    'city', 'town',
+    'snowy_town', 'snowy_fields', 'snowy_forest', 'snowy_swamp'
+  ];
+
+  function stampCrucibleExpeditionVarietyTerrains(map) {
+    if (!map || !map.hexes) return;
+    var SPECIAL = ['ruin','trap','temple','barrier','gate','portal','dwelling','holding','trade_route','lost_city','library','depths'];
+    var seed = Math.max(1, Number(map.seed || 1));
+    var n = PROVINCE_VARIETY_TERRAINS.length;
+    Object.keys(map.hexes).forEach(function (k) {
+      var cell = map.hexes[k];
+      if (!cell) return;
+      if (SPECIAL.indexOf(cell.terrain) !== -1) return;
+      if (cell.trap || cell.barrier) return;
+      var q = Number(cell.q || 0);
+      var r = Number(cell.r || 0);
+      // Use a coarse cluster grid so nearby hexes share terrain (natural biome patches)
+      var cq = Math.round(q / 2);
+      var cr = Math.round(r / 2);
+      var h = Math.abs(Math.sin(cq * 439.7 + cr * 317.3 + seed * 71.11));
+      var idx = Math.floor((h - Math.floor(h)) * n) % n;
+      cell.terrain = PROVINCE_VARIETY_TERRAINS[idx];
+    });
   }
 
   function ensureCrucibleExpeditionProvinceMetadata(map, day) {
@@ -2212,6 +2242,23 @@
       else if (cell.terrain === 'lost_city') { fill = customAsset ? 'url(#hexTile_lost_city)' : 'rgba(54,40,80,.92)'; stroke = '#c090ff'; icon = customAsset ? '' : '◬'; }
       else if (cell.terrain === 'library') { fill = customAsset ? 'url(#hexTile_library)' : 'rgba(32,60,80,.92)'; stroke = '#70b8e8'; icon = customAsset ? '' : '◩'; }
       else if (cell.terrain === 'depths') { fill = customAsset ? 'url(#hexTile_depths)' : 'rgba(10,10,20,.96)'; stroke = '#6040c0'; icon = customAsset ? '' : '⬟'; }
+      // Variety / aesthetic terrain types
+      else if (cell.terrain === 'field')           { fill = customAsset ? 'url(#hexTile_field)'           : 'rgba(88,164,60,.82)';  stroke = '#7ac848'; icon = customAsset ? '' : '≋'; }
+      else if (cell.terrain === 'forest')          { fill = customAsset ? 'url(#hexTile_forest)'          : 'rgba(22,68,28,.88)';   stroke = '#3a8040'; icon = customAsset ? '' : '♣'; }
+      else if (cell.terrain === 'swamp')           { fill = customAsset ? 'url(#hexTile_swamp)'           : 'rgba(44,68,38,.88)';   stroke = '#607050'; icon = customAsset ? '' : '≈'; }
+      else if (cell.terrain === 'lake')            { fill = customAsset ? 'url(#hexTile_lake)'            : 'rgba(26,76,140,.88)';  stroke = '#4090d0'; icon = customAsset ? '' : '〜'; }
+      else if (cell.terrain === 'farm')            { fill = customAsset ? 'url(#hexTile_farm)'            : 'rgba(160,180,56,.82)'; stroke = '#c8c040'; icon = customAsset ? '' : '⊞'; }
+      else if (cell.terrain === 'rift')            { fill = customAsset ? 'url(#hexTile_rift)'            : 'rgba(72,16,20,.92)';   stroke = '#a02828'; icon = customAsset ? '' : '⌇'; }
+      else if (cell.terrain === 'stones')          { fill = customAsset ? 'url(#hexTile_stones)'          : 'rgba(72,72,72,.88)';   stroke = '#a0a0a0'; icon = customAsset ? '' : '∷'; }
+      else if (cell.terrain === 'desert_mountain') { fill = customAsset ? 'url(#hexTile_desert_mountain)' : 'rgba(152,114,52,.88)'; stroke = '#d09848'; icon = customAsset ? '' : '△'; }
+      else if (cell.terrain === 'desert_cave')     { fill = customAsset ? 'url(#hexTile_desert_cave)'     : 'rgba(96,68,24,.88)';   stroke = '#b07838'; icon = customAsset ? '' : '⎔'; }
+      else if (cell.terrain === 'ravine')          { fill = customAsset ? 'url(#hexTile_ravine)'          : 'rgba(52,32,16,.9)';    stroke = '#7a5030'; icon = customAsset ? '' : '⊸'; }
+      else if (cell.terrain === 'city')            { fill = customAsset ? 'url(#hexTile_city)'            : 'rgba(56,68,78,.88)';   stroke = '#90a0b0'; icon = customAsset ? '' : '⬜'; }
+      else if (cell.terrain === 'town')            { fill = customAsset ? 'url(#hexTile_town)'            : 'rgba(116,74,36,.86)';  stroke = '#d09850'; icon = customAsset ? '' : '⌸'; }
+      else if (cell.terrain === 'snowy_town')      { fill = customAsset ? 'url(#hexTile_snowy_town)'      : 'rgba(180,200,224,.82)'; stroke = '#90b8d8'; icon = customAsset ? '' : '❄'; }
+      else if (cell.terrain === 'snowy_fields')    { fill = customAsset ? 'url(#hexTile_snowy_fields)'    : 'rgba(200,218,240,.78)'; stroke = '#88b0d0'; icon = customAsset ? '' : '·'; }
+      else if (cell.terrain === 'snowy_forest')    { fill = customAsset ? 'url(#hexTile_snowy_forest)'    : 'rgba(38,76,48,.86)';   stroke = '#88b098'; icon = customAsset ? '' : '❄'; }
+      else if (cell.terrain === 'snowy_swamp')     { fill = customAsset ? 'url(#hexTile_snowy_swamp)'     : 'rgba(68,90,96,.86)';   stroke = '#80a0a8'; icon = customAsset ? '' : '≈'; }
       else {
         fill = String(cell.provinceTerrainColor || '#1a2010');
       }
@@ -2251,6 +2298,22 @@
       + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">◬ Lost City</span>'
       + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">◩ Library</span>'
       + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⬟ Depths</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">≋ Field</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">♣ Forest</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">≈ Swamp</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">〜 Lake</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⊞ Farm</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⌇ Rift</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">∷ Stones</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">△ Desert Mtn</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⎔ Desert Cave</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⊸ Ravine</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⬜ City</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⌸ Town</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">❄ Snowy Town</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">· Snowy Fields</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">❄ Snowy Forest</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">≈ Snowy Swamp</span>'
       + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">✖ Collapsed edge</span>'
       + '</div>';
     return svg;
@@ -2259,16 +2322,32 @@
   // Global per-terrain-type hex tile image configurator
   window.openProvinceHexTileConfigurator = function() {
     var TERRAIN_TYPES = [
-      { key: 'ruin',        label: 'Ruins',       icon: '◫' },
-      { key: 'temple',      label: 'Temple',      icon: '✦' },
-      { key: 'gate',        label: 'Gate',        icon: '◆' },
-      { key: 'portal',      label: 'Portal',      icon: '⬡' },
-      { key: 'dwelling',    label: 'Dwelling',    icon: '⌂' },
-      { key: 'holding',     label: 'Holding',     icon: '⬢' },
-      { key: 'trade_route', label: 'Trade Route', icon: '↔' },
-      { key: 'lost_city',   label: 'Lost City',   icon: '◬' },
-      { key: 'library',     label: 'Library',     icon: '◩' },
-      { key: 'depths',      label: 'Depths',      icon: '⬟' }
+      { key: 'ruin',            label: 'Ruins',         icon: '◫' },
+      { key: 'temple',          label: 'Temple',        icon: '✦' },
+      { key: 'gate',            label: 'Gate',          icon: '◆' },
+      { key: 'portal',          label: 'Portal',        icon: '⬡' },
+      { key: 'dwelling',        label: 'Dwelling',      icon: '⌂' },
+      { key: 'holding',         label: 'Holding',       icon: '⬢' },
+      { key: 'trade_route',     label: 'Trade Route',   icon: '↔' },
+      { key: 'lost_city',       label: 'Lost City',     icon: '◬' },
+      { key: 'library',         label: 'Library',       icon: '◩' },
+      { key: 'depths',          label: 'Depths',        icon: '⬟' },
+      { key: 'field',           label: 'Field',         icon: '≋' },
+      { key: 'forest',          label: 'Forest',        icon: '♣' },
+      { key: 'swamp',           label: 'Swamp',         icon: '≈' },
+      { key: 'lake',            label: 'Lake',          icon: '〜' },
+      { key: 'farm',            label: 'Farm',          icon: '⊞' },
+      { key: 'rift',            label: 'Rift',          icon: '⌇' },
+      { key: 'stones',          label: 'Stones',        icon: '∷' },
+      { key: 'desert_mountain', label: 'Desert Mtn',   icon: '△' },
+      { key: 'desert_cave',     label: 'Desert Cave',   icon: '⎔' },
+      { key: 'ravine',          label: 'Ravine',        icon: '⊸' },
+      { key: 'city',            label: 'City',          icon: '⬜' },
+      { key: 'town',            label: 'Town',          icon: '⌸' },
+      { key: 'snowy_town',      label: 'Snowy Town',    icon: '❄' },
+      { key: 'snowy_fields',    label: 'Snowy Fields',  icon: '·' },
+      { key: 'snowy_forest',    label: 'Snowy Forest',  icon: '❄' },
+      { key: 'snowy_swamp',     label: 'Snowy Swamp',   icon: '≈' }
     ];
     if (typeof S === 'undefined' || !S) { if (typeof showNotif === 'function') showNotif('State not ready.', 'warn'); return; }
     if (!S.holding) S.holding = {};

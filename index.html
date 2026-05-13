@@ -2061,7 +2061,7 @@ function pickTdStable(v, hex, channel){
   return v[idx];
 }
 
-const TERRAIN_TYPES=[{name:'Marsh',color:'#1e3a22'},{name:'Forest',color:'#163320'},{name:'Valley',color:'#3a4418'},{name:'Lake',color:'#142840'},{name:'Mountain',color:'#3d3328'},{name:'Desert',color:'#584e26'},{name:'Hills',color:'#354027'},{name:'Meadow',color:'#2c4420'},{name:'Heath',color:'#332b40'},{name:'Crags',color:'#382e24'},{name:'Bog',color:'#1e2e1e'},{name:'Glades',color:'#123020'},{name:'Snowfield',color:'#4b5b74'},{name:'Dead Forest',color:'#2a2f2a'},{name:'Ash Wastes',color:'#3f3a3f'},{name:'Frost Marsh',color:'#304652'}];
+const TERRAIN_TYPES=[{name:'Marsh',color:'#1e3a22'},{name:'Forest',color:'#163320'},{name:'Valley',color:'#3a4418'},{name:'Lake',color:'#142840'},{name:'Mountain',color:'#3d3328'},{name:'Desert',color:'#584e26'},{name:'Hills',color:'#354027'},{name:'Meadow',color:'#2c4420'},{name:'Heath',color:'#332b40'},{name:'Crags',color:'#382e24'},{name:'Bog',color:'#1e2e1e'},{name:'Glades',color:'#123020'},{name:'Snowfield',color:'#4b5b74'},{name:'Dead Forest',color:'#2a2f2a'},{name:'Ash Wastes',color:'#3f3a3f'},{name:'Frost Marsh',color:'#304652'},{name:'Rift',color:'#2e1530'},{name:'Stones',color:'#3a3228'},{name:'Desert Mountain',color:'#5c4620'},{name:'Farm',color:'#2e3c16'},{name:'Desert Farm',color:'#4e4218'},{name:'Desert Cave',color:'#2e2416'},{name:'Ravine',color:'#22252e'},{name:'City',color:'#1c2030'},{name:'Town',color:'#262c22'},{name:'Snowy Town',color:'#384462'},{name:'Snowy Fields',color:'#3a4660'},{name:'Snowy Forest',color:'#243e36'},{name:'Snowy Swamp',color:'#253438'}];
 
 const TERRAIN_DESC={
 Marsh:{
@@ -11921,7 +11921,7 @@ function randomizeMapOverlay(){
 window.randomizeMapOverlay=randomizeMapOverlay;
 function hexPointArray(cx,cy,r){
   return Array.from({length:6},function(_,i){
-    const a=Math.PI/180*(60*i-30);
+    const a=Math.PI/180*(60*i);
     return {x:cx+r*Math.cos(a),y:cy+r*Math.sin(a)};
   });
 }
@@ -11929,7 +11929,7 @@ function hexPointsFromArray(points){
   return (points||[]).map(function(p){return String(p.x)+','+String(p.y);}).join(' ');
 }
 function hexToPixel(col,row){const w=HEX_SIZE*2,h=Math.sqrt(3)*HEX_SIZE;return{x:col*w*0.75+HEX_SIZE+10,y:row*h+(col%2)*h/2+HEX_SIZE+10};}
-function hexPoints(cx,cy,r){return Array.from({length:6},(_,i)=>{const a=Math.PI/180*(60*i-30);return`${cx+r*Math.cos(a)},${cy+r*Math.sin(a)}`;}).join(' ');}
+function hexPoints(cx,cy,r){return Array.from({length:6},(_,i)=>{const a=Math.PI/180*(60*i);return`${cx+r*Math.cos(a)},${cy+r*Math.sin(a)}`;}).join(' ');}
 
 function placeUnique(type,name,data){
   let attempts=0,hex;
@@ -11960,6 +11960,10 @@ function pickProvinceTerrainType(){
   if(season==='winter'){
     pool.push(TERRAIN_TYPES.find(t=>t&&t.name==='Snowfield'));
     pool.push(TERRAIN_TYPES.find(t=>t&&t.name==='Frost Marsh'));
+    pool.push(TERRAIN_TYPES.find(t=>t&&t.name==='Snowy Town'));
+    pool.push(TERRAIN_TYPES.find(t=>t&&t.name==='Snowy Fields'));
+    pool.push(TERRAIN_TYPES.find(t=>t&&t.name==='Snowy Forest'));
+    pool.push(TERRAIN_TYPES.find(t=>t&&t.name==='Snowy Swamp'));
   }
   if(season==='harvest'){
     pool.push(TERRAIN_TYPES.find(t=>t&&t.name==='Ash Wastes'));

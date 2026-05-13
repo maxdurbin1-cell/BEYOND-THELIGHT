@@ -1597,7 +1597,7 @@
   function hexPoints(cx, cy) {
     const pts = [];
     for (let i = 0; i < 6; i += 1) {
-      const a = Math.PI / 180 * (60 * i - 30);
+      const a = Math.PI / 180 * (60 * i);
       pts.push((cx + WTW_HEX * Math.cos(a)) + "," + (cy + WTW_HEX * Math.sin(a)));
     }
     return pts.join(" ");

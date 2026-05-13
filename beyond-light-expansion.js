@@ -979,7 +979,7 @@
 
   function seaHexPoints(cx, cy) {
     return Array.from({ length: 6 }, (_, index) => {
-      const angle = Math.PI / 180 * (60 * index - 30);
+      const angle = Math.PI / 180 * (60 * index);
       return `${cx + LAST_SEA_HEX * Math.cos(angle)},${cy + LAST_SEA_HEX * Math.sin(angle)}`;
     }).join(" ");
   }

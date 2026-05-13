@@ -2340,6 +2340,7 @@
       { key: 'rift',            label: 'Rift',          icon: '⌇' },
       { key: 'stones',          label: 'Stones',        icon: '∷' },
       { key: 'desert_mountain', label: 'Desert Mtn',   icon: '△' },
+      { key: 'desert_farm',     label: 'Desert Farm',   icon: '⊞' },
       { key: 'desert_cave',     label: 'Desert Cave',   icon: '⎔' },
       { key: 'ravine',          label: 'Ravine',        icon: '⊸' },
       { key: 'city',            label: 'City',          icon: '⬜' },

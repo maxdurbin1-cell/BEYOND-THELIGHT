@@ -476,31 +476,8 @@ function getSortedLicenses() {
 }
 
 function requirePaywallAccess(req, res, next) {
-  if (PAYWALL_DISABLED) {
-    next();
-    return;
-  }
-  if (PAYWALL_BYPASS_LOCALHOST && isLoopbackRequest(req)) {
-    next();
-    return;
-  }
-  if (isPaywallPublicPath(req.path)) {
-    next();
-    return;
-  }
-  const session = getSessionFromRequest(req);
-  if (session) {
-    req.accessSession = session;
-    next();
-    return;
-  }
-  const wantsHtml = isHtmlRequest(req)
-    || (String(req.method || "").toUpperCase() === "GET" && (req.path === "/" || /\.html$/i.test(String(req.path || ""))));
-  if (wantsHtml) {
-    res.redirect(302, "/access");
-    return;
-  }
-  res.status(401).json({ ok: false, error: "Access code required." });
+  // Paywall disabled - all users have full access
+  next();
 }
 
 function isLoopbackRequest(req) {

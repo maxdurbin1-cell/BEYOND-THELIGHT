@@ -502,6 +502,11 @@
       + '</div>'
       : '';
 
+    var provinceExpeditionControls = '<div style="margin-top:.36rem;border-top:1px solid var(--border2);padding-top:.26rem;display:flex;gap:.2rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs btn-primary" onclick="if(typeof window.startProvinceEndgameExpedition===\'function\')window.startProvinceEndgameExpedition();">Start Province Expedition</button>'
+      + '<button class="btn btn-xs btn-red" onclick="if(typeof window.stopProvinceEndgameExpedition===\'function\')window.stopProvinceEndgameExpedition();">Stop Province Expedition</button>'
+    + '</div>';
+
     return '<div style="background:var(--surface);border:1px solid var(--border2);border-left:2px solid var(--gold2);padding:.55rem .6rem;margin-bottom:.5rem;">'
       + '<div style="font-family:\'Cinzel\',serif;font-size:.74rem;color:var(--gold2);margin-bottom:.15rem;">Endgame Operations</div>'
       + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.24rem;">'
@@ -528,6 +533,7 @@
       + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.08rem;line-height:1.4;">Attempts: ' + Number(gate.portalAttempts || 0) + ' · Rule: fail/death kicks you out and resets gate closures.</div>'
       + '</div>'
       + '</div>'
+      + provinceExpeditionControls
       + debugHtml
     + '</div>';
   }

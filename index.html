@@ -892,8 +892,6 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <span id="hexCoords" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--muted2);margin-left:.4rem;"></span>
   </div>
   <input id="mapHexAssetInput" type="file" accept="image/*" style="display:none;" onchange="handleMapHexAssetImport(this.files)">
-  <input id="mapHexSpriteSheetInput" type="file" accept="image/*" style="display:none;" onchange="handleMapHexSpriteSheetImport(this.files)">
-  <input id="mapHexPresetInput" type="file" accept=".json,application/json" style="display:none;" onchange="handleMapTerrainPresetImport(this.files)">
   <div class="map-legend">
     <div class="leg-item"><div class="leg-dot" style="background:#8b3030;border:1px solid #e8c050;"></div>Seat</div>
     <div class="leg-item"><div class="leg-dot" style="background:#7a4020;"></div>Holding</div>
@@ -11899,15 +11897,6 @@ function getTerrainAssetForHex(hex,mapFx){
   };
 }
 window.getTerrainAssetForHex=getTerrainAssetForHex;
-const MAP_HEX_SPRITE_SLICER_STATE={
-  src:'',
-  cols:8,
-  rows:6,
-  tileIndex:-1,
-  terrainName:'',
-  autoAdvance:true,
-  image:null
-};
 function openMapHexAssetManager(){
   const cfg=ensureMapVisualSettings();
   const terrainKeys=getMapTerrainAssetKeys();
@@ -11924,14 +11913,7 @@ function openMapHexAssetManager(){
       + '</div>';
   }).join('');
   const html=''
-    + '<div style="font-size:.8rem;color:var(--text2);line-height:1.6;margin-bottom:.35rem;">Import PNG/WebP tiles and map them to terrain names. Quick workflow: download a free pack zip, extract images, then use Upload Art or Sprite Sheet Slicer below.</div>'
-    + '<div style="display:flex;gap:.3rem;align-items:center;flex-wrap:wrap;margin-bottom:.38rem;">'
-    + '<button class="btn btn-xs btn-teal" onclick="startMapHexAssetImportForSelectedTerrain()">Upload Single Tile</button>'
-    + '<button class="btn btn-xs" onclick="startMapHexSpriteSheetImport()">Sprite Sheet Slicer</button>'
-    + '<button class="btn btn-xs" onclick="importMapHexAssetFromUrl()">Import From URL</button>'
-    + '<button class="btn btn-xs" onclick="exportMapTerrainPreset()">Export Preset JSON</button>'
-    + '<button class="btn btn-xs" onclick="startMapTerrainPresetImport()">Import Preset JSON</button>'
-    + '</div>'
+    + '<div style="font-size:.8rem;color:var(--text2);line-height:1.6;margin-bottom:.35rem;">Import PNG/WebP tiles and map them to terrain names. These are local files, so you can use free packs from itch or your own art.</div>'
     + '<div style="display:flex;gap:.28rem;align-items:center;flex-wrap:wrap;margin-bottom:.35rem;">'
     + '<span style="font-size:.72rem;color:var(--muted2);">Terrain</span>'
     + '<select id="mapAssetTerrainSel" onchange="syncMapAssetModalFields()" style="min-width:10rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.75rem;">'
@@ -11940,6 +11922,7 @@ function openMapHexAssetManager(){
       return '<option value="'+escapeHtmlLite(name)+'"'+sel+'>'+escapeHtmlLite(name)+'</option>';
     }).join('')
     + '</select>'
+    + '<button class="btn btn-xs btn-teal" onclick="startMapHexAssetImportForSelectedTerrain()">Upload Art</button>'
     + '<button class="btn btn-xs" onclick="clearMapHexAssetForSelectedTerrain()">Clear Terrain Art</button>'
     + '</div>'
     + '<div style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;margin-bottom:.35rem;">'
@@ -11983,109 +11966,6 @@ function startMapHexAssetImportForSelectedTerrain(){
   picker.click();
 }
 window.startMapHexAssetImportForSelectedTerrain=startMapHexAssetImportForSelectedTerrain;
-function startMapHexSpriteSheetImport(){
-  const picker=document.getElementById('mapHexSpriteSheetInput');
-  if(!picker){showNotif('Sprite sheet picker is unavailable.','warn');return;}
-  picker.value='';
-  picker.click();
-}
-window.startMapHexSpriteSheetImport=startMapHexSpriteSheetImport;
-function startMapTerrainPresetImport(){
-  const picker=document.getElementById('mapHexPresetInput');
-  if(!picker){showNotif('Preset importer is unavailable.','warn');return;}
-  picker.value='';
-  picker.click();
-}
-window.startMapTerrainPresetImport=startMapTerrainPresetImport;
-function exportMapTerrainPreset(){
-  const cfg=ensureMapVisualSettings();
-  const payload={
-    version:1,
-    exportedAt:new Date().toISOString(),
-    useTerrainAssets:!!cfg.useTerrainAssets,
-    terrainAssets:cfg.terrainAssets||{}
-  };
-  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  const stamp=new Date().toISOString().replace(/[:.]/g,'-');
-  a.download='terrain-preset-'+stamp+'.json';
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(function(){
-    URL.revokeObjectURL(a.href);
-    if(a&&a.parentNode)a.parentNode.removeChild(a);
-  },100);
-  showNotif('Terrain preset exported.','good');
-}
-window.exportMapTerrainPreset=exportMapTerrainPreset;
-function handleMapTerrainPresetImport(files){
-  const list=files&&files.length?files:null;
-  if(!list||!list[0])return;
-  const reader=new FileReader();
-  reader.onload=function(ev){
-    try{
-      const raw=String((ev&&ev.target&&ev.target.result)||'');
-      const parsed=JSON.parse(raw);
-      if(!parsed||typeof parsed!=='object')throw new Error('invalid');
-      const cfg=ensureMapVisualSettings();
-      const incoming=(parsed.terrainAssets&&typeof parsed.terrainAssets==='object')?parsed.terrainAssets:{};
-      cfg.terrainAssets={};
-      Object.keys(incoming).forEach(function(k){
-        const item=incoming[k]||{};
-        if(!item||typeof item!=='object'||!item.src)return;
-        cfg.terrainAssets[normalizeTerrainAssetKey(k)]={
-          src:String(item.src),
-          scale:Math.max(.6,Math.min(1.8,Number(item.scale||1))),
-          elevationBonus:Math.max(0,Math.min(3,Number(item.elevationBonus||0))),
-          stacked:item.stacked!==false
-        };
-      });
-      cfg.useTerrainAssets=parsed.useTerrainAssets!==false;
-      refreshAllHexMaps();
-      openMapHexAssetManager();
-      showNotif('Terrain preset imported.','good');
-    }catch(_err){
-      showNotif('Invalid preset file. Import failed.','warn');
-    }
-  };
-  reader.onerror=function(){ showNotif('Could not read preset file.','warn'); };
-  reader.readAsText(list[0]);
-}
-window.handleMapTerrainPresetImport=handleMapTerrainPresetImport;
-async function importMapHexAssetFromUrl(){
-  const cfg=ensureMapVisualSettings();
-  const sel=document.getElementById('mapAssetTerrainSel');
-  const terrainName=String((sel&&sel.value)||cfg.assetTerrainTarget||'').trim();
-  if(!terrainName){showNotif('Choose a terrain first.','warn');return;}
-  const url=String(window.prompt('Paste a direct image URL (PNG/WebP/JPG):','')||'').trim();
-  if(!url)return;
-  try{
-    const res=await fetch(url,{mode:'cors'});
-    if(!res.ok)throw new Error('http');
-    const blob=await res.blob();
-    if(!/^image\//i.test(String(blob.type||'')))throw new Error('type');
-    const src=await new Promise(function(resolve,reject){
-      const fr=new FileReader();
-      fr.onload=function(ev){resolve(String((ev&&ev.target&&ev.target.result)||''));};
-      fr.onerror=function(){reject(new Error('read'));};
-      fr.readAsDataURL(blob);
-    });
-    const key=normalizeTerrainAssetKey(terrainName);
-    const existing=(cfg.terrainAssets&&cfg.terrainAssets[key])||{};
-    existing.src=src;
-    existing.scale=Math.max(.6,Math.min(1.8,Number(existing.scale||1)));
-    existing.elevationBonus=Math.max(0,Math.min(3,Number(existing.elevationBonus||0)));
-    existing.stacked=existing.stacked!==false;
-    cfg.terrainAssets[key]=existing;
-    refreshAllHexMaps();
-    openMapHexAssetManager();
-    showNotif('Imported terrain art from URL for '+terrainName+'.','good');
-  }catch(_err){
-    showNotif('URL import failed. Try a direct image URL with CORS enabled.','warn');
-  }
-}
-window.importMapHexAssetFromUrl=importMapHexAssetFromUrl;
 function saveMapHexAssetMetaForSelectedTerrain(){
   const cfg=ensureMapVisualSettings();
   const sel=document.getElementById('mapAssetTerrainSel');
@@ -12123,176 +12003,6 @@ function toggleMapTerrainAssetsUsage(){
   openMapHexAssetManager();
 }
 window.toggleMapTerrainAssetsUsage=toggleMapTerrainAssetsUsage;
-function handleMapHexSpriteSheetImport(files){
-  const list=files&&files.length?files:null;
-  if(!list||!list[0])return;
-  const file=list[0];
-  if(!/^image\//i.test(String(file.type||''))){showNotif('Choose an image file.','warn');return;}
-  const reader=new FileReader();
-  reader.onload=function(ev){
-    const src=String((ev&&ev.target&&ev.target.result)||'');
-    if(!src){showNotif('Could not read sprite sheet.','warn');return;}
-    MAP_HEX_SPRITE_SLICER_STATE.src=src;
-    MAP_HEX_SPRITE_SLICER_STATE.tileIndex=-1;
-    MAP_HEX_SPRITE_SLICER_STATE.image=null;
-    const cfg=ensureMapVisualSettings();
-    MAP_HEX_SPRITE_SLICER_STATE.terrainName=String(cfg.assetTerrainTarget||getMapTerrainAssetKeys()[0]||'');
-    openMapHexSpriteSlicerModal();
-  };
-  reader.onerror=function(){showNotif('Could not read sprite sheet file.','warn');};
-  reader.readAsDataURL(file);
-}
-window.handleMapHexSpriteSheetImport=handleMapHexSpriteSheetImport;
-function openMapHexSpriteSlicerModal(){
-  if(!MAP_HEX_SPRITE_SLICER_STATE.src){showNotif('Import a sprite sheet first.','warn');return;}
-  const terrainKeys=getMapTerrainAssetKeys();
-  const activeTerrain=String(MAP_HEX_SPRITE_SLICER_STATE.terrainName||terrainKeys[0]||'');
-  const html=''
-    + '<div style="font-size:.78rem;color:var(--text2);line-height:1.55;margin-bottom:.28rem;">Click a tile to map it to a terrain. After assignment, auto-advance can move to the next terrain.</div>'
-    + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;align-items:center;margin-bottom:.32rem;">'
-    + '<label style="font-size:.72rem;color:var(--muted2);">Cols <input id="mapSpriteCols" type="number" min="1" max="80" step="1" value="'+String(Number(MAP_HEX_SPRITE_SLICER_STATE.cols||8))+'" style="width:3.4rem;margin-left:.14rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);"></label>'
-    + '<label style="font-size:.72rem;color:var(--muted2);">Rows <input id="mapSpriteRows" type="number" min="1" max="80" step="1" value="'+String(Number(MAP_HEX_SPRITE_SLICER_STATE.rows||6))+'" style="width:3.4rem;margin-left:.14rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);"></label>'
-    + '<button class="btn btn-xs" onclick="refreshMapHexSpriteSlicerGrid()">Re-slice</button>'
-    + '<select id="mapSpriteTerrainSel" style="min-width:10rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.14rem .22rem;">'
-    + terrainKeys.map(function(name){
-      const sel=name===activeTerrain?' selected':'';
-      return '<option value="'+escapeHtmlLite(name)+'"'+sel+'>'+escapeHtmlLite(name)+'</option>';
-    }).join('')
-    + '</select>'
-    + '<label style="font-size:.72rem;color:var(--muted2);display:inline-flex;align-items:center;gap:.18rem;"><input id="mapSpriteAutoAdvance" type="checkbox" '+(MAP_HEX_SPRITE_SLICER_STATE.autoAdvance?'checked':'')+'> auto-advance terrain</label>'
-    + '</div>'
-    + '<div id="mapSpriteSlicerHint" style="font-size:.72rem;color:var(--muted2);margin-bottom:.2rem;">No tile selected yet.</div>'
-    + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.25rem;max-height:56vh;overflow:auto;">'
-    + '<canvas id="mapSpriteSheetCanvas" style="display:block;image-rendering:pixelated;max-width:none;"></canvas>'
-    + '</div>';
-  openModal('Sprite Sheet Slicer',html);
-  setTimeout(function(){refreshMapHexSpriteSlicerGrid();},10);
-}
-window.openMapHexSpriteSlicerModal=openMapHexSpriteSlicerModal;
-function refreshMapHexSpriteSlicerGrid(){
-  const canvas=document.getElementById('mapSpriteSheetCanvas');
-  if(!canvas||!MAP_HEX_SPRITE_SLICER_STATE.src)return;
-  const colsEl=document.getElementById('mapSpriteCols');
-  const rowsEl=document.getElementById('mapSpriteRows');
-  const autoEl=document.getElementById('mapSpriteAutoAdvance');
-  const cols=Math.max(1,Math.min(80,Number(colsEl&&colsEl.value||MAP_HEX_SPRITE_SLICER_STATE.cols||8)));
-  const rows=Math.max(1,Math.min(80,Number(rowsEl&&rowsEl.value||MAP_HEX_SPRITE_SLICER_STATE.rows||6)));
-  MAP_HEX_SPRITE_SLICER_STATE.cols=cols;
-  MAP_HEX_SPRITE_SLICER_STATE.rows=rows;
-  MAP_HEX_SPRITE_SLICER_STATE.autoAdvance=!!(autoEl?autoEl.checked:MAP_HEX_SPRITE_SLICER_STATE.autoAdvance);
-  const img=new Image();
-  img.onload=function(){
-    MAP_HEX_SPRITE_SLICER_STATE.image=img;
-    canvas.width=img.width;
-    canvas.height=img.height;
-    const ctx=canvas.getContext('2d');
-    if(!ctx)return;
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.drawImage(img,0,0);
-    drawMapHexSpriteGridOverlay();
-    canvas.onclick=function(evt){
-      const rect=canvas.getBoundingClientRect();
-      const px=((evt.clientX-rect.left)/Math.max(1,rect.width))*canvas.width;
-      const py=((evt.clientY-rect.top)/Math.max(1,rect.height))*canvas.height;
-      const tw=canvas.width/Math.max(1,MAP_HEX_SPRITE_SLICER_STATE.cols);
-      const th=canvas.height/Math.max(1,MAP_HEX_SPRITE_SLICER_STATE.rows);
-      const c=Math.max(0,Math.min(MAP_HEX_SPRITE_SLICER_STATE.cols-1,Math.floor(px/tw)));
-      const r=Math.max(0,Math.min(MAP_HEX_SPRITE_SLICER_STATE.rows-1,Math.floor(py/th)));
-      MAP_HEX_SPRITE_SLICER_STATE.tileIndex=(r*MAP_HEX_SPRITE_SLICER_STATE.cols)+c;
-      drawMapHexSpriteGridOverlay();
-      assignSelectedMapSpriteTileToTerrain();
-    };
-  };
-  img.onerror=function(){showNotif('Could not decode sprite sheet image.','warn');};
-  img.src=MAP_HEX_SPRITE_SLICER_STATE.src;
-}
-window.refreshMapHexSpriteSlicerGrid=refreshMapHexSpriteSlicerGrid;
-function drawMapHexSpriteGridOverlay(){
-  const canvas=document.getElementById('mapSpriteSheetCanvas');
-  const img=MAP_HEX_SPRITE_SLICER_STATE.image;
-  if(!canvas||!img)return;
-  const ctx=canvas.getContext('2d');
-  if(!ctx)return;
-  const cols=Math.max(1,MAP_HEX_SPRITE_SLICER_STATE.cols);
-  const rows=Math.max(1,MAP_HEX_SPRITE_SLICER_STATE.rows);
-  const tw=canvas.width/cols;
-  const th=canvas.height/rows;
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.drawImage(img,0,0);
-  ctx.save();
-  ctx.strokeStyle='rgba(240,208,112,.55)';
-  ctx.lineWidth=1;
-  for(let c=1;c<cols;c++){
-    const x=Math.round(c*tw)+0.5;
-    ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();
-  }
-  for(let r=1;r<rows;r++){
-    const y=Math.round(r*th)+0.5;
-    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();
-  }
-  if(MAP_HEX_SPRITE_SLICER_STATE.tileIndex>=0){
-    const idx=MAP_HEX_SPRITE_SLICER_STATE.tileIndex;
-    const col=idx%cols;
-    const row=Math.floor(idx/cols);
-    ctx.strokeStyle='rgba(46,196,182,.95)';
-    ctx.lineWidth=2;
-    ctx.strokeRect((col*tw)+1,(row*th)+1,tw-2,th-2);
-  }
-  ctx.restore();
-}
-function getNextUnmappedTerrain(current){
-  const cfg=ensureMapVisualSettings();
-  const keys=getMapTerrainAssetKeys();
-  if(!keys.length)return '';
-  const cur=String(current||'');
-  const start=Math.max(0,keys.indexOf(cur));
-  for(let i=1;i<=keys.length;i++){
-    const next=keys[(start+i)%keys.length];
-    const k=normalizeTerrainAssetKey(next);
-    if(!cfg.terrainAssets||!cfg.terrainAssets[k]||!cfg.terrainAssets[k].src)return next;
-  }
-  return keys[(start+1)%keys.length]||cur;
-}
-function assignSelectedMapSpriteTileToTerrain(){
-  const canvas=document.getElementById('mapSpriteSheetCanvas');
-  const img=MAP_HEX_SPRITE_SLICER_STATE.image;
-  const terrainSel=document.getElementById('mapSpriteTerrainSel');
-  const hint=document.getElementById('mapSpriteSlicerHint');
-  if(!canvas||!img||!terrainSel)return;
-  const idx=Number(MAP_HEX_SPRITE_SLICER_STATE.tileIndex);
-  if(!(idx>=0)){if(hint)hint.textContent='Select a tile first.';return;}
-  const cols=Math.max(1,MAP_HEX_SPRITE_SLICER_STATE.cols);
-  const rows=Math.max(1,MAP_HEX_SPRITE_SLICER_STATE.rows);
-  const tw=canvas.width/cols;
-  const th=canvas.height/rows;
-  const col=idx%cols;
-  const row=Math.floor(idx/cols);
-  const crop=document.createElement('canvas');
-  crop.width=Math.max(1,Math.floor(tw));
-  crop.height=Math.max(1,Math.floor(th));
-  const cctx=crop.getContext('2d');
-  if(!cctx)return;
-  cctx.imageSmoothingEnabled=false;
-  cctx.drawImage(img,col*tw,row*th,tw,th,0,0,crop.width,crop.height);
-  const src=crop.toDataURL('image/png');
-  const cfg=ensureMapVisualSettings();
-  const terrainName=String(terrainSel.value||'').trim();
-  const key=normalizeTerrainAssetKey(terrainName);
-  const existing=(cfg.terrainAssets&&cfg.terrainAssets[key])||{};
-  existing.src=src;
-  existing.scale=Math.max(.6,Math.min(1.8,Number(existing.scale||1)));
-  existing.elevationBonus=Math.max(0,Math.min(3,Number(existing.elevationBonus||0)));
-  existing.stacked=existing.stacked!==false;
-  cfg.terrainAssets[key]=existing;
-  cfg.assetTerrainTarget=terrainName;
-  refreshAllHexMaps();
-  if(hint)hint.textContent='Mapped tile ['+(col+1)+','+(row+1)+'] to '+terrainName+'.';
-  if(MAP_HEX_SPRITE_SLICER_STATE.autoAdvance){
-    const next=getNextUnmappedTerrain(terrainName);
-    if(next){terrainSel.value=next;cfg.assetTerrainTarget=next;}
-  }
-}
-window.assignSelectedMapSpriteTileToTerrain=assignSelectedMapSpriteTileToTerrain;
 function handleMapHexAssetImport(files){
   const cfg=ensureMapVisualSettings();
   const list=files&&files.length?files:null;

@@ -1552,6 +1552,14 @@
       zonePoints: 0,
       playerKillBonus: 1
     },
+    expedition: {
+      id: 'expedition',
+      label: 'Expedition',
+      objective: '3-day rogue incursion. Survive shrinking hexes, beat Day 1 and Day 2 bosses, then slay the Raid Boss.',
+      scoreToWin: 3,
+      killPoints: 0,
+      zonePoints: 0
+    }
 
   };
 
@@ -3979,16 +3987,25 @@
       return openHoldingCrucibleModePrompt();
     }
     if (modeOverride) {
-      var modeSpec = getCrucibleModeSpec(modeOverride);
+      var safeMode = String(modeOverride || '').toLowerCase() === 'expedition' ? 'control' : modeOverride;
+      var modeSpec = getCrucibleModeSpec(safeMode);
       S.holding.crucible.preferredMode = modeSpec.id;
       S.holding.crucible.match = null;
     }
     var match = getHoldingCrucibleMatch() || createHoldingCrucibleMatch();
-    if (typeof openModal === 'function') {
-      openModal('Crucible 6v6 Tactical Simulator', buildHoldingCruciblePopupHtml());
-    }
-    if (typeof showNotif === 'function' && match && Number(match.round || 1) === 1) {
-      showNotif('Crucible opened: 6v6 tactical training scenario ready.', 'good');
+    var isExpeditionNewMatch = String(match.mode || '') === 'expedition' && !(match.expedition && match.expedition.loaded);
+    if (isExpeditionNewMatch && typeof openModal === 'function') {
+      openModal('Expedition Loadout Selection', buildCrucibleExpeditionLoadoutSelectionHtml());
+    } else {
+      if (typeof openModal === 'function') {
+        openModal(match && String(match.mode || '') === 'expedition' ? 'Expedition Province' : 'Crucible 6v6 Tactical Simulator', buildHoldingCruciblePopupHtml());
+      }
+      if (typeof showNotif === 'function' && match && Number(match.round || 1) === 1) {
+        var openedSpec = getCrucibleModeSpec(match.mode);
+        showNotif(openedSpec.id === 'expedition'
+          ? 'Crucible Expedition opened: 3-day rogue run initialized.'
+          : 'Crucible opened: 6v6 tactical training scenario ready.', 'good');
+      }
     }
     renderHoldingUI();
     return true;
@@ -3996,7 +4013,8 @@
 
   function holdingCrucibleSetMode(mode) {
     ensureNewFeatureState();
-    var spec = getCrucibleModeSpec(mode);
+    var safeMode = String(mode || '').toLowerCase() === 'expedition' ? 'control' : mode;
+    var spec = getCrucibleModeSpec(safeMode);
     S.holding.crucible.preferredMode = spec.id;
     S.holding.crucible.match = null;
     createHoldingCrucibleMatch();

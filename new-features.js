@@ -5602,8 +5602,7 @@
       + '<button class="btn btn-xs ' + (mode.id === 'rumble' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'rumble\');">Rumble</button>'
       + '</div>'
       + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;">'
-      + '<button class="btn btn-sm btn-primary" onclick="openHoldingCrucibleMatch();">Enter Crucible 6v6</button>'
-        + (match ? '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAttackSelected();">Attack (Selected)</button>' : '')
+      + (match ? '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAttackSelected();">Attack (Selected)</button>' : '')
         + (match ? '<button class="btn btn-sm" onclick="holdingCrucibleAdvanceRound();">End Team Turn</button>' : '')
       + (match ? '<button class="btn btn-sm" onclick="holdingCrucibleAutoResolve();">Auto Resolve</button>' : '')
       + '</div>';

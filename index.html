@@ -865,24 +865,11 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="btn btn-primary" onclick="generateMap()">⚄ Generate Province</button>
     <button class="btn" onclick="clearMap()">✕ Clear</button>
     <button class="btn btn-sm" id="nightModeToggleBtn" onclick="toggleNightMode()">Night Mode: Off</button>
-    <button class="btn btn-sm" id="fullPhaseClockToggleBtn" onclick="toggleFullPhaseClock()">Full Clock: Off</button>
     <button class="btn btn-sm btn-teal" id="mapClickModeBtn" onclick="toggleMapClickMode()">Map Click: Travel</button>
-    <button class="btn btn-sm btn-teal" id="mapHex3dBtn" onclick="toggleMapHex3d()">Hex 3D: On</button>
     <select id="mapHexStyleSel" onchange="setMapHexStyle(this.value)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
       <option value="classic">Hex Style: Classic</option>
     </select>
-    <select id="mapPerspectiveSel" onchange="setMapPerspective(this.value)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
-      <option value="topdown">Perspective: Top-Down</option>
-      <option value="level">Perspective: Level 3D</option>
-    </select>
     <button class="btn btn-sm" id="mapAtlasBtn" style="display:none;" onclick="if(typeof switchTab==='function'){var b=document.getElementById('tabnav-theos');switchTab('theos',b||null);}">Atlas</button>
-    <select id="mapOverlaySel" onchange="setMapOverlay(this.value)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
-      <option value="none">Overlay: None</option>
-      <option value="contour">Overlay: Contour</option>
-      <option value="vegetation">Overlay: Vegetation</option>
-      <option value="survey">Overlay: Survey Grid</option>
-    </select>
-    <button class="btn btn-sm" onclick="randomizeMapOverlay()">Random Overlay</button>
     <span id="mapTimeDisplay" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--gold2);margin-left:.4rem;">Month 1, Day 1, Year 1 — Morning</span>
     <span id="currentProvinceIndicator" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--teal);margin-left:.4rem;"></span>
     <span id="hexCoords" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--muted2);margin-left:.4rem;"></span>
@@ -3280,11 +3267,11 @@ function ensureNightModeState(){
 }
 function ensureFullPhaseClockState(){
   if(!S||typeof S!=='object')return;
-  if(typeof S.fullPhaseClock!=='boolean')S.fullPhaseClock=false;
+  S.fullPhaseClock=true;
 }
 function isFullPhaseClockEnabledLocal(){
   ensureFullPhaseClockState();
-  return !!S.fullPhaseClock;
+  return true;
 }
 function isEncounterNightModeActive(){
   ensureNightModeState();
@@ -3307,21 +3294,15 @@ function toggleNightMode(forceValue){
   if(selectedHex&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
 }
 function updateFullPhaseClockToggleUI(){
-  ensureFullPhaseClockState();
   var btn=document.getElementById('fullPhaseClockToggleBtn');
-  if(!btn)return;
-  var on=(typeof window.isFullPhaseClockEnabled==='function')?!!window.isFullPhaseClockEnabled():isFullPhaseClockEnabledLocal();
-  btn.textContent='Full Clock: '+(on?'On':'Off');
-  btn.className='btn btn-sm '+(on?'btn-teal':'');
-  btn.title='Off: legacy phase pacing. On: 0000-1159, 1200-1659, 1700-2059, 2100-2359.';
+  if(btn) btn.remove();
 }
 function toggleFullPhaseClock(forceValue){
   ensureFullPhaseClockState();
-  var next=(typeof forceValue==='boolean')?forceValue:!isFullPhaseClockEnabledLocal();
   if(typeof window.setFullPhaseClockEnabled==='function'){
-    window.setFullPhaseClockEnabled(next,'toggle');
+    window.setFullPhaseClockEnabled(true,'toggle');
   }else{
-    S.fullPhaseClock=!!next;
+    S.fullPhaseClock=true;
   }
   updateFullPhaseClockToggleUI();
   if(typeof updateDateUI==='function')updateDateUI();
@@ -11754,10 +11735,10 @@ function toggleMapClickMode(){
 }
 function ensureMapVisualSettings(){
   if(!S.mapVisuals||typeof S.mapVisuals!=='object')S.mapVisuals={hex3d:true,overlay:'none',style:'classic',perspective:'topdown'};
-  if(typeof S.mapVisuals.hex3d!=='boolean')S.mapVisuals.hex3d=true;
-  if(['none','contour','vegetation','survey'].indexOf(S.mapVisuals.overlay)<0)S.mapVisuals.overlay='none';
+  S.mapVisuals.hex3d=true;
+  S.mapVisuals.overlay='none';
   if(getSelectableMapHexStyleKeys().indexOf(String(S.mapVisuals.style||''))<0)S.mapVisuals.style='classic';
-  if(['topdown','level'].indexOf(S.mapVisuals.perspective)<0)S.mapVisuals.perspective='topdown';
+  S.mapVisuals.perspective='topdown';
   return S.mapVisuals;
 }
 function getMapVisualSettings(){
@@ -11874,15 +11855,7 @@ function refreshAllHexMaps(){
 window.refreshAllHexMaps=refreshAllHexMaps;
 function updateMapVisualUI(){
   const cfg=getMapVisualSettings();
-  const btn=document.getElementById('mapHex3dBtn');
-  const sel=document.getElementById('mapOverlaySel');
   const styleSel=document.getElementById('mapHexStyleSel');
-  const perspectiveSel=document.getElementById('mapPerspectiveSel');
-  if(btn){
-    btn.textContent='Hex 3D: '+(cfg.hex3d?'On':'Off');
-    btn.className='btn btn-sm '+(cfg.hex3d?'btn-teal':'btn-red');
-  }
-  if(sel)sel.value=cfg.overlay;
   if(styleSel){
     const keys=getSelectableMapHexStyleKeys();
     const sig=keys.join('|');
@@ -11896,14 +11869,13 @@ function updateMapVisualUI(){
     }
     styleSel.value=(keys.indexOf(cfg.style)>=0)?cfg.style:'classic';
   }
-  if(perspectiveSel)perspectiveSel.value=cfg.perspective;
 }
 function toggleMapHex3d(){
   const cfg=ensureMapVisualSettings();
-  cfg.hex3d=!cfg.hex3d;
+  cfg.hex3d=true;
   updateMapVisualUI();
   refreshAllHexMaps();
-  showNotif('Hex 3D '+(cfg.hex3d?'enabled.':'disabled.'),cfg.hex3d?'good':'warn');
+  showNotif('Hex 3D remains enabled.','good');
 }
 window.toggleMapHex3d=toggleMapHex3d;
 function setMapHexStyle(style){
@@ -11916,16 +11888,12 @@ function setMapHexStyle(style){
 }
 window.setMapHexStyle=setMapHexStyle;
 function setMapPerspective(mode){
-  const cfg=ensureMapVisualSettings();
-  cfg.perspective=(String(mode||'').toLowerCase()==='level')?'level':'topdown';
   updateMapVisualUI();
   refreshAllHexMaps();
-  showNotif('Map perspective set to '+(cfg.perspective==='level'?'Level 3D':'Top-Down')+'.','good');
+  showNotif('Map perspective stays Top-Down.','info');
 }
 window.setMapPerspective=setMapPerspective;
 function setMapOverlay(mode){
-  const cfg=ensureMapVisualSettings();
-  cfg.overlay=['none','contour','vegetation','survey'].indexOf(mode)>=0?mode:'none';
   updateMapVisualUI();
   refreshAllHexMaps();
 }

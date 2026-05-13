@@ -11759,7 +11759,7 @@ function ensureMapVisualSettings(){
   if(!S.mapVisuals||typeof S.mapVisuals!=='object')S.mapVisuals={hex3d:true,overlay:'none',style:'classic',perspective:'topdown'};
   if(typeof S.mapVisuals.hex3d!=='boolean')S.mapVisuals.hex3d=true;
   if(['none','contour','vegetation','survey'].indexOf(S.mapVisuals.overlay)<0)S.mapVisuals.overlay='none';
-  if(!getMapHexStylePack(S.mapVisuals.style)||(!MAP_HEX_STYLE_PRESETS[S.mapVisuals.style]&&!MAP_HEX_CUSTOM_STYLE_PACKS[S.mapVisuals.style]))S.mapVisuals.style='classic';
+  if(!resolveMapHexStylePack(S.mapVisuals.style)||(!MAP_HEX_STYLE_PRESETS[S.mapVisuals.style]&&!MAP_HEX_CUSTOM_STYLE_PACKS[S.mapVisuals.style]))S.mapVisuals.style='classic';
   if(['topdown','level'].indexOf(S.mapVisuals.perspective)<0)S.mapVisuals.perspective='topdown';
   return S.mapVisuals;
 }
@@ -11858,7 +11858,7 @@ window.toggleMapHex3d=toggleMapHex3d;
 function setMapHexStyle(style){
   const cfg=ensureMapVisualSettings();
   const next=String(style||'').trim().toLowerCase();
-  cfg.style=getMapHexStylePack(next)&&(MAP_HEX_STYLE_PRESETS[next]||MAP_HEX_CUSTOM_STYLE_PACKS[next])?next:'classic';
+  cfg.style=resolveMapHexStylePack(next)&&(MAP_HEX_STYLE_PRESETS[next]||MAP_HEX_CUSTOM_STYLE_PACKS[next])?next:'classic';
   updateMapVisualUI();
   refreshAllHexMaps();
   showNotif('Hex style set to '+cfg.style+'.','good');
@@ -12277,7 +12277,7 @@ function mapHexMixColor(a,b,t){
     b:c1.b+(c2.b-c1.b)*ratio
   });
 }
-function getMapHexStylePack(styleKey){
+function resolveMapHexStylePack(styleKey){
   const key=String(styleKey||'classic');
   return MAP_HEX_CUSTOM_STYLE_PACKS[key]||MAP_HEX_STYLE_PRESETS[key]||MAP_HEX_STYLE_PRESETS.classic;
 }
@@ -12285,7 +12285,7 @@ function getMapHexPaintForHex(hex,mapFx){
   const type=String((hex&&hex.type)||'wilderness').toLowerCase();
   const baseFill=type==='wilderness'&&hex&&hex.terrain?String(hex.terrain.color||HEX_COLORS.wilderness):String(HEX_COLORS[type]||HEX_COLORS.wilderness);
   const baseStroke=String(HEX_BORDERS[type]||HEX_BORDERS.wilderness);
-  const stylePack=getMapHexStylePack(mapFx&&mapFx.style);
+  const stylePack=resolveMapHexStylePack(mapFx&&mapFx.style);
   let fill=baseFill;
   let stroke=baseStroke;
   if(type==='wilderness'&&stylePack.wildernessTint){
@@ -12311,7 +12311,7 @@ window.registerMapHexStylePack=function(name,pack){
   return true;
 };
 window.getMapHexStylePack=function(name){
-  return getMapHexStylePack(name);
+  return resolveMapHexStylePack(name);
 };
 let selectedHex=null;
 let provinceMapCoreSignature='';

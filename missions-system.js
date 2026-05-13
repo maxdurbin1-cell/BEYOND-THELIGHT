@@ -502,11 +502,6 @@
       + '</div>'
       : '';
 
-    var provinceExpeditionControls = '<div style="margin-top:.36rem;border-top:1px solid var(--border2);padding-top:.26rem;display:flex;gap:.2rem;flex-wrap:wrap;">'
-      + '<button class="btn btn-xs btn-primary" onclick="if(typeof window.startProvinceEndgameExpedition===\'function\')window.startProvinceEndgameExpedition();">Start Province Expedition</button>'
-      + '<button class="btn btn-xs btn-red" onclick="if(typeof window.stopProvinceEndgameExpedition===\'function\')window.stopProvinceEndgameExpedition();">Stop Province Expedition</button>'
-    + '</div>';
-
     return '<div style="background:var(--surface);border:1px solid var(--border2);border-left:2px solid var(--gold2);padding:.55rem .6rem;margin-bottom:.5rem;">'
       + '<div style="font-family:\'Cinzel\',serif;font-size:.74rem;color:var(--gold2);margin-bottom:.15rem;">Endgame Operations</div>'
       + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.24rem;">'
@@ -533,7 +528,6 @@
       + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.08rem;line-height:1.4;">Attempts: ' + Number(gate.portalAttempts || 0) + ' · Rule: fail/death kicks you out and resets gate closures.</div>'
       + '</div>'
       + '</div>'
-      + provinceExpeditionControls
       + debugHtml
     + '</div>';
   }
@@ -589,21 +583,7 @@
       + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.45;">No endgame progression recorded yet. Defeat endgame encounters to populate this board.</div>'
     + '</div>';
 
-    var provinceExpeditionCard = '<div style="background:var(--surface);border:1px solid var(--border2);border-left:2px solid var(--teal);padding:.55rem .6rem;margin-top:.5rem;">'
-      + '<div style="font-family:\'Cinzel\',serif;font-size:.74rem;color:var(--teal);margin-bottom:.12rem;">Province Expedition</div>'
-      + '<div style="font-size:.72rem;color:var(--text2);line-height:1.5;">'
-      + 'A Province-native endgame run that reuses your main Province map as the arena. Travel by normal hex movement while the frontier collapses inward over time, then trigger a final raid boss when the map is sufficiently closed.'
-      + '</div>'
-      + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.45;margin-top:.16rem;">'
-      + 'Loop: Start run from Endgame → move on Province as usual → survive edge collapse → launch final boss.'
-      + '</div>'
-      + '<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">'
-      + '<button class="btn btn-xs btn-primary" onclick="if(typeof window.startProvinceEndgameExpedition===\'function\')window.startProvinceEndgameExpedition();">Start Province Expedition</button>'
-      + '<button class="btn btn-xs btn-red" onclick="if(typeof window.stopProvinceEndgameExpedition===\'function\')window.stopProvinceEndgameExpedition();">Stop Province Expedition</button>'
-      + '</div>'
-    + '</div>';
-
-    container.innerHTML = topSummary + grid + operationsCard + provinceExpeditionCard;
+    container.innerHTML = topSummary + grid + operationsCard;
   }
 
   function spawnRandomSoulForgeMissionEvent(seedHint, force) {

@@ -1,6 +1,6 @@
 (function () {
-  const LAST_SEA_COLS = 12;
-  const LAST_SEA_ROWS = 12;
+  const LAST_SEA_COLS = 13;
+  const LAST_SEA_ROWS = 13;
   const LAST_SEA_HEX = 34;
   const NAVAL_ZONES = ["Engaged", "Close", "Nearby", "Far"];
 

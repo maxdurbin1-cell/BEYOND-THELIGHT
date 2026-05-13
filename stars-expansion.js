@@ -13730,7 +13730,7 @@ function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
         </g>`;
     })();
 
-    return `<g class="planet-hex${isSelected ? ' sel' : ''}${(hasSelection && !isSelected) ? ' dim' : ''}" onclick="explorePlanetCell(${cell.id})" style="cursor:pointer;transition:opacity .16s ease,filter .16s ease;${(hasSelection && !isSelected) ? 'opacity:.56;filter:saturate(.62) brightness(.78);' : ''}${isSelected ? 'filter:brightness(1.12);' : ''}">
+    return `<g class="planet-hex${isSelected ? ' sel' : ''}" onclick="explorePlanetCell(${cell.id})" style="cursor:pointer;transition:opacity .16s ease,filter .16s ease;${isSelected ? 'filter:brightness(1.12);' : ''}">
       <polygon points="${pts}" fill="${hexFill}" stroke="${visual.stroke}" stroke-width="${strokeWidth}" fill-opacity="${cell.explored ? 0.92 : 0.66}" />
       ${depthOverlay}
       ${factionOverlay}

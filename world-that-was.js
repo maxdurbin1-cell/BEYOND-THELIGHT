@@ -2,8 +2,8 @@
 (function () {
   const WTW_SCHEMA_VERSION = 4;
   const WTW_HEX = 34;
-  const MAP_COLS = 12;
-  const MAP_ROWS = 12;
+  const MAP_COLS = 13;
+  const MAP_ROWS = 13;
 
   const ZONE_NAMES = [
     "Cyber Hub",
@@ -1716,7 +1716,7 @@
 
       const isSelected = w.selectedHexId === hex.id;
       const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-      g.setAttribute("class", "svg-hex" + (isSelected ? " sel" : "") + ((hasWorldSelection && !isSelected) ? " dim" : ""));
+      g.setAttribute("class", "svg-hex" + (isSelected ? " sel" : ""));
 
       const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
       const textureKey = normalizeTerrainAssetKey(hex.districtType || '') + '|' + normalizeTerrainAssetKey(hex.zone || '') + '|' + normalizeTerrainAssetKey(hex.type || 'district');

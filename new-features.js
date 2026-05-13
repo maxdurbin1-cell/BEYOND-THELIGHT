@@ -2077,6 +2077,7 @@
       + '<div class="theos-region-actions">'
         + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExpeditionSearchHex();">Roll Encounter</button>'
         + contextual
+        + (typeof buildCrucibleExpeditionCustomHexImageUI === 'function' ? buildCrucibleExpeditionCustomHexImageUI(Number(cell.q || 0), Number(cell.r || 0)) : '')
       + '</div>'
       + '</div>';
   }
@@ -2135,23 +2136,33 @@
       unitsByKey[key].push(u);
     });
 
-    var svg = '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" style="border:1px solid rgba(240,208,112,.45);background:radial-gradient(circle at 50% 42%, rgba(182,232,167,.55), rgba(113,188,214,.42) 42%, rgba(52,88,126,.35) 100%);border-radius:8px;margin-bottom:.2rem;">';
-    cells.forEach(function (cell) {
+    var svg = '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" style="border:1px solid rgba(240,208,112,.45);background:radial-gradient(circle at 50% 42%, rgba(182,232,167,.55), rgba(113,188,214,.42) 42%, rgba(52,88,126,.35) 100%);border-radius:8px;margin-bottom:.2rem;"><defs>';
+    var defs = '';
+    cells.forEach(function (cell, idx) {
+      var k = String(Number(cell.q || 0)) + ',' + String(Number(cell.r || 0));
+      var customAsset = (map.customHexAssets && map.customHexAssets[k]) ? map.customHexAssets[k] : null;
+      if (customAsset && customAsset.dataUrl) {
+        defs += '<pattern id="customHex' + idx + '" x="0" y="0" width="' + (size * 2) + '" height="' + (size * 2) + '" patternUnits="userSpaceOnUse"><image href="' + customAsset.dataUrl + '" x="0" y="0" width="' + (size * 2) + '" height="' + (size * 2) + '" preserveAspectRatio="xMidYMid slice" /></pattern>';
+      }
+    });
+    svg += defs + '</defs>';
+    cells.forEach(function (cell, idx) {
       var k = String(Number(cell.q || 0)) + ',' + String(Number(cell.r || 0));
       var px = toPx(cell);
       var isCollapsed = !!collapsed[k];
+      var customAsset = (map.customHexAssets && map.customHexAssets[k]) ? map.customHexAssets[k] : null;
       var fill = 'rgba(122,164,92,.84)';
       var stroke = 'rgba(30,62,94,.75)';
       var icon = '';
       if (isCollapsed) { fill = 'rgba(28,28,34,.95)'; stroke = 'rgba(160,70,70,.75)'; icon = '✖'; }
-      else if (cell.terrain === 'ruin') { fill = 'rgba(64,56,48,.88)'; stroke = '#a09870'; icon = '◫'; }
+      else if (cell.terrain === 'ruin') { fill = customAsset ? 'url(#customHex' + idx + ')' : 'rgba(64,56,48,.88)'; stroke = '#a09870'; icon = customAsset ? '' : '◫'; }
       else if (cell.trap && cell.trap.type === 'peril_hex') { fill = 'rgba(120,56,32,.88)'; stroke = '#e05050'; icon = '⚠'; }
-      else if (cell.terrain === 'temple') { fill = 'rgba(80,40,120,.88)'; stroke = '#b060d0'; icon = '✦'; }
+      else if (cell.terrain === 'temple') { fill = customAsset ? 'url(#customHex' + idx + ')' : 'rgba(80,40,120,.88)'; stroke = '#b060d0'; icon = customAsset ? '' : '✦'; }
       else if (cell.terrain === 'barrier') { fill = 'rgba(236,198,74,.92)'; stroke = '#f0d070'; icon = '⛨'; }
-      else if (cell.terrain === 'gate') { fill = 'rgba(26,80,72,.9)'; stroke = '#2ec4b6'; icon = '◆'; }
-      else if (cell.terrain === 'portal') { fill = 'rgba(90,16,64,.9)'; stroke = '#e080c0'; icon = '⬡'; }
-      else if (cell.terrain === 'dwelling') { fill = 'rgba(46,120,74,.9)'; stroke = '#6ed090'; icon = '⌂'; }
-      else if (cell.terrain === 'holding') { fill = 'rgba(120,84,34,.92)'; stroke = '#f0a840'; icon = '⬢'; }
+      else if (cell.terrain === 'gate') { fill = customAsset ? 'url(#customHex' + idx + ')' : 'rgba(26,80,72,.9)'; stroke = '#2ec4b6'; icon = customAsset ? '' : '◆'; }
+      else if (cell.terrain === 'portal') { fill = customAsset ? 'url(#customHex' + idx + ')' : 'rgba(90,16,64,.9)'; stroke = '#e080c0'; icon = customAsset ? '' : '⬡'; }
+      else if (cell.terrain === 'dwelling') { fill = customAsset ? 'url(#customHex' + idx + ')' : 'rgba(46,120,74,.9)'; stroke = '#6ed090'; icon = customAsset ? '' : '⌂'; }
+      else if (cell.terrain === 'holding') { fill = customAsset ? 'url(#customHex' + idx + ')' : 'rgba(120,84,34,.92)'; stroke = '#f0a840'; icon = customAsset ? '' : '⬢'; }
       else {
         fill = String(cell.provinceTerrainColor || '#1a2010');
       }
@@ -2191,6 +2202,65 @@
       + '</div>';
     return svg;
   }
+
+  window.openCrucibleExpeditionCustomHexImageModal = function(hexQ, hexR) {
+    if (!window.getHoldingCrucibleMatch) return;
+    var match = window.getHoldingCrucibleMatch();
+    if (!match || !match.hexMap) return;
+    var hexKey = String(Number(hexQ || 0)) + ',' + String(Number(hexR || 0));
+    var hex = match.hexMap.hexes && match.hexMap.hexes[hexKey];
+    if (!hex || !hex.terrain || ['dwelling','temple','gate','holding','ruin','portal'].indexOf(hex.terrain) === -1) {
+      if (typeof showNotif === 'function') showNotif('Can only upload custom images for special hexes (dwelling, temple, gate, holding, ruin, portal).', 'warn');
+      return;
+    }
+    var terrainType = hex.terrain.charAt(0).toUpperCase() + hex.terrain.slice(1);
+    var hexTypeMap = { dwelling: 'Dwelling', temple: 'Temple', gate: 'Gate', holding: 'Holding', ruin: 'Ruin', portal: 'Portal' };
+    var fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.onchange = function(e) {
+      var file = e.target.files && e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(evt) {
+        var dataUrl = evt.target.result;
+        if (!match.hexMap.customHexAssets) match.hexMap.customHexAssets = {};
+        match.hexMap.customHexAssets[hexKey] = { dataUrl: dataUrl, terrainType: hex.terrain };
+        if (typeof showNotif === 'function') showNotif('Custom hex tile image set for ' + terrainType + ' at (' + hexQ + ',' + hexR + ').', 'good');
+        if (typeof renderHoldingCruciblePopup === 'function') renderHoldingCruciblePopup();
+        if (typeof renderHoldingUI === 'function') renderHoldingUI();
+      };
+      reader.readAsDataURL(file);
+    };
+    fileInput.click();
+  };
+
+  window.clearCrucibleExpeditionCustomHexImage = function(hexQ, hexR) {
+    if (!window.getHoldingCrucibleMatch) return;
+    var match = window.getHoldingCrucibleMatch();
+    if (!match || !match.hexMap || !match.hexMap.customHexAssets) return;
+    var hexKey = String(Number(hexQ || 0)) + ',' + String(Number(hexR || 0));
+    delete match.hexMap.customHexAssets[hexKey];
+    if (typeof showNotif === 'function') showNotif('Custom hex tile image cleared.', 'good');
+    if (typeof renderHoldingCruciblePopup === 'function') renderHoldingCruciblePopup();
+    if (typeof renderHoldingUI === 'function') renderHoldingUI();
+  };
+
+  window.buildCrucibleExpeditionCustomHexImageUI = function(hexQ, hexR) {
+    if (!window.getHoldingCrucibleMatch) return '';
+    var match = window.getHoldingCrucibleMatch();
+    if (!match || !match.hexMap) return '';
+    var hexKey = String(Number(hexQ || 0)) + ',' + String(Number(hexR || 0));
+    var hex = match.hexMap.hexes && match.hexMap.hexes[hexKey];
+    if (!hex || !hex.terrain || ['dwelling','temple','gate','holding','ruin','portal'].indexOf(hex.terrain) === -1) return '';
+    var customAsset = match.hexMap.customHexAssets && match.hexMap.customHexAssets[hexKey];
+    var html = '<div style="margin-top:.32rem;display:flex;gap:.16rem;flex-wrap:wrap;"><button class="btn btn-xs btn-teal" onclick="window.openCrucibleExpeditionCustomHexImageModal(' + hexQ + ',' + hexR + ');">📸 ' + (customAsset ? 'Replace Hex Tile Image' : 'Upload Hex Tile Image') + '</button>';
+    if (customAsset) {
+      html += '<button class="btn btn-xs btn-red" onclick="window.clearCrucibleExpeditionCustomHexImage(' + hexQ + ',' + hexR + ');">✕ Clear Image</button>';
+    }
+    html += '</div>';
+    return html;
+  };
 
   function createCrucibleExpeditionState(hexMap) {
     var raidBoss = getCrucibleExpeditionRaidBossName();
@@ -2954,8 +3024,8 @@
     if (!match || !match.expedition) return false;
     var nextDay = Math.max(1, Number(day || 1));
     var newMap = (typeof generateCrucibleHexMap === 'function')
-      ? generateCrucibleHexMap(Date.now() + nextDay, 12)
-      : { seed: 1, size: 9, hexes: {}, objectives: [], spawns: { ally: { q: -1, r: -1 }, enemy: { q: 1, r: 1 } } };
+      ? generateCrucibleHexMap(Date.now() + nextDay, 13)
+      : { seed: 1, size: 13, hexes: {}, objectives: [], spawns: { ally: { q: -1, r: -1 }, enemy: { q: 1, r: 1 } } };
     stampCrucibleExpeditionProvinceBarriers(newMap);
     stampCrucibleTemplesOnMap(newMap, 4);
     var stamped = stampCrucibleExpeditionProvinceFeatures(newMap, nextDay);
@@ -3392,8 +3462,8 @@
     var modeSpec = getCrucibleModeSpec(crucible.preferredMode || 'control');
     if (modeSpec.id === 'expedition') {
       var expeditionMap = (typeof generateCrucibleHexMap === 'function')
-        ? generateCrucibleHexMap(Date.now(), 12)
-        : { seed: 1, size: 9, hexes: {}, objectives: [], spawns: { ally: { q: -1, r: -1 }, enemy: { q: 1, r: 1 } } };
+        ? generateCrucibleHexMap(Date.now(), 13)
+        : { seed: 1, size: 13, hexes: {}, objectives: [], spawns: { ally: { q: -1, r: -1 }, enemy: { q: 1, r: 1 } } };
       stampCrucibleExpeditionProvinceBarriers(expeditionMap);
       stampCrucibleTemplesOnMap(expeditionMap, 4);
       var partyRoster = getCrucibleExpeditionPartyRoster();

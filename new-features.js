@@ -221,12 +221,6 @@
       };
     }
     if (!S.holding.crucible.preferredMode) S.holding.crucible.preferredMode = 'control';
-    if (String(S.holding.crucible.preferredMode || '').toLowerCase() === 'expedition') {
-      S.holding.crucible.preferredMode = 'control';
-    }
-    if (S.holding.crucible.match && String(S.holding.crucible.match.mode || '').toLowerCase() === 'expedition') {
-      S.holding.crucible.match = null;
-    }
     if (!S.holding.crucible.expedition || typeof S.holding.crucible.expedition !== 'object') {
       S.holding.crucible.expedition = {
         runs: 0,
@@ -3987,8 +3981,7 @@
       return openHoldingCrucibleModePrompt();
     }
     if (modeOverride) {
-      var safeMode = String(modeOverride || '').toLowerCase() === 'expedition' ? 'control' : modeOverride;
-      var modeSpec = getCrucibleModeSpec(safeMode);
+      var modeSpec = getCrucibleModeSpec(modeOverride);
       S.holding.crucible.preferredMode = modeSpec.id;
       S.holding.crucible.match = null;
     }
@@ -4013,8 +4006,7 @@
 
   function holdingCrucibleSetMode(mode) {
     ensureNewFeatureState();
-    var safeMode = String(mode || '').toLowerCase() === 'expedition' ? 'control' : mode;
-    var spec = getCrucibleModeSpec(safeMode);
+    var spec = getCrucibleModeSpec(mode);
     S.holding.crucible.preferredMode = spec.id;
     S.holding.crucible.match = null;
     createHoldingCrucibleMatch();
@@ -5600,12 +5592,29 @@
       + '<button class="btn btn-xs ' + (mode.id === 'clash' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'clash\');">Clash</button>'
       + '<button class="btn btn-xs ' + (mode.id === 'elimination' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'elimination\');">Elimination</button>'
       + '<button class="btn btn-xs ' + (mode.id === 'rumble' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'rumble\');">Rumble</button>'
+      + '<button class="btn btn-xs ' + (mode.id === 'expedition' ? 'btn-primary' : '') + '" onclick="startHoldingMiniGamesExpedition();">Mini Games</button>'
       + '</div>'
       + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;">'
       + (match ? '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAttackSelected();">Attack (Selected)</button>' : '')
         + (match ? '<button class="btn btn-sm" onclick="holdingCrucibleAdvanceRound();">End Team Turn</button>' : '')
       + (match ? '<button class="btn btn-sm" onclick="holdingCrucibleAutoResolve();">Auto Resolve</button>' : '')
       + '</div>';
+  }
+
+  function startHoldingMiniGamesExpedition(sourceKey) {
+    ensureNewFeatureState();
+    var key = String(sourceKey || '').trim();
+    if (key) {
+      S.holding.crucible.expedition = S.holding.crucible.expedition || {};
+      S.holding.crucible.expedition.lastProvinceMiniGamesHex = key;
+    }
+    S.holding.crucible.preferredMode = 'expedition';
+    S.holding.crucible.match = null;
+    if (typeof switchTab === 'function') {
+      var holdingBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('holding'\"]");
+      switchTab('holding', holdingBtn || null);
+    }
+    return openHoldingCrucibleMatch('expedition');
   }
 
   function buyWayfarerHomeUpgrade(key) {
@@ -9347,6 +9356,7 @@
   window.openHoldingSettlementSewerRoute = openHoldingSettlementSewerRoute;
   window.openHoldingCrucibleMatch = openHoldingCrucibleMatch;
   window.holdingCrucibleSetMode = holdingCrucibleSetMode;
+  window.startHoldingMiniGamesExpedition = startHoldingMiniGamesExpedition;
   window.selectHoldingCrucibleUnit = selectHoldingCrucibleUnit;
   window.selectHoldingCrucibleEnemy = selectHoldingCrucibleEnemy;
   window.selectHoldingCrucibleTarget = selectHoldingCrucibleTarget;

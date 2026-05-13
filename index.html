@@ -11959,6 +11959,7 @@ function generateMap(){
   for(let i=0;i<roll(2);i++)placeUnique('monument',pick(MONUMENT_FORMS),{effect:pick(MONUMENT_EFFECTS)});
   for(let i=0;i<roll(3)+1;i++){const p=pickUniquePeril();placeUnique('peril',p.name,{desc:p.desc});}
   for(let i=0;i<roll(3)+1;i++)placeUnique('ruins',pick(['The Fallen Hall','Ossuary Depths','Ruin of the Old World','Broken Spire','The Warden\'s Tomb','Collapsed Citadel']),{builder:pick(RUIN_BUILDERS),builtFor:pick(RUIN_BUILT_FOR),novelty:pick(RUIN_NOVELTIES),construction:pick(RUIN_CONSTRUCTIONS),entrance:pick(RUIN_ENTRANCES),rooms:roll(4)+2});
+  for(let i=0;i<roll(2);i++)placeUnique('minigames',pick(['Moonchain Trial Grounds','The Kneeling Field','Ashfall Crucible Ring','Chapel of Broken Statues']),{sky:pick(['A castle hangs from chains tied into the moon.','Clouds fold inward around a silent eclipse.','An unmoving storm circles this hex like a crown.']),floraFauna:pick(['Black reeds grow through shattered helms while carrion birds refuse to land.','White moths drift over kneeling skeletons that never fall.','No insects, no birds, only ash moving against the wind.']),wonder:pick(['A giant stone hand is buried beneath the village road.','A throne room burns underwater inside a collapsed basilica.','Impossible stairs rise into open air and end at nothing.']),goal:'Enter a rogue run: survive collapsing hexes, beat Day 1/2 bosses, then slay the Night Lord.'});
   placeUnique('depths',pick(['The Lantern Below','The Unfinished Vault','The Ashen Descent','The Black Stair','The Null Catacomb','The Endless Reliquary']),{entrance:pick(['A cracked stairwell drops beneath the province bedrock.','An iron lift shaft hums with old power.','A spiral stair bores into the dark below.','A collapsed chapel floor opens into a buried avenue.']),motif:pick(['Builder works and ossuaries','Flooded archive halls','Clockwork tomb corridors','Basalt shrines and sealed gates','Collapsed barracks beneath old roads']),seal:pick(['Sigils must be aligned to move deeper.','Some chambers only yield to a spoken key.','Secret doors answer to light, spellcraft, or patient searching.','Lower vaults wake only after nearby wards are broken.'])});
   ensureProvinceLibraryHex();
   const evts=[...EVENTS[S.currentAge]].sort(()=>Math.random()-.5).slice(0,roll(4)+3);
@@ -12251,9 +12252,9 @@ window.getProvinceFrontOverlayForHex=getProvinceFrontOverlayForHex;
 window.advanceProvinceConflictFronts=advanceProvinceConflictFronts;
 window.adjustProvinceFrontPressure=adjustProvinceFrontPressure;
 
-const HEX_COLORS={wilderness:'#1a2010',seat:'#8b3030',holding:'#7a4020',dwelling:'#3a6820',temple:'#502878',monument:'#484848',peril:'#783820',ruins:'#403830',depths:'#172028',library:'#1a2436',event:'#6a5800',gate:'#1a5048',lostcity:'#5a1040',barrier:'#282828',trade:'#3a2800'};
-const HEX_BORDERS={wilderness:'#252848',seat:'#e8c050',holding:'#c9a227',dwelling:'#6ed090',temple:'#b060d0',monument:'#7a7898',peril:'#e05050',ruins:'#a09870',depths:'#7ed7ff',library:'#9cb8ff',event:'#c9a227',gate:'#2ec4b6',lostcity:'#e080c0',barrier:'#555555',trade:'#f0a840'};
-const HEX_ICONS={seat:'★',holding:'⌂',dwelling:'◉',temple:'✦',monument:'◈',peril:'⚠',ruins:'◫',depths:'⬢',library:'📚',event:'✧',gate:'◆',lostcity:'⬡',trade:'═'};
+const HEX_COLORS={wilderness:'#1a2010',seat:'#8b3030',holding:'#7a4020',dwelling:'#3a6820',temple:'#502878',monument:'#484848',peril:'#783820',ruins:'#403830',minigames:'#2a1538',depths:'#172028',library:'#1a2436',event:'#6a5800',gate:'#1a5048',lostcity:'#5a1040',barrier:'#282828',trade:'#3a2800'};
+const HEX_BORDERS={wilderness:'#252848',seat:'#e8c050',holding:'#c9a227',dwelling:'#6ed090',temple:'#b060d0',monument:'#7a7898',peril:'#e05050',ruins:'#a09870',minigames:'#cf9cff',depths:'#7ed7ff',library:'#9cb8ff',event:'#c9a227',gate:'#2ec4b6',lostcity:'#e080c0',barrier:'#555555',trade:'#f0a840'};
+const HEX_ICONS={seat:'★',holding:'⌂',dwelling:'◉',temple:'✦',monument:'◈',peril:'⚠',ruins:'◫',minigames:'◬',depths:'⬢',library:'📚',event:'✧',gate:'◆',lostcity:'⬡',trade:'═'};
 const MAP_HEX_STYLE_PRESETS={
   classic:{label:'Classic',fillShift:0,strokeShift:0,strokeWidthMul:1,wildernessTint:'',wildernessTintMix:0,featureTint:'',featureTintMix:0,iconOverrides:null},
   painterly:{label:'Painterly',fillShift:10,strokeShift:6,strokeWidthMul:1.08,wildernessTint:'#4c6a34',wildernessTintMix:0.28,featureTint:'#e6c98d',featureTintMix:0.08,iconOverrides:{trade:'⇄',gate:'⬢'}},
@@ -13391,6 +13392,20 @@ function renderHexInfo(hex){
     html+=`<div class="npc-block" style="margin-top:.3rem;"><div class="nb-label">🎭 Scene Read</div><div style="font-size:.79rem;color:var(--text2);line-height:1.58;">From this hex, the skyline is a broken crown of collapsed arches and half-standing watchtowers. Wind snakes through exposed corridors carrying old ash and distant chimes. Inside, rooms are layered with scavenger marks, fractured mosaics, and narrow kill-lanes that make every doorway feel like a decision.</div></div>`;
     html+=`<div style="margin:.35rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
       <button class="btn btn-sm btn-primary" onclick="requestJoinProvinceArea('ruins',${hex.col},${hex.row})">Join Area: Ruins</button>
+    </div>`;
+
+  // ── MINI GAMES ──
+  }else if(hex.type==='minigames'){
+    html+=`<div class="rest-boon" style="background:rgba(144,76,184,.08);border-color:rgba(207,156,255,.45);">
+      <div class="rb-label" style="color:#cf9cff;">◬ Mini Games</div>
+      <div style="font-size:.82rem;color:var(--text2);">A rogue expedition branch built from Province-map logic: collapsing edges, procedural encounters, and a 3-boss night cycle.</div>
+    </div>`;
+    html+=`<div class="wild-panel"><div class="wp-label">Sky</div><div class="wp-text">${d.sky||'The sky hangs too low, as if dragged by chains.'}</div></div>`;
+    html+=`<div class="wild-panel"><div class="wp-label">Flora & Fauna</div><div class="wp-text">${d.floraFauna||'The land is quiet except for ash and distant wingbeats.'}</div></div>`;
+    html+=`<div class="wild-panel"><div class="wp-label">Wonder</div><div class="wp-text">${d.wonder||'Impossible architecture contradicts every known map.'}</div></div>`;
+    html+=`<div class="npc-block" style="margin-top:.3rem;"><div class="nb-label">Expedition Goal</div><div style="font-size:.79rem;color:var(--text2);line-height:1.55;">${d.goal||'Survive each collapse cycle and defeat the final Night Lord.'}</div></div>`;
+    html+=`<div style="margin:.4rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
+      <button class="btn btn-sm btn-primary" onclick="if(typeof window.startHoldingMiniGamesExpedition==='function')window.startHoldingMiniGamesExpedition('${nk}');else showNotif('Mini Games launcher unavailable. Open Holding → Crucible manually.','warn');">Enter Mini Games Expedition</button>
     </div>`;
 
   // ── DEPTHS ──

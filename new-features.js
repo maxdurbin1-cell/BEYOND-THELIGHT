@@ -4944,6 +4944,18 @@
 
     var before = String(Number(player.position.q || 0)) + ',' + String(Number(player.position.r || 0));
     var moved = holdingCrucibleMoveSelected(nextQ, nextR);
+    if (!moved) {
+      var directResult = tryCrucibleExpeditionDirectMove(match, nextQ, nextR);
+      if (directResult) {
+        var fallbackPlayer = getCrucibleExpeditionPlayer(match);
+        var fallbackAfter = fallbackPlayer && fallbackPlayer.position
+          ? (String(Number(fallbackPlayer.position.q || 0)) + ',' + String(Number(fallbackPlayer.position.r || 0)))
+          : before;
+        if (fallbackAfter !== before) {
+          return true;
+        }
+      }
+    }
     if (moved) {
       player = getCrucibleExpeditionPlayer(match);
       var after = player && player.position

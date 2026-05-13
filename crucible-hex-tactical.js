@@ -55,6 +55,16 @@ function getRangeCategory(distance) {
   return 'Out of Reach';
 }
 
+function getCrucibleWeaponRangeFromStatText(statText) {
+  var text = String(statText || '').toLowerCase();
+  if (!text) return 2;
+  if (text.indexOf('engaged') >= 0) return 1;
+  if (text.indexOf('close') >= 0) return 2;
+  if (text.indexOf('nearby') >= 0) return 3;
+  if (text.indexOf('far') >= 0) return 4;
+  return 2;
+}
+
 function canUseCrucibleAttackRange(distance) {
   return Number(distance || 0) > 0 && Number(distance || 0) <= 2;
 }
@@ -380,8 +390,36 @@ function triggerHexTerrainEffects(unit, hex, map, log) {
   // Loot pickup
   if (cell.loot && cell.loot.available !== false) {
     cell.loot.available = false;
-    if (cell.loot.type === 'weapon') {
-      unit.equipment.weapon = { affinity: cell.loot.bonus, roll: 'D' + (8 + cell.loot.bonus * 2) };
+    if (cell.loot.item) {
+      var item = cell.loot.item;
+      var itemStat = String(item.stat || '');
+      var itemCat = String(item.cat || '').toLowerCase();
+      if (itemCat === 'weapons' || itemCat === 'melee_exp' || itemCat === 'ranged_exp') {
+        var weaponBonus = Math.max(1, Number((itemStat.match(/\+(\d+)/) || [0, 1])[1] || 1));
+        unit.equipment.weapon = {
+          name: String(item.name || 'Weapon'),
+          affinity: weaponBonus,
+          roll: 'D' + (8 + weaponBonus * 2),
+          statText: itemStat,
+          range: getCrucibleWeaponRangeFromStatText(itemStat)
+        };
+        if (log) log.push('⚔ ' + unit.name + ' found ' + String(item.name || 'a weapon') + ' (' + itemStat + ').');
+      } else if (itemCat === 'armor' || itemCat === 'armor_exp' || itemCat === 'space_armor') {
+        var armorBonus = Math.max(1, Number((itemStat.match(/ad(\d+)/i) || [0, 4])[1] || 4) / 2);
+        unit.equipment.armor = {
+          name: String(item.name || 'Armor'),
+          affinity: armorBonus,
+          defense: armorBonus,
+          statText: itemStat
+        };
+        if (log) log.push('🛡 ' + unit.name + ' found ' + String(item.name || 'armor') + ' (' + itemStat + ').');
+      } else {
+        var heal = Math.max(1, Number(cell.loot.bonus || 1));
+        unit.hp = Math.min(Number(unit.hp || 0) + heal, Number(unit.maxHp || unit.hp || 0));
+        if (log) log.push('✦ ' + unit.name + ' found ' + String(item.name || 'supplies') + ' and recovered ' + heal + ' HP.');
+      }
+    } else if (cell.loot.type === 'weapon') {
+      unit.equipment.weapon = { affinity: cell.loot.bonus, roll: 'D' + (8 + cell.loot.bonus * 2), statText: '+1 Shoot | Nearby', range: 3 };
       if (log) log.push('⚔ ' + unit.name + ' found a weapon (+' + cell.loot.bonus + ' attack).');
     } else if (cell.loot.type === 'armor') {
       unit.equipment.armor = { affinity: cell.loot.bonus, defense: cell.loot.bonus };
@@ -422,8 +460,12 @@ function executeAttackAction(attacker, defender, map, log) {
   var dist = getUnitDistance(attacker, defender);
   var range = getRangeCategory(dist);
 
-  // Only Engaged and Close allowed for attack
-  if (!canUseCrucibleAttackRange(dist)) {
+  var maxRange = 2;
+  if (attacker && attacker.equipment && attacker.equipment.weapon) {
+    var statText = String(attacker.equipment.weapon.statText || attacker.equipment.weapon.roll || '');
+    maxRange = Number(attacker.equipment.weapon.range || getCrucibleWeaponRangeFromStatText(statText) || 2);
+  }
+  if (dist <= 0 || dist > maxRange) {
     if (log) log.push(attacker.name + ' cannot reach ' + defender.name + ' (' + range + ').');
     return false;
   }

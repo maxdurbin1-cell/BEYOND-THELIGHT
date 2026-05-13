@@ -204,7 +204,7 @@ async function runScenario(browser) {
     };
   });
 
-  if (!/Crucible 6v6 Tactical Simulator/i.test(crucibleResult.title || "")) {
+  if (!/Crucible (3v3|6v6) Tactical Simulator/i.test(crucibleResult.title || "")) {
     throw new Error(`Crucible modal did not open: ${JSON.stringify(crucibleResult)}`);
   }
 

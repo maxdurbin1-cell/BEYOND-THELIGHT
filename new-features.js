@@ -1516,10 +1516,14 @@
     control: {
       id: 'control',
       label: 'Control',
-      objective: 'Three zones (A/B/C). Holding zones gives 1 point each round; kills give 1 point. First to 20 wins.',
-      scoreToWin: 20,
+      objective: '3v3 Control. Hold at least 2 of 3 zones each round. Highest score after 10 rounds wins.',
+      scoreToWin: 10,
       killPoints: 1,
-      zonePoints: 1
+      zonePoints: 0,
+      controlRoundPoint: 1,
+      maxRounds: 10,
+      teamSize: 3,
+      mapSize: 12
     },
     clash: {
       id: 'clash',
@@ -1562,6 +1566,11 @@
     return CRUCIBLE_MODE_SPECS[key] || CRUCIBLE_MODE_SPECS.control;
   }
 
+  function getCrucibleModeTeamSize(modeId) {
+    var spec = getCrucibleModeSpec(modeId);
+    return Math.max(2, Number(spec.teamSize || (spec.id === 'elimination' ? 3 : 6)));
+  }
+
   function getCrucibleShopLootPool() {
     var data = (typeof SHOP_DATA !== 'undefined' && SHOP_DATA) ? SHOP_DATA : {};
     var pool = [];
@@ -1578,6 +1587,126 @@
       }
     });
     return pool;
+  }
+
+  function getCrucibleArmorActionCountFromStat(statText) {
+    var text = String(statText || '').toLowerCase();
+    var m = text.match(/(\d+)\s*actions?/i);
+    if (m && m[1]) return Math.max(1, Math.min(4, Number(m[1] || 2)));
+    if (text.indexOf('light') >= 0) return 3;
+    if (text.indexOf('heavy') >= 0) return 1;
+    return 2;
+  }
+
+  function getCrucibleWeaponRangeFromStat(statText) {
+    var text = String(statText || '').toLowerCase();
+    if (!text) return 2;
+    if (text.indexOf('engaged') >= 0) return 1;
+    if (text.indexOf('close') >= 0) return 2;
+    if (text.indexOf('nearby') >= 0) return 3;
+    if (text.indexOf('far') >= 0) return 4;
+    return 2;
+  }
+
+  function getCrucibleUnitAttackMaxRange(unit) {
+    if (!unit) return 2;
+    var statText = unit.equipment && unit.equipment.weapon
+      ? String(unit.equipment.weapon.statText || unit.equipment.weapon.roll || '')
+      : '';
+    return getCrucibleWeaponRangeFromStat(statText);
+  }
+
+  function getCrucibleRangeActionHint(distance, maxRange) {
+    var dist = Math.max(0, Number(distance || 0));
+    var cap = Math.max(1, Number(maxRange || 2));
+    if (dist === 1) return 'Engaged · Strike';
+    if (dist <= cap) return (dist === 2 ? 'Close' : (dist === 3 ? 'Nearby' : 'Far')) + ' · Shoot';
+    return 'Out of Range';
+  }
+
+  function buildCrucibleLoadoutFromShop(name) {
+    var pool = getCrucibleShopLootPool();
+    var wanted = String(name || '').toLowerCase();
+    var found = pool.find(function (entry) {
+      return String(entry && entry.name || '').toLowerCase() === wanted;
+    }) || null;
+    return found ? {
+      name: String(found.name || name || 'Weapon'),
+      statText: String(found.stat || ''),
+      affinity: Math.max(0, Number((String(found.stat || '').match(/\+(\d+)/) || [0, 1])[1] || 1)),
+      range: getCrucibleWeaponRangeFromStat(found.stat),
+      cat: String(found.cat || '')
+    } : {
+      name: String(name || 'Weapon'),
+      statText: '+1 Shoot | Nearby',
+      affinity: 1,
+      range: 3,
+      cat: 'weapons'
+    };
+  }
+
+  function applyCrucibleControlLoadout(unit, armorLabel, weaponName) {
+    if (!unit) return;
+    var armorName = String(armorLabel || 'Balanced Armor');
+    var armorStat = armorName.toLowerCase().indexOf('light') >= 0
+      ? 'Ad4 | 3 Actions'
+      : (armorName.toLowerCase().indexOf('heavy') >= 0 ? 'Ad10 | 1 Action' : 'Ad6 | 2 Actions');
+    var maxAp = getCrucibleArmorActionCountFromStat(armorStat);
+    unit.hp = 8;
+    unit.maxHp = 8;
+    unit.attackDie = 4;
+    unit.defendDie = 4;
+    unit.maxAp = maxAp;
+    unit.ap = maxAp;
+    unit.equipment = unit.equipment || { weapon: null, armor: null };
+    unit.equipment.armor = {
+      name: armorName,
+      statText: armorStat,
+      actions: maxAp
+    };
+    unit.equipment.weapon = buildCrucibleLoadoutFromShop(weaponName || 'Sword');
+  }
+
+  function seedCrucibleControlMapFeatures(map) {
+    if (!map || !map.hexes) return false;
+    var pool = getCrucibleShopLootPool();
+    var keys = Object.keys(map.hexes);
+    var open = keys.filter(function (key) {
+      var cell = map.hexes[key];
+      return !!cell && !cell.obstacle && !cell.door && !cell.zone;
+    });
+    if (!open.length) return false;
+
+    // Upgrade generic loot nodes to Merchant-pool drops.
+    open.forEach(function (key) {
+      var cell = map.hexes[key];
+      if (!cell || !cell.loot) return;
+      var pick = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+      if (!pick) return;
+      cell.loot = {
+        type: String(pick.cat || 'items'),
+        bonus: 1,
+        item: {
+          name: String(pick.name || 'Loot'),
+          stat: String(pick.stat || ''),
+          cat: String(pick.cat || '')
+        }
+      };
+      cell.terrain = 'loot';
+    });
+
+    // Place a few random teleport hexes.
+    var teleCount = Math.max(1, Math.min(3, Math.floor(open.length / 35)));
+    for (var i = 0; i < teleCount; i++) {
+      if (!open.length) break;
+      var idx = Math.floor(Math.random() * open.length);
+      var key = open.splice(idx, 1)[0];
+      var cell = map.hexes[key];
+      if (!cell || cell.loot || cell.zone || cell.obstacle || cell.door) continue;
+      cell.teleport = { active: true };
+      cell.terrain = 'portal';
+    }
+    return true;
   }
 
   function rollCrucibleExpeditionAffix() {
@@ -3251,13 +3380,15 @@
       crucible.expedition.runs = Math.max(0, Number(crucible.expedition.runs || 0) + 1);
       return crucible.match;
     }
-    var squadSize = modeSpec.id === 'elimination' ? 3 : 6;
+    var squadSize = Math.max(2, Number(modeSpec.teamSize || (modeSpec.id === 'elimination' ? 3 : 6)));
+    var mapSize = Math.max(9, Number(modeSpec.mapSize || 9));
     var playerName = String((S && S.name) || 'Wayfarer');
 
     // Generate hex map
     var hexMap = (typeof generateCrucibleHexMap === 'function')
-      ? generateCrucibleHexMap(Date.now(), 9)
+      ? generateCrucibleHexMap(Date.now(), mapSize)
       : { seed: 1, size: 9, hexes: {}, objectives: [], spawns: { ally: { q: -1, r: -1 }, enemy: { q: 1, r: 1 } } };
+    if (modeSpec.id === 'control') seedCrucibleControlMapFeatures(hexMap);
 
     // Generate environmental interactables and stamp them onto the map
     var _interactablesSeed = Date.now() + 1;
@@ -3297,24 +3428,38 @@
       equipment: { weapon: null, armor: null }
     });
 
+    if (modeSpec.id === 'control') {
+      applyCrucibleControlLoadout(allies[0], 'Balanced Armor', 'Crossbow');
+    }
+
     var enemyNames = ['Vanguard Sel', 'Scout Arix', 'Binder Kori', 'Ravager Nyx', 'Sentry Vale'];
     var allRoles = ['tank', 'sniper', 'support', 'assault', 'tank'];
+    var allyArmor = ['Light Armor', 'Balanced Armor', 'Heavy Armor'];
+    var allyWeapons = ['Sword', 'Crossbow', 'Longbow'];
 
     for (var i = 1; i < squadSize; i++) {
       var allyHex = { q: allySpawn.q + allyOffsets[i].q, r: allySpawn.r + allyOffsets[i].r };
       var unit = buildCrucibleUnit(enemyNames[i - 1], 'ally', allRoles[i - 1], i, allyHex);
       if (typeof assignRandomPersonalFlavor === 'function') assignRandomPersonalFlavor(unit);
+      if (modeSpec.id === 'control') {
+        applyCrucibleControlLoadout(unit, allyArmor[i % allyArmor.length], allyWeapons[i % allyWeapons.length]);
+      }
       allies.push(unit);
     }
 
     var enemies = [];
     var redNames = ['Red Team Captain', 'Red Team Lancer', 'Red Team Marksman', 'Red Team Warden', 'Red Team Hexer', 'Red Team Stalker'];
     var redRoles = ['tank', 'assault', 'sniper', 'tank', 'support', 'assault'];
+    var enemyArmor = ['Heavy Armor', 'Balanced Armor', 'Light Armor'];
+    var enemyWeapons = ['Sword', 'Pistol', 'Longbow'];
 
     for (var j = 0; j < squadSize; j++) {
       var enemyHex = { q: enemySpawn.q + enemyOffsets[j].q, r: enemySpawn.r + enemyOffsets[j].r };
       var enemy = buildCrucibleUnit(redNames[j], 'enemy', redRoles[j], j, enemyHex);
       if (typeof assignRandomPersonalFlavor === 'function') assignRandomPersonalFlavor(enemy);
+      if (modeSpec.id === 'control') {
+        applyCrucibleControlLoadout(enemy, enemyArmor[j % enemyArmor.length], enemyWeapons[j % enemyWeapons.length]);
+      }
       enemies.push(enemy);
     }
 
@@ -3339,7 +3484,7 @@
       hexMap: hexMap,
       interactables: _interactables,
       roundWins: { ally: 0, enemy: 0 },
-      log: ['Crucible match opened: 6v6 hex tactical simulation (' + modeSpec.label + '). Allies spawned at [' + allySpawn.q + ',' + allySpawn.r + '].'],
+      log: ['Crucible match opened: ' + squadSize + 'v' + squadSize + ' hex tactical simulation (' + modeSpec.label + '). Allies spawned at [' + allySpawn.q + ',' + allySpawn.r + '].'],
       startedAt: Date.now(),
       finishedAt: 0,
       winner: ''
@@ -3379,12 +3524,24 @@
 
   function canCrucibleUnitAttack(attacker, defender) {
     if (!attacker || !defender || !attacker.position || !defender.position) return false;
-    if (typeof canUnitReach === 'function') return canUnitReach(attacker, defender);
     if (typeof getUnitDistance === 'function') {
       var dist = Number(getUnitDistance(attacker, defender) || 0);
-      return dist > 0 && dist <= 2;
+      return dist > 0 && dist <= getCrucibleUnitAttackMaxRange(attacker);
     }
     return false;
+  }
+
+  function canCrucibleUnitUseAttackType(attacker, defender, attackType) {
+    if (!attacker || !defender || !attacker.position || !defender.position || typeof getUnitDistance !== 'function') return false;
+    var dist = Number(getUnitDistance(attacker, defender) || 99);
+    if (!Number.isFinite(dist) || dist <= 0) return false;
+    var kind = String(attackType || 'attack').toLowerCase();
+    if (kind === 'strike') return dist === 1;
+    if (kind === 'shoot') {
+      var maxRange = getCrucibleUnitAttackMaxRange(attacker);
+      return dist >= 2 && dist <= maxRange;
+    }
+    return canCrucibleUnitAttack(attacker, defender);
   }
 
   function canCrucibleUnitCastActionOnTarget(attacker, defender, kind) {
@@ -3425,6 +3582,7 @@
         logs.push('☠ ' + target.name + ' is down.');
         var mode = getCrucibleModeSpec(match.mode);
         awardCruciblePoints(match, String(actor.side || 'ally'), Number(mode.killPoints || 1), 'Takedown');
+        maybeRespawnCrucibleControlUnit(match, target, logs);
       }
       if (typeof showDccSuccessOutcome === 'function') {
         showDccSuccessOutcome('spell', margin, {
@@ -3570,7 +3728,7 @@
   function resetCrucibleTeamForTurn(units) {
     (units || []).forEach(function (u) {
       if (!u) return;
-      u.ap = Number(u.hp || 0) > 0 ? 2 : 0;
+      u.ap = Number(u.hp || 0) > 0 ? Math.max(1, Number(u.maxAp || 2)) : 0;
       u.defendBuff = 0;
     });
   }
@@ -3610,17 +3768,30 @@
     if (!match || !match.active) return;
     var mode = getCrucibleModeSpec(match.mode);
     if (mode.id !== 'control') return;
-    var zones = (match.tacticalLayout && match.tacticalLayout.controlZones) || { A: 'Engaged', B: 'Close', C: 'Far' };
-    Object.keys(zones).forEach(function (zoneKey) {
-      var lane = String(zones[zoneKey] || 'Close');
-      var allyOnLane = getLivingTeamUnits(match.allies).filter(function (u) { return String(u.range || '') === lane; }).length;
-      var enemyOnLane = getLivingTeamUnits(match.enemies).filter(function (u) { return String(u.range || '') === lane; }).length;
-      if (allyOnLane > enemyOnLane) {
-        awardCruciblePoints(match, 'ally', mode.zonePoints, 'Zone ' + zoneKey + ' secured');
-      } else if (enemyOnLane > allyOnLane) {
-        awardCruciblePoints(match, 'enemy', mode.zonePoints, 'Zone ' + zoneKey + ' secured');
-      }
-    });
+    var allyZones = (typeof getControlledZones === 'function') ? getControlledZones(getLivingTeamUnits(match.allies), match.hexMap) : [];
+    var enemyZones = (typeof getControlledZones === 'function') ? getControlledZones(getLivingTeamUnits(match.enemies), match.hexMap) : [];
+    if (allyZones.length >= 2 && enemyZones.length < 2) {
+      awardCruciblePoints(match, 'ally', Number(mode.controlRoundPoint || 1), 'Controlled 2/3 zones this round');
+      match.log = (match.log || []).concat(['Blue Team controls ' + allyZones.length + '/3 zones.']).slice(-120);
+    } else if (enemyZones.length >= 2 && allyZones.length < 2) {
+      awardCruciblePoints(match, 'enemy', Number(mode.controlRoundPoint || 1), 'Controlled 2/3 zones this round');
+      match.log = (match.log || []).concat(['Red Team controls ' + enemyZones.length + '/3 zones.']).slice(-120);
+    } else {
+      match.log = (match.log || []).concat(['Round contested: no side held 2/3 zones.']).slice(-120);
+    }
+  }
+
+  function maybeRespawnCrucibleControlUnit(match, unit, log) {
+    if (!match || !unit || String(match.mode || '') !== 'control' || Number(unit.hp || 0) > 0) return false;
+    var spawn = String(unit.side || '') === 'enemy'
+      ? (match.hexMap && match.hexMap.spawns && match.hexMap.spawns.enemy)
+      : (match.hexMap && match.hexMap.spawns && match.hexMap.spawns.ally);
+    var safeSpawn = spawn || { q: 0, r: 0 };
+    unit.hp = Number(unit.maxHp || 8);
+    unit.ap = 0;
+    unit.position = { q: Number(safeSpawn.q || 0), r: Number(safeSpawn.r || 0) };
+    if (log) log.push('↺ ' + unit.name + ' respawned at [' + unit.position.q + ',' + unit.position.r + '].');
+    return true;
   }
 
   function determineCrucibleWinner(match) {
@@ -3648,6 +3819,13 @@
     }
     var allyScore = Math.max(0, Number(match.score && match.score.ally || 0));
     var enemyScore = Math.max(0, Number(match.score && match.score.enemy || 0));
+    if (mode.id === 'control') {
+      var maxRounds = Math.max(1, Number(mode.maxRounds || 10));
+      if (Number(match.round || 1) <= maxRounds) return '';
+      if (allyScore > enemyScore) return 'allies';
+      if (enemyScore > allyScore) return 'enemies';
+      return '';
+    }
     if (allyScore >= Number(mode.scoreToWin || 0)) return 'allies';
     if (enemyScore >= Number(mode.scoreToWin || 0)) return 'enemies';
     return '';
@@ -3687,6 +3865,7 @@
         var mode = getCrucibleModeSpec(match && match.mode);
         var bonus = (mode.id === 'rumble' && attacker.isPlayer) ? Number(mode.playerKillBonus || 0) : 0;
         awardCruciblePoints(match, String(attacker.side || 'ally'), Number(mode.killPoints || 1) + bonus, 'Takedown');
+        maybeRespawnCrucibleControlUnit(match, defender, log);
       }
       var flavorBase = getCrucibleExpeditionFlavorBase(attacker);
       if (match && String(match.mode || '') === 'expedition' && flavorBase.indexOf('siphon energy') >= 0) {
@@ -3720,6 +3899,18 @@
       unit.ap = 0;
     });
     match.round = Math.max(1, Number(match.round || 1) + 1);
+    var mode = getCrucibleModeSpec(match.mode);
+    if (mode.id === 'control' && Number(mode.maxRounds || 10) > 0 && Number(match.round || 1) > Number(mode.maxRounds || 10)) {
+      var allyScore = Math.max(0, Number(match.score && match.score.ally || 0));
+      var enemyScore = Math.max(0, Number(match.score && match.score.enemy || 0));
+      if (allyScore === enemyScore) {
+        match.log = (match.log || []).concat(['Control regulation ended tied. Sudden death applies: next zone-control point wins.']).slice(-120);
+      } else {
+        match.active = false;
+        match.finishedAt = Date.now();
+        match.winner = allyScore > enemyScore ? 'allies' : 'enemies';
+      }
+    }
     if (typeof processInteractableRoundStart === 'function' && Array.isArray(match.interactables)) {
       processInteractableRoundStart(match.interactables, match.allies.concat(match.enemies), match.hexMap, match.log);
     }
@@ -3973,12 +4164,12 @@
       crucible.currentWinStreak = Math.max(0, Number(crucible.currentWinStreak || 0) + 1);
       crucible.bestWinStreak = Math.max(Number(crucible.bestWinStreak || 0), Number(crucible.currentWinStreak || 0));
       crucible.lastResult = 'Victory in ' + Number(match.round || 1) + ' rounds';
-      if (typeof showNotif === 'function') showNotif('Crucible victory. Your 6v6 squad held the tactical map.', 'good');
+      if (typeof showNotif === 'function') showNotif('Crucible victory. Your squad held the tactical map.', 'good');
     } else {
       crucible.losses = Math.max(0, Number(crucible.losses || 0) + 1);
       crucible.currentWinStreak = 0;
       crucible.lastResult = 'Defeat in ' + Number(match.round || 1) + ' rounds';
-      if (typeof showNotif === 'function') showNotif('Crucible defeat. Tune build and try another 6v6 run.', 'warn');
+      if (typeof showNotif === 'function') showNotif('Crucible defeat. Tune build and run it back.', 'warn');
     }
     return true;
   }
@@ -4023,6 +4214,14 @@
     var details = (selectedUnit && typeof getHexUnitDetailsHtml === 'function')
       ? ('<div style="margin-top:.22rem;padding:.22rem .3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">' + getHexUnitDetailsHtml(selectedUnit) + '</div>')
       : '';
+    var guidance = '';
+    if (selectedUnit && String(match.turnSide || 'ally') === selectedUnit.side) {
+      var ap = Number(selectedUnit.ap || 0);
+      guidance = '<div style="font-size:.68rem;color:var(--muted2);margin:.18rem 0 .08rem;">'
+        + 'Selected: <strong style="color:var(--ink);">' + String(selectedUnit.name || 'Unit') + '</strong>'
+        + ' · AP ' + ap + ' · Use Move/Attack actions from the controls below.'
+        + '</div>';
+    }
     
     if (isExpedition && typeof buildCrucibleExpeditionProvinceParityMapHtml === 'function') {
       var provinceSvg = buildCrucibleExpeditionProvinceParityMapHtml(match, selectedUnit, reachableKeys);
@@ -4249,6 +4448,7 @@
       + '<option value="defend">Defend (+3 next defend)</option>'
       + '<option value="attack" selected>Attack (Engaged/Close)</option>'
       + '<option value="support">Support (+3 next attack)</option>'
+      + '<option value="move">Move (1 hex)</option>'
       + '</select></label>'
       + '<label style="font-size:.66rem;color:var(--muted2);">Target'
       + '<select id="crucibleTeamTargetSelect" style="width:100%;margin-top:.08rem;">' + teamTargetOptions + '</select></label>'
@@ -4403,9 +4603,11 @@
         ? (selectedAllyTarget && String(selectedAllyTarget.id) === String(u.id))
         : (selectedAlly && String(selectedAlly.id) === String(u.id));
       var flavor = (u.personalFlavor && u.personalFlavor.name) ? (' · PF:' + String(u.personalFlavor.name)) : '';
+      var armorAp = Number(u.maxAp || 2);
+      var rangeCap = getCrucibleUnitAttackMaxRange(u);
       var handler = isEnemyTurn ? 'selectHoldingCrucibleAllyTarget' : 'selectHoldingCrucibleUnit';
       return '<button class="btn btn-xs ' + (on ? 'btn-teal' : '') + '" onclick="' + handler + '(\'' + String(u.id).replace(/'/g, '&#39;') + '\')">'
-        + u.name + ' [' + (u.position ? (u.position.q + ',' + u.position.r) : 'PA') + '] AP' + Number(u.ap || 0) + ' HP' + Number(u.hp || 0) + flavor
+        + u.name + ' [' + (u.position ? (u.position.q + ',' + u.position.r) : 'PA') + '] AP' + Number(u.ap || 0) + '/' + armorAp + ' HP' + Number(u.hp || 0) + ' R' + rangeCap + flavor
       + '</button>';
     }).join('');
     var targetRows = getLivingTeamUnits(match.enemies).map(function (u) {
@@ -4428,6 +4630,10 @@
     var scoreLine = mode.id === 'elimination'
       ? ('Round Wins ' + Number(match.roundWins && match.roundWins.ally || 0) + ' - ' + Number(match.roundWins && match.roundWins.enemy || 0) + ' (target ' + Number(mode.scoreToWin || 5) + ')')
       : ('Score ' + Number(match.score && match.score.ally || 0) + ' - ' + Number(match.score && match.score.enemy || 0) + ' (target ' + Number(mode.scoreToWin || 0) + ')');
+    if (mode.id === 'control') {
+      scoreLine = 'Zone Score ' + Number(match.score && match.score.ally || 0) + ' - ' + Number(match.score && match.score.enemy || 0)
+        + ' · Round ' + Number(match.round || 1) + '/' + Number(mode.maxRounds || 10);
+    }
     if (isExpedition) {
       scoreLine = 'Day ' + Number(expedition.day || 1)
         + ' · Flasks ' + Number(expedition.flasks || 0) + '/' + Number(expedition.maxFlasks || 7)
@@ -4503,7 +4709,7 @@
       return '<div style="font-size:.72rem;color:var(--text2);line-height:1.45;border-bottom:1px solid var(--border2);padding:.12rem 0;">' + String(line || '') + '</div>';
     }).join('');
     return '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
-      + '<div style="font-family:Cinzel,serif;font-size:.88rem;color:var(--gold2);margin-bottom:.2rem;">' + (isExpedition ? 'Crucible Expedition' : 'Crucible 6v6 Tactical Simulator') + '</div>'
+      + '<div style="font-family:Cinzel,serif;font-size:.88rem;color:var(--gold2);margin-bottom:.2rem;">' + (isExpedition ? 'Crucible Expedition' : ('Crucible ' + getCrucibleModeTeamSize(mode.id) + 'v' + getCrucibleModeTeamSize(mode.id) + ' Tactical Simulator')) + '</div>'
       + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.15rem;">Round ' + Number(match.round || 1) + ' · ' + currentTurn + ' · Allies ' + alliesAlive + '/' + Number((match.allies||[]).length || 0) + ' · Enemies ' + enemiesAlive + '/' + Number((match.enemies||[]).length || 0) + '</div>'
       + '<div style="font-size:.74rem;color:var(--teal);margin-bottom:.28rem;">Mode: ' + mode.label + ' · Objective: ' + mode.objective + ' · ' + scoreLine + '</div>'
       + (isExpedition ? '<div style="font-size:.69rem;color:var(--gold2);margin-top:-.12rem;margin-bottom:.24rem;">'
@@ -4575,13 +4781,18 @@
       openModal('Expedition Loadout Selection', buildCrucibleExpeditionLoadoutSelectionHtml());
     } else {
       if (typeof openModal === 'function') {
-        openModal(match && String(match.mode || '') === 'expedition' ? 'Expedition Province' : 'Crucible 6v6 Tactical Simulator', buildHoldingCruciblePopupHtml());
+        var openMode = getCrucibleModeSpec(match && match.mode);
+        var teamSize = getCrucibleModeTeamSize(openMode.id);
+        openModal(match && String(match.mode || '') === 'expedition'
+          ? 'Expedition Province'
+          : ('Crucible ' + teamSize + 'v' + teamSize + ' Tactical Simulator'), buildHoldingCruciblePopupHtml());
       }
       if (typeof showNotif === 'function' && match && Number(match.round || 1) === 1) {
         var openedSpec = getCrucibleModeSpec(match.mode);
+        var teamSize = getCrucibleModeTeamSize(openedSpec.id);
         showNotif(openedSpec.id === 'expedition'
           ? 'Crucible Expedition opened: 3-day rogue run initialized.'
-          : 'Crucible opened: 6v6 tactical training scenario ready.', 'good');
+          : ('Crucible opened: ' + teamSize + 'v' + teamSize + ' tactical training scenario ready.'), 'good');
       }
     }
     renderHoldingUI();
@@ -4653,6 +4864,7 @@
         var lowerJoined = options.join(' ').toLowerCase();
         if (lowerJoined.indexOf('value="spell"') < 0) options.push('<option value="spell">Spell</option>');
         if (lowerJoined.indexOf('value="hack"') < 0) options.push('<option value="hack">Hack</option>');
+        if (lowerJoined.indexOf('value="move"') < 0) options.push('<option value="move">Move</option>');
         return options.join('');
       }
     }
@@ -4660,6 +4872,7 @@
       + '<option value="shoot">Shoot</option>'
       + '<option value="spell">Spell</option>'
       + '<option value="hack">Hack</option>'
+        + '<option value="move">Move</option>'
       + '<option value="defend">Defend</option>'
       + '<option value="support">Support</option>'
       + '<option value="personal-flavor">Personal Flavor</option>';
@@ -4687,17 +4900,22 @@
         return '<option value="' + friendlySide + ':' + String(unit.id).replace(/"/g, '&quot;') + '">' + String(unit.name || 'Unit') + '</option>';
       }).join('');
     }
-    if (act === 'move') {
-      return '<option value="self">No target</option>';
+    if (act.indexOf('move') === 0) {
+      var moveTargets = opposingUnits.map(function (unit) {
+        return '<option value="' + opposingSide + ':' + String(unit.id).replace(/"/g, '&quot;') + '">' + String(unit.name || 'Enemy') + ' · Move toward</option>';
+      });
+      moveTargets.push('<option value="self">No target</option>');
+      return moveTargets.join('');
     }
     if (act === 'attack' || act === 'strike' || act === 'shoot') {
       var targets = opposingUnits.filter(function (enemy) {
-        return !!(actor && enemy && canCrucibleUnitAttack(actor, enemy));
+        return !!(actor && enemy && canCrucibleUnitUseAttackType(actor, enemy, act));
       });
       return targets.map(function (unit) {
-        var distTxt = (actor && typeof getUnitDistance === 'function') ? (' d:' + Number(getUnitDistance(actor, unit) || 0)) : '';
-        return '<option value="' + opposingSide + ':' + String(unit.id).replace(/"/g, '&quot;') + '">' + String(unit.name || 'Enemy') + distTxt + '</option>';
-      }).join('') || '<option value="">No engaged/close targets</option>';
+        var dist = (actor && typeof getUnitDistance === 'function') ? Number(getUnitDistance(actor, unit) || 0) : 0;
+        var hint = getCrucibleRangeActionHint(dist, actor ? getCrucibleUnitAttackMaxRange(actor) : 2);
+        return '<option value="' + opposingSide + ':' + String(unit.id).replace(/"/g, '&quot;') + '">' + String(unit.name || 'Enemy') + ' · ' + hint + '</option>';
+      }).join('') || '<option value="">No targets in current weapon range</option>';
     }
     if (act === 'spell' || act === 'hack') {
       var castTargets = opposingUnits.filter(function (enemy) {
@@ -5907,6 +6125,43 @@
     return moved;
   }
 
+  function executeCrucibleMoveAction(actor, target, match, logs) {
+    if (!actor || !match) return false;
+    var destination = null;
+    var options = (typeof getCrucibleOpenHexes === 'function')
+      ? getCrucibleOpenHexes(actor, match, 1).filter(function (hex) {
+        return !actor.position || hex.q !== actor.position.q || hex.r !== actor.position.r;
+      })
+      : [];
+    if (!options.length) {
+      if (typeof showNotif === 'function') showNotif('No adjacent open hex to move into.', 'warn');
+      return false;
+    }
+    if (target && target.position && typeof getUnitDistance === 'function') {
+      options.sort(function (a, b) {
+        var da = getUnitDistance({ position: { q: Number(a.q || 0), r: Number(a.r || 0) } }, target);
+        var db = getUnitDistance({ position: { q: Number(b.q || 0), r: Number(b.r || 0) } }, target);
+        return Number(da || 99) - Number(db || 99);
+      });
+    }
+    destination = options[0] || null;
+    if (!destination) return false;
+    actor.position = { q: Number(destination.q || 0), r: Number(destination.r || 0) };
+    if (logs) logs.push(actor.name + ' moved to [' + actor.position.q + ',' + actor.position.r + '].');
+    if (typeof triggerHexTerrainEffects === 'function') triggerHexTerrainEffects(actor, actor.position, match.hexMap, logs);
+    if (match.hexMap && match.hexMap.hexes) {
+      var movedCell = match.hexMap.hexes[String(actor.position.q) + ',' + String(actor.position.r)];
+      if (movedCell && movedCell.teleport && movedCell.teleport.active && typeof getCrucibleRandomOpenHex === 'function') {
+        var blink = getCrucibleRandomOpenHex(actor, match, 999);
+        if (blink) {
+          actor.position = { q: Number(blink.q || 0), r: Number(blink.r || 0) };
+          if (logs) logs.push('◉ Teleport hex redirected ' + actor.name + ' to [' + actor.position.q + ',' + actor.position.r + '].');
+        }
+      }
+    }
+    return true;
+  }
+
   function holdingCrucibleExecuteWayfarerAction() {
     var match = getHoldingCrucibleMatch();
     if (!match || String(match.turnSide || 'ally') !== 'ally') return false;
@@ -5946,10 +6201,7 @@
       target = getSelectedCrucibleTarget(match);
     }
     var logs = [];
-    if (action.indexOf('move') === 0) {
-      if (typeof showNotif === 'function') showNotif('Use the movement chips below the board to move one hex at a time.', 'info');
-      return false;
-    }
+    var moveAction = action.indexOf('move') === 0;
     if (action.indexOf('defend') >= 0) {
       if (!spendCrucibleUnitAp(actor, 1)) return false;
       actor.defendBuff = Math.max(0, Number(actor.defendBuff || 0) + 3 + applyCrucibleExpeditionFlavorRollBonus(match, actor, 'defend', 'support'));
@@ -5983,14 +6235,21 @@
       }
       if (!spendCrucibleUnitAp(actor, 1)) return false;
       resolveCrucibleSpellHackAction(actor, target, action, match, logs, null);
+    } else if (moveAction) {
+      if (!spendCrucibleUnitAp(actor, 1)) return false;
+      if (!executeCrucibleMoveAction(actor, target, match, logs)) {
+        actor.ap = Math.max(0, Number(actor.ap || 0) + 1);
+        return false;
+      }
     } else {
-      if (!target || !canCrucibleUnitAttack(actor, target)) {
-        if (typeof showNotif === 'function') showNotif('Select an engaged/close enemy target first.', 'warn');
+      var attackType = action === 'strike' || action === 'shoot' ? action : 'attack';
+      if (!target || !canCrucibleUnitUseAttackType(actor, target, attackType)) {
+        if (typeof showNotif === 'function') showNotif('Selected enemy is out of range for ' + attackType + '.', 'warn');
         return false;
       }
       if (!spendCrucibleUnitAp(actor, 1)) return false;
       var dist = (typeof getUnitDistance === 'function') ? Number(getUnitDistance(actor, target) || 0) : 0;
-      logs.push(actor.name + ' used ' + (dist <= 1 ? 'Strike' : 'Shoot') + '.');
+      logs.push(actor.name + ' used ' + (attackType === 'attack' ? (dist <= 1 ? 'Strike' : 'Shoot') : (attackType === 'strike' ? 'Strike' : 'Shoot')) + '.');
       runCrucibleAttack(actor, target, logs, match);
     }
 
@@ -6048,6 +6307,14 @@
       var dist = (typeof getUnitDistance === 'function') ? Number(getUnitDistance(actor, targetEnemy) || 0) : 0;
       logs.push(actor.name + ' used ' + (dist <= 1 ? 'Strike' : 'Shoot') + '.');
       runCrucibleAttack(actor, targetEnemy, logs, match);
+    } else if (action === 'move') {
+      if (!spendCrucibleUnitAp(actor, 1)) return false;
+      var moveTarget = null;
+      if (targetRef && targetRef.indexOf('enemy:') === 0) moveTarget = findCrucibleUnit(match, 'enemy', targetRef.split(':')[1]);
+      if (!executeCrucibleMoveAction(actor, moveTarget, match, logs)) {
+        actor.ap = Math.max(0, Number(actor.ap || 0) + 1);
+        return false;
+      }
     } else if (action === 'defend') {
       if (!targetRef || targetRef.indexOf('ally:') !== 0) {
         if (typeof showNotif === 'function') showNotif('Pick an ally to defend.', 'warn');

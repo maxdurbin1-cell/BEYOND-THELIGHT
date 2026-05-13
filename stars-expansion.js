@@ -13538,14 +13538,42 @@ function getPlanetTextureCandidates(cell) {
   const marker = normalizeTerrainAssetKey(cell && cell.marker || '');
   const variant = normalizeTerrainAssetKey(cell && cell.textureVariant || '');
   const biome = normalizeTerrainAssetKey(cell && cell.biome || '');
+  const terrainClass = normalizeTerrainAssetKey(cell && cell.terrainClass || '');
+  const terrainName = normalizeTerrainAssetKey(cell && cell.terrain || '');
+  const markerValid = marker && marker !== 'none';
   const out = [];
-  if (marker && variant) out.push(marker + '_' + variant);
-  if (variant) out.push(variant);
-  if (marker) out.push(marker);
-  if (cell && cell.tradeRoute) out.push('trade_route');
-  if (biome) out.push(biome);
-  out.push('wilderness');
-  return out.filter(Boolean);
+
+  function pushUnique(key) {
+    if (!key) return;
+    if (out.indexOf(key) >= 0) return;
+    out.push(key);
+  }
+
+  const aliases = {
+    biome_exotic: ['exotic'],
+    biome_irradiated: ['toxic', 'scorched'],
+    biome_volcanic: ['scorched'],
+    easy_going: ['lush'],
+    inhabited: ['urban_ruins']
+  };
+
+  if (markerValid && variant) pushUnique(marker + '_' + variant);
+  if (markerValid && terrainClass) pushUnique(marker + '_' + terrainClass);
+  if (markerValid && terrainName) pushUnique(marker + '_' + terrainName);
+  pushUnique(variant);
+  pushUnique(terrainClass);
+  pushUnique(terrainName);
+  if (markerValid) pushUnique(marker);
+  if (cell && cell.tradeRoute) pushUnique('trade_route');
+  pushUnique(biome);
+
+  [variant, terrainClass, terrainName, biome].forEach((key) => {
+    const list = aliases[key] || [];
+    for (let i = 0; i < list.length; i += 1) pushUnique(list[i]);
+  });
+
+  pushUnique('wilderness');
+  return out;
 }
 
 function getPlanetTextureAssetForCell(cell) {

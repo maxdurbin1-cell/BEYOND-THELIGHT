@@ -1586,18 +1586,18 @@
   }
 
   function hexToPixel(col, row) {
-    const width = WTW_HEX * 2;
-    const height = Math.sqrt(3) * WTW_HEX;
+    const width = Math.sqrt(3) * WTW_HEX;
+    const height = WTW_HEX * 2;
     return {
-      x: col * width * 0.75 + WTW_HEX + 20,
-      y: row * height + (col % 2) * height / 2 + WTW_HEX + 16
+      x: col * width + (row % 2) * (width / 2) + WTW_HEX + 20,
+      y: row * height * 0.75 + WTW_HEX + 16
     };
   }
 
   function hexPoints(cx, cy) {
     const pts = [];
     for (let i = 0; i < 6; i += 1) {
-      const a = Math.PI / 180 * (60 * i);
+      const a = Math.PI / 180 * (60 * i - 30);
       pts.push((cx + WTW_HEX * Math.cos(a)) + "," + (cy + WTW_HEX * Math.sin(a)));
     }
     return pts.join(" ");

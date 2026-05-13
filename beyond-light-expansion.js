@@ -969,17 +969,17 @@
   }
 
   function seaHexToPixel(col, row) {
-    const width = LAST_SEA_HEX * 2;
-    const height = Math.sqrt(3) * LAST_SEA_HEX;
+    const width = Math.sqrt(3) * LAST_SEA_HEX;
+    const height = LAST_SEA_HEX * 2;
     return {
-      x: col * width * 0.75 + LAST_SEA_HEX + 12,
-      y: row * height + (col % 2) * height / 2 + LAST_SEA_HEX + 12
+      x: col * width + (row % 2) * (width / 2) + LAST_SEA_HEX + 12,
+      y: row * height * 0.75 + LAST_SEA_HEX + 12
     };
   }
 
   function seaHexPoints(cx, cy) {
     return Array.from({ length: 6 }, (_, index) => {
-      const angle = Math.PI / 180 * (60 * index);
+      const angle = Math.PI / 180 * (60 * index - 30);
       return `${cx + LAST_SEA_HEX * Math.cos(angle)},${cy + LAST_SEA_HEX * Math.sin(angle)}`;
     }).join(" ");
   }
@@ -1069,8 +1069,8 @@
       return;
     }
 
-    const width = LAST_SEA_COLS * LAST_SEA_HEX * 1.5 + LAST_SEA_HEX + 24;
-    const height = LAST_SEA_ROWS * Math.sqrt(3) * LAST_SEA_HEX + LAST_SEA_HEX + 24;
+    const width = LAST_SEA_COLS * Math.sqrt(3) * LAST_SEA_HEX + Math.sqrt(3) * LAST_SEA_HEX + 24;
+    const height = LAST_SEA_ROWS * LAST_SEA_HEX * 1.5 + LAST_SEA_HEX * 1.5 + 24;
     svg.setAttribute("width", width);
     svg.setAttribute("height", height);
     svg.innerHTML = "";

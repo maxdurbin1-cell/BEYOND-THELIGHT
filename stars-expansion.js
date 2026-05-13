@@ -16522,10 +16522,10 @@ function generateStarSystemMap(galaxyType) {
   const cells = [];
   let idx = 0;
 
-  for (let q = -3; q <= 3; q++) {
-    for (let r = -3; r <= 3; r++) {
+  for (let q = -4; q <= 4; q++) {
+    for (let r = -4; r <= 4; r++) {
       const s = -q - r;
-      if (Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) > 3) continue;
+      if (Math.max(Math.abs(q), Math.abs(r), Math.abs(s)) > 4) continue;
       const dist = starHexDistance({ q, r }, center);
       const ring = dist === 0 ? 'core' : starHexRingLabel(dist);
       cells.push({
@@ -16613,7 +16613,7 @@ function generateStarSystemMap(galaxyType) {
   renderStarSystemMap();
   rollStarSystemWeather();
   updateStarSystemReadouts();
-  showNotif(`Generated ${S.starSystem.generatedName} (${type}) with 37 hexes.`, 'good');
+  showNotif(`Generated ${S.starSystem.generatedName} (${type}) with 61 hexes.`, 'good');
 }
 
 function getStarHexGlyph(hex) {

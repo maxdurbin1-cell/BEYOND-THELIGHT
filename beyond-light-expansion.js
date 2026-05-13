@@ -980,7 +980,7 @@
   function seaHexPoints(cx, cy) {
     return Array.from({ length: 6 }, (_, index) => {
       const angle = Math.PI / 180 * (60 * index - 30);
-      return `${cx + (LAST_SEA_HEX - 1) * Math.cos(angle)},${cy + (LAST_SEA_HEX - 1) * Math.sin(angle)}`;
+      return `${cx + LAST_SEA_HEX * Math.cos(angle)},${cy + LAST_SEA_HEX * Math.sin(angle)}`;
     }).join(" ");
   }
 
@@ -1069,7 +1069,7 @@
       return;
     }
 
-    const width = LAST_SEA_COLS * LAST_SEA_HEX * 1.52 + LAST_SEA_HEX + 24;
+    const width = LAST_SEA_COLS * LAST_SEA_HEX * 1.5 + LAST_SEA_HEX + 24;
     const height = LAST_SEA_ROWS * Math.sqrt(3) * LAST_SEA_HEX + LAST_SEA_HEX + 24;
     svg.setAttribute("width", width);
     svg.setAttribute("height", height);

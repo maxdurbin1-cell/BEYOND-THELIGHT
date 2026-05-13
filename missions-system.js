@@ -589,7 +589,21 @@
       + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.45;">No endgame progression recorded yet. Defeat endgame encounters to populate this board.</div>'
     + '</div>';
 
-    container.innerHTML = topSummary + grid + operationsCard;
+    var provinceExpeditionCard = '<div style="background:var(--surface);border:1px solid var(--border2);border-left:2px solid var(--teal);padding:.55rem .6rem;margin-top:.5rem;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.74rem;color:var(--teal);margin-bottom:.12rem;">Province Expedition</div>'
+      + '<div style="font-size:.72rem;color:var(--text2);line-height:1.5;">'
+      + 'A Province-native endgame run that reuses your main Province map as the arena. Travel by normal hex movement while the frontier collapses inward over time, then trigger a final raid boss when the map is sufficiently closed.'
+      + '</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.45;margin-top:.16rem;">'
+      + 'Loop: Start run from Endgame → move on Province as usual → survive edge collapse → launch final boss.'
+      + '</div>'
+      + '<div style="margin-top:.3rem;display:flex;gap:.2rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs btn-primary" onclick="if(typeof window.startProvinceEndgameExpedition===\'function\')window.startProvinceEndgameExpedition();">Start Province Expedition</button>'
+      + '<button class="btn btn-xs btn-red" onclick="if(typeof window.stopProvinceEndgameExpedition===\'function\')window.stopProvinceEndgameExpedition();">Stop Province Expedition</button>'
+      + '</div>'
+    + '</div>';
+
+    container.innerHTML = topSummary + grid + operationsCard + provinceExpeditionCard;
   }
 
   function spawnRandomSoulForgeMissionEvent(seedHint, force) {

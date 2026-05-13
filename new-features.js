@@ -2255,6 +2255,21 @@
     return wayfarer;
   }
 
+  function isCrucibleExpeditionCampaignPartyMode() {
+    if (typeof window !== 'undefined' && window.settingsSystem && typeof window.settingsSystem.isCampaignMode === 'function') {
+      try {
+        if (window.settingsSystem.isCampaignMode()) return true;
+      } catch (_err) {}
+    }
+    if (typeof window !== 'undefined' && window.campaignSystem && typeof window.campaignSystem.getState === 'function') {
+      try {
+        var campaignState = window.campaignSystem.getState();
+        if (campaignState && campaignState.code) return true;
+      } catch (_err) {}
+    }
+    return false;
+  }
+
   function getCrucibleExpeditionPartyRoster() {
     var roster = [];
     if (typeof window !== 'undefined' && window.campaignSystem && typeof window.campaignSystem.buildPartyRoster === 'function') {
@@ -2286,23 +2301,25 @@
       return 0;
     });
 
-    var fillerNames = ['Ash Vey', 'Talon Reeve', 'Mira Coil', 'Rune Vale'];
-    var fillerFlavors = ['Teleportation', 'Ruin Scholar', 'Quick Draw', 'Holy Shield'];
-    while (roster.length < 4) {
-      var idx = roster.length;
-      roster.push({
-        token: 'expedition-filler-' + String(idx + 1),
-        name: fillerNames[idx] || ('Wayfarer ' + String(idx + 1)),
-        character: {
+    if (isCrucibleExpeditionCampaignPartyMode()) {
+      var fillerNames = ['Ash Vey', 'Talon Reeve', 'Mira Coil', 'Rune Vale'];
+      var fillerFlavors = ['Teleportation', 'Ruin Scholar', 'Quick Draw', 'Holy Shield'];
+      while (roster.length < 4) {
+        var idx = roster.length;
+        roster.push({
+          token: 'expedition-filler-' + String(idx + 1),
           name: fillerNames[idx] || ('Wayfarer ' + String(idx + 1)),
-          health: 12,
-          maxHealth: 12,
-          stats: { strike: 8, shoot: 6, defend: 6, lead: 6, control: 6, body: 6, spirit: 6, mind: 6 },
-          flavor: fillerFlavors[idx] || 'Lucky'
-        }
-      });
+          character: {
+            name: fillerNames[idx] || ('Wayfarer ' + String(idx + 1)),
+            health: 12,
+            maxHealth: 12,
+            stats: { strike: 8, shoot: 6, defend: 6, lead: 6, control: 6, body: 6, spirit: 6, mind: 6 },
+            flavor: fillerFlavors[idx] || 'Lucky'
+          }
+        });
+      }
     }
-    return roster.slice(0, 4);
+    return roster.slice(0, isCrucibleExpeditionCampaignPartyMode() ? 4 : 1);
   }
 
   function getCrucibleExpeditionParty(match) {
@@ -4400,6 +4417,7 @@
     var selectedTarget = getSelectedCrucibleTarget(match);
     var queued = getCrucibleExpeditionQueuedActions(match);
     var readyActors = getLivingTeamUnits(match.allies).filter(function (u) { return !!u && Number(u.ap || 0) > 0; }).length;
+    var campaignPartyMode = isCrucibleExpeditionCampaignPartyMode();
     var wayfarerOptions = getCrucibleWayfarerActionOptionsHtml();
     var wayfarerTargetOptions = buildCrucibleEnemyTargetOptions(match, 'attack', selectedAlly);
     var teamTargetOptions = buildCrucibleTeamTargetOptions(match, 'attack', selectedAlly);
@@ -4424,24 +4442,28 @@
     }).join('');
     var actionDieBonus = Number(expedition.actionDieBonus || 0);
     var turnRail = '<div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:.16rem;align-items:center;margin-bottom:.28rem;">'
-      + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid rgba(70,196,182,.45);background:rgba(70,196,182,.12);font-size:.68rem;color:var(--teal);">Plan Team Round</div>'
+      + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid rgba(70,196,182,.45);background:rgba(70,196,182,.12);font-size:.68rem;color:var(--teal);">' + (campaignPartyMode ? 'Plan Team Round' : 'Wayfarer Turn') + '</div>'
       + '<div style="font-size:.78rem;color:var(--muted2);text-align:center;">→</div>'
-      + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.68rem;color:var(--gold2);">Resolve</div>'
+      + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.68rem;color:var(--gold2);">' + (campaignPartyMode ? 'Resolve' : 'Execute') + '</div>'
       + '<div style="font-size:.78rem;color:var(--muted2);text-align:center;">→</div>'
       + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid rgba(200,80,80,.45);background:rgba(200,80,80,.12);font-size:.68rem;color:var(--red2);">Enemy Response</div>'
     + '</div>';
     var combatSection = '<details class="card" open style="margin-top:.25rem;">'
       + '<summary class="section-title" style="cursor:pointer;">Expedition Combat Round</summary>'
-      + '<div style="font-size:.69rem;color:var(--muted2);margin:.18rem 0;">Queued actions ' + queued.length + ' · Allies with AP remaining ' + readyActors + ' · Selected ' + String(selectedAlly && selectedAlly.name || 'Wayfarer') + '</div>'
+      + '<div style="font-size:.69rem;color:var(--muted2);margin:.18rem 0;">'
+      + (campaignPartyMode
+        ? ('Queued actions ' + queued.length + ' · Allies with AP remaining ' + readyActors + ' · Selected ' + String(selectedAlly && selectedAlly.name || 'Wayfarer'))
+        : ('Wayfarer AP ' + Number(selectedAlly && selectedAlly.ap || 0) + ' · Enemy actions per turn 2 · Selected ' + String(selectedAlly && selectedAlly.name || 'Wayfarer')))
+      + '</div>'
       + turnRail
       + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.22rem;">'
       + '<label style="font-size:.66rem;color:var(--muted2);">Selected Wayfarer'
       + '<select id="crucibleWayfarerActionSelect" onchange="refreshCrucibleWayfarerActionOptions();" style="width:100%;margin-top:.08rem;">' + wayfarerOptions + '</select></label>'
       + '<label style="font-size:.66rem;color:var(--muted2);">Target'
       + '<select id="crucibleWayfarerTargetSelect" style="width:100%;margin-top:.08rem;">' + wayfarerTargetOptions + '</select></label>'
-      + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExecuteWayfarerAction();">Queue</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExecuteWayfarerAction();">' + (campaignPartyMode ? 'Queue' : 'Execute') + '</button>'
       + '</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.22rem;">'
+      + (campaignPartyMode ? ('<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.22rem;">'
       + '<label style="font-size:.66rem;color:var(--muted2);">Team Action'
       + '<select id="crucibleTeamActionSelect" onchange="refreshCrucibleTeamActionOptions();" style="width:100%;margin-top:.08rem;">'
       + '<option value="personal-flavor">Personal Flavor</option>'
@@ -4453,10 +4475,11 @@
       + '<label style="font-size:.66rem;color:var(--muted2);">Target'
       + '<select id="crucibleTeamTargetSelect" style="width:100%;margin-top:.08rem;">' + teamTargetOptions + '</select></label>'
       + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExecuteTeamAction();">Queue</button>'
-      + '</div>'
+      + '</div>') : '')
       + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.32rem;">'
-      + '<button class="btn btn-sm" onclick="holdingCrucibleEndSelectedUnit();">Lock Selected Unit</button>'
-      + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAdvanceRound();">Resolve Party Round</button>'
+      + '<button class="btn btn-sm" onclick="holdingCrucibleEndSelectedUnit();">' + (campaignPartyMode ? 'Lock Selected Unit' : 'End Unit') + '</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAdvanceRound();">' + (campaignPartyMode ? 'Resolve Party Round' : (String(match.turnSide || 'ally') === 'enemy' ? 'End Enemy Turn' : 'Begin Enemy Turn')) + '</button>'
+      + (!campaignPartyMode && String(match.turnSide || 'ally') === 'enemy' ? '<button class="btn btn-sm btn-red" onclick="holdingCrucibleRunEnemyAI();">Enemy AI Turn</button>' : '')
       + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAutoResolve();">Auto Resolve</button>'
       + '<button class="btn btn-sm" onclick="holdingCrucibleResetMatch();">Reset Match</button>'
       + '</div>'
@@ -4480,7 +4503,11 @@
       + 'Wayfarer action dice: ' + (player && Array.isArray(player.actionDice) ? player.actionDice.map(function (d) { return 'd' + d; }).join(', ') : 'd8, d6')
       + (actionDieBonus > 0 ? ' · Loot bonus: +' + actionDieBonus + ' Action Die step' + (actionDieBonus > 1 ? 's' : '') : '')
       + '</div>'
-      + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.18rem;">Queue ally actions across the whole party, then resolve the round in one enemy response step.</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.18rem;">'
+      + (campaignPartyMode
+        ? 'Queue ally actions across the whole party, then resolve the round in one enemy response step.'
+        : 'Control only your active Wayfarer. Execute actions immediately, then begin enemy turn when ready.')
+      + '</div>'
       + '</details>';
     return combatSection;
   }
@@ -4504,9 +4531,12 @@
       + (isCombatActive || uiTab === 'combat' ? '<button class="btn btn-sm ' + (uiTab === 'combat' ? 'btn-primary' : '') + '" onclick="holdingCrucibleExpeditionSwitchTab(\'combat\')">Combat</button>' : '')
       + '<button class="btn btn-sm ' + (uiTab === 'wayfarer' ? 'btn-primary' : '') + '" onclick="holdingCrucibleExpeditionSwitchTab(\'wayfarer\')">Wayfarer</button>'
       + '</div>';
+    var campaignPartyMode = isCrucibleExpeditionCampaignPartyMode();
     var top = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
       + '<div style="font-family:Cinzel,serif;font-size:.92rem;color:var(--gold2);margin-bottom:.15rem;">Expedition Province Map</div>'
-      + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.12rem;">Day ' + Number(expedition.day || 1) + ' · Party Round ' + Number(expedition.partyRound || 1) + ' · Active ' + String(player && player.name || 'Wayfarer') + ' · ' + currentHexLabel + ' · Flasks ' + Number(expedition.flasks || 0) + '/' + Number(expedition.maxFlasks || 7) + ' · Open Hexes ' + Number(openHexes || 0) + '</div>'
+      + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.12rem;">Day ' + Number(expedition.day || 1) + ' · '
+      + (campaignPartyMode ? ('Party Round ' + Number(expedition.partyRound || 1)) : ('Combat Round ' + Number(match.round || 1)))
+      + ' · Active ' + String(player && player.name || 'Wayfarer') + ' · ' + currentHexLabel + ' · Flasks ' + Number(expedition.flasks || 0) + '/' + Number(expedition.maxFlasks || 7) + ' · Open Hexes ' + Number(openHexes || 0) + '</div>'
       + '<div style="font-size:.69rem;color:var(--teal);margin-bottom:.08rem;">Day 1 closes edges every 6 hex clicks. Day 2 closes every 3 clicks. Day 3 pressure intensifies.</div>'
       + '<div style="font-size:.69rem;color:var(--gold2);margin-bottom:.28rem;">Portal Mission: ' + portalsClosed + '/' + portalGoal + ' closed in Nights 1-2 · ' + portalStatus + '</div>'
       + '<div style="display:flex;gap:.18rem;flex-wrap:wrap;margin:-.08rem 0 .24rem 0;">' + party.map(function (ally, idx) {
@@ -6184,7 +6214,7 @@
     }
 
     var targetRef = targetEl ? String(targetEl.value || '') : '';
-    if (String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || '') === 'combat') {
+    if (String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || '') === 'combat' && isCrucibleExpeditionCampaignPartyMode()) {
       var queuedLogs = [];
       if (!queueCrucibleExpeditionCombatAction(match, actor, action, targetRef, queuedLogs)) return false;
       match.log = (match.log || []).concat(queuedLogs).slice(-120);
@@ -6271,6 +6301,10 @@
 
     var actor = getSelectedCrucibleAlly(match);
     if (!actor || Number(actor.hp || 0) <= 0) return false;
+    if (String(match.mode || '') === 'expedition' && !isCrucibleExpeditionCampaignPartyMode()) {
+      if (typeof showNotif === 'function') showNotif('Team Action is only enabled for Campaign Expedition parties.', 'info');
+      return false;
+    }
     if (actor.isPlayer && String(match.mode || '') !== 'expedition') {
       if (typeof showNotif === 'function') showNotif('Select a teammate for Team Action, or use Wayfarer Action for yourself.', 'warn');
       return false;
@@ -6665,11 +6699,13 @@
     var match = getHoldingCrucibleMatch();
     if (!match) return false;
     if (String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || '') === 'combat') {
-      resolveCrucibleExpeditionCombatRound(match);
-      finalizeHoldingCrucibleMatch(match);
-      renderHoldingCruciblePopup();
-      renderHoldingUI();
-      return true;
+      if (isCrucibleExpeditionCampaignPartyMode()) {
+        resolveCrucibleExpeditionCombatRound(match);
+        finalizeHoldingCrucibleMatch(match);
+        renderHoldingCruciblePopup();
+        renderHoldingUI();
+        return true;
+      }
     }
     if (String(match.turnSide || 'ally') === 'ally') {
       beginCrucibleEnemyTurn(match);
@@ -6684,7 +6720,7 @@
 
   function holdingCrucibleRunEnemyAI() {
     var match = getHoldingCrucibleMatch();
-    if (match && String(match.mode || '') === 'expedition') {
+    if (match && String(match.mode || '') === 'expedition' && isCrucibleExpeditionCampaignPartyMode()) {
       if (typeof showNotif === 'function') showNotif('Expedition enemy AI runs inside Resolve Party Round.', 'info');
       return false;
     }
@@ -6698,7 +6734,7 @@
 
   function holdingCrucibleAutoResolve() {
     var current = getHoldingCrucibleMatch();
-    if (current && String(current.mode || '') === 'expedition' && current.expedition && String(current.expedition.phase || '') === 'combat') {
+    if (current && String(current.mode || '') === 'expedition' && current.expedition && String(current.expedition.phase || '') === 'combat' && isCrucibleExpeditionCampaignPartyMode()) {
       var expeditionSafety = 0;
       while (getHoldingCrucibleMatch() && expeditionSafety < 24) {
         var expeditionMatch = getHoldingCrucibleMatch();

@@ -4783,14 +4783,14 @@
       + '<div style="font-size:.78rem;color:var(--muted2);text-align:center;">→</div>'
       + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid ' + (!railMine ? 'rgba(200,80,80,.45)' : 'var(--border2)') + ';background:' + (!railMine ? 'rgba(200,80,80,.12)' : 'rgba(255,255,255,.02)') + ';font-size:.68rem;color:' + (!railMine ? 'var(--red2)' : 'var(--muted2)') + ';">Enemy Team</div>'
     + '</div>';
-    var turnControlsHtml = '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.22rem;">'
+    var turnControlsHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:.2rem;align-items:end;margin-bottom:.22rem;">'
       + '<label style="font-size:.66rem;color:var(--muted2);">Wayfarer Actions'
       + '<select id="crucibleWayfarerActionSelect" onchange="refreshCrucibleWayfarerActionOptions();" style="width:100%;margin-top:.08rem;" ' + (isEnemyTurn ? 'disabled' : '') + '>' + wayfarerOptions + '</select></label>'
       + '<label style="font-size:.66rem;color:var(--muted2);">Target'
       + '<select id="crucibleWayfarerTargetSelect" style="width:100%;margin-top:.08rem;" ' + (isEnemyTurn ? 'disabled' : '') + '>' + wayfarerTargetOptions + '</select></label>'
       + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExecuteWayfarerAction();" ' + (canAct ? '' : 'disabled style="opacity:.45;cursor:default;"') + '>Execute</button>'
       + '</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.22rem;">'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:.2rem;align-items:end;margin-bottom:.22rem;">'
       + '<label style="font-size:.66rem;color:var(--muted2);">Team Action'
       + '<select id="crucibleTeamActionSelect" onchange="refreshCrucibleTeamActionOptions();" style="width:100%;margin-top:.08rem;" ' + (isEnemyTurn ? 'disabled' : '') + '>'
       + '<option value="personal-flavor">Personal Flavor</option>'
@@ -4802,7 +4802,7 @@
       + '<select id="crucibleTeamTargetSelect" style="width:100%;margin-top:.08rem;" ' + (isEnemyTurn ? 'disabled' : '') + '>' + teamTargetOptions + '</select></label>'
       + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExecuteTeamAction();" ' + (canAct ? '' : 'disabled style="opacity:.45;cursor:default;"') + '>Execute</button>'
       + '</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.3rem;">'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:.2rem;align-items:end;margin-bottom:.3rem;">'
       + '<label style="font-size:.66rem;color:var(--muted2);">Enemy Action'
       + '<select id="crucibleEnemyActionSelect" onchange="refreshCrucibleEnemyActionOptions();" style="width:100%;margin-top:.08rem;" ' + (!isEnemyTurn ? 'disabled' : '') + '>'
       + '<option value="personal-flavor">Personal Flavor</option>'
@@ -4834,7 +4834,7 @@
     }
     var movementHtml = '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.35rem;">'
       + (canMoveActive && typeof getHexMovementButtonsHtml === 'function'
-        ? ('<div style="width:100%;margin-bottom:.15rem;font-size:.7rem;"><strong style="color:var(--gold);">Movement:</strong></div>' + getHexMovementButtonsHtml(selectedActiveUnit, match) + '<button class="btn btn-sm btn-teal" style="margin-top:.2rem;" onclick="holdingCrucibleTeleportSelected();">Teleport Random Hex</button>')
+        ? ('<div style="width:100%;margin-bottom:.15rem;font-size:.7rem;"><strong style="color:var(--gold);">Movement:</strong></div><div style="display:flex;gap:.2rem;flex-wrap:wrap;max-width:100%;">' + getHexMovementButtonsHtml(selectedActiveUnit, match) + '</div><button class="btn btn-sm btn-teal" style="margin-top:.2rem;" onclick="holdingCrucibleTeleportSelected();">Teleport Random Hex</button>')
         : '<div style="font-size:.7rem;color:var(--muted2);">No movement available.</div>')
       + '</div>';
     var logLines = (match.log || []).slice(-8).reverse().map(function (line) {
@@ -4854,7 +4854,7 @@
       + '</div>'
       + turnControlsHtml
       + phaseButtonsHtml
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-bottom:.35rem;">'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:.35rem;margin-bottom:.35rem;">'
       + '<div style="border:1px solid rgba(70,196,182,.35);padding:.28rem .34rem;background:linear-gradient(180deg,rgba(70,196,182,.08),rgba(255,255,255,.02));">'
       + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;margin-bottom:.2rem;">'
       + '<div style="font-size:.7rem;color:var(--teal);">Blue Side</div>'
@@ -5398,10 +5398,30 @@
         var pickCount = 6 + Math.floor(Math.random() * 5);
         for (var si = 0; si < pickCount && pool.length; si++) {
           var pi = Math.floor(Math.random() * pool.length);
-          stock.push(String(pool.splice(pi, 1)[0].name || 'Unknown'));
+          var rolled = pool.splice(pi, 1)[0] || {};
+          stock.push({
+            name: String(rolled.name || 'Unknown'),
+            cost: Math.max(10, Number(rolled.cost || 45)),
+            cat: String(rolled.cat || rolled.category || 'items')
+          });
         }
-        logLine += ' Encounter 7/9: Roaming merchant stock [' + stock.join(', ') + '].';
-        if (typeof showNotif === 'function') showNotif('Roaming merchant sighted. Open Merchant tab to trade.', 'info');
+        logLine += ' Encounter 7/9: Roaming merchant stock [' + stock.map(function (entry) { return entry.name + ' (' + entry.cost + 'c)'; }).join(', ') + '].';
+        if (typeof openModal === 'function' && stock.length) {
+          var merchantHtml = '<div style="font-size:.78rem;color:var(--text2);line-height:1.55;margin-bottom:.35rem;">A caravan breaks through the dust with temporary stock. Buy directly here or continue to the Merchant tab.</div>'
+            + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.3rem;">'
+            + stock.map(function (entry) {
+              var safeName = String(entry.name || 'Unknown').replace(/'/g, "\\'");
+              var safeCat = String(entry.cat || 'items').replace(/'/g, "\\'");
+              return '<div style="border:1px solid var(--border2);padding:.32rem;background:rgba(255,255,255,.02);">'
+                + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.08rem;"><strong>' + String(entry.name || 'Unknown') + '</strong></div>'
+                + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.2rem;">Cost: ' + Number(entry.cost || 0) + ' Credits</div>'
+                + '<button class="btn btn-xs btn-teal" onclick="buyItem(' + Number(entry.cost || 0) + ',\'' + safeName + '\',\'' + safeCat + '\')">Buy</button>'
+                + '</div>';
+            }).join('')
+            + '</div>';
+          openModal('Roaming Merchant', merchantHtml);
+        }
+        if (typeof showNotif === 'function') showNotif('Roaming merchant found. You can buy from the encounter pop-up.', 'good');
       } else if (encounterRoll === 8) {
         var advDie = getCrucibleExpeditionStatDie('spirit', 6);
         var adv = (typeof explodingRoll === 'function') ? explodingRoll(advDie, { type: 'action', major: true, label: 'Adventure Check (Spirit)' }) : { total: Math.floor(Math.random() * advDie) + 1 };
@@ -5414,7 +5434,17 @@
           logLine += ' Encounter 8/9: Adventure check cleared.';
         }
       } else {
-        var jumpHex = getCrucibleExpeditionRandomDropHex(match.hexMap);
+        var currentKey = (player && player.position) ? (String(player.position.q) + ',' + String(player.position.r)) : '';
+        var jumpHex = null;
+        for (var jr = 0; jr < 8; jr++) {
+          var candidate = getCrucibleExpeditionRandomDropHex(match.hexMap);
+          if (!candidate) continue;
+          var candidateKey = String(candidate.q) + ',' + String(candidate.r);
+          if (candidateKey !== currentKey) {
+            jumpHex = candidate;
+            break;
+          }
+        }
         if (jumpHex && player) {
           player.position = { q: Number(jumpHex.q || 0), r: Number(jumpHex.r || 0) };
           logLine += ' Encounter 9/9: Portal surge teleported you to [' + Number(jumpHex.q || 0) + ',' + Number(jumpHex.r || 0) + '].';
@@ -5864,12 +5894,12 @@
       'Deity Pact: Request a patron favor or minor miracle once per day',
       'Vampire: Blood hunger grants nocturnal power and daylight vulnerability',
       'Werewolf: Bestial strength surges at night with lunar instincts',
-      'Echo Step: After a successful Defend, reposition 1 range band and gain +Adventure Die on next Strike',
+      'Echo Step: After a successful Defend, reposition 1 range band for free',
       'Battle Cantor: Ally gains +Adventure Die bonus on their next Action roll',
-      'Glasswalker: Ignore first peril terrain penalty each phase',
-      'Iron Lungs: Ignore smoke and ash penalties',
+      'Glasswalker: Ignore the first Peril roll each phase',
+      'Iron Lungs: Ignore smoke and ash penalties, including Coolant Layer requirements from scorched hazards',
       'Runesmith: Your weapon carries the rune — +Adventure Die bonus damage on next Strike or Shoot this scene',
-      'Scavenger Memory: First loot roll each day may be rerolled — keep the better result, +Adventure Die queued',
+      'Scavenger Memory: First loot roll each day may be rerolled — keep the better result',
       'Hex Cartographer: Reveal one adjacent hex detail for free',
       'Solar Needle: One ranged attack per scene gains +Adventure Die bonus to Shoot',
       'Grave Whisper: Commune with the recent dead for a clue, lore shard, or grave omen',

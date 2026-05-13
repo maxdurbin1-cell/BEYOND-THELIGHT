@@ -432,6 +432,27 @@ function triggerHexTerrainEffects(unit, hex, map, log) {
       if (log) log.push('❤ ' + unit.name + ' found an HP vial (+' + healed + ' HP).');
     }
   }
+
+  // Portal jump
+  if (cell.terrain === 'portal' && unit && unit.position) {
+    var currentKey = hexToKey(unit.position);
+    var candidates = Object.keys(map.hexes || {}).map(function (entryKey) {
+      var targetCell = map.hexes[entryKey];
+      if (!targetCell) return null;
+      if (targetCell.obstacle || targetCell.door) return null;
+      if (map.expeditionCollapsed && map.expeditionCollapsed[entryKey]) return null;
+      if (entryKey === currentKey) return null;
+      return { q: Number(targetCell.q || 0), r: Number(targetCell.r || 0), cell: targetCell };
+    }).filter(Boolean);
+    if (candidates.length) {
+      var destination = candidates[Math.floor(Math.random() * candidates.length)];
+      unit.position = { q: destination.q, r: destination.r };
+      if (log) log.push('🌀 ' + unit.name + ' was pulled through a portal to [' + destination.q + ',' + destination.r + '].');
+      if (typeof showNotif === 'function') {
+        showNotif(unit.name + ' teleported to [' + destination.q + ',' + destination.r + '].', 'good');
+      }
+    }
+  }
 }
 
 // ============================================================================

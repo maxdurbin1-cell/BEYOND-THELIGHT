@@ -1105,7 +1105,7 @@
       const stroke = isSelected ? "#e8c050" : hex.type === "sea" ? "#2ec4b6" : "#c9a227";
 
       const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
-      group.setAttribute("class", "svg-hex" + (isSelected ? " sel" : "") + ((hasSeaSelection && !isSelected) ? " dim" : ""));
+      group.setAttribute("class", "svg-hex" + (isSelected ? " sel" : ""));
 
       const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
       polygon.setAttribute("points", seaHexPoints(x, y));

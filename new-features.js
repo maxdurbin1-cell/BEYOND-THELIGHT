@@ -221,6 +221,12 @@
       };
     }
     if (!S.holding.crucible.preferredMode) S.holding.crucible.preferredMode = 'control';
+    if (String(S.holding.crucible.preferredMode || '').toLowerCase() === 'expedition') {
+      S.holding.crucible.preferredMode = 'control';
+    }
+    if (S.holding.crucible.match && String(S.holding.crucible.match.mode || '').toLowerCase() === 'expedition') {
+      S.holding.crucible.match = null;
+    }
     if (!S.holding.crucible.expedition || typeof S.holding.crucible.expedition !== 'object') {
       S.holding.crucible.expedition = {
         runs: 0,
@@ -1546,14 +1552,7 @@
       zonePoints: 0,
       playerKillBonus: 1
     },
-    expedition: {
-      id: 'expedition',
-      label: 'Expedition',
-      objective: '3-day rogue incursion. Survive shrinking hexes, beat Day 1 and Day 2 bosses, then slay the Raid Boss.',
-      scoreToWin: 3,
-      killPoints: 0,
-      zonePoints: 0
-    }
+
   };
 
   function getCrucibleModeSpec(mode) {
@@ -3958,7 +3957,7 @@
 
   function openHoldingCrucibleModePrompt() {
     ensureNewFeatureState();
-    var specs = ['control', 'clash', 'elimination', 'rumble', 'expedition'].map(function (key) { return getCrucibleModeSpec(key); });
+    var specs = ['control', 'clash', 'elimination', 'rumble'].map(function (key) { return getCrucibleModeSpec(key); });
     var html = '<div style="font-size:.84rem;color:var(--text2);line-height:1.55;">'
       + '<div style="font-family:Cinzel,serif;font-size:.86rem;color:var(--gold2);margin-bottom:.2rem;">Select Crucible Game Mode</div>'
       + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;">Arena footprint 60x60 ft · three lanes · vertical platforms · cover objects · power ammo spawns · central contested zone + two flanking routes.</div>'
@@ -3985,19 +3984,11 @@
       S.holding.crucible.match = null;
     }
     var match = getHoldingCrucibleMatch() || createHoldingCrucibleMatch();
-    var isExpeditionNewMatch = String(match.mode || '') === 'expedition' && !(match.expedition && match.expedition.loaded);
-    if (isExpeditionNewMatch && typeof openModal === 'function') {
-      openModal('Expedition Loadout Selection', buildCrucibleExpeditionLoadoutSelectionHtml());
-    } else {
-      if (typeof openModal === 'function') {
-        openModal(match && String(match.mode || '') === 'expedition' ? 'Expedition Province' : 'Crucible 6v6 Tactical Simulator', buildHoldingCruciblePopupHtml());
-      }
-      if (typeof showNotif === 'function' && match && Number(match.round || 1) === 1) {
-        var openedSpec = getCrucibleModeSpec(match.mode);
-        showNotif(openedSpec.id === 'expedition'
-          ? 'Crucible Expedition opened: 3-day rogue run initialized.'
-          : 'Crucible opened: 6v6 tactical training scenario ready.', 'good');
-      }
+    if (typeof openModal === 'function') {
+      openModal('Crucible 6v6 Tactical Simulator', buildHoldingCruciblePopupHtml());
+    }
+    if (typeof showNotif === 'function' && match && Number(match.round || 1) === 1) {
+      showNotif('Crucible opened: 6v6 tactical training scenario ready.', 'good');
     }
     renderHoldingUI();
     return true;
@@ -5551,7 +5542,6 @@
   function buildHoldingCruciblePanelHtml() {
     ensureNewFeatureState();
     var c = S.holding.crucible || {};
-    var expeditionMeta = c.expedition || { runs: 0, clears: 0, bestDay: 0, lastRunResult: '' };
     var mode = getCrucibleModeSpec(c.preferredMode || 'control');
     var match = getHoldingCrucibleMatch();
     var total = Math.max(1, Number(c.wins || 0) + Number(c.losses || 0));
@@ -5566,17 +5556,15 @@
       + '<div style="border:1px solid var(--border2);padding:.3rem .38rem;background:rgba(255,255,255,.02);"><div style="font-size:.62rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Best Streak</div><div style="font-size:.92rem;color:var(--teal);">' + Number(c.bestWinStreak || 0) + '</div></div>'
       + '</div>'
       + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;">' + status + '</div>'
-      + '<div style="font-size:.69rem;color:var(--gold2);margin-bottom:.25rem;">Expedition Runs: ' + Number(expeditionMeta.runs || 0) + ' · Clears: ' + Number(expeditionMeta.clears || 0) + ' · Best Day: ' + Number(expeditionMeta.bestDay || 0) + (expeditionMeta.lastRunResult ? (' · Last: ' + String(expeditionMeta.lastRunResult)) : '') + '</div>'
       + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.3rem;">Preferred Mode: ' + mode.label + ' · ' + mode.objective + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.3rem;">'
       + '<button class="btn btn-xs ' + (mode.id === 'control' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'control\');">Control</button>'
       + '<button class="btn btn-xs ' + (mode.id === 'clash' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'clash\');">Clash</button>'
       + '<button class="btn btn-xs ' + (mode.id === 'elimination' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'elimination\');">Elimination</button>'
       + '<button class="btn btn-xs ' + (mode.id === 'rumble' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'rumble\');">Rumble</button>'
-      + '<button class="btn btn-xs ' + (mode.id === 'expedition' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'expedition\');">Expedition</button>'
       + '</div>'
       + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;">'
-      + '<button class="btn btn-sm btn-primary" onclick="openHoldingCrucibleMatch();">' + (mode.id === 'expedition' ? 'Enter Expedition Run' : 'Enter Crucible 6v6') + '</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="openHoldingCrucibleMatch();">Enter Crucible 6v6</button>'
         + (match ? '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAttackSelected();">Attack (Selected)</button>' : '')
         + (match ? '<button class="btn btn-sm" onclick="holdingCrucibleAdvanceRound();">End Team Turn</button>' : '')
       + (match ? '<button class="btn btn-sm" onclick="holdingCrucibleAutoResolve();">Auto Resolve</button>' : '')

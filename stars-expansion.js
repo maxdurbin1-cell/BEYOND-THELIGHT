@@ -13616,8 +13616,8 @@ function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
       if (dataUrl) {
         const patternId = 'planetTex' + textureKey.replace(/[^a-z0-9_]+/g, '');
         patternMap[textureKey] = 'url(#' + patternId + ')';
-        patternDefs[patternId] = '<pattern id="' + patternId + '" patternUnits="userSpaceOnUse" width="32" height="32">'
-          + '<image href="' + dataUrl + '" x="0" y="0" width="32" height="32" preserveAspectRatio="xMidYMid slice" />'
+        patternDefs[patternId] = '<pattern id="' + patternId + '" patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox" width="1" height="1">'
+          + '<image href="' + dataUrl + '" x="0" y="0" width="1" height="1" preserveAspectRatio="xMidYMid slice" />'
           + '</pattern>';
       } else {
         patternMap[textureKey] = '';
@@ -16654,8 +16654,8 @@ function renderStarSystemMap() {
       if (dataUrl.indexOf('data:image/') === 0) {
         const patternId = 'spaceTex' + spaceTextureKey.replace(/[^a-z0-9_]+/g, '');
         spacePatternByKey[spaceTextureKey] = 'url(#' + patternId + ')';
-        spacePatternDefs[patternId] = '<pattern id="' + patternId + '" patternUnits="userSpaceOnUse" width="36" height="36">'
-          + '<image href="' + dataUrl + '" x="0" y="0" width="36" height="36" preserveAspectRatio="xMidYMid slice" />'
+        spacePatternDefs[patternId] = '<pattern id="' + patternId + '" patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox" width="1" height="1">'
+          + '<image href="' + dataUrl + '" x="0" y="0" width="1" height="1" preserveAspectRatio="xMidYMid slice" />'
           + '</pattern>';
       } else {
         spacePatternByKey[spaceTextureKey] = '';

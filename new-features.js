@@ -4680,6 +4680,26 @@
     return dice;
   }
 
+  function getCrucibleExpeditionStartingPassiveFeatures(selectedFlavor) {
+    var flavor = String(selectedFlavor || '').toLowerCase();
+    var features = [
+      { id: 'pathfinder', label: 'Pathfinder', desc: 'First traversal check each phase gains +1.' },
+      { id: 'fieldcraft', label: 'Fieldcraft', desc: 'Ignore the first minor terrain penalty each phase.' }
+    ];
+
+    if (flavor.indexOf('lucky') >= 0) {
+      features.push({ id: 'lucky_1', label: 'Lucky Spark', desc: 'Reroll one Action Die result of 1 per scene.' });
+    } else if (flavor.indexOf('mindshield') >= 0 || flavor.indexOf('trauma') >= 0) {
+      features.push({ id: 'mindshield_1', label: 'Mindshield', desc: 'Reduce first mental stress source by 1 each scene.' });
+    } else if (flavor.indexOf('healer') >= 0 || flavor.indexOf('medic') >= 0) {
+      features.push({ id: 'medic_1', label: 'Field Medic', desc: 'First heal each scene restores +1 additional HP.' });
+    } else {
+      features.push({ id: 'adaptable_1', label: 'Adaptable', desc: 'Gain +1 on the first non-combat check each phase.' });
+    }
+
+    return features;
+  }
+
   function getCrucibleExpeditionAvailableRaidNodes() {
     if (typeof hasTitanRaidNode !== 'function' || typeof getTitanRaidNode !== 'function') return [];
     var allNodes = [

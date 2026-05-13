@@ -5610,11 +5610,85 @@
     }
     S.holding.crucible.preferredMode = 'expedition';
     S.holding.crucible.match = null;
-    if (typeof switchTab === 'function') {
-      var holdingBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('holding'\"]");
-      switchTab('holding', holdingBtn || null);
-    }
     return openHoldingCrucibleMatch('expedition');
+  }
+
+  function openMiniGamesMode(modeId) {
+    ensureNewFeatureState();
+    var mode = String(modeId || '').toLowerCase();
+    if (!mode) return false;
+    if (mode === 'expedition') return startHoldingMiniGamesExpedition('mini-games-page');
+    var spec = getCrucibleModeSpec(mode);
+    S.holding.crucible.preferredMode = spec.id;
+    S.holding.crucible.match = null;
+    return openHoldingCrucibleMatch(spec.id);
+  }
+
+  function buildMiniGamesPageHtml() {
+    ensureNewFeatureState();
+    var c = S && S.holding && S.holding.crucible ? S.holding.crucible : {};
+    var exp = c.expedition || {};
+    var cards = [
+      {
+        mode: 'expedition',
+        title: 'Nightreign Expedition',
+        subtitle: '12x12 province run · shrinking edge · 3 boss nights',
+        desc: 'Rogue run with map collapse, field encounters, mini-boss loot, portals, flasks, and a Night Lord finale.'
+      },
+      {
+        mode: 'control',
+        title: 'Arena Control',
+        subtitle: 'Zone pressure skirmish',
+        desc: 'Score by holding A/B/C zones while keeping enemy kills low.'
+      },
+      {
+        mode: 'clash',
+        title: 'Arena Clash',
+        subtitle: 'Deathmatch pacing',
+        desc: 'Fast tactical brawl. Eliminate threats and out-trade enemy turns.'
+      },
+      {
+        mode: 'elimination',
+        title: 'Arena Elimination',
+        subtitle: 'No-respawn rounds',
+        desc: 'Higher-risk 3v3 rounds where each choice has lasting pressure.'
+      }
+    ];
+    var active = c.match ? String(c.match.mode || '') : '';
+    return ''
+      + '<div style="padding:.95rem;display:grid;gap:.7rem;">'
+      + '<div class="card">'
+      + '<div class="section-title">Mini Games</div>'
+      + '<div style="font-size:.78rem;color:var(--muted2);line-height:1.55;">Dedicated game-mode launcher. Choose a run type and jump in immediately.</div>'
+      + '<div style="margin-top:.45rem;display:flex;gap:.45rem;flex-wrap:wrap;font-size:.72rem;color:var(--muted2);">'
+      + '<span style="border:1px solid var(--border2);padding:.18rem .3rem;">Runs: ' + Number(exp.runs || 0) + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.18rem .3rem;">Clears: ' + Number(exp.clears || 0) + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.18rem .3rem;">Best Day: ' + Number(exp.bestDay || 0) + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.18rem .3rem;">Active: ' + (active ? active.charAt(0).toUpperCase() + active.slice(1) : 'None') + '</span>'
+      + '</div>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.55rem;">'
+      + cards.map(function (card) {
+        var isActive = active && active === card.mode;
+        return '<div class="card" style="border-color:' + (isActive ? 'rgba(240,208,112,.55)' : 'var(--border2)') + ';">'
+          + '<div style="font-family:Cinzel,serif;font-size:.86rem;color:var(--gold2);">' + card.title + '</div>'
+          + '<div style="font-size:.7rem;color:var(--teal);margin:.12rem 0 .2rem;">' + card.subtitle + '</div>'
+          + '<div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">' + card.desc + '</div>'
+          + '<div style="margin-top:.45rem;display:flex;gap:.28rem;flex-wrap:wrap;">'
+          + '<button class="btn btn-sm btn-primary" onclick="window.openMiniGamesMode(\'' + card.mode + '\');">Play ' + card.title + '</button>'
+          + (card.mode === 'expedition' ? '<button class="btn btn-sm" onclick="window.openMiniGamesMode(\'expedition\');">New Run</button>' : '')
+          + '</div>'
+          + '</div>';
+      }).join('')
+      + '</div>'
+      + '</div>';
+  }
+
+  function renderMiniGamesPage() {
+    var panel = document.getElementById('tab-minigames');
+    if (!panel) return false;
+    panel.innerHTML = buildMiniGamesPageHtml();
+    return true;
   }
 
   function buyWayfarerHomeUpgrade(key) {
@@ -9357,6 +9431,8 @@
   window.openHoldingCrucibleMatch = openHoldingCrucibleMatch;
   window.holdingCrucibleSetMode = holdingCrucibleSetMode;
   window.startHoldingMiniGamesExpedition = startHoldingMiniGamesExpedition;
+  window.openMiniGamesMode = openMiniGamesMode;
+  window.renderMiniGamesPage = renderMiniGamesPage;
   window.selectHoldingCrucibleUnit = selectHoldingCrucibleUnit;
   window.selectHoldingCrucibleEnemy = selectHoldingCrucibleEnemy;
   window.selectHoldingCrucibleTarget = selectHoldingCrucibleTarget;

@@ -50,6 +50,7 @@ function getPreferredContextForTabButton(btn) {
   if (btn.classList.contains('ctx-holding')) return 'holding';
   if (btn.classList.contains('ctx-sea')) return 'sea';
   if (btn.classList.contains('ctx-space')) return 'space';
+  if (btn.classList.contains('ctx-minigames')) return 'minigames';
   return null;
 }
 
@@ -301,6 +302,12 @@ function switchTab(tabId, btn) {
     }
     if (typeof window.renderBackstoryTab === "function") {
       window.renderBackstoryTab();
+    }
+  }
+
+  if (tabId === "minigames") {
+    if (typeof window.renderMiniGamesPage === "function") {
+      window.renderMiniGamesPage();
     }
   }
 

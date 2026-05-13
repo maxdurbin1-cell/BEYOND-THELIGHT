@@ -423,6 +423,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="ctx-btn" data-ctx="holding" aria-pressed="false" onclick="setContext('holding',this)">🏰 Holding</button>
     <button class="ctx-btn" data-ctx="sea" aria-pressed="false" onclick="setContext('sea',this)">⚓ At Sea</button>
     <button class="ctx-btn" data-ctx="space" aria-pressed="false" onclick="setContext('space',this)">🚀 Space</button>
+    <button class="ctx-btn" data-ctx="minigames" aria-pressed="false" onclick="setContext('minigames',this)">◬ Mini Games</button>
   </div>
   <nav aria-label="Main navigation" id="mainNavTablist" role="tablist" aria-orientation="horizontal">
     <button class="tab-btn active ctx-traveling" role="tab" aria-selected="true" aria-controls="tab-character" id="tabnav-character" onclick="switchTab('character',this)">Character</button>
@@ -441,6 +442,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-map" id="tabnav-map" onclick="switchTab('map',this)">Province</button>
     <button class="tab-btn ctx-sea" role="tab" aria-selected="false" aria-controls="tab-lastsea" id="tabnav-lastsea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-galaxy" id="tabnav-galaxy" style="display:none;" onclick="switchTab('galaxy',this)">Galaxy</button>
+    <button class="tab-btn ctx-minigames" role="tab" aria-selected="false" aria-controls="tab-minigames" id="tabnav-minigames" style="display:none;" onclick="switchTab('minigames',this)">Mini Games</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-theos" id="tabnav-theos" onclick="switchTab('theos',this)">Theos Atlas</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-worldthatwas" id="tabnav-worldthatwas" onclick="switchTab('worldthatwas',this)">World That Was</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-planet" id="tabnav-planet" style="display:none;" onclick="switchTab('planet',this)">Planet Exploration</button>
@@ -927,6 +929,9 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
   <div id="starsGalaxyPanel" style="padding:.85rem;"></div>
   <div id="starsDatePanelGalaxy" style="padding:.85rem;"></div>
 </div>
+
+<!-- MINI GAMES TAB -->
+<div class="tab-panel" id="tab-minigames"></div>
 
 <!-- THEOS ATLAS TAB -->
 <div class="tab-panel" id="tab-theos"></div>
@@ -11650,7 +11655,8 @@ function setContext(ctx,btn){
     traveling:'character',
     holding:'map',
     sea:'lastsea',
-    space:'galaxy'
+    space:'galaxy',
+    minigames:'minigames'
   };
   const defaultTab=defaultTabByContext[ctx]||'character';
   const defaultBtn=document.querySelector('nav .tab-btn.ctx-'+ctx+'[onclick*="switchTab(\''+defaultTab+'\'"]');

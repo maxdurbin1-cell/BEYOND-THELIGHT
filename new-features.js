@@ -2056,6 +2056,8 @@
       currentBossIndex: 0,
       currentCombatType: '',
       currentCombatProfile: null,
+      pendingCombatActions: [],
+      pendingCombatActionSeq: 0,
       miniBossHexKeys: seedCrucibleExpeditionMiniBossHexes(hexMap, 3),
       miniBossDefeated: {},
       reviveUsedByDay: {},
@@ -2154,6 +2156,23 @@
       if (localName && bName === localName && aName !== localName) return 1;
       return 0;
     });
+
+    var fillerNames = ['Ash Vey', 'Talon Reeve', 'Mira Coil', 'Rune Vale'];
+    var fillerFlavors = ['Teleportation', 'Ruin Scholar', 'Quick Draw', 'Holy Shield'];
+    while (roster.length < 4) {
+      var idx = roster.length;
+      roster.push({
+        token: 'expedition-filler-' + String(idx + 1),
+        name: fillerNames[idx] || ('Wayfarer ' + String(idx + 1)),
+        character: {
+          name: fillerNames[idx] || ('Wayfarer ' + String(idx + 1)),
+          health: 12,
+          maxHealth: 12,
+          stats: { strike: 8, shoot: 6, defend: 6, lead: 6, control: 6, body: 6, spirit: 6, mind: 6 },
+          flavor: fillerFlavors[idx] || 'Lucky'
+        }
+      });
+    }
     return roster.slice(0, 4);
   }
 
@@ -2224,6 +2243,238 @@
       || (match.allies || []).find(function (u) { return u && u.isPrimaryPlayer && Number(u.hp || 0) > 0; })
       || (match.allies || []).find(function (u) { return u && u.isPlayer && Number(u.hp || 0) > 0; })
       || null;
+  }
+
+  function getCrucibleExpeditionQueuedActions(match) {
+    var expedition = match && match.expedition ? match.expedition : null;
+    if (!expedition) return [];
+    if (!Array.isArray(expedition.pendingCombatActions)) expedition.pendingCombatActions = [];
+    return expedition.pendingCombatActions;
+  }
+
+  function clearCrucibleExpeditionQueuedActions(match) {
+    if (!match || !match.expedition) return [];
+    match.expedition.pendingCombatActions = [];
+    match.expedition.pendingCombatActionSeq = 0;
+    return match.expedition.pendingCombatActions;
+  }
+
+  function getCrucibleExpeditionQueuedActionCountForUnit(match, unitId) {
+    return getCrucibleExpeditionQueuedActions(match).filter(function (entry) {
+      return !!entry && String(entry.actorId || '') === String(unitId || '');
+    }).length;
+  }
+
+  function chooseNextCrucibleExpeditionPlanner(match) {
+    if (!match) return null;
+    var next = getLivingTeamUnits(match.allies).find(function (unit) {
+      return !!unit && Number(unit.ap || 0) > 0;
+    }) || getSelectedCrucibleAlly(match) || getCrucibleExpeditionPlayer(match) || null;
+    if (next) {
+      match.selectedAllyId = String(next.id || '');
+      match.selectedAllyTargetId = String(next.id || '');
+    }
+    return next;
+  }
+
+  function queueCrucibleExpeditionCombatAction(match, actor, action, targetRef, logs) {
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition || String(match.expedition.phase || '') !== 'combat') return false;
+    if (!actor || Number(actor.hp || 0) <= 0) return false;
+    if (Number(actor.ap || 0) <= 0) {
+      if (typeof showNotif === 'function') showNotif(actor.name + ' has no AP left.', 'warn');
+      return false;
+    }
+    var actionKey = String(action || 'attack').toLowerCase();
+    var packet = {
+      seq: Math.max(1, Number(match.expedition.pendingCombatActionSeq || 0) + 1),
+      actorId: String(actor.id || ''),
+      action: actionKey,
+      targetSide: '',
+      targetId: '',
+      summary: ''
+    };
+    var target = null;
+    var resolvedTargetRef = String(targetRef || '');
+    if (resolvedTargetRef.indexOf('enemy:') === 0) {
+      packet.targetSide = 'enemy';
+      packet.targetId = String(resolvedTargetRef.split(':')[1] || '');
+      target = findCrucibleUnit(match, 'enemy', packet.targetId);
+    } else if (resolvedTargetRef.indexOf('ally:') === 0) {
+      packet.targetSide = 'ally';
+      packet.targetId = String(resolvedTargetRef.split(':')[1] || '');
+      target = findCrucibleUnit(match, 'ally', packet.targetId);
+    }
+
+    if (actionKey === 'move') {
+      if (typeof showNotif === 'function') showNotif('Movement still happens on the board. Drag a unit before resolving the party round.', 'info');
+      return false;
+    }
+
+    if (actionKey === 'attack') {
+      if (!target || !canCrucibleUnitAttack(actor, target)) {
+        if (typeof showNotif === 'function') showNotif('Pick an engaged or close enemy target.', 'warn');
+        return false;
+      }
+      packet.summary = actor.name + ' queued Attack on ' + target.name + '.';
+    } else if (actionKey === 'defend') {
+      if (!target) target = actor;
+      packet.targetSide = 'ally';
+      packet.targetId = String(target.id || actor.id || '');
+      packet.summary = actor.name + ' queued Defend for ' + target.name + '.';
+    } else if (actionKey === 'support') {
+      if (!target || String(packet.targetSide || '') !== 'ally') {
+        if (typeof showNotif === 'function') showNotif('Pick an ally to support.', 'warn');
+        return false;
+      }
+      packet.summary = actor.name + ' queued Support for ' + target.name + '.';
+    } else if (actionKey === 'personal-flavor') {
+      var flavorDist = (target && typeof getUnitDistance === 'function') ? Number(getUnitDistance(actor, target) || 99) : 99;
+      var flavorInRange = (typeof canUseCruciblePersonalFlavorRange === 'function')
+        ? canUseCruciblePersonalFlavorRange(flavorDist)
+        : (flavorDist > 0 && flavorDist <= 2);
+      if (!target || !flavorInRange) {
+        if (typeof showNotif === 'function') showNotif('Personal Flavor requires an engaged or close enemy target.', 'warn');
+        return false;
+      }
+      packet.summary = actor.name + ' queued Personal Flavor against ' + target.name + '.';
+    } else if (actionKey === 'spell' || actionKey === 'hack') {
+      if (!target || !canCrucibleUnitCastActionOnTarget(actor, target, actionKey)) {
+        if (typeof showNotif === 'function') showNotif('Pick a valid spell or hack target first.', 'warn');
+        return false;
+      }
+      packet.summary = actor.name + ' queued ' + (actionKey === 'hack' ? 'Hack' : 'Spell') + ' on ' + target.name + '.';
+    } else {
+      packet.summary = actor.name + ' queued ' + actionKey + '.';
+    }
+
+    if (!spendCrucibleUnitAp(actor, 1)) return false;
+    match.expedition.pendingCombatActionSeq = packet.seq;
+    getCrucibleExpeditionQueuedActions(match).push(packet);
+    if (logs) logs.push(packet.summary);
+    if (packet.targetSide === 'enemy') match.selectedTargetId = String(packet.targetId || '');
+    if (packet.targetSide === 'ally') match.selectedAllyTargetId = String(packet.targetId || '');
+    chooseNextCrucibleExpeditionPlanner(match);
+    return true;
+  }
+
+  function resolveCrucibleExpeditionQueuedAction(match, packet, logs) {
+    if (!match || !packet) return false;
+    var actor = findCrucibleUnit(match, 'ally', packet.actorId);
+    if (!actor || Number(actor.hp || 0) <= 0) {
+      if (logs) logs.push('A queued action fizzled because its wayfarer is down.');
+      return false;
+    }
+    var target = null;
+    if (String(packet.targetSide || '') === 'enemy') target = findCrucibleUnit(match, 'enemy', packet.targetId);
+    else if (String(packet.targetSide || '') === 'ally') target = findCrucibleUnit(match, 'ally', packet.targetId);
+    var actionKey = String(packet.action || 'attack').toLowerCase();
+
+    if (actionKey === 'attack') {
+      if (!target || Number(target.hp || 0) <= 0 || !canCrucibleUnitAttack(actor, target)) {
+        if (logs) logs.push(actor.name + ' lost the attack lane before resolution.');
+        return false;
+      }
+      var dist = (typeof getUnitDistance === 'function') ? Number(getUnitDistance(actor, target) || 0) : 0;
+      if (logs) logs.push(actor.name + ' resolved ' + (dist <= 1 ? 'Strike' : 'Shoot') + ' on ' + target.name + '.');
+      runCrucibleAttack(actor, target, logs, match);
+      return true;
+    }
+    if (actionKey === 'defend') {
+      if (!target || Number(target.hp || 0) <= 0) target = actor;
+      target.defendBuff = Math.max(0, Number(target.defendBuff || 0) + applyCrucibleExpeditionFlavorRollBonus(match, actor, 'defend', 'support'));
+      executeDefendAction(actor, target, logs);
+      return true;
+    }
+    if (actionKey === 'support') {
+      if (!target || Number(target.hp || 0) <= 0) {
+        if (logs) logs.push(actor.name + ' lost the support target before resolution.');
+        return false;
+      }
+      target.strikeBonus = Math.max(0, Number(target.strikeBonus || 0) + applyCrucibleExpeditionFlavorRollBonus(match, actor, 'lead', 'support'));
+      executeSupportAction(actor, target, logs);
+      return true;
+    }
+    if (actionKey === 'personal-flavor') {
+      if (!target || Number(target.hp || 0) <= 0) {
+        if (logs) logs.push(actor.name + ' had no valid target left for Personal Flavor.');
+        return false;
+      }
+      if (typeof executePersonalFlavor === 'function') {
+        executePersonalFlavor(actor, 'crucible-' + Number(match.round || 1), match.hexMap, logs, { target: target, match: match });
+      } else if (logs) {
+        logs.push(actor.name + ' used Personal Flavor on ' + target.name + '.');
+      }
+      return true;
+    }
+    if (actionKey === 'spell' || actionKey === 'hack') {
+      if (!target || Number(target.hp || 0) <= 0 || !canCrucibleUnitCastActionOnTarget(actor, target, actionKey)) {
+        if (logs) logs.push(actor.name + ' lost the ' + actionKey + ' target before resolution.');
+        return false;
+      }
+      resolveCrucibleSpellHackAction(actor, target, actionKey, match, logs, null);
+      return true;
+    }
+
+    if (logs) logs.push(actor.name + ' held position.');
+    return true;
+  }
+
+  function resolveCrucibleExpeditionCombatRound(match) {
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition || String(match.expedition.phase || '') !== 'combat') return false;
+    var expedition = match.expedition;
+    var queued = getCrucibleExpeditionQueuedActions(match).slice();
+    var logs = [];
+    clearCrucibleExpeditionQueuedActions(match);
+    match.turnSide = 'ally';
+
+    if (queued.length) logs.push('Party round ' + Number(expedition.partyRound || 1) + ' resolves with ' + queued.length + ' queued action' + (queued.length === 1 ? '' : 's') + '.');
+    else logs.push('Party round ' + Number(expedition.partyRound || 1) + ' resolves with no committed actions.');
+
+    queued.forEach(function (packet) {
+      resolveCrucibleExpeditionQueuedAction(match, packet, logs);
+    });
+
+    if (logs.length) match.log = (match.log || []).concat(logs).slice(-120);
+    finalizeHoldingCrucibleMatch(match);
+    if (!match.active || String(expedition.phase || '') !== 'combat') return true;
+
+    runCrucibleEnemyTurn(match);
+    expedition.partyRound = Math.max(1, Number(expedition.partyRound || 1) + 1);
+    if (expedition.roundClosesEdges && getCrucibleExpeditionPartySize(match) > 1) {
+      var collapsedNow = collapseCrucibleExpeditionEdge(match);
+      if (collapsedNow > 0) {
+        match.log = (match.log || []).concat(['Night closes after the combat round: ' + collapsedNow + ' edge hexes collapsed.']).slice(-120);
+      }
+    }
+    clearCrucibleExpeditionQueuedActions(match);
+    chooseNextCrucibleExpeditionPlanner(match);
+    finalizeHoldingCrucibleMatch(match);
+    return true;
+  }
+
+  function autoQueueCrucibleExpeditionRound(match) {
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition || String(match.expedition.phase || '') !== 'combat') return false;
+    var enemies = getLivingTeamUnits(match.enemies);
+    var party = getLivingTeamUnits(match.allies);
+    var queuedAny = false;
+    party.forEach(function (actor) {
+      if (!actor) return;
+      match.selectedAllyId = String(actor.id || '');
+      while (Number(actor.ap || 0) > 0) {
+        var target = enemies.find(function (enemy) {
+          return !!enemy && Number(enemy.hp || 0) > 0 && canCrucibleUnitAttack(actor, enemy);
+        }) || enemies.find(function (enemy) {
+          return !!enemy && Number(enemy.hp || 0) > 0;
+        }) || null;
+        if (target && canCrucibleUnitAttack(actor, target)) {
+          queuedAny = queueCrucibleExpeditionCombatAction(match, actor, 'attack', 'enemy:' + String(target.id || ''), null) || queuedAny;
+        } else {
+          queuedAny = queueCrucibleExpeditionCombatAction(match, actor, 'defend', 'ally:' + String(actor.id || ''), null) || queuedAny;
+        }
+        enemies = getLivingTeamUnits(match.enemies);
+      }
+    });
+    return queuedAny;
   }
 
   function getCrucibleExpeditionFlavorText(actor) {
@@ -2582,6 +2833,8 @@
     match.expedition.uiTab = 'combat';
     match.expedition.currentCombatType = String(profile.combatType || 'fieldMonster');
     match.expedition.currentCombatProfile = enemy.profile;
+    clearCrucibleExpeditionQueuedActions(match);
+    chooseNextCrucibleExpeditionPlanner(match);
     return true;
   }
 
@@ -2626,6 +2879,8 @@
     match.expedition.uiTab = 'combat';
     match.expedition.currentCombatType = String(profile.combatType || 'fieldEnemy');
     match.expedition.currentCombatProfile = enemies[0] ? enemies[0].profile : null;
+    clearCrucibleExpeditionQueuedActions(match);
+    chooseNextCrucibleExpeditionPlanner(match);
     if (String(profile.combatType || '') === 'fieldEnemy') {
       match.expedition.pendingEnemyCredits = useCount * 60;
     }
@@ -3600,6 +3855,7 @@
         expedition.portalEvent = expedition.portalEvent || { hexKey: '' };
         expedition.portalEvent.needsClose = true;
         match.enemies = [];
+        clearCrucibleExpeditionQueuedActions(match);
         match.log = (match.log || []).concat(['Portal guards eliminated. Use Close Portal to start the pipe puzzle and seal this breach.']).slice(-120);
         if (typeof showNotif === 'function') showNotif('Portal exposed. Close Portal is now available.', 'good');
         return true;
@@ -3670,6 +3926,7 @@
       expedition.phase = 'explore';
       expedition.currentCombatType = '';
       match.enemies = [];
+      clearCrucibleExpeditionQueuedActions(match);
       resetCrucibleTeamForTurn(match.allies || []);
       match.turnSide = 'ally';
       maybeTriggerCrucibleExpeditionEncounter(match, false);
@@ -3938,86 +4195,68 @@
     var expedition = match && match.expedition ? match.expedition : null;
     var enemy = getCrucibleExpeditionCurrentEnemy(match);
     if (!expedition || !enemy || String(expedition.phase || '') !== 'combat') return '';
-    var isEnemyTurn = String(match.turnSide || 'ally') === 'enemy';
     var selectedAlly = getSelectedCrucibleAlly(match);
+    if (!selectedAlly) selectedAlly = chooseNextCrucibleExpeditionPlanner(match) || getCrucibleExpeditionPlayer(match);
     var player = getCrucibleExpeditionPlayer(match);
-    var selectedEnemy = getSelectedCrucibleEnemy(match);
     var selectedTarget = getSelectedCrucibleTarget(match);
-    var selectedAllyTarget = getSelectedCrucibleAllyTarget(match);
-    var selectedActiveUnit = isEnemyTurn ? selectedEnemy : selectedAlly;
+    var queued = getCrucibleExpeditionQueuedActions(match);
+    var readyActors = getLivingTeamUnits(match.allies).filter(function (u) { return !!u && Number(u.ap || 0) > 0; }).length;
     var wayfarerOptions = getCrucibleWayfarerActionOptionsHtml();
     var wayfarerTargetOptions = buildCrucibleEnemyTargetOptions(match, 'attack', selectedAlly);
     var teamTargetOptions = buildCrucibleTeamTargetOptions(match, 'attack', selectedAlly);
-    var enemyTargetOptions = buildCrucibleEnemyTargetOptions(match, 'attack', selectedEnemy);
     var allyRows = getLivingTeamUnits(match.allies).map(function (u) {
-      var on = isEnemyTurn
-        ? (selectedAllyTarget && String(selectedAllyTarget.id) === String(u.id))
-        : (selectedAlly && String(selectedAlly.id) === String(u.id));
+      var on = selectedAlly && String(selectedAlly.id) === String(u.id);
       var flavor = (u.personalFlavor && u.personalFlavor.name) ? (' · PF:' + String(u.personalFlavor.name)) : '';
-      var handler = isEnemyTurn ? 'selectHoldingCrucibleAllyTarget' : 'selectHoldingCrucibleUnit';
-      return '<button class="btn btn-xs ' + (on ? 'btn-teal' : '') + '" onclick="' + handler + '(\'' + String(u.id).replace(/'/g, '&#39;') + '\')">'
-        + u.name + ' [' + (u.position ? (u.position.q + ',' + u.position.r) : 'PA') + '] AP' + Number(u.ap || 0) + ' HP' + Number(u.hp || 0) + flavor
+      var queuedCount = getCrucibleExpeditionQueuedActionCountForUnit(match, u.id);
+      var status = queuedCount > 0 ? (' · Q' + queuedCount) : (Number(u.ap || 0) > 0 ? ' · Ready' : ' · Locked');
+      return '<button class="btn btn-xs ' + (on ? 'btn-teal' : '') + '" onclick="selectHoldingCrucibleUnit(\'' + String(u.id).replace(/'/g, '&#39;') + '\')">'
+        + u.name + ' [' + (u.position ? (u.position.q + ',' + u.position.r) : 'PA') + '] AP' + Number(u.ap || 0) + ' HP' + Number(u.hp || 0) + status + flavor
       + '</button>';
     }).join('');
     var targetRows = getLivingTeamUnits(match.enemies).map(function (u) {
-      var on = isEnemyTurn
-        ? (selectedEnemy && String(selectedEnemy.id) === String(u.id))
-        : (selectedTarget && String(selectedTarget.id) === String(u.id));
-      var dist = selectedActiveUnit ? (typeof getUnitDistance === 'function' ? getUnitDistance(selectedActiveUnit, u) : 0) : 0;
-      var handler = isEnemyTurn ? 'selectHoldingCrucibleEnemy' : 'selectHoldingCrucibleTarget';
+      var on = selectedTarget && String(selectedTarget.id) === String(u.id);
+      var dist = selectedAlly ? (typeof getUnitDistance === 'function' ? getUnitDistance(selectedAlly, u) : 0) : 0;
       return '<div style="display:flex;gap:.14rem;align-items:center;">'
-        + '<button class="btn btn-xs ' + (on ? 'btn-red' : '') + '" onclick="' + handler + '(\'' + String(u.id).replace(/'/g, '&#39;') + '\')">'
+        + '<button class="btn btn-xs ' + (on ? 'btn-red' : '') + '" onclick="selectHoldingCrucibleTarget(\'' + String(u.id).replace(/'/g, '&#39;') + '\')">'
         + u.name + ' [' + (u.position ? (u.position.q + ',' + u.position.r) : 'PA') + '] d:' + dist + ' HP' + Number(u.hp || 0)
         + '</button>'
         + '<button class="btn btn-xs" onclick="openCrucibleEnemyLore(\'' + String(u.id).replace(/'/g, '&#39;') + '\')">?</button>'
       + '</div>';
     }).join('');
-    var canAct = !!(!isEnemyTurn && selectedAlly && Number(selectedAlly.hp || 0) > 0 && Number(selectedAlly.ap || 0) > 0);
-    var canEnemyAct = !!(isEnemyTurn && selectedEnemy && Number(selectedEnemy.hp || 0) > 0 && Number(selectedEnemy.ap || 0) > 0);
     var actionDieBonus = Number(expedition.actionDieBonus || 0);
     var turnRail = '<div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:.16rem;align-items:center;margin-bottom:.28rem;">'
-      + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid ' + (!isEnemyTurn ? 'rgba(70,196,182,.45)' : 'var(--border2)') + ';background:' + (!isEnemyTurn ? 'rgba(70,196,182,.12)' : 'rgba(255,255,255,.02)') + ';font-size:.68rem;color:' + (!isEnemyTurn ? 'var(--teal)' : 'var(--muted2)') + ';">Your Team</div>'
+      + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid rgba(70,196,182,.45);background:rgba(70,196,182,.12);font-size:.68rem;color:var(--teal);">Plan Team Round</div>'
       + '<div style="font-size:.78rem;color:var(--muted2);text-align:center;">→</div>'
-      + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.68rem;color:var(--gold2);">Combat</div>'
+      + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.68rem;color:var(--gold2);">Resolve</div>'
       + '<div style="font-size:.78rem;color:var(--muted2);text-align:center;">→</div>'
-      + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid ' + (isEnemyTurn ? 'rgba(200,80,80,.45)' : 'var(--border2)') + ';background:' + (isEnemyTurn ? 'rgba(200,80,80,.12)' : 'rgba(255,255,255,.02)') + ';font-size:.68rem;color:' + (isEnemyTurn ? 'var(--red2)' : 'var(--muted2)') + ';">Enemy Team</div>'
+      + '<div style="text-align:center;padding:.16rem .2rem;border:1px solid rgba(200,80,80,.45);background:rgba(200,80,80,.12);font-size:.68rem;color:var(--red2);">Enemy Response</div>'
     + '</div>';
-    var turnControlsHtml = '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.22rem;">'
-      + '<label style="font-size:.66rem;color:var(--muted2);">Wayfarer Actions'
-      + '<select id="crucibleWayfarerActionSelect" onchange="refreshCrucibleWayfarerActionOptions();" style="width:100%;margin-top:.08rem;" ' + (isEnemyTurn ? 'disabled' : '') + '>' + wayfarerOptions + '</select></label>'
+    var combatSection = '<details class="card" open style="margin-top:.25rem;">'
+      + '<summary class="section-title" style="cursor:pointer;">Expedition Combat Round</summary>'
+      + '<div style="font-size:.69rem;color:var(--muted2);margin:.18rem 0;">Queued actions ' + queued.length + ' · Allies with AP remaining ' + readyActors + ' · Selected ' + String(selectedAlly && selectedAlly.name || 'Wayfarer') + '</div>'
+      + turnRail
+      + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.22rem;">'
+      + '<label style="font-size:.66rem;color:var(--muted2);">Selected Wayfarer'
+      + '<select id="crucibleWayfarerActionSelect" onchange="refreshCrucibleWayfarerActionOptions();" style="width:100%;margin-top:.08rem;">' + wayfarerOptions + '</select></label>'
       + '<label style="font-size:.66rem;color:var(--muted2);">Target'
-      + '<select id="crucibleWayfarerTargetSelect" style="width:100%;margin-top:.08rem;" ' + (isEnemyTurn ? 'disabled' : '') + '>' + wayfarerTargetOptions + '</select></label>'
-      + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExecuteWayfarerAction();">Execute</button>'
+      + '<select id="crucibleWayfarerTargetSelect" style="width:100%;margin-top:.08rem;">' + wayfarerTargetOptions + '</select></label>'
+      + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExecuteWayfarerAction();">Queue</button>'
       + '</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.22rem;">'
       + '<label style="font-size:.66rem;color:var(--muted2);">Team Action'
-      + '<select id="crucibleTeamActionSelect" onchange="refreshCrucibleTeamActionOptions();" style="width:100%;margin-top:.08rem;" ' + (isEnemyTurn ? 'disabled' : '') + '>'
+      + '<select id="crucibleTeamActionSelect" onchange="refreshCrucibleTeamActionOptions();" style="width:100%;margin-top:.08rem;">'
       + '<option value="personal-flavor">Personal Flavor</option>'
       + '<option value="defend">Defend (+3 next defend)</option>'
       + '<option value="attack" selected>Attack (Engaged/Close)</option>'
       + '<option value="support">Support (+3 next attack)</option>'
       + '</select></label>'
       + '<label style="font-size:.66rem;color:var(--muted2);">Target'
-      + '<select id="crucibleTeamTargetSelect" style="width:100%;margin-top:.08rem;" ' + (isEnemyTurn ? 'disabled' : '') + '>' + teamTargetOptions + '</select></label>'
-      + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExecuteTeamAction();">Execute</button>'
-      + '</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.28rem;">'
-      + '<label style="font-size:.66rem;color:var(--muted2);">Enemy Action'
-      + '<select id="crucibleEnemyActionSelect" onchange="refreshCrucibleEnemyActionOptions();" style="width:100%;margin-top:.08rem;" ' + (!isEnemyTurn ? 'disabled' : '') + '>'
-      + '<option value="personal-flavor">Personal Flavor</option>'
-      + '<option value="defend">Defend (+3 next defend)</option>'
-      + '<option value="attack" selected>Attack (Engaged/Close)</option>'
-      + '<option value="support">Support (+3 next attack)</option>'
-      + '<option value="move">Move Action (random)</option>'
-      + '</select></label>'
-      + '<label style="font-size:.66rem;color:var(--muted2);">Target'
-      + '<select id="crucibleEnemyTargetSelect" style="width:100%;margin-top:.08rem;" ' + (!isEnemyTurn ? 'disabled' : '') + '>' + enemyTargetOptions + '</select></label>'
-      + '<button class="btn btn-sm btn-red" onclick="holdingCrucibleExecuteEnemyAction();">Execute</button>'
+      + '<select id="crucibleTeamTargetSelect" style="width:100%;margin-top:.08rem;">' + teamTargetOptions + '</select></label>'
+      + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExecuteTeamAction();">Queue</button>'
       + '</div>'
       + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.32rem;">'
-      + '<button class="btn btn-sm" onclick="holdingCrucibleEndSelectedUnit();">End Unit</button>'
-      + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAdvanceRound();">' + (isEnemyTurn ? 'End Enemy Turn' : 'Begin Enemy Turn') + '</button>'
-      + (isEnemyTurn ? '<button class="btn btn-sm btn-red" onclick="holdingCrucibleRunEnemyAI();">Enemy AI Turn</button>' : '')
+      + '<button class="btn btn-sm" onclick="holdingCrucibleEndSelectedUnit();">Lock Selected Unit</button>'
+      + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAdvanceRound();">Resolve Party Round</button>'
       + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAutoResolve();">Auto Resolve</button>'
       + '<button class="btn btn-sm" onclick="holdingCrucibleResetMatch();">Reset Match</button>'
       + '</div>'
@@ -4041,7 +4280,7 @@
       + 'Wayfarer action dice: ' + (player && Array.isArray(player.actionDice) ? player.actionDice.map(function (d) { return 'd' + d; }).join(', ') : 'd8, d6')
       + (actionDieBonus > 0 ? ' · Loot bonus: +' + actionDieBonus + ' Action Die step' + (actionDieBonus > 1 ? 's' : '') : '')
       + '</div>'
-      + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.18rem;">Enemy archive controls appear only while combat is active.</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.18rem;">Queue ally actions across the whole party, then resolve the round in one enemy response step.</div>'
       + '</details>';
     return combatSection;
   }
@@ -4932,6 +5171,8 @@
     match.expedition.uiTab = 'combat';
     match.expedition.currentCombatType = 'portalWave';
     match.expedition.currentCombatProfile = enemies[0] ? enemies[0].profile : null;
+    clearCrucibleExpeditionQueuedActions(match);
+    chooseNextCrucibleExpeditionPlanner(match);
     match.expedition.portalEvent = { hexKey: key, startedDay: Number(match.expedition.day || 1), needsClose: false };
     resolveCrucibleExpeditionDangerousWeather(match, 'Portal Breach');
     match.log = (match.log || []).concat(['Portal breach initiated: ' + count + ' enemy guard(s) manifest. Win this combat to unlock Close Portal.']).slice(-120);
@@ -5675,7 +5916,7 @@
     if (!actionEl) return false;
     var action = String(actionEl.value || '').toLowerCase();
     var actor = String(match.mode || '') === 'expedition'
-      ? getCrucibleExpeditionPlayer(match)
+      ? (getSelectedCrucibleAlly(match) || chooseNextCrucibleExpeditionPlanner(match) || getCrucibleExpeditionPlayer(match))
       : ((match.allies || []).find(function (u) { return u && u.isPlayer && Number(u.hp || 0) > 0; }) || null);
     if (!actor) {
       if (typeof showNotif === 'function') showNotif('Wayfarer is down and cannot act.', 'warn');
@@ -5688,6 +5929,15 @@
     }
 
     var targetRef = targetEl ? String(targetEl.value || '') : '';
+    if (String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || '') === 'combat') {
+      var queuedLogs = [];
+      if (!queueCrucibleExpeditionCombatAction(match, actor, action, targetRef, queuedLogs)) return false;
+      match.log = (match.log || []).concat(queuedLogs).slice(-120);
+      maybeSyncCrucibleSelection(match);
+      renderHoldingCruciblePopup();
+      renderHoldingUI();
+      return true;
+    }
     var target = null;
     if (targetRef.indexOf('enemy:') === 0) {
       target = findCrucibleUnit(match, 'enemy', targetRef.split(':')[1]);
@@ -5775,6 +6025,15 @@
     var targetRef = String(targetEl.value || '');
     var logs = [];
 
+    if (String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || '') === 'combat') {
+      if (!queueCrucibleExpeditionCombatAction(match, actor, action, targetRef, logs)) return false;
+      match.log = (match.log || []).concat(logs).slice(-120);
+      maybeSyncCrucibleSelection(match);
+      renderHoldingCruciblePopup();
+      renderHoldingUI();
+      return true;
+    }
+
     if (action === 'attack') {
       if (!targetRef || targetRef.indexOf('enemy:') !== 0) {
         if (typeof showNotif === 'function') showNotif('Pick an engaged/close enemy target.', 'warn');
@@ -5838,6 +6097,10 @@
 
   function holdingCrucibleExecuteEnemyAction() {
     var match = getHoldingCrucibleMatch();
+    if (match && String(match.mode || '') === 'expedition') {
+      if (typeof showNotif === 'function') showNotif('Expedition enemies resolve as a response step after the party round.', 'info');
+      return false;
+    }
     if (!match || String(match.turnSide || 'ally') !== 'enemy') return false;
     if (typeof document === 'undefined') return false;
     var actionEl = document.getElementById('crucibleEnemyActionSelect');
@@ -6134,6 +6397,13 @@
     ensureNewFeatureState();
     var match = getHoldingCrucibleMatch();
     if (!match) return false;
+    if (String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || '') === 'combat') {
+      resolveCrucibleExpeditionCombatRound(match);
+      finalizeHoldingCrucibleMatch(match);
+      renderHoldingCruciblePopup();
+      renderHoldingUI();
+      return true;
+    }
     if (String(match.turnSide || 'ally') === 'ally') {
       beginCrucibleEnemyTurn(match);
     } else {
@@ -6147,6 +6417,10 @@
 
   function holdingCrucibleRunEnemyAI() {
     var match = getHoldingCrucibleMatch();
+    if (match && String(match.mode || '') === 'expedition') {
+      if (typeof showNotif === 'function') showNotif('Expedition enemy AI runs inside Resolve Party Round.', 'info');
+      return false;
+    }
     if (!match || String(match.turnSide || 'ally') !== 'enemy') return false;
     runCrucibleEnemyTurn(match);
     finalizeHoldingCrucibleMatch(match);
@@ -6156,6 +6430,21 @@
   }
 
   function holdingCrucibleAutoResolve() {
+    var current = getHoldingCrucibleMatch();
+    if (current && String(current.mode || '') === 'expedition' && current.expedition && String(current.expedition.phase || '') === 'combat') {
+      var expeditionSafety = 0;
+      while (getHoldingCrucibleMatch() && expeditionSafety < 24) {
+        var expeditionMatch = getHoldingCrucibleMatch();
+        if (!expeditionMatch || !expeditionMatch.active || !expeditionMatch.expedition || String(expeditionMatch.expedition.phase || '') !== 'combat') break;
+        autoQueueCrucibleExpeditionRound(expeditionMatch);
+        resolveCrucibleExpeditionCombatRound(expeditionMatch);
+        finalizeHoldingCrucibleMatch(expeditionMatch);
+        expeditionSafety += 1;
+      }
+      renderHoldingCruciblePopup();
+      renderHoldingUI();
+      return true;
+    }
     var safety = 0;
     while (getHoldingCrucibleMatch() && safety < 24) {
       var match = getHoldingCrucibleMatch();
@@ -10058,6 +10347,7 @@
   window.resolveHoldingSettlementHexNode = resolveHoldingSettlementHexNode;
   window.openHoldingSettlementSewerRoute = openHoldingSettlementSewerRoute;
   window.openHoldingCrucibleMatch = openHoldingCrucibleMatch;
+  window.getHoldingCrucibleMatch = getHoldingCrucibleMatch;
   window.holdingCrucibleSetMode = holdingCrucibleSetMode;
   window.startHoldingMiniGamesExpedition = startHoldingMiniGamesExpedition;
   window.openMiniGamesMode = openMiniGamesMode;
@@ -10075,6 +10365,9 @@
   window.holdingCrucibleExpeditionObserveAdjacent = holdingCrucibleExpeditionObserveAdjacent;
   window.holdingCrucibleExpeditionRandomEncounter = holdingCrucibleExpeditionRandomEncounter;
   window.holdingCrucibleExpeditionWildernessRoll = holdingCrucibleExpeditionWildernessRoll;
+  window.holdingCrucibleExploreExpeditionRuinRoom = holdingCrucibleExploreExpeditionRuinRoom;
+  window.holdingCrucibleResolveExpeditionRuinBoss = holdingCrucibleResolveExpeditionRuinBoss;
+  window.holdingCrucibleExitExpeditionRuin = holdingCrucibleExitExpeditionRuin;
   window.holdingCrucibleCloseExpeditionGate = holdingCrucibleCloseExpeditionGate;
   window.holdingCrucibleBreachExpeditionPortal = holdingCrucibleBreachExpeditionPortal;
   window.holdingCrucibleSolvePortalPuzzle = holdingCrucibleSolvePortalPuzzle;
@@ -10103,6 +10396,8 @@
   window.holdingCrucibleGuardSelected = holdingCrucibleGuardSelected;
   window.holdingCrucibleEndSelectedUnit = holdingCrucibleEndSelectedUnit;
   window.holdingCrucibleAdvanceRound = holdingCrucibleAdvanceRound;
+  window.resolveCrucibleExpeditionCombatRound = resolveCrucibleExpeditionCombatRound;
+  window.queueCrucibleExpeditionCombatAction = queueCrucibleExpeditionCombatAction;
   window.holdingCrucibleAutoResolve = holdingCrucibleAutoResolve;
   window.holdingCrucibleRunEnemyAI = holdingCrucibleRunEnemyAI;
   window.holdingCrucibleHandleBoardUnitClick = holdingCrucibleHandleBoardUnitClick;

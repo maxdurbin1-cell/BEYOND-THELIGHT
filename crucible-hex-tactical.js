@@ -514,8 +514,44 @@ function canUsePersonalFlavor(unit, currentStamp) {
   return true;
 }
 
-function executePersonalFlavor(unit, cooldownStamp, map, log) {
+function getPersonalFlavorBaseKey(unit) {
+  if (!unit || !unit.personalFlavor) return '';
+  var raw = String(unit.personalFlavor.full || unit.personalFlavor.name || '').trim().toLowerCase();
+  if (!raw) return '';
+  var cut = raw.indexOf(':');
+  return (cut >= 0 ? raw.slice(0, cut) : raw).trim();
+}
+
+function getPersonalFlavorTargetDistance(actor, target) {
+  if (!actor || !target || !actor.position || !target.position || typeof getUnitDistance !== 'function') return 99;
+  return Number(getUnitDistance(actor, target) || 99);
+}
+
+function tryRelocateFlavorUser(unit, match, log) {
+  if (!unit || !match || typeof getCrucibleRandomOpenHex !== 'function') return false;
+  var destination = getCrucibleRandomOpenHex(unit, match, 3);
+  if (!destination) return false;
+  unit.position = { q: Number(destination.q || 0), r: Number(destination.r || 0) };
+  if (log) log.push(unit.name + ' blinked to [' + Number(destination.q || 0) + ',' + Number(destination.r || 0) + '].');
+  return true;
+}
+
+function damageFlavorTarget(unit, target, amount, log, text) {
+  if (!unit || !target || Number(target.hp || 0) <= 0) return 0;
+  var dealt = Math.max(0, Math.min(Number(target.hp || 0), Number(amount || 0)));
+  if (dealt <= 0) return 0;
+  target.hp = Math.max(0, Number(target.hp || 0) - dealt);
+  if (log) log.push(text || (unit.name + ' hit ' + target.name + ' for ' + dealt + ' extra damage.'));
+  return dealt;
+}
+
+function executePersonalFlavor(unit, cooldownStamp, map, log, options) {
   if (!unit || !unit.personalFlavor) return false;
+  var opts = options || {};
+  var target = opts.target || null;
+  var match = opts.match || null;
+  var targetDistance = getPersonalFlavorTargetDistance(unit, target);
+  var base = getPersonalFlavorBaseKey(unit);
   
   if (!canUsePersonalFlavor(unit, cooldownStamp)) {
     if (log) log.push(unit.name + ' ' + (unit.personalFlavor.name || 'flavor') + ' is on cooldown.');
@@ -524,9 +560,78 @@ function executePersonalFlavor(unit, cooldownStamp, map, log) {
 
   unit.personalFlavor.used = true;
   unit.personalFlavor.cooldownStamp = cooldownStamp;
-  
-  // Let combat system handle flavor effects
   if (log) log.push('✨ ' + unit.name + ' used Personal Flavor: ' + (unit.personalFlavor.name || 'Unknown') + '.');
+
+  if (base.indexOf('holy shield') >= 0 || base.indexOf('psychic dome') >= 0 || base.indexOf('mercy hand') >= 0 || base.indexOf('grim resolve') >= 0 || base.indexOf('quick stitch') >= 0) {
+    unit.defendBuff = Math.max(0, Number(unit.defendBuff || 0) + 3);
+    unit.hp = Math.min(Number(unit.maxHp || unit.hp || 0), Number(unit.hp || 0) + 1);
+    if (log) log.push(unit.name + ' raised a ward: +3 Defend and restored 1 HP.');
+    return true;
+  }
+
+  if (base.indexOf('teleportation') >= 0 || base.indexOf('phase walker') >= 0 || base.indexOf('night courier') >= 0 || base.indexOf('pathfinder') >= 0) {
+    tryRelocateFlavorUser(unit, match, log);
+    unit.strikeBonus = Math.max(0, Number(unit.strikeBonus || 0) + 2);
+    if (log) log.push(unit.name + ' lined up the next strike from a new angle (+2 attack).');
+    return true;
+  }
+
+  if (base.indexOf('vampire') >= 0 || base.indexOf('siphon energy') >= 0) {
+    var drain = damageFlavorTarget(unit, target, 2, log, unit.name + ' drained 2 HP from ' + (target ? target.name : 'the air') + '.');
+    if (drain > 0) {
+      unit.hp = Math.min(Number(unit.maxHp || unit.hp || 0), Number(unit.hp || 0) + drain);
+      if (log) log.push(unit.name + ' recovered ' + drain + ' HP.');
+    }
+    return true;
+  }
+
+  if (base.indexOf('quick draw') >= 0 || base.indexOf('silent knife') >= 0 || base.indexOf('hunt rhythm') >= 0 || base.indexOf('beast call') >= 0 || base.indexOf('wild empathy') >= 0) {
+    damageFlavorTarget(unit, target, 2, log, unit.name + ' opened a clean line on ' + (target ? target.name : 'the target') + ' for 2 bonus damage.');
+    unit.strikeBonus = Math.max(0, Number(unit.strikeBonus || 0) + 1);
+    return true;
+  }
+
+  if (base.indexOf('runesmith') >= 0 || base.indexOf('scrap alchemist') >= 0 || base.indexOf('enhance abilities') >= 0 || base.indexOf('cloning') >= 0) {
+    unit.strikeBonus = Math.max(0, Number(unit.strikeBonus || 0) + 3);
+    unit.defendBuff = Math.max(0, Number(unit.defendBuff || 0) + 1);
+    if (log) log.push(unit.name + ' forged a combat edge: +3 attack and +1 defend.');
+    return true;
+  }
+
+  if (base.indexOf('reverse time') >= 0 || base.indexOf('time traveler') >= 0 || base.indexOf('relive last moments') >= 0 || base.indexOf('shed skin') >= 0 || base.indexOf('undying') >= 0) {
+    unit.hp = Math.min(Number(unit.maxHp || unit.hp || 0), Number(unit.hp || 0) + 2);
+    unit.defendBuff = Math.max(0, Number(unit.defendBuff || 0) + 2);
+    if (log) log.push(unit.name + ' rewound the worst of the exchange: +2 HP and +2 Defend.');
+    return true;
+  }
+
+  if (base.indexOf('stop time') >= 0 || base.indexOf('slow time') >= 0 || base.indexOf('increase gravity') >= 0 || base.indexOf('tremor pulse') >= 0) {
+    if (target && targetDistance <= 2) {
+      target.ap = Math.max(0, Number(target.ap || 0) - 1);
+      damageFlavorTarget(unit, target, 1, log, unit.name + ' locked ' + target.name + ' in place for 1 damage and stole 1 AP.');
+    } else if (log) {
+      log.push(unit.name + ' warped the tempo of the fight, but no close target was in reach.');
+    }
+    return true;
+  }
+
+  if (base.indexOf('ruin scholar') >= 0 || base.indexOf('vault memory') >= 0 || base.indexOf('moon listener') >= 0 || base.indexOf('void gazer') >= 0 || base.indexOf('cold reader') >= 0 || base.indexOf('dust prophet') >= 0 || base.indexOf('faultline sense') >= 0) {
+    if (target && targetDistance <= 2) {
+      target.defendBuff = Math.min(0, Number(target.defendBuff || 0) - 2);
+      damageFlavorTarget(unit, target, 1, log, unit.name + ' exposed ' + target.name + ' for 1 damage and -2 defend.');
+    } else if (log) {
+      log.push(unit.name + ' read the scene and marked the next opening.');
+      unit.strikeBonus = Math.max(0, Number(unit.strikeBonus || 0) + 2);
+    }
+    return true;
+  }
+
+  if (target && targetDistance <= 2) {
+    damageFlavorTarget(unit, target, 1, log, unit.name + ' pressed a small opening on ' + target.name + ' for 1 damage.');
+  } else {
+    unit.strikeBonus = Math.max(0, Number(unit.strikeBonus || 0) + 2);
+    if (log) log.push(unit.name + ' banked momentum for the next attack (+2 attack).');
+  }
   
   return true;
 }

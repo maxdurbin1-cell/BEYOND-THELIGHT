@@ -10298,6 +10298,7 @@ function applyEncounterRewards(reward) {
       hidden.scanned = true;
       hidden.explored = true;
       hidden.type = convertOutcomeToHexType(hidden.hiddenOutcome);
+      hidden.textureVariant = pickSpaceTextureVariant(hidden.type, hidden.ring || 'middle');
       hidden.detail = `${hidden.hiddenOutcome} signature revealed by encounter intel.`;
       notes.push(`Hex ${hidden.id} revealed`);
     }
@@ -11653,6 +11654,7 @@ function resolveMysteryContactOption(optionId) {
           hidden.scanned = true;
           hidden.explored = true;
           hidden.type = convertOutcomeToHexType(hidden.hiddenOutcome);
+          hidden.textureVariant = pickSpaceTextureVariant(hidden.type, hidden.ring || 'middle');
           hidden.detail = `${hidden.hiddenOutcome} signature revealed through black market intelligence.`;
         }
         const task = option.taskConfig ? createGalaxyTask(mystery.archetype, option.taskConfig) : null;
@@ -13505,14 +13507,50 @@ function normalizeTerrainAssetKey(value) {
   return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
 
+function getSpaceTextureCandidates(hex) {
+  const typeKey = normalizeTerrainAssetKey(hex && hex.type || 'nothing');
+  const variantKey = normalizeTerrainAssetKey(hex && hex.textureVariant || '');
+  const aliases = {
+    nothing: 'empty',
+    encounter: 'anomaly',
+    facility: 'station',
+    skirmish: 'rift'
+  };
+  const out = [];
+  if (variantKey) out.push(variantKey);
+  if (typeKey && aliases[typeKey]) out.push(aliases[typeKey]);
+  if (typeKey) out.push(typeKey);
+  if (out.indexOf('empty') < 0) out.push('empty');
+  return out.filter(Boolean);
+}
+
+function getSpaceTextureAssetForHex(hex) {
+  if (typeof window.getTerrainTileAsset !== 'function' || !hex) return '';
+  const keys = getSpaceTextureCandidates(hex);
+  for (let i = 0; i < keys.length; i += 1) {
+    const hit = String(window.getTerrainTileAsset('space', keys[i]) || '');
+    if (hit.indexOf('data:image/') === 0) return hit;
+  }
+  return '';
+}
+
+function getPlanetTextureCandidates(cell) {
+  const marker = normalizeTerrainAssetKey(cell && cell.marker || '');
+  const variant = normalizeTerrainAssetKey(cell && cell.textureVariant || '');
+  const biome = normalizeTerrainAssetKey(cell && cell.biome || '');
+  const out = [];
+  if (marker && variant) out.push(marker + '_' + variant);
+  if (variant) out.push(variant);
+  if (marker) out.push(marker);
+  if (cell && cell.tradeRoute) out.push('trade_route');
+  if (biome) out.push(biome);
+  out.push('wilderness');
+  return out.filter(Boolean);
+}
+
 function getPlanetTextureAssetForCell(cell) {
   if (typeof window.getTerrainTileAsset !== 'function' || !cell) return '';
-  const keys = [
-    normalizeTerrainAssetKey(cell.marker || ''),
-    cell.tradeRoute ? 'trade_route' : '',
-    normalizeTerrainAssetKey(cell.biome || ''),
-    'wilderness'
-  ].filter(Boolean);
+  const keys = getPlanetTextureCandidates(cell);
   for (let i = 0; i < keys.length; i += 1) {
     const hit = String(window.getTerrainTileAsset('planet', keys[i]) || '');
     if (hit.indexOf('data:image/') === 0) return hit;
@@ -13610,7 +13648,7 @@ function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
     const y = pos.y;
     const pts = hexPointsSVG(x, y, size - 1);
     const visual = getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, hasTask, isStoryObjective);
-    const textureKey = normalizeTerrainAssetKey(cell.marker || '') + '|' + (cell.tradeRoute ? 'trade_route' : '') + '|' + normalizeTerrainAssetKey(cell.biome || 'wilderness');
+    const textureKey = getPlanetTextureCandidates(cell).join('|');
     if (typeof patternMap[textureKey] === 'undefined') {
       const dataUrl = getPlanetTextureAssetForCell(cell);
       if (dataUrl) {
@@ -15280,6 +15318,11 @@ function createPlanetSurfaceState(hex) {
       const marker = markerPlan[id - 1] || 'none';
       const province = getProvinceForCell({ row: r, col: c }, provinces);
       const localNarrative = createPlanetCellNarrative({ profile }, theme, province);
+      const terrainClassKey = normalizeTerrainAssetKey(localNarrative.terrainRule && localNarrative.terrainRule.name || localNarrative.terrain || 'wilderness');
+      const markerKey = normalizeTerrainAssetKey(marker);
+      const planetVariant = markerKey && markerKey !== 'none'
+        ? markerKey
+        : (terrainClassKey || normalizeTerrainAssetKey(profile.biome || '') || 'wilderness');
       const detailData = {
         holding: marker === 'merchant_colony'
           ? createPlanetHoldingDetail(profile, province, marker, localNarrative.localWeather, localNarrative.terrain)
@@ -15316,8 +15359,10 @@ function createPlanetSurfaceState(hex) {
         row: r,
         col: c,
         province,
+        biome: profile.biome,
         terrain: localNarrative.terrain,
         terrainClass: localNarrative.terrainRule.name,
+        textureVariant: planetVariant,
         terrainEffect: localNarrative.terrainRule.effect,
         localWeather: localNarrative.localWeather,
         land: localNarrative.land,
@@ -16444,6 +16489,32 @@ function generateMajorPowersAndFactions() {
   };
 }
 
+function pickSpaceTextureVariant(type, ring) {
+  const byType = {
+    star: ['star_core'],
+    hub: ['hub_dock', 'hub_perimeter', 'hub_array'],
+    planet: ['planet_orbit', 'planet_shadow', 'planet_signal'],
+    world_that_was: ['world_that_was_orbit'],
+    peril: ['hazard_field', 'magnetic_storm', 'radiation_swell'],
+    dead_moon: ['dead_moon_cratered', 'dead_moon_ash', 'dead_moon_shattered'],
+    derelict_ship: ['derelict_hulk', 'derelict_drifter', 'derelict_convoy'],
+    mystery: ['mystery_echo', 'mystery_relay', 'mystery_lens'],
+    facility: ['facility_station', 'facility_shipyard', 'facility_array'],
+    skirmish: ['skirmish_debris', 'skirmish_ion', 'skirmish_burnout'],
+    encounter: ['encounter_lane', 'encounter_checkpoint', 'encounter_signal'],
+    location: ['location_relic', 'location_gate', 'location_beacon'],
+    nothing: {
+      inner: ['empty_inner_dust', 'empty_inner_shards'],
+      middle: ['empty_middle_ion', 'empty_middle_reef'],
+      outer: ['empty_outer_dark', 'empty_outer_frost']
+    }
+  };
+  const table = byType[type];
+  if (!table) return '';
+  if (Array.isArray(table)) return pick(table);
+  return pick(table[ring] || table.middle || []);
+}
+
 function generateStarSystemMap(galaxyType) {
   ensureStarsState();
   const type = galaxyType || S.starSystem.galaxyType || 'cluster';
@@ -16460,6 +16531,7 @@ function generateStarSystemMap(galaxyType) {
       cells.push({
         id: idx++, q, r, dist, ring,
         type: dist === 0 ? 'star' : 'nothing',
+        textureVariant: dist === 0 ? pickSpaceTextureVariant('star', 'core') : pickSpaceTextureVariant('nothing', ring),
         explored: dist === 0,
         scanned: dist === 0,
         hiddenOutcome: null,
@@ -16484,16 +16556,19 @@ function generateStarSystemMap(galaxyType) {
 
     const hub = pool.splice(roll(pool.length) - 1, 1)[0];
     hub.type = 'hub';
+    hub.textureVariant = pickSpaceTextureVariant('hub', ring);
     hub.detail = `${ring} ring hub controlled by major powers.`;
 
     for (let i = 0; i < 4 && pool.length; i++) {
       const planet = pool.splice(roll(pool.length) - 1, 1)[0];
       planet.type = 'planet';
+      planet.textureVariant = pickSpaceTextureVariant('planet', ring);
       planet.detail = `${ring} ring planet.`;
     }
 
     pool.forEach((hex) => {
       hex.type = 'nothing';
+      hex.textureVariant = pickSpaceTextureVariant('nothing', ring);
       hex.hiddenOutcome = pickRingEncounterOutcome(ring);
       hex.detail = 'Unresolved signal. Run System Analysis to reveal signature.';
     });
@@ -16503,6 +16578,7 @@ function generateStarSystemMap(galaxyType) {
   if (worldPool.length) {
     const target = worldPool[roll(worldPool.length) - 1];
     target.type = 'world_that_was';
+    target.textureVariant = pickSpaceTextureVariant('world_that_was', 'middle');
     target.hiddenOutcome = null;
     target.scanned = true;
     target.explored = true;
@@ -16642,15 +16718,9 @@ function renderStarSystemMap() {
     const pts = hexPointsSVG(x, y, size - 2);
     const key = STAR_SIGHTING_COLORS[hex.type] ? hex.type : 'nothing';
     const fill = STAR_SIGHTING_COLORS[key].color;
-    const spaceTextureKey = normalizeTerrainAssetKey(hex.type || key || 'empty');
+    const spaceTextureKey = getSpaceTextureCandidates(hex).join('|');
     if (typeof spacePatternByKey[spaceTextureKey] === 'undefined') {
-      let dataUrl = '';
-      if (typeof window.getTerrainTileAsset === 'function') {
-        dataUrl = String(window.getTerrainTileAsset('space', spaceTextureKey) || '');
-        if (dataUrl.indexOf('data:image/') !== 0 && spaceTextureKey === 'nothing') {
-          dataUrl = String(window.getTerrainTileAsset('space', 'empty') || '');
-        }
-      }
+      const dataUrl = getSpaceTextureAssetForHex(hex);
       if (dataUrl.indexOf('data:image/') === 0) {
         const patternId = 'spaceTex' + spaceTextureKey.replace(/[^a-z0-9_]+/g, '');
         spacePatternByKey[spaceTextureKey] = 'url(#' + patternId + ')';
@@ -17091,6 +17161,7 @@ function runSystemAnalysisCheck() {
       hex.detail = `Planet ${profile.planetName} catalogued. ${profile.planetType} world with ${profile.biome} biome signatures.`;
     } else if (hex.hiddenOutcome) {
       hex.type = convertOutcomeToHexType(hex.hiddenOutcome);
+      hex.textureVariant = pickSpaceTextureVariant(hex.type, hex.ring || 'middle');
       hex.detail = `${hex.hiddenOutcome} detected ahead.`;
     } else if (!hex.detail) {
       hex.detail = 'System Analysis confirms stable telemetry in this hex.';
@@ -17168,6 +17239,7 @@ function rollMonthlyStarRadioEvent() {
     if (candidates.length) {
       const markerHex = pick(candidates);
       markerHex.type = 'radio_task';
+      markerHex.textureVariant = 'location_beacon';
       markerHex.scanned = true;
       markerHex.explored = true;
       markerHex.detail = `Radio Task ${d20}: ${STAR_RADIO_EVENTS[d20 - 1]}`;
@@ -17319,6 +17391,7 @@ function expireCurrentMapEventsForScarDeath() {
     if (!hex) return;
     if (hex.type === 'radio_task') {
       hex.type = 'location';
+      hex.textureVariant = pickSpaceTextureVariant('location', hex.ring || 'middle');
       hex.radioTaskResolved = true;
       hex.detail = 'Expired radio contract marker.';
     }

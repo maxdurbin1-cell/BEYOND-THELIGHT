@@ -29,6 +29,24 @@
     "The Ports": "#4f58a6"
   };
 
+  const WTW_ZONE_TEXTURE_VARIANTS = {
+    "Cyber Hub": ["cyber_hub_core", "cyber_hub_market", "cyber_hub_datastack"],
+    "Green House": ["green_house_canopy", "green_house_plaza", "green_house_wetbeds"],
+    "Industrial Sector": ["industrial_foundry", "industrial_rail", "industrial_scrapyard"],
+    "Neon City": ["neon_city_arcade", "neon_city_tower", "neon_city_alley"],
+    "Outskirts": ["outskirts_badlands", "outskirts_relay", "outskirts_quarry"],
+    "Residential Blocks": ["residential_blocks_habstack", "residential_blocks_courtyard", "residential_blocks_ruin"],
+    "The Undercity": ["the_undercity_tunnels", "the_undercity_floodline", "the_undercity_sump"],
+    "The Wastes": ["the_wastes_ashfields", "the_wastes_craters", "the_wastes_stormplain"],
+    "The Ports": ["the_ports_drydock", "the_ports_container_yard", "the_ports_ferry_spine"]
+  };
+
+  function pickWorldDistrictType(zoneName) {
+    const pool = WTW_ZONE_TEXTURE_VARIANTS[zoneName] || [];
+    if (!pool.length) return "district";
+    return safePick(pool, pool[0]);
+  }
+
   const MAJOR_POWERS = ["Axiom Cartel", "Helix Union", "Titan Crown"];
   const FACTIONS = ["Veil Runners", "Dust Saints"];
   const HOLDERS = MAJOR_POWERS.concat(FACTIONS);
@@ -1325,6 +1343,8 @@
         const hex = {
           id: hexId,
           zone: zoneName,
+          type: "district",
+          districtType: pickWorldDistrictType(zoneName),
           district: districtName(zoneName, idxByZone[zoneName]),
           districtIndex: idxByZone[zoneName],
           col: col,
@@ -1590,6 +1610,7 @@
   function getWorldTextureForHex(hex) {
     if (typeof window.getTerrainTileAsset !== 'function' || !hex) return '';
     const keys = [
+      normalizeTerrainAssetKey(hex.districtType || ''),
       normalizeTerrainAssetKey(hex.zone || ''),
       normalizeTerrainAssetKey(hex.type || ''),
       'district'
@@ -1698,7 +1719,7 @@
       g.setAttribute("class", "svg-hex" + (isSelected ? " sel" : "") + ((hasWorldSelection && !isSelected) ? " dim" : ""));
 
       const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
-      const textureKey = normalizeTerrainAssetKey(hex.zone || '') + '|' + normalizeTerrainAssetKey(hex.type || 'district');
+      const textureKey = normalizeTerrainAssetKey(hex.districtType || '') + '|' + normalizeTerrainAssetKey(hex.zone || '') + '|' + normalizeTerrainAssetKey(hex.type || 'district');
       if (typeof textureFillCache[textureKey] === 'undefined') {
         const dataUrl = getWorldTextureForHex(hex);
         textureFillCache[textureKey] = dataUrl

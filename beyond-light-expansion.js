@@ -875,6 +875,21 @@
       forest:  ['old-growth','canopy'],
       tropical:['jungle','reef']
     };
+    const ISLAND_MICRO_TERRAINS = {
+      Grassland: ['island_meadow', 'island_bluffs', 'island_heath'],
+      Forest: ['island_canopy', 'island_grove', 'island_mosswood'],
+      Jungle: ['island_jungle', 'island_mangrove', 'island_rainridge'],
+      Desert: ['island_dunes', 'island_saltflat', 'island_sunrock'],
+      Mountain: ['island_crags', 'island_highland', 'island_peakline'],
+      Swamp: ['island_marsh', 'island_bog', 'island_reedbank'],
+      Tundra: ['island_tundra', 'island_frostmoor', 'island_icefield'],
+      Snow: ['island_snowpack', 'island_glacier', 'island_frostcliff'],
+      Badlands: ['island_badlands', 'island_shatterplain', 'island_drygorge']
+    };
+    function pickIslandMicroTerrain(baseTerrain) {
+      const options = ISLAND_MICRO_TERRAINS[baseTerrain] || ['island_shore', 'island_inland', 'island_highland'];
+      return pick(options);
+    }
     function _pickBiasedTerrain() {
       const preferred = THEOS_CLIMATE_TERRAIN_BIAS[_theosClimate] || [];
       const candidates = preferred.length ? LAST_SEA_TERRAINS.filter(t => preferred.some(p => t.name.toLowerCase().includes(p.toLowerCase()))) : [];
@@ -923,13 +938,15 @@
         hex.islandId = islandMeta.id;
         hex.islandName = islandMeta.name;
         hex.terrain = terrain.name;
+        hex.terrainSubtype = pickIslandMicroTerrain(terrain.name);
         hex.terrainColor = terrain.color;
         hex.ecology = ecology;
         hex.siteType = siteType;
         hex.siteData = siteType ? createSeaSite(siteType) : null;
         hex.icon = siteType === "settlement" ? "⌂" : siteType === "landmark" ? "◈" : siteType === "dungeon" ? "◫" : siteType === "colosseum" ? "⚔" : "•";
-        hex.desc = describeIslandHex(terrain, ecology, siteType);
-        hex.title = siteType && hex.siteData && hex.siteData.name ? hex.siteData.name : `${terrain.name} Shore ${position + 1}`;
+        const subtypeLabel = String(hex.terrainSubtype || '').replace(/^island_/, '').replace(/_/g, ' ').replace(/\b\w/g, function (m) { return m.toUpperCase(); });
+        hex.desc = describeIslandHex(terrain, ecology, siteType) + (subtypeLabel ? ` Terrain type: ${subtypeLabel}.` : '');
+        hex.title = siteType && hex.siteData && hex.siteData.name ? hex.siteData.name : `${terrain.name} ${subtypeLabel || 'Shore'} ${position + 1}`;
       });
     });
 
@@ -975,10 +992,15 @@
     if (typeof window.getTerrainTileAsset !== 'function' || !hex) return '';
     const candidates = [];
     const terrainName = normalizeTerrainAssetKey(hex.terrain || '');
+    const terrainSubtype = normalizeTerrainAssetKey(hex.terrainSubtype || '');
     const typeName = normalizeTerrainAssetKey(hex.type || 'sea');
     if (typeName === 'sea') {
       if (terrainName) candidates.push(terrainName);
       if (typeName && candidates.indexOf(typeName) < 0) candidates.push(typeName);
+    } else if (typeName === 'island') {
+      if (terrainSubtype) candidates.push(terrainSubtype);
+      if (terrainName) candidates.push(terrainName);
+      candidates.push('island');
     } else {
       if (typeName) candidates.push(typeName);
       if (terrainName && candidates.indexOf(terrainName) < 0) candidates.push(terrainName);
@@ -1072,7 +1094,7 @@
       const { x, y } = seaHexToPixel(hex.col, hex.row);
       const r = LAST_SEA_HEX - 1;
       const fill = hex.terrainColor || (hex.type === "sea" ? "#103247" : "#486734");
-      const textureKey = normalizeTerrainAssetKey(hex.type || 'sea') + '|' + normalizeTerrainAssetKey(hex.terrain || '');
+      const textureKey = normalizeTerrainAssetKey(hex.type || 'sea') + '|' + normalizeTerrainAssetKey(hex.terrainSubtype || '') + '|' + normalizeTerrainAssetKey(hex.terrain || '');
       if (typeof textureFillCache[textureKey] === 'undefined') {
         const dataUrl = getTerrainTextureForSeaHex(hex);
         textureFillCache[textureKey] = dataUrl

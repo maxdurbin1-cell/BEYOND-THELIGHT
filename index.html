@@ -870,9 +870,6 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="btn btn-sm btn-teal" id="mapHex3dBtn" onclick="toggleMapHex3d()">Hex 3D: On</button>
     <select id="mapHexStyleSel" onchange="setMapHexStyle(this.value)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
       <option value="classic">Hex Style: Classic</option>
-      <option value="painterly">Hex Style: Painterly</option>
-      <option value="parchment">Hex Style: Parchment</option>
-      <option value="modular">Hex Style: Modular</option>
     </select>
     <select id="mapPerspectiveSel" onchange="setMapPerspective(this.value)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
       <option value="topdown">Perspective: Top-Down</option>
@@ -11759,7 +11756,7 @@ function ensureMapVisualSettings(){
   if(!S.mapVisuals||typeof S.mapVisuals!=='object')S.mapVisuals={hex3d:true,overlay:'none',style:'classic',perspective:'topdown'};
   if(typeof S.mapVisuals.hex3d!=='boolean')S.mapVisuals.hex3d=true;
   if(['none','contour','vegetation','survey'].indexOf(S.mapVisuals.overlay)<0)S.mapVisuals.overlay='none';
-  if(!resolveMapHexStylePack(S.mapVisuals.style)||(!MAP_HEX_STYLE_PRESETS[S.mapVisuals.style]&&!MAP_HEX_CUSTOM_STYLE_PACKS[S.mapVisuals.style]))S.mapVisuals.style='classic';
+  if(getSelectableMapHexStyleKeys().indexOf(String(S.mapVisuals.style||''))<0)S.mapVisuals.style='classic';
   if(['topdown','level'].indexOf(S.mapVisuals.perspective)<0)S.mapVisuals.perspective='topdown';
   return S.mapVisuals;
 }
@@ -11844,7 +11841,19 @@ function updateMapVisualUI(){
     btn.className='btn btn-sm '+(cfg.hex3d?'btn-teal':'btn-red');
   }
   if(sel)sel.value=cfg.overlay;
-  if(styleSel)styleSel.value=cfg.style;
+  if(styleSel){
+    const keys=getSelectableMapHexStyleKeys();
+    const sig=keys.join('|');
+    if(styleSel.getAttribute('data-style-sig')!==sig){
+      styleSel.innerHTML=keys.map(function(key){
+        var pack=resolveMapHexStylePack(key);
+        var label=(pack&&pack.label)?String(pack.label):String(key||'classic');
+        return '<option value="'+String(key).replace(/"/g,'&quot;')+'">Hex Style: '+label+'</option>';
+      }).join('');
+      styleSel.setAttribute('data-style-sig',sig);
+    }
+    styleSel.value=(keys.indexOf(cfg.style)>=0)?cfg.style:'classic';
+  }
   if(perspectiveSel)perspectiveSel.value=cfg.perspective;
 }
 function toggleMapHex3d(){
@@ -11858,7 +11867,7 @@ window.toggleMapHex3d=toggleMapHex3d;
 function setMapHexStyle(style){
   const cfg=ensureMapVisualSettings();
   const next=String(style||'').trim().toLowerCase();
-  cfg.style=resolveMapHexStylePack(next)&&(MAP_HEX_STYLE_PRESETS[next]||MAP_HEX_CUSTOM_STYLE_PACKS[next])?next:'classic';
+  cfg.style=getSelectableMapHexStyleKeys().indexOf(next)>=0?next:'classic';
   updateMapVisualUI();
   refreshAllHexMaps();
   showNotif('Hex style set to '+cfg.style+'.','good');
@@ -12243,6 +12252,10 @@ const MAP_HEX_STYLE_PRESETS={
 };
 const MAP_HEX_CUSTOM_STYLE_PACKS={};
 
+function getSelectableMapHexStyleKeys(){
+  return ['classic'].concat(Object.keys(MAP_HEX_CUSTOM_STYLE_PACKS).sort());
+}
+
 function mapHexColorToRgb(hex){
   const raw=String(hex||'').trim();
   const hit=raw.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
@@ -12307,7 +12320,9 @@ function getMapHexPaintForHex(hex,mapFx){
 window.registerMapHexStylePack=function(name,pack){
   const key=String(name||'').trim().toLowerCase();
   if(!key||!pack||typeof pack!=='object')return false;
+  if(key==='classic')return false;
   MAP_HEX_CUSTOM_STYLE_PACKS[key]=pack;
+  if(typeof updateMapVisualUI==='function')updateMapVisualUI();
   return true;
 };
 window.getMapHexStylePack=function(name){

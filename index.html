@@ -11822,6 +11822,48 @@ function terrainAccentGlyphs(hex){
   if(n.indexOf('desert')>=0||n.indexOf('heath')>=0)return ['⋰','·'];
   return ['·'];
 }
+function normalizeTerrainAssetKey(value){
+  return String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+}
+function getTerrainTextureAssetUrl(region,candidates){
+  if(typeof window.getTerrainTileAsset!=='function')return '';
+  const rk=normalizeTerrainAssetKey(region);
+  const list=Array.isArray(candidates)?candidates:[candidates];
+  for(let i=0;i<list.length;i++){
+    const key=normalizeTerrainAssetKey(list[i]);
+    if(!key)continue;
+    const hit=String(window.getTerrainTileAsset(rk,key)||'');
+    if(hit.indexOf('data:image/')===0)return hit;
+  }
+  return '';
+}
+function ensureSvgTexturePattern(defs,patternId,dataUrl,tileSize){
+  if(!defs||!patternId||!dataUrl)return '';
+  const ownerSvg=defs.ownerSVGElement||null;
+  if(ownerSvg&&ownerSvg.querySelector('pattern[id="'+patternId.replace(/"/g,'')+'"]'))return 'url(#'+patternId+')';
+  const pattern=document.createElementNS('http://www.w3.org/2000/svg','pattern');
+  pattern.setAttribute('id',patternId);
+  pattern.setAttribute('patternUnits','userSpaceOnUse');
+  pattern.setAttribute('width',String(tileSize||32));
+  pattern.setAttribute('height',String(tileSize||32));
+  const image=document.createElementNS('http://www.w3.org/2000/svg','image');
+  image.setAttribute('x','0');
+  image.setAttribute('y','0');
+  image.setAttribute('width',String(tileSize||32));
+  image.setAttribute('height',String(tileSize||32));
+  image.setAttribute('preserveAspectRatio','xMidYMid slice');
+  image.setAttribute('href',dataUrl);
+  pattern.appendChild(image);
+  defs.appendChild(pattern);
+  return 'url(#'+patternId+')';
+}
+function getProvinceTerrainTextureCandidates(hex){
+  if(!hex||typeof hex!=='object')return [];
+  const type=normalizeTerrainAssetKey(hex.type||'wilderness');
+  const terrain=normalizeTerrainAssetKey(hex.terrain&&hex.terrain.name||'');
+  if(type==='wilderness')return [terrain,'wilderness'];
+  return [type];
+}
 function refreshAllHexMaps(){
   if(typeof renderHexMap==='function')renderHexMap();
   if(typeof renderLastSeaMap==='function')renderLastSeaMap();
@@ -12566,6 +12608,9 @@ function renderHexMap(){
   const svgW=COLS*HEX_SIZE*1.52+HEX_SIZE+20,svgH=ROWS*Math.sqrt(3)*HEX_SIZE+HEX_SIZE+20+levelDepth+14;
   const svg=document.getElementById('hexMapSvg');
   svg.setAttribute('width',svgW);svg.setAttribute('height',svgH);svg.innerHTML='';
+  const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+  svg.appendChild(defs);
+  const textureFillByKey={};
   applyMapOverlayStyle(svg,'province');
   const hasProvinceSelection=!!selectedHex;
   mapData.forEach(hex=>{
@@ -12603,8 +12648,16 @@ function renderHexMap(){
       });
     }
     const poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+    const textureKey=getProvinceTerrainTextureCandidates(hex).join('|');
+    if(typeof textureFillByKey[textureKey]==='undefined'){
+      const textureUrl=getTerrainTextureAssetUrl('province',getProvinceTerrainTextureCandidates(hex));
+      textureFillByKey[textureKey]=textureUrl
+        ? ensureSvgTexturePattern(defs,'terrainprovince'+textureKey.replace(/[^a-z0-9_]+/g,''),textureUrl,Math.max(22,Math.floor(HEX_SIZE*1.1)))
+        : '';
+    }
+    const surfaceFill=textureFillByKey[textureKey]||paint.fill;
     poly.setAttribute('points',pts);
-    poly.setAttribute('fill',paint.fill);
+    poly.setAttribute('fill',surfaceFill);
     poly.setAttribute('stroke',paint.stroke);
     poly.setAttribute('stroke-width',String((hex.type==='wilderness'?(mapFx.hex3d?0.9:0.5):(mapFx.hex3d?1.8:1.5))*paint.strokeWidthMul));
     g.appendChild(poly);

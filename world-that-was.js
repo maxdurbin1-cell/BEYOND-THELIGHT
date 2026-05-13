@@ -1583,6 +1583,46 @@
     return pts.join(" ");
   }
 
+  function normalizeTerrainAssetKey(value) {
+    return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  }
+
+  function getWorldTextureForHex(hex) {
+    if (typeof window.getTerrainTileAsset !== 'function' || !hex) return '';
+    const keys = [
+      normalizeTerrainAssetKey(hex.zone || ''),
+      normalizeTerrainAssetKey(hex.type || ''),
+      'district'
+    ];
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i];
+      if (!key) continue;
+      const hit = String(window.getTerrainTileAsset('wtw', key) || '');
+      if (hit.indexOf('data:image/') === 0) return hit;
+    }
+    return '';
+  }
+
+  function ensureWorldTexturePattern(svg, defs, id, dataUrl, tileSize) {
+    if (!svg || !defs || !id || !dataUrl) return '';
+    if (svg.querySelector('pattern[id="' + String(id).replace(/"/g, '') + '"]')) return 'url(#' + id + ')';
+    const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+    pattern.setAttribute('id', id);
+    pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+    pattern.setAttribute('width', String(tileSize || 36));
+    pattern.setAttribute('height', String(tileSize || 36));
+    const image = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+    image.setAttribute('x', '0');
+    image.setAttribute('y', '0');
+    image.setAttribute('width', String(tileSize || 36));
+    image.setAttribute('height', String(tileSize || 36));
+    image.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+    image.setAttribute('href', dataUrl);
+    pattern.appendChild(image);
+    defs.appendChild(pattern);
+    return 'url(#' + id + ')';
+  }
+
   function renderWorldThatWasMap() {
     const w = ensureWorldState();
     const svg = document.getElementById("wtwMapSvg");
@@ -1606,6 +1646,9 @@
     svg.setAttribute("width", String(svgW));
     svg.setAttribute("height", String(svgH));
     svg.innerHTML = "";
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    svg.appendChild(defs);
+    const textureFillCache = {};
     const trackedScheduler = (S && S.solarCycle && S.solarCycle.questScheduler) ? S.solarCycle.questScheduler : null;
     const trackedWtwHexId = (trackedScheduler && String(trackedScheduler.trackedRegion || "") === "wtw")
       ? String(trackedScheduler.trackedLocationKey || "")
@@ -1654,8 +1697,15 @@
       g.setAttribute("class", "svg-hex" + (isSelected ? " sel" : "") + ((hasWorldSelection && !isSelected) ? " dim" : ""));
 
       const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+      const textureKey = normalizeTerrainAssetKey(hex.zone || '') + '|' + normalizeTerrainAssetKey(hex.type || 'district');
+      if (typeof textureFillCache[textureKey] === 'undefined') {
+        const dataUrl = getWorldTextureForHex(hex);
+        textureFillCache[textureKey] = dataUrl
+          ? ensureWorldTexturePattern(svg, defs, 'wtwTexture' + textureKey.replace(/[^a-z0-9_]+/g, ''), dataUrl, Math.max(24, Math.floor(WTW_HEX * 1.15)))
+          : '';
+      }
       poly.setAttribute("points", hexPoints(p.x, p.y));
-      poly.setAttribute("fill", minimal ? "rgba(16,22,30,.92)" : "rgba(20,28,34,.85)");
+      poly.setAttribute("fill", textureFillCache[textureKey] || (minimal ? "rgba(16,22,30,.92)" : "rgba(20,28,34,.85)"));
       poly.setAttribute("stroke", zone ? zone.color : "#8e8e8e");
       poly.setAttribute("stroke-opacity", minimal ? (isSelected ? "1" : ".58") : "1");
       poly.setAttribute("stroke-width", isSelected ? "2.6" : (minimal ? "1" : (mapFx.hex3d ? "1.7" : "1.2")));

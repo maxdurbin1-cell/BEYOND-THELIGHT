@@ -13501,6 +13501,25 @@ function getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, has
   return base;
 }
 
+function normalizeTerrainAssetKey(value) {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function getPlanetTextureAssetForCell(cell) {
+  if (typeof window.getTerrainTileAsset !== 'function' || !cell) return '';
+  const keys = [
+    normalizeTerrainAssetKey(cell.marker || ''),
+    cell.tradeRoute ? 'trade_route' : '',
+    normalizeTerrainAssetKey(cell.biome || ''),
+    'wilderness'
+  ].filter(Boolean);
+  for (let i = 0; i < keys.length; i += 1) {
+    const hit = String(window.getTerrainTileAsset('planet', keys[i]) || '');
+    if (hit.indexOf('data:image/') === 0) return hit;
+  }
+  return '';
+}
+
 function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
   if (!state || !Array.isArray(state.cells) || !state.cells.length) return '';
   if (window.factionSystem && typeof window.factionSystem.syncBaseMarkers === 'function') window.factionSystem.syncBaseMarkers();
@@ -13539,6 +13558,9 @@ function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
     })
     .filter(Boolean)
     .join('');
+
+  const patternMap = {};
+  const patternDefs = {};
 
   const cellsSvg = state.cells.map((cell) => {
         const linkedMarkers = missionMarkersByCell && missionMarkersByCell[cell.id] ? missionMarkersByCell[cell.id] : [];
@@ -13588,6 +13610,20 @@ function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
     const y = pos.y;
     const pts = hexPointsSVG(x, y, size - 1);
     const visual = getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, hasTask, isStoryObjective);
+    const textureKey = normalizeTerrainAssetKey(cell.marker || '') + '|' + (cell.tradeRoute ? 'trade_route' : '') + '|' + normalizeTerrainAssetKey(cell.biome || 'wilderness');
+    if (typeof patternMap[textureKey] === 'undefined') {
+      const dataUrl = getPlanetTextureAssetForCell(cell);
+      if (dataUrl) {
+        const patternId = 'planetTex' + textureKey.replace(/[^a-z0-9_]+/g, '');
+        patternMap[textureKey] = 'url(#' + patternId + ')';
+        patternDefs[patternId] = '<pattern id="' + patternId + '" patternUnits="userSpaceOnUse" width="32" height="32">'
+          + '<image href="' + dataUrl + '" x="0" y="0" width="32" height="32" preserveAspectRatio="xMidYMid slice" />'
+          + '</pattern>';
+      } else {
+        patternMap[textureKey] = '';
+      }
+    }
+    const hexFill = patternMap[textureKey] || visual.fill;
     const strokeWidth = isSelected ? 2.4 : isWayfarerContract ? 2 : 1.2;
     const topX1 = x + (size - 1) * Math.cos(Math.PI / 180 * -30);
     const topY1 = y + (size - 1) * Math.sin(Math.PI / 180 * -30);
@@ -13657,7 +13693,7 @@ function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
     })();
 
     return `<g class="planet-hex${isSelected ? ' sel' : ''}${(hasSelection && !isSelected) ? ' dim' : ''}" onclick="explorePlanetCell(${cell.id})" style="cursor:pointer;transition:opacity .16s ease,filter .16s ease;${(hasSelection && !isSelected) ? 'opacity:.56;filter:saturate(.62) brightness(.78);' : ''}${isSelected ? 'filter:brightness(1.12);' : ''}">
-      <polygon points="${pts}" fill="${visual.fill}" stroke="${visual.stroke}" stroke-width="${strokeWidth}" fill-opacity="${cell.explored ? 0.92 : 0.66}" />
+      <polygon points="${pts}" fill="${hexFill}" stroke="${visual.stroke}" stroke-width="${strokeWidth}" fill-opacity="${cell.explored ? 0.92 : 0.66}" />
       ${depthOverlay}
       ${factionOverlay}
       ${factionTaskOverlay}
@@ -13667,8 +13703,11 @@ function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
       ${selectedOverlay}
     </g>`;
   }).join('');
+  const defsSvg = Object.keys(patternDefs).length
+    ? '<defs>' + Object.keys(patternDefs).map((id) => patternDefs[id]).join('') + '</defs>'
+    : '';
 
-  return `<div class="planet-svg-wrap"><svg class="planet-svg" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${gridSvg}${routeLinesSvg}${cellsSvg}</svg></div>`;
+  return `<div class="planet-svg-wrap"><svg class="planet-svg" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${defsSvg}${gridSvg}${routeLinesSvg}${cellsSvg}</svg></div>`;
 }
 
 function getPlanetHexTypeLabel(cell) {
@@ -16582,6 +16621,8 @@ function renderStarSystemMap() {
   };
 
   const hexPositions = {};
+  const spacePatternDefs = {};
+  const spacePatternByKey = {};
   const storyObjectiveHexId = (S.storyline && S.storyline.travelMarkers && typeof S.storyline.travelMarkers.galaxyHexId === 'number')
     ? S.storyline.travelMarkers.galaxyHexId
     : null;
@@ -16601,6 +16642,26 @@ function renderStarSystemMap() {
     const pts = hexPointsSVG(x, y, size - 2);
     const key = STAR_SIGHTING_COLORS[hex.type] ? hex.type : 'nothing';
     const fill = STAR_SIGHTING_COLORS[key].color;
+    const spaceTextureKey = normalizeTerrainAssetKey(hex.type || key || 'empty');
+    if (typeof spacePatternByKey[spaceTextureKey] === 'undefined') {
+      let dataUrl = '';
+      if (typeof window.getTerrainTileAsset === 'function') {
+        dataUrl = String(window.getTerrainTileAsset('space', spaceTextureKey) || '');
+        if (dataUrl.indexOf('data:image/') !== 0 && spaceTextureKey === 'nothing') {
+          dataUrl = String(window.getTerrainTileAsset('space', 'empty') || '');
+        }
+      }
+      if (dataUrl.indexOf('data:image/') === 0) {
+        const patternId = 'spaceTex' + spaceTextureKey.replace(/[^a-z0-9_]+/g, '');
+        spacePatternByKey[spaceTextureKey] = 'url(#' + patternId + ')';
+        spacePatternDefs[patternId] = '<pattern id="' + patternId + '" patternUnits="userSpaceOnUse" width="36" height="36">'
+          + '<image href="' + dataUrl + '" x="0" y="0" width="36" height="36" preserveAspectRatio="xMidYMid slice" />'
+          + '</pattern>';
+      } else {
+        spacePatternByKey[spaceTextureKey] = '';
+      }
+    }
+    const hexFill = spacePatternByKey[spaceTextureKey] || fill;
     const hasTaskMarker = !!(hex.taskMarker && !hex.taskMarker.resolved);
     const border = hasTaskMarker ? '#f2d75a' : hex.id === S.starSystem.currentHexId ? '#ffffff' : '#2d3142';
     const opacity = hex.explored ? 0.9 : 0.55;
@@ -16644,7 +16705,7 @@ function renderStarSystemMap() {
       : '';
     return `
       <g onclick="selectStarSystemHex(${hex.id})" style="cursor:pointer;">
-        <polygon points="${pts}" fill="${fill}" fill-opacity="${opacity}" stroke="${border}" stroke-width="${hasTaskMarker ? 3 : hex.id === S.starSystem.currentHexId ? 2 : 1}" />
+        <polygon points="${pts}" fill="${hexFill}" fill-opacity="${opacity}" stroke="${border}" stroke-width="${hasTaskMarker ? 3 : hex.id === S.starSystem.currentHexId ? 2 : 1}" />
         ${depthOverlay}
         ${storyRing}
         <text x="${x}" y="${y + 4}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="11" fill="#0f111a">${label}</text>
@@ -16670,6 +16731,7 @@ function renderStarSystemMap() {
 
   host.innerHTML = `
     <svg width="1000" height="760" xmlns="http://www.w3.org/2000/svg" style="max-width:none;background:linear-gradient(180deg,rgba(5,8,18,.95),rgba(7,10,20,.72));border:1px solid var(--border);">
+      ${Object.keys(spacePatternDefs).length ? ('<defs>' + Object.keys(spacePatternDefs).map((id) => spacePatternDefs[id]).join('') + '</defs>') : ''}
       ${routeLines}
       ${svgHexes}
     </svg>`;

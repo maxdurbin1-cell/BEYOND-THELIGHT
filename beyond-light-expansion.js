@@ -942,6 +942,45 @@
     }).join(" ");
   }
 
+  function normalizeTerrainAssetKey(value) {
+    return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  }
+
+  function getTerrainTextureForSeaHex(hex) {
+    if (typeof window.getTerrainTileAsset !== 'function' || !hex) return '';
+    const candidates = [];
+    const terrainName = normalizeTerrainAssetKey(hex.terrain || '');
+    const typeName = normalizeTerrainAssetKey(hex.type || 'sea');
+    if (typeName) candidates.push(typeName);
+    if (terrainName && candidates.indexOf(terrainName) < 0) candidates.push(terrainName);
+    if (typeName === 'sea' && candidates.indexOf('open_sea') < 0) candidates.push('open_sea');
+    for (let i = 0; i < candidates.length; i += 1) {
+      const hit = String(window.getTerrainTileAsset('sea', candidates[i]) || '');
+      if (hit.indexOf('data:image/') === 0) return hit;
+    }
+    return '';
+  }
+
+  function ensureSeaTexturePattern(svg, defs, id, dataUrl, tileSize) {
+    if (!svg || !defs || !id || !dataUrl) return '';
+    if (svg.querySelector('pattern[id="' + String(id).replace(/"/g, '') + '"]')) return 'url(#' + id + ')';
+    const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+    pattern.setAttribute('id', id);
+    pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+    pattern.setAttribute('width', String(tileSize || 34));
+    pattern.setAttribute('height', String(tileSize || 34));
+    const image = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+    image.setAttribute('x', '0');
+    image.setAttribute('y', '0');
+    image.setAttribute('width', String(tileSize || 34));
+    image.setAttribute('height', String(tileSize || 34));
+    image.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+    image.setAttribute('href', dataUrl);
+    pattern.appendChild(image);
+    defs.appendChild(pattern);
+    return 'url(#' + id + ')';
+  }
+
   function getSeaSecretPadKey() {
     if (!S || !S.lastSea || !Array.isArray(S.lastSea.map) || !S.lastSea.map.length) return "";
     if (typeof window.isSecretPadUnlocked === 'function' && !window.isSecretPadUnlocked('sea')) return "";
@@ -982,6 +1021,9 @@
     svg.setAttribute("width", width);
     svg.setAttribute("height", height);
     svg.innerHTML = "";
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    svg.appendChild(defs);
+    const textureFillCache = {};
     if (typeof window.applyMapOverlayStyle === "function") window.applyMapOverlayStyle(svg, "lastsea");
 
     const secretPadKey = getSeaSecretPadKey();
@@ -999,6 +1041,13 @@
       const { x, y } = seaHexToPixel(hex.col, hex.row);
       const r = LAST_SEA_HEX - 1;
       const fill = hex.type === "sea" ? "#103247" : hex.terrainColor || "#486734";
+      const textureKey = normalizeTerrainAssetKey(hex.type || 'sea') + '|' + normalizeTerrainAssetKey(hex.terrain || '');
+      if (typeof textureFillCache[textureKey] === 'undefined') {
+        const dataUrl = getTerrainTextureForSeaHex(hex);
+        textureFillCache[textureKey] = dataUrl
+          ? ensureSeaTexturePattern(svg, defs, 'seaTexture' + textureKey.replace(/[^a-z0-9_]+/g, ''), dataUrl, Math.max(24, Math.floor(LAST_SEA_HEX * 1.15)))
+          : '';
+      }
       const isSelected = S.lastSea.selectedKey === hex.key;
       const stroke = isSelected ? "#e8c050" : hex.type === "sea" ? "#2ec4b6" : "#c9a227";
 
@@ -1007,7 +1056,7 @@
 
       const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
       polygon.setAttribute("points", seaHexPoints(x, y));
-      polygon.setAttribute("fill", fill);
+      polygon.setAttribute("fill", textureFillCache[textureKey] || fill);
       polygon.setAttribute("stroke", stroke);
       polygon.setAttribute("stroke-width", isSelected ? "2.6" : (mapFx.hex3d ? "1.7" : "1.3"));
       group.appendChild(polygon);

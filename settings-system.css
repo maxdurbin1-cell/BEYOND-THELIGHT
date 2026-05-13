@@ -462,6 +462,72 @@ nav {
   margin-bottom: 0.35rem;
 }
 
+.settings-terrain-tools {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.settings-terrain-tools select {
+  max-width: 13.5rem;
+  min-width: 10rem;
+}
+
+.settings-terrain-rows {
+  margin-top: 0.4rem;
+  display: grid;
+  gap: 0.28rem;
+  width: 100%;
+}
+
+.settings-terrain-row {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, 1fr) 3rem auto;
+  gap: 0.3rem;
+  align-items: center;
+  border: 1px solid var(--border2);
+  background: rgba(12, 15, 20, 0.55);
+  padding: 0.25rem 0.3rem;
+  border-radius: 3px;
+}
+
+.settings-terrain-key {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.72rem;
+  color: var(--text2);
+  text-transform: capitalize;
+  letter-spacing: 0.04em;
+}
+
+.settings-terrain-preview {
+  width: 2.7rem;
+  height: 2rem;
+  border: 1px solid var(--border2);
+  border-radius: 2px;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-color: rgba(0, 0, 0, 0.25);
+}
+
+.settings-terrain-preview-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.55rem;
+  color: var(--muted2);
+  background-image: none !important;
+}
+
+.settings-terrain-actions {
+  display: flex;
+  gap: 0.22rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 body.colorblind-mode {
   --teal: #2f9fd3;
   --teal2: #5ab8e4;

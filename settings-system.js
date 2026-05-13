@@ -3,9 +3,99 @@
 (function () {
   const SETTINGS_ID = "settingsPanel";
   const COLORBLIND_PREVIEW_MS = 10000;
+  const TERRAIN_ASSET_STORAGE_KEY = 'beyond-light-terrain-assets-v1';
+  const TERRAIN_ASSET_CATALOG = {
+    province: ['marsh', 'forest', 'valley', 'lake', 'mountain', 'desert', 'hills', 'meadow', 'heath', 'crags', 'bog', 'glades'],
+    sea: ['sea', 'island', 'harbor', 'reef', 'storm', 'trench', 'shoal', 'peril'],
+    space: ['empty', 'planet', 'station', 'asteroid', 'anomaly', 'rift', 'gate', 'world_that_was'],
+    wtw: ['district', 'industrial', 'flooded', 'warzone', 'citadel', 'ruins', 'sprawl'],
+    planet: ['wilderness', 'trade_route', 'merchant_colony', 'empty_colony', 'wayfarer', 'seat', 'dwelling', 'temple', 'ruins', 'monument', 'peril', 'gate', 'barrier']
+  };
   let colorBlindPreviewTimer = null;
   let colorBlindPreviewActive = false;
   let colorBlindPreviewEndsAt = 0;
+  let terrainAssetsByRegion = {};
+
+  function normalizeTerrainAssetKey(value) {
+    return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  }
+
+  function getTerrainAssetRegionKey(region) {
+    const key = normalizeTerrainAssetKey(region);
+    if (key === 'galaxy') return 'space';
+    if (key === 'worldthatwas') return 'wtw';
+    if (key === 'world_that_was') return 'wtw';
+    return Object.prototype.hasOwnProperty.call(TERRAIN_ASSET_CATALOG, key) ? key : 'province';
+  }
+
+  function normalizeTerrainAssetPayload(payload) {
+    const src = payload && typeof payload === 'object' ? payload : {};
+    const out = {};
+    Object.keys(src).forEach((region) => {
+      const rk = getTerrainAssetRegionKey(region);
+      const bucket = src[region] && typeof src[region] === 'object' ? src[region] : {};
+      if (!out[rk]) out[rk] = {};
+      Object.keys(bucket).forEach((terrain) => {
+        const tk = normalizeTerrainAssetKey(terrain);
+        const val = String(bucket[terrain] || '');
+        if (tk && val.indexOf('data:image/') === 0) {
+          out[rk][tk] = val;
+        }
+      });
+    });
+    return out;
+  }
+
+  function loadTerrainAssets() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(TERRAIN_ASSET_STORAGE_KEY) || '{}');
+      terrainAssetsByRegion = normalizeTerrainAssetPayload(raw);
+    } catch (_err) {
+      terrainAssetsByRegion = {};
+    }
+  }
+
+  function persistTerrainAssets() {
+    try {
+      localStorage.setItem(TERRAIN_ASSET_STORAGE_KEY, JSON.stringify(terrainAssetsByRegion));
+    } catch (err) {
+      console.warn('Could not save terrain assets:', err);
+      if (typeof showNotif === 'function') {
+        showNotif('Terrain tile storage is full. Clear a few tiles and retry.', 'warn');
+      }
+    }
+  }
+
+  function getTerrainTileAsset(region, terrainKey) {
+    const rk = getTerrainAssetRegionKey(region);
+    const tk = normalizeTerrainAssetKey(terrainKey);
+    if (!tk) return '';
+    const bucket = terrainAssetsByRegion[rk] && typeof terrainAssetsByRegion[rk] === 'object' ? terrainAssetsByRegion[rk] : {};
+    return typeof bucket[tk] === 'string' ? bucket[tk] : '';
+  }
+
+  function setTerrainTileAsset(region, terrainKey, dataUrl) {
+    const rk = getTerrainAssetRegionKey(region);
+    const tk = normalizeTerrainAssetKey(terrainKey);
+    const val = String(dataUrl || '');
+    if (!tk || val.indexOf('data:image/') !== 0) return false;
+    if (!terrainAssetsByRegion[rk] || typeof terrainAssetsByRegion[rk] !== 'object') terrainAssetsByRegion[rk] = {};
+    terrainAssetsByRegion[rk][tk] = val;
+    persistTerrainAssets();
+    window.dispatchEvent(new CustomEvent('beyond:terrain-assets-changed', { detail: { region: rk, key: tk } }));
+    return true;
+  }
+
+  function clearTerrainTileAsset(region, terrainKey) {
+    const rk = getTerrainAssetRegionKey(region);
+    const tk = normalizeTerrainAssetKey(terrainKey);
+    if (!tk || !terrainAssetsByRegion[rk] || typeof terrainAssetsByRegion[rk] !== 'object') return false;
+    if (!Object.prototype.hasOwnProperty.call(terrainAssetsByRegion[rk], tk)) return false;
+    delete terrainAssetsByRegion[rk][tk];
+    persistTerrainAssets();
+    window.dispatchEvent(new CustomEvent('beyond:terrain-assets-changed', { detail: { region: rk, key: tk } }));
+    return true;
+  }
   
   const Settings = {
     // Audio settings
@@ -23,6 +113,7 @@
     monochromeMode: false,
     phoneLayoutMode: false,
     textSize: 'medium',
+    terrainAssetRegion: 'province',
     activeTab: 'general',
     nightModeRates: {
       seaOpen: 42,
@@ -48,6 +139,7 @@
         this.monochromeMode = saved.monochromeMode !== undefined ? !!saved.monochromeMode : false;
         this.phoneLayoutMode = saved.phoneLayoutMode !== undefined ? !!saved.phoneLayoutMode : false;
         this.textSize = saved.textSize || 'medium';
+        this.terrainAssetRegion = getTerrainAssetRegionKey(saved.terrainAssetRegion || 'province');
         const defaults = { seaOpen: 42, seaIsland: 32, planetTrade: 34, planetHex: 28, wtw: 38 };
         const loadedRates = saved.nightModeRates && typeof saved.nightModeRates === 'object' ? saved.nightModeRates : {};
         this.nightModeRates = {
@@ -83,6 +175,7 @@
           monochromeMode: this.monochromeMode,
           phoneLayoutMode: this.phoneLayoutMode,
           textSize: this.textSize,
+          terrainAssetRegion: this.terrainAssetRegion,
           nightModeRates: this.nightModeRates
         }));
       } catch (e) {
@@ -404,6 +497,21 @@
                 <span class="campaign-muted">Scales all text across the app.</span>
               </div>
             </div>
+            <div class="setting-row" style="align-items:flex-start;">
+              <label>Visual Terrain Tiles</label>
+              <div class="campaign-muted" style="font-size:.72rem;line-height:1.5;">Attach per-terrain art tiles for Province, Sea, Space, World That Was, and Planet maps. Uploads are stored locally in this browser.</div>
+              <div class="settings-terrain-tools" style="margin-top:.3rem;">
+                <select id="settingsTerrainRegionSel" class="campaign-input" onchange="window.settingsSystem.setTerrainAssetRegion(this.value)">
+                  <option value="province" ${Settings.terrainAssetRegion === 'province' ? 'selected' : ''}>Province</option>
+                  <option value="sea" ${Settings.terrainAssetRegion === 'sea' ? 'selected' : ''}>Sea</option>
+                  <option value="space" ${Settings.terrainAssetRegion === 'space' ? 'selected' : ''}>Space</option>
+                  <option value="wtw" ${Settings.terrainAssetRegion === 'wtw' ? 'selected' : ''}>World That Was</option>
+                  <option value="planet" ${Settings.terrainAssetRegion === 'planet' ? 'selected' : ''}>Planet</option>
+                </select>
+                <button class="btn btn-xs" onclick="window.settingsSystem.clearTerrainAssetRegion()">Clear Region</button>
+              </div>
+              <div id="settingsTerrainAssetRows" class="settings-terrain-rows"></div>
+            </div>
           </div>
         </div>
 
@@ -564,6 +672,82 @@
     });
   }
 
+  function renderTerrainAssetRows() {
+    const container = document.getElementById('settingsTerrainAssetRows');
+    if (!container) return;
+    const region = getTerrainAssetRegionKey(Settings.terrainAssetRegion || 'province');
+    const terrainKeys = TERRAIN_ASSET_CATALOG[region] || [];
+    container.innerHTML = terrainKeys.map((terrainKey) => {
+      const key = normalizeTerrainAssetKey(terrainKey);
+      const dataUrl = getTerrainTileAsset(region, key);
+      const label = key.replace(/_/g, ' ');
+      const preview = dataUrl
+        ? '<div class="settings-terrain-preview" style="background-image:url(' + dataUrl.replace(/\)/g, '%29') + ');"></div>'
+        : '<div class="settings-terrain-preview settings-terrain-preview-empty">No Tile</div>';
+      return ''
+        + '<div class="settings-terrain-row">'
+        + '<div class="settings-terrain-key">' + label + '</div>'
+        + preview
+        + '<div class="settings-terrain-actions">'
+        + '<button class="btn btn-xs" onclick="window.settingsSystem.promptTerrainAssetUpload(\'' + region + '\',\'' + key + '\')">Upload</button>'
+        + '<button class="btn btn-xs" onclick="window.settingsSystem.clearTerrainAsset(\'' + region + '\',\'' + key + '\')">Clear</button>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function setTerrainAssetRegion(region) {
+    Settings.terrainAssetRegion = getTerrainAssetRegionKey(region);
+    Settings.save();
+    renderTerrainAssetRows();
+  }
+
+  function promptTerrainAssetUpload(region, terrainKey) {
+    const rk = getTerrainAssetRegionKey(region);
+    const tk = normalizeTerrainAssetKey(terrainKey);
+    if (!tk) return;
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/*';
+    picker.onchange = function () {
+      const file = picker.files && picker.files[0] ? picker.files[0] : null;
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function () {
+        const ok = setTerrainTileAsset(rk, tk, String(reader.result || ''));
+        if (!ok) return;
+        renderTerrainAssetRows();
+        if (typeof window.refreshAllHexMaps === 'function') window.refreshAllHexMaps();
+        if (typeof showNotif === 'function') showNotif('Terrain tile uploaded for ' + rk + ' / ' + tk + '.', 'good');
+      };
+      reader.readAsDataURL(file);
+    };
+    picker.click();
+  }
+
+  function clearTerrainAsset(region, terrainKey) {
+    const rk = getTerrainAssetRegionKey(region);
+    const tk = normalizeTerrainAssetKey(terrainKey);
+    if (!tk) return;
+    if (!clearTerrainTileAsset(rk, tk)) return;
+    renderTerrainAssetRows();
+    if (typeof window.refreshAllHexMaps === 'function') window.refreshAllHexMaps();
+    if (typeof showNotif === 'function') showNotif('Cleared terrain tile for ' + rk + ' / ' + tk + '.', 'info');
+  }
+
+  function clearTerrainAssetRegion() {
+    const region = getTerrainAssetRegionKey(Settings.terrainAssetRegion || 'province');
+    const keys = Object.keys((terrainAssetsByRegion[region] && typeof terrainAssetsByRegion[region] === 'object') ? terrainAssetsByRegion[region] : {});
+    if (!keys.length) {
+      if (typeof showNotif === 'function') showNotif('No terrain tiles set for this region.', 'info');
+      return;
+    }
+    keys.forEach((k) => clearTerrainTileAsset(region, k));
+    renderTerrainAssetRows();
+    if (typeof window.refreshAllHexMaps === 'function') window.refreshAllHexMaps();
+    if (typeof showNotif === 'function') showNotif('Cleared all terrain tiles for ' + region + '.', 'info');
+  }
+
   function stopColorBlindPreview(options) {
     const opts = options || {};
     if (colorBlindPreviewTimer) {
@@ -705,6 +889,7 @@
     }
 
     refreshNowPlayingLabel();
+    renderTerrainAssetRows();
 
     applySettingsTabVisibility();
     refreshRecoveryPanel();
@@ -993,6 +1178,7 @@
   
   // Initialize immediately and on page load
   function initSettings() {
+    loadTerrainAssets();
     Settings.load();
     createSettingsPanel();
     Settings.applyGameMode();
@@ -1046,9 +1232,18 @@
       monochromeMode: Settings.monochromeMode,
       phoneLayoutMode: Settings.phoneLayoutMode,
       textSize: Settings.textSize,
+      terrainAssetRegion: Settings.terrainAssetRegion,
       activeTab: Settings.activeTab,
       nightModeRates: getNightModeRates()
     }),
+    getTerrainAssetCatalog: () => JSON.parse(JSON.stringify(TERRAIN_ASSET_CATALOG)),
+    getTerrainTileAsset: (region, terrainKey) => getTerrainTileAsset(region, terrainKey),
+    setTerrainTileAsset: (region, terrainKey, dataUrl) => setTerrainTileAsset(region, terrainKey, dataUrl),
+    setTerrainAssetRegion,
+    clearTerrainAssetRegion,
+    promptTerrainAssetUpload,
+    clearTerrainAsset,
+    renderTerrainAssetRows,
     getNightModeRate,
     getNightModeRates,
     setNightModeRate,
@@ -1060,6 +1255,8 @@
 
   window.addEventListener('beyond:now-playing-changed', refreshNowPlayingLabel);
   window.addEventListener('beyond:audio-asset-pack-changed', refreshAudioCreditsPanel);
+  window.getTerrainTileAsset = getTerrainTileAsset;
+  window.getTerrainAssetCatalog = function () { return JSON.parse(JSON.stringify(TERRAIN_ASSET_CATALOG)); };
   
   // Ensure it's initialized immediately
   if (document.readyState !== 'loading') {

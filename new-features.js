@@ -164,6 +164,10 @@
         currentWinStreak: 0,
         lastAt: 0,
         preferredMode: 'control',
+        controlLoadout: {
+          armor: 'balanced',
+          weapon: 'sword'
+        },
         match: null,
         expedition: {
           runs: 0,
@@ -211,6 +215,10 @@
         currentWinStreak: 0,
         lastAt: 0,
         preferredMode: 'control',
+        controlLoadout: {
+          armor: 'balanced',
+          weapon: 'sword'
+        },
         match: null,
         expedition: {
           runs: 0,
@@ -221,6 +229,9 @@
       };
     }
     if (!S.holding.crucible.preferredMode) S.holding.crucible.preferredMode = 'control';
+    if (!S.holding.crucible.controlLoadout || typeof S.holding.crucible.controlLoadout !== 'object') {
+      S.holding.crucible.controlLoadout = { armor: 'balanced', weapon: 'sword' };
+    }
     if (!S.holding.crucible.expedition || typeof S.holding.crucible.expedition !== 'object') {
       S.holding.crucible.expedition = {
         runs: 0,
@@ -568,7 +579,7 @@
         '</div>',
         '<div class="card">',
           '<div class="section-title">Crucible Operations</div>',
-          '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.5rem;">Training scenario launched from Holdings. Test your Wayfarer against a full 6v6 tactical engagement with hex-zone positioning and round-by-round combat pressure.</div>',
+          '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.5rem;">Training scenario launched from Holdings. Primary playlist is 3v3 Control on a large hex board with zone capture, loadouts, loot, and tactical movement.</div>',
           '<div id="holdingCruciblePanel"></div>',
         '</div>',
         '<div class="card">',
@@ -1516,7 +1527,7 @@
     control: {
       id: 'control',
       label: 'Control',
-      objective: '3v3 Control. Hold at least 2 of 3 zones each round. Highest score after 10 rounds wins.',
+      objective: '3v3 Control. Hold each zone for 3 rounds to capture it. Hold at least 2 of 3 zones to score each round. Highest score after 10 rounds wins.',
       scoreToWin: 10,
       killPoints: 1,
       zonePoints: 0,
@@ -1524,31 +1535,6 @@
       maxRounds: 10,
       teamSize: 3,
       mapSize: 12
-    },
-    clash: {
-      id: 'clash',
-      label: 'Clash',
-      objective: 'Team deathmatch. First to 25 kills wins.',
-      scoreToWin: 25,
-      killPoints: 1,
-      zonePoints: 0
-    },
-    elimination: {
-      id: 'elimination',
-      label: 'Elimination',
-      objective: '3v3, no respawns. First to 5 rounds wins.',
-      scoreToWin: 5,
-      killPoints: 1,
-      zonePoints: 0
-    },
-    rumble: {
-      id: 'rumble',
-      label: 'Rumble',
-      objective: 'Free-for-all inspired brawl pacing. First side to 15 kills wins in this simulation.',
-      scoreToWin: 15,
-      killPoints: 1,
-      zonePoints: 0,
-      playerKillBonus: 1
     },
     expedition: {
       id: 'expedition',
@@ -1568,7 +1554,7 @@
 
   function getCrucibleModeTeamSize(modeId) {
     var spec = getCrucibleModeSpec(modeId);
-    return Math.max(2, Number(spec.teamSize || (spec.id === 'elimination' ? 3 : 6)));
+    return Math.max(2, Number(spec.teamSize || 3));
   }
 
   function getCrucibleShopLootPool() {
@@ -1652,6 +1638,31 @@
       ? 'Ad4 | 3 Actions'
       : (armorName.toLowerCase().indexOf('heavy') >= 0 ? 'Ad10 | 1 Action' : 'Ad6 | 2 Actions');
     var maxAp = getCrucibleArmorActionCountFromStat(armorStat);
+    var weaponRaw = String(weaponName || 'Sword').toLowerCase();
+    var weaponPreset = {
+      name: 'Sword',
+      statText: '+2 Strike | Engaged',
+      affinity: 2,
+      range: 1,
+      cat: 'weapons'
+    };
+    if (weaponRaw.indexOf('shotgun') >= 0) {
+      weaponPreset = {
+        name: 'Shotgun',
+        statText: '+2 Shoot | Nearby',
+        affinity: 2,
+        range: 3,
+        cat: 'weapons'
+      };
+    } else if (weaponRaw.indexOf('spell') >= 0 || weaponRaw.indexOf('focus') >= 0) {
+      weaponPreset = {
+        name: 'Spell Focus',
+        statText: '+2 Control | Close',
+        affinity: 2,
+        range: 2,
+        cat: 'weapons'
+      };
+    }
     unit.hp = 8;
     unit.maxHp = 8;
     unit.attackDie = 4;
@@ -1664,7 +1675,7 @@
       statText: armorStat,
       actions: maxAp
     };
-    unit.equipment.weapon = buildCrucibleLoadoutFromShop(weaponName || 'Sword');
+    unit.equipment.weapon = weaponPreset;
   }
 
   function seedCrucibleControlMapFeatures(map) {
@@ -1677,7 +1688,17 @@
     });
     if (!open.length) return false;
 
-    // Upgrade generic loot nodes to Merchant-pool drops.
+    // Control mode removes traps and all non-control objective gimmicks.
+    keys.forEach(function (key) {
+      var cell = map.hexes[key];
+      if (!cell) return;
+      cell.trap = null;
+      if (cell.terrain === 'trap' || cell.terrain === 'ruin' || cell.terrain === 'temple' || cell.terrain === 'gate') {
+        cell.terrain = 'open';
+      }
+    });
+
+    // Upgrade generic loot nodes to Merchant-pool drops and add limited affix uses.
     open.forEach(function (key) {
       var cell = map.hexes[key];
       if (!cell || !cell.loot) return;
@@ -1689,11 +1710,28 @@
         item: {
           name: String(pick.name || 'Loot'),
           stat: String(pick.stat || ''),
-          cat: String(pick.cat || '')
+          cat: String(pick.cat || ''),
+          uses: 3
         }
       };
       cell.terrain = 'loot';
     });
+
+    // Add guaranteed full-heal supply drops.
+    var healCount = Math.max(1, Math.floor(open.length / 28));
+    for (var h = 0; h < healCount; h++) {
+      if (!open.length) break;
+      var healIdx = Math.floor(Math.random() * open.length);
+      var healKey = open.splice(healIdx, 1)[0];
+      var healCell = map.hexes[healKey];
+      if (!healCell || healCell.zone || healCell.obstacle || healCell.door) continue;
+      healCell.loot = {
+        type: 'hp_vial',
+        bonus: 99,
+        item: { name: 'Full Restore', stat: 'Restore to full HP', cat: 'essentials', uses: 1 }
+      };
+      healCell.terrain = 'loot';
+    }
 
     // Place a few random teleport hexes.
     var teleCount = Math.max(1, Math.min(3, Math.floor(open.length / 35)));
@@ -3397,9 +3435,12 @@
       crucible.expedition.runs = Math.max(0, Number(crucible.expedition.runs || 0) + 1);
       return crucible.match;
     }
-    var squadSize = Math.max(2, Number(modeSpec.teamSize || (modeSpec.id === 'elimination' ? 3 : 6)));
+    var squadSize = Math.max(2, Number(modeSpec.teamSize || 3));
     var mapSize = Math.max(9, Number(modeSpec.mapSize || 9));
     var playerName = String((S && S.name) || 'Wayfarer');
+    var controlLoadout = (crucible && crucible.controlLoadout && typeof crucible.controlLoadout === 'object')
+      ? crucible.controlLoadout
+      : { armor: 'balanced', weapon: 'sword' };
 
     // Generate hex map
     var hexMap = (typeof generateCrucibleHexMap === 'function')
@@ -3446,20 +3487,28 @@
     });
 
     if (modeSpec.id === 'control') {
-      applyCrucibleControlLoadout(allies[0], 'Balanced Armor', 'Crossbow');
+      var playerArmorLabel = String(controlLoadout.armor || 'balanced').toLowerCase();
+      var playerWeaponLabel = String(controlLoadout.weapon || 'sword').toLowerCase();
+      applyCrucibleControlLoadout(
+        allies[0],
+        playerArmorLabel === 'light' ? 'Light Armor' : (playerArmorLabel === 'heavy' ? 'Heavy Armor' : 'Balanced Armor'),
+        playerWeaponLabel === 'shotgun' ? 'Shotgun' : (playerWeaponLabel === 'spell' ? 'Spell Focus' : 'Sword')
+      );
     }
 
     var enemyNames = ['Vanguard Sel', 'Scout Arix', 'Binder Kori', 'Ravager Nyx', 'Sentry Vale'];
     var allRoles = ['tank', 'sniper', 'support', 'assault', 'tank'];
     var allyArmor = ['Light Armor', 'Balanced Armor', 'Heavy Armor'];
-    var allyWeapons = ['Sword', 'Crossbow', 'Longbow'];
+    var allyWeapons = ['Sword', 'Shotgun', 'Spell Focus'];
 
     for (var i = 1; i < squadSize; i++) {
       var allyHex = { q: allySpawn.q + allyOffsets[i].q, r: allySpawn.r + allyOffsets[i].r };
       var unit = buildCrucibleUnit(enemyNames[i - 1], 'ally', allRoles[i - 1], i, allyHex);
       if (typeof assignRandomPersonalFlavor === 'function') assignRandomPersonalFlavor(unit);
       if (modeSpec.id === 'control') {
-        applyCrucibleControlLoadout(unit, allyArmor[i % allyArmor.length], allyWeapons[i % allyWeapons.length]);
+        var allyArmorPick = allyArmor[Math.floor(Math.random() * allyArmor.length)];
+        var allyWeaponPick = allyWeapons[Math.floor(Math.random() * allyWeapons.length)];
+        applyCrucibleControlLoadout(unit, allyArmorPick, allyWeaponPick);
       }
       allies.push(unit);
     }
@@ -3468,14 +3517,16 @@
     var redNames = ['Red Team Captain', 'Red Team Lancer', 'Red Team Marksman', 'Red Team Warden', 'Red Team Hexer', 'Red Team Stalker'];
     var redRoles = ['tank', 'assault', 'sniper', 'tank', 'support', 'assault'];
     var enemyArmor = ['Heavy Armor', 'Balanced Armor', 'Light Armor'];
-    var enemyWeapons = ['Sword', 'Pistol', 'Longbow'];
+    var enemyWeapons = ['Sword', 'Shotgun', 'Spell Focus'];
 
     for (var j = 0; j < squadSize; j++) {
       var enemyHex = { q: enemySpawn.q + enemyOffsets[j].q, r: enemySpawn.r + enemyOffsets[j].r };
       var enemy = buildCrucibleUnit(redNames[j], 'enemy', redRoles[j], j, enemyHex);
       if (typeof assignRandomPersonalFlavor === 'function') assignRandomPersonalFlavor(enemy);
       if (modeSpec.id === 'control') {
-        applyCrucibleControlLoadout(enemy, enemyArmor[j % enemyArmor.length], enemyWeapons[j % enemyWeapons.length]);
+        var enemyArmorPick = enemyArmor[Math.floor(Math.random() * enemyArmor.length)];
+        var enemyWeaponPick = enemyWeapons[Math.floor(Math.random() * enemyWeapons.length)];
+        applyCrucibleControlLoadout(enemy, enemyArmorPick, enemyWeaponPick);
       }
       enemies.push(enemy);
     }
@@ -3501,6 +3552,7 @@
       hexMap: hexMap,
       interactables: _interactables,
       roundWins: { ally: 0, enemy: 0 },
+      controlLoaded: false,
       log: ['Crucible match opened: ' + squadSize + 'v' + squadSize + ' hex tactical simulation (' + modeSpec.label + '). Allies spawned at [' + allySpawn.q + ',' + allySpawn.r + '].'],
       startedAt: Date.now(),
       finishedAt: 0,
@@ -3781,10 +3833,50 @@
     }
   }
 
+  function updateCrucibleControlZoneProgress(match) {
+    if (!match || !match.hexMap || !match.hexMap.hexes) return;
+    var allyLookup = {};
+    var enemyLookup = {};
+    getLivingTeamUnits(match.allies || []).forEach(function (unit) {
+      if (!unit || !unit.position) return;
+      allyLookup[String(unit.position.q) + ',' + String(unit.position.r)] = true;
+    });
+    getLivingTeamUnits(match.enemies || []).forEach(function (unit) {
+      if (!unit || !unit.position) return;
+      enemyLookup[String(unit.position.q) + ',' + String(unit.position.r)] = true;
+    });
+
+    Object.keys(match.hexMap.hexes).forEach(function (key) {
+      var cell = match.hexMap.hexes[key];
+      if (!cell || !cell.zone) return;
+      var zone = cell.zone;
+      if (!zone.controlProgress || typeof zone.controlProgress !== 'object') {
+        zone.controlProgress = { ally: 0, enemy: 0 };
+      }
+      var holdRequired = Math.max(1, Number(zone.holdRoundsRequired || 3));
+      var allyHere = !!allyLookup[key];
+      var enemyHere = !!enemyLookup[key];
+
+      if (allyHere && !enemyHere) {
+        zone.controlProgress.ally = Math.min(holdRequired, Math.max(0, Number(zone.controlProgress.ally || 0)) + 1);
+        zone.controlProgress.enemy = 0;
+        if (zone.controlProgress.ally >= holdRequired) zone.controlled = 'ally';
+      } else if (enemyHere && !allyHere) {
+        zone.controlProgress.enemy = Math.min(holdRequired, Math.max(0, Number(zone.controlProgress.enemy || 0)) + 1);
+        zone.controlProgress.ally = 0;
+        if (zone.controlProgress.enemy >= holdRequired) zone.controlled = 'enemy';
+      } else {
+        zone.controlProgress.ally = 0;
+        zone.controlProgress.enemy = 0;
+      }
+    });
+  }
+
   function evaluateCrucibleControlLane(match) {
     if (!match || !match.active) return;
     var mode = getCrucibleModeSpec(match.mode);
     if (mode.id !== 'control') return;
+    updateCrucibleControlZoneProgress(match);
     var allyZones = (typeof getControlledZones === 'function') ? getControlledZones(getLivingTeamUnits(match.allies), match.hexMap) : [];
     var enemyZones = (typeof getControlledZones === 'function') ? getControlledZones(getLivingTeamUnits(match.enemies), match.hexMap) : [];
     if (allyZones.length >= 2 && enemyZones.length < 2) {
@@ -4351,7 +4443,7 @@
     if (boardRenderer) {
       try {
         var board = boardRenderer(units, {
-          title: 'CRUCIBLE 6V6 - TACTICAL MAP (' + mode.label.toUpperCase() + ')',
+          title: 'CRUCIBLE ' + getCrucibleModeTeamSize(mode.id) + 'V' + getCrucibleModeTeamSize(mode.id) + ' - TACTICAL MAP (' + mode.label.toUpperCase() + ')',
           subtitle: String(match.mapBrief || layout.brief || '3 lanes, platforms, cover, power ammo, and center high ground.'),
           seed: 'holding-crucible-' + String(match.round || 1),
           mode: String(mode.id || 'control'),
@@ -4793,14 +4885,18 @@
 
   function openHoldingCrucibleModePrompt() {
     ensureNewFeatureState();
-    var specs = ['control', 'clash', 'elimination', 'rumble'].map(function (key) { return getCrucibleModeSpec(key); });
+    var specs = ['control', 'expedition'].map(function (key) { return getCrucibleModeSpec(key); });
     var html = '<div style="font-size:.84rem;color:var(--text2);line-height:1.55;">'
-      + '<div style="font-family:Cinzel,serif;font-size:.86rem;color:var(--gold2);margin-bottom:.2rem;">Select Crucible Game Mode</div>'
-      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;">Arena footprint 60x60 ft · three lanes · vertical platforms · cover objects · power ammo spawns · central contested zone + two flanking routes.</div>'
+      + '<div style="font-family:Cinzel,serif;font-size:.86rem;color:var(--gold2);margin-bottom:.2rem;">Select Crucible Playlist</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;">Crucible now focuses on 3v3 Control (Destiny-style) plus Expedition. Control capture rules: stand on a zone for 3 rounds to lock it.</div>'
       + specs.map(function (spec) {
+        var extra = spec.id === 'control'
+          ? 'Briefing: 10 rounds. Capture zones A/B/C by holding each zone for 3 rounds. Score by controlling 2/3 zones.'
+          : 'Briefing: province survival run with daily collapse pressure and boss progression.';
         return '<div style="border:1px solid var(--border2);padding:.32rem .38rem;margin-bottom:.22rem;background:rgba(255,255,255,.02);">'
           + '<div style="font-size:.76rem;color:var(--gold2);"><strong>' + spec.label + '</strong></div>'
           + '<div style="font-size:.7rem;color:var(--muted2);margin:.1rem 0 .2rem;">' + spec.objective + '</div>'
+          + '<div style="font-size:.68rem;color:var(--teal);margin:.05rem 0 .28rem;">' + extra + '</div>'
           + '<button class="btn btn-xs btn-primary" onclick="holdingCrucibleSetMode(\'' + spec.id + '\');openHoldingCrucibleMatch(\'' + spec.id + '\');">Enter ' + spec.label + '</button>'
           + '</div>';
       }).join('')
@@ -4821,7 +4917,10 @@
     }
     var match = getHoldingCrucibleMatch() || createHoldingCrucibleMatch();
     var isExpeditionNewMatch = String(match.mode || '') === 'expedition' && !(match.expedition && match.expedition.loaded);
-    if (isExpeditionNewMatch && typeof openModal === 'function') {
+    var isControlNewMatch = String(match.mode || '') === 'control' && Number(match.round || 1) === 1 && !match.controlLoaded;
+    if (isControlNewMatch && typeof openModal === 'function') {
+      openModal('Control Briefing & Loadout', buildCrucibleControlLoadoutSelectionHtml());
+    } else if (isExpeditionNewMatch && typeof openModal === 'function') {
       openModal('Expedition Loadout Selection', buildCrucibleExpeditionLoadoutSelectionHtml());
     } else {
       if (typeof openModal === 'function') {
@@ -5661,6 +5760,72 @@
       { id: 'bow', label: 'Bow +2 Shoot', bonus: 2, stat: 'shoot', range: 'Nearby', desc: 'Ranged precision. Works at medium range.' },
       { id: 'fireball', label: 'Fireball +2 Mind', bonus: 2, stat: 'mind', range: 'Close', desc: 'Arcane fireball spell. Cast at close range using Mind vs Dread.' }
     ];
+  }
+
+  function buildCrucibleControlLoadoutSelectionHtml() {
+    ensureNewFeatureState();
+    var selected = (S && S.holding && S.holding.crucible && S.holding.crucible.controlLoadout)
+      ? S.holding.crucible.controlLoadout
+      : { armor: 'balanced', weapon: 'sword' };
+    var armor = String(selected.armor || 'balanced').toLowerCase();
+    var weapon = String(selected.weapon || 'sword').toLowerCase();
+    var html = '<div style="font-size:.84rem;color:var(--text2);line-height:1.55;max-height:70vh;overflow:auto;">'
+      + '<div style="font-family:Cinzel,serif;font-size:1rem;color:var(--gold2);margin-bottom:.25rem;">3v3 Control Briefing</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.28rem;">Wayfarer vs Wayfarer. 10 rounds. Capture zones by standing on each zone for 3 rounds. Hold 2/3 zones to score. Allies and enemies start at Dread d4 and 8 HP.</div>'
+      + '<div style="font-size:.72rem;color:var(--teal);margin-bottom:.28rem;">Range rules: Strike = Engaged (1 hex), Spell = Close (2 hex), Shoot = up to weapon range. Some merchant weapons roll Far only (4 hex).</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.38rem;">'
+      + '<div style="border:1px solid var(--border2);padding:.34rem .4rem;">'
+      + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.2rem;">Starting Weapon</div>'
+      + '<label style="display:block;margin-bottom:.2rem;"><input type="radio" name="controlStartWeapon" value="sword" ' + (weapon === 'sword' ? 'checked' : '') + '> Sword (+2 Strike)</label>'
+      + '<label style="display:block;margin-bottom:.2rem;"><input type="radio" name="controlStartWeapon" value="shotgun" ' + (weapon === 'shotgun' ? 'checked' : '') + '> Shotgun (+2 Shoot)</label>'
+      + '<label style="display:block;margin-bottom:.2rem;"><input type="radio" name="controlStartWeapon" value="spell" ' + (weapon === 'spell' ? 'checked' : '') + '> Spell Focus (+2 Control)</label>'
+      + '</div>'
+      + '<div style="border:1px solid var(--border2);padding:.34rem .4rem;">'
+      + '<div style="font-size:.72rem;color:var(--gold2);margin-bottom:.2rem;">Armor (sets movement/actions)</div>'
+      + '<label style="display:block;margin-bottom:.2rem;"><input type="radio" name="controlStartArmor" value="light" ' + (armor === 'light' ? 'checked' : '') + '> Light (3 actions)</label>'
+      + '<label style="display:block;margin-bottom:.2rem;"><input type="radio" name="controlStartArmor" value="balanced" ' + (armor === 'balanced' ? 'checked' : '') + '> Balanced (2 actions)</label>'
+      + '<label style="display:block;margin-bottom:.2rem;"><input type="radio" name="controlStartArmor" value="heavy" ' + (armor === 'heavy' ? 'checked' : '') + '> Heavy (1 action)</label>'
+      + '</div>'
+      + '</div>'
+      + '<div style="display:flex;justify-content:flex-end;gap:.28rem;margin-top:.45rem;">'
+      + '<button class="btn btn-sm" onclick="closeModal();">Back</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleConfirmControlLoadout();">Start 3v3 Control</button>'
+      + '</div>'
+      + '</div>';
+    return html;
+  }
+
+  function holdingCrucibleConfirmControlLoadout() {
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.mode || '') !== 'control') return false;
+    if (typeof document === 'undefined') return false;
+    var weaponEl = document.querySelector('input[name="controlStartWeapon"]:checked');
+    var armorEl = document.querySelector('input[name="controlStartArmor"]:checked');
+    var weapon = String(weaponEl && weaponEl.value || 'sword').toLowerCase();
+    var armor = String(armorEl && armorEl.value || 'balanced').toLowerCase();
+    if (S && S.holding && S.holding.crucible) {
+      S.holding.crucible.controlLoadout = { weapon: weapon, armor: armor };
+    }
+    var player = (match.allies || []).find(function (unit) { return unit && unit.isPlayer; }) || null;
+    if (player) {
+      applyCrucibleControlLoadout(
+        player,
+        armor === 'light' ? 'Light Armor' : (armor === 'heavy' ? 'Heavy Armor' : 'Balanced Armor'),
+        weapon === 'shotgun' ? 'Shotgun' : (weapon === 'spell' ? 'Spell Focus' : 'Sword')
+      );
+    }
+    match.controlLoaded = true;
+    match.log = (match.log || []).concat([
+      'Control briefing complete: weapon=' + weapon + ', armor=' + armor + '. Capture each zone by holding it for 3 rounds.'
+    ]).slice(-120);
+    if (typeof openModal === 'function') {
+      openModal('Crucible 3v3 Tactical Simulator', buildHoldingCruciblePopupHtml());
+    }
+    if (typeof showNotif === 'function') {
+      showNotif('Control started: ' + weapon + ' loadout with ' + armor + ' armor.', 'good');
+    }
+    renderHoldingUI();
+    return true;
   }
 
   function getCrucibleExpeditionPersonalFlavorOptions() {
@@ -6872,7 +7037,7 @@
       var mode = getCrucibleModeSpec(S.holding.crucible.preferredMode || 'control');
       showNotif(mode.id === 'expedition'
         ? 'Expedition run reset. You return to the safe hub.'
-        : 'Crucible match reset. New 6v6 scenario generated.', 'info');
+        : 'Crucible match reset. New 3v3 Control scenario generated.', 'info');
     }
     return true;
   }
@@ -6897,10 +7062,7 @@
       + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.3rem;">Preferred Mode: ' + mode.label + ' · ' + mode.objective + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.3rem;">'
       + '<button class="btn btn-xs ' + (mode.id === 'control' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'control\');">Control</button>'
-      + '<button class="btn btn-xs ' + (mode.id === 'clash' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'clash\');">Clash</button>'
-      + '<button class="btn btn-xs ' + (mode.id === 'elimination' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'elimination\');">Elimination</button>'
-      + '<button class="btn btn-xs ' + (mode.id === 'rumble' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'rumble\');">Rumble</button>'
-      + '<button class="btn btn-xs ' + (mode.id === 'expedition' ? 'btn-primary' : '') + '" onclick="startHoldingMiniGamesExpedition();">Mini Games</button>'
+      + '<button class="btn btn-xs ' + (mode.id === 'expedition' ? 'btn-primary' : '') + '" onclick="startHoldingMiniGamesExpedition();">Expedition</button>'
       + '</div>'
       + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;">'
       + (match ? '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAttackSelected();">Attack (Selected)</button>' : '')
@@ -6946,20 +7108,8 @@
       {
         mode: 'control',
         title: 'Arena Control',
-        subtitle: 'Zone pressure skirmish',
-        desc: 'Score by holding A/B/C zones while keeping enemy kills low.'
-      },
-      {
-        mode: 'clash',
-        title: 'Arena Clash',
-        subtitle: 'Deathmatch pacing',
-        desc: 'Fast tactical brawl. Eliminate threats and out-trade enemy turns.'
-      },
-      {
-        mode: 'elimination',
-        title: 'Arena Elimination',
-        subtitle: 'No-respawn rounds',
-        desc: 'Higher-risk 3v3 rounds where each choice has lasting pressure.'
+        subtitle: '3v3 zone pressure skirmish',
+        desc: 'Capture A/B/C zones by holding a zone for 3 rounds. Hold 2/3 zones to score in the 10-round match.'
       }
     ];
     var active = c.match ? String(c.match.mode || '') : '';
@@ -10764,6 +10914,7 @@
   window.holdingCrucibleEquipExpeditionLoot = holdingCrucibleEquipExpeditionLoot;
   window.holdingCrucibleUseExpeditionLoot = holdingCrucibleUseExpeditionLoot;
   window.buildCrucibleExpeditionLoadoutSelectionHtml = buildCrucibleExpeditionLoadoutSelectionHtml;
+  window.holdingCrucibleConfirmControlLoadout = holdingCrucibleConfirmControlLoadout;
   window.confirmCrucibleExpeditionLoadout = confirmCrucibleExpeditionLoadout;
   window.cancelCrucibleExpeditionLoadoutSelection = cancelCrucibleExpeditionLoadoutSelection;
   window.applyCrucibleExpeditionFleePenalty = applyCrucibleExpeditionFleePenalty;

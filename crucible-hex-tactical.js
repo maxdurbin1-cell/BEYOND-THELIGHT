@@ -231,6 +231,8 @@ function generateCrucibleHexMap(seed, size) {
         id: zone.id,
         name: zone.name,
         controlled: '', // 'ally', 'enemy', or ''
+        controlProgress: { ally: 0, enemy: 0 },
+        holdRoundsRequired: 3,
         puzzle: null // Will store puzzle state { solved: bool, team: 'ally'|'enemy' }
       };
       map.objectives.push(zone.id);
@@ -684,15 +686,21 @@ function executePersonalFlavor(unit, cooldownStamp, map, log, options) {
 
 function getControlledZones(team, map) {
   if (!team || !map || !map.hexes) return [];
+  var side = '';
+  for (var i = 0; i < team.length; i++) {
+    if (team[i] && team[i].side) {
+      side = String(team[i].side || '');
+      break;
+    }
+  }
+  if (!side) return [];
   
   var controlled = [];
   map.objectives.forEach(function(zoneId) {
     Object.keys(map.hexes).forEach(function(key) {
       var cell = map.hexes[key];
       if (!cell || !cell.zone || cell.zone.id !== zoneId) return;
-      
-      var unitsHere = team.filter(function(u) { return u && hexToKey(u.position) === key; });
-      if (unitsHere.length > 0) {
+      if (String(cell.zone.controlled || '') === side) {
         if (!controlled.includes(zoneId)) {
           controlled.push(zoneId);
         }
@@ -794,8 +802,17 @@ function renderCrucibleHexMap(map, units, selectedUnitId, options) {
       color = 'rgba(220,184,74,.45)';
       strokeColor = 'rgba(255,230,150,.8)';
     } else if (cell.zone) {
-      color = 'rgba(70,196,182,.38)';
-      strokeColor = 'rgba(112,235,215,.8)';
+      var zoneCtl = String(cell.zone.controlled || '');
+      if (zoneCtl === 'ally') {
+        color = 'rgba(70,196,182,.48)';
+        strokeColor = 'rgba(130,242,224,.95)';
+      } else if (zoneCtl === 'enemy') {
+        color = 'rgba(210,96,110,.45)';
+        strokeColor = 'rgba(255,156,166,.92)';
+      } else {
+        color = 'rgba(70,196,182,.24)';
+        strokeColor = 'rgba(112,235,215,.68)';
+      }
     } else if (cell.terrain === 'spawn') {
       color = 'rgba(86,189,109,.35)';
       strokeColor = 'rgba(145,240,170,.75)';
@@ -843,7 +860,14 @@ function renderCrucibleHexMap(map, units, selectedUnitId, options) {
     } else if (cell.terrain === 'portal') {
       hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="12" fill="rgba(238,217,255,.95)">◉</text>';
     } else if (cell.zone) {
-      hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="12" fill="rgba(210,255,247,.95)" font-weight="bold">' + cell.zone.id.charAt(5) + '</text>';
+      var zoneLetter = cell.zone.id.charAt(5);
+      var holdReq = Math.max(1, Number(cell.zone.holdRoundsRequired || 3));
+      var allyProg = Math.max(0, Number(cell.zone.controlProgress && cell.zone.controlProgress.ally || 0));
+      var enemyProg = Math.max(0, Number(cell.zone.controlProgress && cell.zone.controlProgress.enemy || 0));
+      var zoneProg = Math.max(allyProg, enemyProg);
+      var zoneText = String(zoneLetter) + String(Math.min(holdReq, zoneProg));
+      var zoneFill = cell.zone.controlled === 'enemy' ? 'rgba(255,220,220,.95)' : 'rgba(210,255,247,.95)';
+      hexHTML += '<text x="' + pix.x + '" y="' + pix.y + '" text-anchor="middle" dy=".3em" font-size="11" fill="' + zoneFill + '" font-weight="bold">' + zoneText + '</text>';
     }
   });
 
@@ -879,14 +903,10 @@ function renderCrucibleHexMap(map, units, selectedUnitId, options) {
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">Red token = Enemy</span>'
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">Token letter = unit initial</span>'
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">■ Obstacle (blocked)</span>'
-    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⚠ Trap</span>'
+    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⚠ Trap (Expedition only)</span>'
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⚔/🛡/❤ Loot</span>'
-    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⛩ Temple (flask refill)</span>'
-    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">🏚 Ruins</span>'
-    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">🜂 Gate</span>'
-    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">◉ Portal</span>'
-    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">A/B/C Objective zones</span>'
-    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">✖ Collapsed hex (void)</span>'
+    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">◉ Teleport hex</span>'
+    + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">A/B/C Objective zones (hold 3 rounds to capture)</span>'
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">Gold ring = selected unit</span>'
     + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">Drag active-side token onto glowing hex to move</span>'
   + '</div>';

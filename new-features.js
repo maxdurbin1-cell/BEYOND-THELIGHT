@@ -4418,6 +4418,10 @@
     var queued = getCrucibleExpeditionQueuedActions(match);
     var readyActors = getLivingTeamUnits(match.allies).filter(function (u) { return !!u && Number(u.ap || 0) > 0; }).length;
     var campaignPartyMode = isCrucibleExpeditionCampaignPartyMode();
+    var wayfarerBudget = campaignPartyMode
+      ? getCrucibleTeamActionBudget(match.allies || [])
+      : getCrucibleUnitActionBudget(selectedAlly || player);
+    var enemyBudget = getCrucibleTeamActionBudget(match.enemies || []);
     var wayfarerOptions = getCrucibleWayfarerActionOptionsHtml();
     var wayfarerTargetOptions = buildCrucibleEnemyTargetOptions(match, 'attack', selectedAlly);
     var teamTargetOptions = buildCrucibleTeamTargetOptions(match, 'attack', selectedAlly);
@@ -4454,6 +4458,10 @@
       + (campaignPartyMode
         ? ('Queued actions ' + queued.length + ' · Allies with AP remaining ' + readyActors + ' · Selected ' + String(selectedAlly && selectedAlly.name || 'Wayfarer'))
         : ('Wayfarer AP ' + Number(selectedAlly && selectedAlly.ap || 0) + ' · Enemy actions per turn 2 · Selected ' + String(selectedAlly && selectedAlly.name || 'Wayfarer')))
+      + '</div>'
+      + '<div style="display:flex;gap:.22rem;flex-wrap:wrap;margin:.04rem 0 .18rem 0;font-size:.67rem;color:var(--muted2);">'
+      + '<span style="border:1px solid rgba(70,196,182,.35);padding:.12rem .24rem;background:rgba(70,196,182,.08);">Wayfarer Actions ' + Number(wayfarerBudget.used || 0) + '/' + Number(wayfarerBudget.total || 0) + '</span>'
+      + '<span style="border:1px solid rgba(200,80,80,.35);padding:.12rem .24rem;background:rgba(200,80,80,.08);">Enemy Actions ' + Number(enemyBudget.used || 0) + '/' + Number(enemyBudget.total || 0) + '</span>'
       + '</div>'
       + turnRail
       + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.2rem;align-items:end;margin-bottom:.22rem;">'
@@ -4656,6 +4664,8 @@
     var canAct = !!(!isEnemyTurn && selectedAlly && Number(selectedAlly.hp || 0) > 0 && Number(selectedAlly.ap || 0) > 0);
     var canEnemyAct = !!(isEnemyTurn && selectedEnemy && Number(selectedEnemy.hp || 0) > 0 && Number(selectedEnemy.ap || 0) > 0);
     var canMoveActive = !!(selectedActiveUnit && Number(selectedActiveUnit.hp || 0) > 0 && Number(selectedActiveUnit.ap || 0) > 0);
+    var allyBudget = getCrucibleTeamActionBudget(match.allies || []);
+    var enemyBudget = getCrucibleTeamActionBudget(match.enemies || []);
     var currentTurn = !isEnemyTurn ? 'Your Team Turn' : 'Enemy Turn';
     var scoreLine = mode.id === 'elimination'
       ? ('Round Wins ' + Number(match.roundWins && match.roundWins.ally || 0) + ' - ' + Number(match.roundWins && match.roundWins.enemy || 0) + ' (target ' + Number(mode.scoreToWin || 5) + ')')
@@ -4746,6 +4756,10 @@
         + 'Boss Path: 1st Boss d8|16 HP -> 2nd Boss d10|20 HP -> Raid Boss d20|40 HP. Field Enemy d4|4 HP. Mini Boss d6|12 HP with affix loot.'
         + '</div>' : '')
       + turnRail
+      + '<div style="display:flex;gap:.22rem;flex-wrap:wrap;margin:-.08rem 0 .2rem 0;font-size:.67rem;color:var(--muted2);">'
+      + '<span style="border:1px solid rgba(70,196,182,.35);padding:.12rem .24rem;background:rgba(70,196,182,.08);">Wayfarer Actions ' + Number(allyBudget.used || 0) + '/' + Number(allyBudget.total || 0) + '</span>'
+      + '<span style="border:1px solid rgba(200,80,80,.35);padding:.12rem .24rem;background:rgba(200,80,80,.08);">Enemy Actions ' + Number(enemyBudget.used || 0) + '/' + Number(enemyBudget.total || 0) + '</span>'
+      + '</div>'
       + turnControlsHtml
       + phaseButtonsHtml
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-bottom:.35rem;">'
@@ -5887,26 +5901,68 @@
         + (raidNodes.length > 0 ? '<div style="font-size:.9rem;"><strong>Available Raid Nodes:</strong> ' + raidNodes.map(function (n) { return n.label; }).join(', ') + '</div>' : '<div style="font-size:.9rem;color:var(--muted2);">No Raid Nodes purchased yet.</div>')
       + '</div>'
       + '<div style="display:flex;gap:.4rem;justify-content:flex-end;margin-top:1rem;">'
-        + '<button class="btn btn-sm" onclick="closeModal();">Cancel</button>'
+        + '<button class="btn btn-sm" onclick="window.cancelCrucibleExpeditionLoadoutSelection();">Cancel Run Setup</button>'
         + '<button class="btn btn-sm btn-primary" onclick="window.confirmCrucibleExpeditionLoadout();">Start Expedition</button>'
       + '</div>'
       + '</div>';
-    if (typeof window._expeditionLoadout === 'undefined') {
-      window._expeditionLoadout = {
-        armor: selectedArmor,
-        weapon: selectedWeapon,
-        flavor: selectedFlavor,
-        filterFlavors: function (query) {
-          var lower = String(query || '').toLowerCase();
-          var labels = document.querySelectorAll('#flavorList label');
-          labels.forEach(function (label) {
-            var text = label.textContent.toLowerCase();
-            label.style.display = text.indexOf(lower) >= 0 ? 'flex' : 'none';
-          });
-        }
-      };
-    }
+    window._expeditionLoadout = {
+      armor: selectedArmor,
+      weapon: selectedWeapon,
+      flavor: selectedFlavor,
+      filterFlavors: function (query) {
+        var lower = String(query || '').toLowerCase();
+        var labels = document.querySelectorAll('#flavorList label');
+        labels.forEach(function (label) {
+          var text = label.textContent.toLowerCase();
+          label.style.display = text.indexOf(lower) >= 0 ? 'flex' : 'none';
+        });
+      }
+    };
     return html;
+  }
+
+  function validateCrucibleExpeditionLoadoutSelection(loadout) {
+    var selected = loadout || {};
+    var armor = String(selected.armor || '').toLowerCase();
+    var weapon = String(selected.weapon || '').toLowerCase();
+    var flavor = String(selected.flavor || '').trim();
+    var armorOptions = getCrucibleExpeditionStartingArmorOptions();
+    var weaponOptions = getCrucibleExpeditionStartingWeaponOptions();
+    var flavorOptions = getCrucibleExpeditionPersonalFlavorOptions();
+
+    var armorOpt = armorOptions.find(function (entry) { return String(entry.id || '').toLowerCase() === armor; }) || null;
+    if (!armorOpt) {
+      return { ok: false, reason: 'Choose Light, Medium, or Heavy armor before starting.' };
+    }
+    var weaponOpt = weaponOptions.find(function (entry) { return String(entry.id || '').toLowerCase() === weapon; }) || null;
+    if (!weaponOpt) {
+      return { ok: false, reason: 'Choose a starting weapon before starting.' };
+    }
+    var flavorExact = flavorOptions.find(function (entry) { return String(entry || '') === flavor; }) || null;
+    if (!flavorExact) {
+      return { ok: false, reason: 'Choose one Personal Flavor from the list.' };
+    }
+    var flavorMechanic = (typeof getPersonalFlavorMechanicProfile === 'function')
+      ? (getPersonalFlavorMechanicProfile(flavorExact) || null)
+      : null;
+    var passivePreview = getCrucibleExpeditionStartingPassiveFeatures(flavorExact);
+    if (!flavorMechanic && (!Array.isArray(passivePreview) || !passivePreview.length)) {
+      return { ok: false, reason: 'Selected Personal Flavor has no mechanics profile. Pick another flavor.' };
+    }
+    return {
+      ok: true,
+      armorOpt: armorOpt,
+      weaponOpt: weaponOpt,
+      flavor: flavorExact
+    };
+  }
+
+  function cancelCrucibleExpeditionLoadoutSelection() {
+    ensureNewFeatureState();
+    if (S && S.holding && S.holding.crucible) S.holding.crucible.match = null;
+    if (typeof closeModal === 'function') closeModal();
+    renderHoldingUI();
+    return true;
   }
 
   function confirmCrucibleExpeditionLoadout() {
@@ -5916,6 +5972,14 @@
     var armor = String(loadout.armor || 'medium');
     var weapon = String(loadout.weapon || 'sword');
     var flavor = String(loadout.flavor || 'Lucky');
+    var validated = validateCrucibleExpeditionLoadoutSelection({ armor: armor, weapon: weapon, flavor: flavor });
+    if (!validated.ok) {
+      if (typeof showNotif === 'function') showNotif(validated.reason || 'Expedition loadout is incomplete.', 'warn');
+      return false;
+    }
+    armor = String(validated.armorOpt.id || armor);
+    weapon = String(validated.weaponOpt.id || weapon);
+    flavor = String(validated.flavor || flavor);
     var expedition = match.expedition;
     var party = getCrucibleExpeditionParty(match);
     if (!party.length) return false;
@@ -5965,6 +6029,29 @@
     }
     renderHoldingUI();
     return true;
+  }
+
+  function getCrucibleUnitActionBudget(unit) {
+    if (!unit || Number(unit.hp || 0) <= 0) return { total: 0, remaining: 0, used: 0 };
+    var total = Math.max(0, Number(unit.maxAp || 2));
+    var remaining = Math.max(0, Math.min(total, Number(unit.ap || 0)));
+    return { total: total, remaining: remaining, used: Math.max(0, total - remaining) };
+  }
+
+  function getCrucibleTeamActionBudget(units) {
+    var living = getLivingTeamUnits(units || []);
+    var total = 0;
+    var remaining = 0;
+    living.forEach(function (unit) {
+      var budget = getCrucibleUnitActionBudget(unit);
+      total += Number(budget.total || 0);
+      remaining += Number(budget.remaining || 0);
+    });
+    return {
+      total: total,
+      remaining: remaining,
+      used: Math.max(0, total - remaining)
+    };
   }
 
   function applyCrucibleExpeditionFleePenalty(match) {
@@ -10678,6 +10765,7 @@
   window.holdingCrucibleUseExpeditionLoot = holdingCrucibleUseExpeditionLoot;
   window.buildCrucibleExpeditionLoadoutSelectionHtml = buildCrucibleExpeditionLoadoutSelectionHtml;
   window.confirmCrucibleExpeditionLoadout = confirmCrucibleExpeditionLoadout;
+  window.cancelCrucibleExpeditionLoadoutSelection = cancelCrucibleExpeditionLoadoutSelection;
   window.applyCrucibleExpeditionFleePenalty = applyCrucibleExpeditionFleePenalty;
   window.getCrucibleExpeditionStartingArmorOptions = getCrucibleExpeditionStartingArmorOptions;
   window.getCrucibleExpeditionStartingWeaponOptions = getCrucibleExpeditionStartingWeaponOptions;

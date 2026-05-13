@@ -5,8 +5,8 @@
   const COLORBLIND_PREVIEW_MS = 10000;
   const TERRAIN_ASSET_STORAGE_KEY = 'beyond-light-terrain-assets-v1';
   const TERRAIN_ASSET_CATALOG = {
-    province: ['marsh', 'forest', 'valley', 'lake', 'mountain', 'desert', 'hills', 'meadow', 'heath', 'crags', 'bog', 'glades'],
-    sea: ['sea', 'island', 'harbor', 'reef', 'storm', 'trench', 'shoal', 'peril'],
+    province: ['marsh', 'forest', 'valley', 'lake', 'mountain', 'desert', 'hills', 'meadow', 'heath', 'crags', 'bog', 'glades', 'snowfield', 'dead_forest', 'ash_wastes', 'frost_marsh'],
+    sea: ['sea', 'open_sea', 'island', 'harbor', 'reef', 'storm', 'trench', 'shoal', 'peril'],
     space: ['empty', 'planet', 'station', 'asteroid', 'anomaly', 'rift', 'gate', 'world_that_was'],
     wtw: ['district', 'industrial', 'flooded', 'warzone', 'citadel', 'ruins', 'sprawl'],
     planet: ['wilderness', 'trade_route', 'merchant_colony', 'empty_colony', 'wayfarer', 'seat', 'dwelling', 'temple', 'ruins', 'monument', 'peril', 'gate', 'barrier']

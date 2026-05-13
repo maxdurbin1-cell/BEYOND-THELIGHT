@@ -85,6 +85,15 @@
     "Floating rocks"
   ];
 
+  const LAST_SEA_WATER_TERRAINS = [
+    { key: "open_sea", label: "Open Sea", color: "#103247", glyph: "≈", weight: 10 },
+    { key: "shoal", label: "Shoals", color: "#1f5a6b", glyph: "⋰", weight: 3 },
+    { key: "trench", label: "Deep Trench", color: "#0b1f36", glyph: "∇", weight: 2 },
+    { key: "reef", label: "Reef Shelf", color: "#1f6a5d", glyph: "◌", weight: 2 },
+    { key: "storm", label: "Stormwater", color: "#2c3f58", glyph: "⚡", weight: 1 },
+    { key: "harbor", label: "Harbor Approaches", color: "#2d4f64", glyph: "⚓", weight: 1 }
+  ];
+
   const LAST_SEA_WEATHER = {
     spring: [
       { label: "Salt Mist", rough: false, desc: "A cool marine haze softens the horizon but leaves the water workable." },
@@ -637,7 +646,10 @@
     return S.lastSea.map.find((hex) => hex.col === col && hex.row === row);
   }
 
-  function describeSeaHex() {
+  function describeSeaHex(waterTerrain) {
+    const wt = waterTerrain && typeof waterTerrain === "object"
+      ? waterTerrain
+      : LAST_SEA_WATER_TERRAINS[0];
     return `${pick([
       "Deep blue water folds in long glassy swells.",
       "Dark open water shivers with crosscurrents.",
@@ -648,7 +660,16 @@
       "A lone bird wheels overhead and then vanishes inland.",
       "The horizon looks too wide, as if the world has thinned.",
       "Salt hangs in the air like old memory."
-    ])}`;
+    ])} Waters: ${wt.label}.`;
+  }
+
+  function pickSeaWaterTerrain() {
+    const weighted = [];
+    LAST_SEA_WATER_TERRAINS.forEach(function (entry) {
+      const count = Math.max(1, Number(entry && entry.weight) || 1);
+      for (let i = 0; i < count; i += 1) weighted.push(entry);
+    });
+    return pick(weighted);
   }
 
   function describeIslandHex(terrain, ecology, siteType) {
@@ -815,13 +836,17 @@
 
     for (let col = 0; col < LAST_SEA_COLS; col += 1) {
       for (let row = 0; row < LAST_SEA_ROWS; row += 1) {
+        const seaTerrain = pickSeaWaterTerrain();
         S.lastSea.map.push({
           key: seaKey(col, row),
           col,
           row,
           type: "sea",
-          icon: "",
-          desc: describeSeaHex(),
+          terrain: seaTerrain.key,
+          seaLabel: seaTerrain.label,
+          terrainColor: seaTerrain.color,
+          icon: seaTerrain.glyph,
+          desc: describeSeaHex(seaTerrain),
           resultHtml: "",
           encounter: null
         });
@@ -951,8 +976,13 @@
     const candidates = [];
     const terrainName = normalizeTerrainAssetKey(hex.terrain || '');
     const typeName = normalizeTerrainAssetKey(hex.type || 'sea');
-    if (typeName) candidates.push(typeName);
-    if (terrainName && candidates.indexOf(terrainName) < 0) candidates.push(terrainName);
+    if (typeName === 'sea') {
+      if (terrainName) candidates.push(terrainName);
+      if (typeName && candidates.indexOf(typeName) < 0) candidates.push(typeName);
+    } else {
+      if (typeName) candidates.push(typeName);
+      if (terrainName && candidates.indexOf(terrainName) < 0) candidates.push(terrainName);
+    }
     if (typeName === 'sea' && candidates.indexOf('open_sea') < 0) candidates.push('open_sea');
     for (let i = 0; i < candidates.length; i += 1) {
       const hit = String(window.getTerrainTileAsset('sea', candidates[i]) || '');
@@ -1041,7 +1071,7 @@
     S.lastSea.map.forEach((hex) => {
       const { x, y } = seaHexToPixel(hex.col, hex.row);
       const r = LAST_SEA_HEX - 1;
-      const fill = hex.type === "sea" ? "#103247" : hex.terrainColor || "#486734";
+      const fill = hex.terrainColor || (hex.type === "sea" ? "#103247" : "#486734");
       const textureKey = normalizeTerrainAssetKey(hex.type || 'sea') + '|' + normalizeTerrainAssetKey(hex.terrain || '');
       if (typeof textureFillCache[textureKey] === 'undefined') {
         const dataUrl = getTerrainTextureForSeaHex(hex);
@@ -1087,7 +1117,7 @@
         sh.setAttribute("pointer-events", "none");
         group.appendChild(sh);
 
-        const terrainGlyph = hex.type === "sea" ? "≈" : "♣";
+        const terrainGlyph = hex.type === "sea" ? (hex.icon || "≈") : "♣";
         const gt = document.createElementNS("http://www.w3.org/2000/svg", "text");
         gt.setAttribute("x", String(x - r * 0.38));
         gt.setAttribute("y", String(y - r * 0.26));
@@ -1297,7 +1327,7 @@
       group.addEventListener("mousemove", () => {
         const coords = document.getElementById("lastSeaCoords");
         if (coords) {
-          coords.textContent = `[${hex.col + 1},${hex.row + 1}] ${hex.type === "sea" ? "Open Sea" : hex.title || hex.islandName}`;
+          coords.textContent = `[${hex.col + 1},${hex.row + 1}] ${hex.type === "sea" ? (hex.seaLabel || "Open Sea") : hex.title || hex.islandName}`;
         }
       });
       svg.appendChild(group);
@@ -1630,8 +1660,8 @@
                 : hex.siteType === "dungeon"
                   ? "ruins"
                   : "holding"
-        }">${hex.type === "sea" ? "Open Sea" : "Island Hex"}</div>
-        <div class="hex-name">${hex.type === "sea" ? "Open Water" : hex.title || hex.islandName}</div>
+        }">${hex.type === "sea" ? (hex.seaLabel || "Open Sea") : "Island Hex"}</div>
+        <div class="hex-name">${hex.type === "sea" ? (hex.seaLabel || "Open Water") : hex.title || hex.islandName}</div>
         <div class="hex-desc" style="margin-bottom:.45rem;">${hex.desc}</div>
         ${seaTravelNarrative ? `<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(126,215,255,.32);background:rgba(126,215,255,.06);"><div class="nb-label" style="color:#7ed7ff;">🎭 Scene Read</div><div style="font-size:.79rem;color:var(--text2);line-height:1.58;">${seaTravelNarrative}</div></div>` : ''}
         ${renderCurrentSeaWeather()}

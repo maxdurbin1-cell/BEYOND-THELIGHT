@@ -2059,7 +2059,7 @@ function pickTdStable(v, hex, channel){
   return v[idx];
 }
 
-const TERRAIN_TYPES=[{name:'Marsh',color:'#1e3a22'},{name:'Forest',color:'#163320'},{name:'Valley',color:'#3a4418'},{name:'Lake',color:'#142840'},{name:'Mountain',color:'#3d3328'},{name:'Desert',color:'#584e26'},{name:'Hills',color:'#354027'},{name:'Meadow',color:'#2c4420'},{name:'Heath',color:'#332b40'},{name:'Crags',color:'#382e24'},{name:'Bog',color:'#1e2e1e'},{name:'Glades',color:'#123020'}];
+const TERRAIN_TYPES=[{name:'Marsh',color:'#1e3a22'},{name:'Forest',color:'#163320'},{name:'Valley',color:'#3a4418'},{name:'Lake',color:'#142840'},{name:'Mountain',color:'#3d3328'},{name:'Desert',color:'#584e26'},{name:'Hills',color:'#354027'},{name:'Meadow',color:'#2c4420'},{name:'Heath',color:'#332b40'},{name:'Crags',color:'#382e24'},{name:'Bog',color:'#1e2e1e'},{name:'Glades',color:'#123020'},{name:'Snowfield',color:'#4b5b74'},{name:'Dead Forest',color:'#2a2f2a'},{name:'Ash Wastes',color:'#3f3a3f'},{name:'Frost Marsh',color:'#304652'}];
 
 const TERRAIN_DESC={
 Marsh:{
@@ -11849,7 +11849,16 @@ function getProvinceTerrainTextureCandidates(hex){
   if(!hex||typeof hex!=='object')return [];
   const type=normalizeTerrainAssetKey(hex.type||'wilderness');
   const terrain=normalizeTerrainAssetKey(hex.terrain&&hex.terrain.name||'');
-  if(type==='wilderness')return [terrain,'wilderness'];
+  if(type==='wilderness'){
+    const aliases={
+      snowfield:'snow',
+      dead_forest:'forest_dead',
+      ash_wastes:'ashlands',
+      frost_marsh:'marsh_frost'
+    };
+    const alias=aliases[terrain]||'';
+    return [terrain,alias,'wilderness'].filter(Boolean);
+  }
   return [type];
 }
 function refreshAllHexMaps(){
@@ -11946,11 +11955,29 @@ function ensureProvinceLibraryHex(){
 function pickUniquePeril(){if(usedPerils.length>=PERIL_NAMES_UNIQUE.length)usedPerils=[];const avail=PERIL_NAMES_UNIQUE.filter((_,i)=>!usedPerils.includes(i));const idx=PERIL_NAMES_UNIQUE.indexOf(pick(avail));usedPerils.push(idx);return{name:PERIL_NAMES_UNIQUE[idx],desc:PERIL_DESCS_UNIQUE[idx]};}
 function pickUniqueBarrier(){if(usedBarriers.length>=BARRIER_TYPES_UNIQUE.length)usedBarriers=[];const avail=BARRIER_TYPES_UNIQUE.filter((_,i)=>!usedBarriers.includes(i));const idx=BARRIER_TYPES_UNIQUE.indexOf(pick(avail));usedBarriers.push(idx);return{name:BARRIER_TYPES_UNIQUE[idx],desc:BARRIER_DESCS_UNIQUE[idx]};}
 
+function pickProvinceTerrainType(){
+  const pool=TERRAIN_TYPES.slice();
+  const season=String(S&&S.currentSeason||'spring').toLowerCase();
+  const age=String(S&&S.currentAge||'green').toLowerCase();
+  if(season==='winter'){
+    pool.push(TERRAIN_TYPES.find(t=>t&&t.name==='Snowfield'));
+    pool.push(TERRAIN_TYPES.find(t=>t&&t.name==='Frost Marsh'));
+  }
+  if(season==='harvest'){
+    pool.push(TERRAIN_TYPES.find(t=>t&&t.name==='Ash Wastes'));
+  }
+  if(age==='grey'){
+    pool.push(TERRAIN_TYPES.find(t=>t&&t.name==='Dead Forest'));
+    pool.push(TERRAIN_TYPES.find(t=>t&&t.name==='Ash Wastes'));
+  }
+  return pick(pool.filter(Boolean));
+}
+
 function generateMap(){
   ensureBackstoryState();
   ensureProvinceConflictFronts(true);
   mapData=[];usedPerils=[];usedBarriers=[];hexNotes={};
-  for(let col=0;col<COLS;col++)for(let row=0;row<ROWS;row++)mapData.push({col,row,terrain:pick(TERRAIN_TYPES),type:'wilderness',name:'',data:{}});
+  for(let col=0;col<COLS;col++)for(let row=0;row<ROWS;row++)mapData.push({col,row,terrain:pickProvinceTerrainType(),type:'wilderness',name:'',data:{}});
 
   const sh=pick(mapData);sh.type='seat';sh.name='Seat of Power';sh.data={lord:pick(HOLDING_LORDS),mood:pick(LOCAL_MOODS),style:pick(SETTLEMENT_STYLES),feature:pick(SETTLEMENT_FEATURES),cultural:pick(SETTLEMENT_CULTURAL),luxury:pick(SETTLEMENT_LUXURIES),food:pick(SETTLEMENT_FOOD),goods:pick(SETTLEMENT_GOODS),news:pick(SETTLEMENT_NEWS)};
 

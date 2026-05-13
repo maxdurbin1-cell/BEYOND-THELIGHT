@@ -2031,13 +2031,58 @@
     return { ruins: ruins, portals: portals, gates: gates, dwellings: dwellings, holdings: holdings, tradeRoutes: tradeRoutes, lostCities: lostCities, libraries: libraries, depths: depths };
   }
 
-  var PROVINCE_VARIETY_TERRAINS = [
-    'field', 'forest', 'swamp', 'lake',
-    'farm', 'rift', 'stones',
-    'desert_mountain', 'desert_cave', 'ravine',
-    'city', 'town',
-    'snowy_town', 'snowy_fields', 'snowy_forest', 'snowy_swamp'
-  ];
+  // Province/season-based terrain pools
+  var PROVINCE_TERRAIN_POOLS = {
+    "Northland": {
+      spring: ['SnowyFields', 'SnowyForest', 'SnowySwamp', 'SnowyTown', 'Rift', 'Stones', 'Lake', 'Town'],
+      harvest: ['SnowyFields', 'SnowyForest', 'SnowySwamp', 'SnowyTown', 'Rift', 'Stones', 'Lake', 'Town'],
+      winter: ['SnowyFields', 'SnowyForest', 'SnowySwamp', 'SnowyTown', 'Rift', 'Stones', 'Lake', 'Town']
+    },
+    "Desertia": {
+      spring: ['DesertMountain', 'DesertCave', 'AshWastes', 'Farm', 'DesertFarm', 'Ravine', 'City', 'Town'],
+      harvest: ['DesertMountain', 'DesertCave', 'AshWastes', 'Farm', 'DesertFarm', 'Ravine', 'City', 'Town'],
+      winter: ['DesertMountain', 'DesertCave', 'AshWastes', 'Farm', 'DesertFarm', 'Ravine', 'City', 'Town']
+    },
+    "Midlands": {
+      spring: ['Field', 'Forest', 'Swamp', 'Lake', 'Farm', 'Rift', 'Stones', 'Town', 'City'],
+      harvest: ['Field', 'Forest', 'Swamp', 'Lake', 'Farm', 'Rift', 'Stones', 'Town', 'City'],
+      winter: ['Snowfield', 'DeadForest', 'FrostMarsh', 'Field', 'Forest', 'Lake', 'Town']
+    }
+    // Add more provinces as needed
+  };
+
+  var DEFAULT_TERRAIN_POOL = ['Field', 'Forest', 'Swamp', 'Lake', 'Farm', 'Rift', 'Stones', 'DesertMountain', 'DesertCave', 'Ravine', 'City', 'Town', 'SnowyTown', 'SnowyFields', 'SnowyForest', 'SnowySwamp'];
+
+  // Returns the allowed terrain pool for a province and season
+  function getProvinceTerrainPool(provinceName, season) {
+    var p = PROVINCE_TERRAIN_POOLS[String(provinceName)];
+    if (p && p[season]) return p[season];
+    if (p && p.spring) return p.spring;
+    return DEFAULT_TERRAIN_POOL;
+  }
+
+  // provinceName should be available on map or via S.holding.provinceName
+  function stampCrucibleExpeditionVarietyTerrains(map, provinceName, season) {
+    if (!map || !map.hexes) return;
+    var SPECIAL = ['ruin','trap','temple','barrier','gate','portal','dwelling','holding','trade_route','lost_city','library','depths'];
+    var seed = Math.max(1, Number(map.seed || 1));
+    var pool = getProvinceTerrainPool(provinceName, season);
+    var n = pool.length;
+    Object.keys(map.hexes).forEach(function (k) {
+      var cell = map.hexes[k];
+      if (!cell) return;
+      if (SPECIAL.indexOf(cell.terrain) !== -1) return;
+      if (cell.trap || cell.barrier) return;
+      var q = Number(cell.q || 0);
+      var r = Number(cell.r || 0);
+      // Use a coarse cluster grid so nearby hexes share terrain (natural biome patches)
+      var cq = Math.round(q / 2);
+      var cr = Math.round(r / 2);
+      var h = Math.abs(Math.sin(cq * 439.7 + cr * 317.3 + seed * 71.11));
+      var idx = Math.floor((h - Math.floor(h)) * n) % n;
+      cell.terrain = pool[idx];
+    });
+  }
 
   function stampCrucibleExpeditionVarietyTerrains(map) {
     if (!map || !map.hexes) return;

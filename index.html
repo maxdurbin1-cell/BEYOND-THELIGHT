@@ -11921,15 +11921,15 @@ function randomizeMapOverlay(){
 window.randomizeMapOverlay=randomizeMapOverlay;
 function hexPointArray(cx,cy,r){
   return Array.from({length:6},function(_,i){
-    const a=Math.PI/180*(60*i);
+    const a=Math.PI/180*(60*i-30);
     return {x:cx+r*Math.cos(a),y:cy+r*Math.sin(a)};
   });
 }
 function hexPointsFromArray(points){
   return (points||[]).map(function(p){return String(p.x)+','+String(p.y);}).join(' ');
 }
-function hexToPixel(col,row){const w=HEX_SIZE*2,h=Math.sqrt(3)*HEX_SIZE;return{x:col*w*0.75+HEX_SIZE+10,y:row*h+(col%2)*h/2+HEX_SIZE+10};}
-function hexPoints(cx,cy,r){return Array.from({length:6},(_,i)=>{const a=Math.PI/180*(60*i);return`${cx+r*Math.cos(a)},${cy+r*Math.sin(a)}`;}).join(' ');}
+function hexToPixel(col,row){const w=Math.sqrt(3)*HEX_SIZE,h=HEX_SIZE*2;return{x:col*w+(row%2)*(w/2)+HEX_SIZE+10,y:row*h*0.75+HEX_SIZE+10};}
+function hexPoints(cx,cy,r){return Array.from({length:6},(_,i)=>{const a=Math.PI/180*(60*i-30);return`${cx+r*Math.cos(a)},${cy+r*Math.sin(a)}`;}).join(' ');}
 
 function placeUnique(type,name,data){
   let attempts=0,hex;
@@ -12610,7 +12610,8 @@ function renderHexMap(){
       y:((pt.y-topOffset)*0.84)+topOffset+6
     };
   };
-  const svgW=COLS*HEX_SIZE*1.52+HEX_SIZE+20,svgH=ROWS*Math.sqrt(3)*HEX_SIZE+HEX_SIZE+20+levelDepth+14;
+  const svgW=COLS*Math.sqrt(3)*HEX_SIZE+Math.sqrt(3)*HEX_SIZE+20;
+  const svgH=ROWS*HEX_SIZE*1.5+HEX_SIZE*1.5+20+levelDepth+14;
   const svg=document.getElementById('hexMapSvg');
   svg.setAttribute('width',svgW);svg.setAttribute('height',svgH);svg.innerHTML='';
   const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');

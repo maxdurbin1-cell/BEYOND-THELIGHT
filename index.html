@@ -868,6 +868,16 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="btn btn-sm" id="fullPhaseClockToggleBtn" onclick="toggleFullPhaseClock()">Full Clock: Off</button>
     <button class="btn btn-sm btn-teal" id="mapClickModeBtn" onclick="toggleMapClickMode()">Map Click: Travel</button>
     <button class="btn btn-sm btn-teal" id="mapHex3dBtn" onclick="toggleMapHex3d()">Hex 3D: On</button>
+    <select id="mapHexStyleSel" onchange="setMapHexStyle(this.value)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
+      <option value="classic">Hex Style: Classic</option>
+      <option value="painterly">Hex Style: Painterly</option>
+      <option value="parchment">Hex Style: Parchment</option>
+      <option value="modular">Hex Style: Modular</option>
+    </select>
+    <select id="mapPerspectiveSel" onchange="setMapPerspective(this.value)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
+      <option value="topdown">Perspective: Top-Down</option>
+      <option value="level">Perspective: Level 3D</option>
+    </select>
     <button class="btn btn-sm" id="mapAtlasBtn" style="display:none;" onclick="if(typeof switchTab==='function'){var b=document.getElementById('tabnav-theos');switchTab('theos',b||null);}">Atlas</button>
     <select id="mapOverlaySel" onchange="setMapOverlay(this.value)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
       <option value="none">Overlay: None</option>
@@ -11746,14 +11756,21 @@ function toggleMapClickMode(){
   showNotif('Map clicks now '+(S.mapClickMode==='travel'?'advance travel time.':'inspect only.'),'good');
 }
 function ensureMapVisualSettings(){
-  if(!S.mapVisuals||typeof S.mapVisuals!=='object')S.mapVisuals={hex3d:true,overlay:'none'};
+  if(!S.mapVisuals||typeof S.mapVisuals!=='object')S.mapVisuals={hex3d:true,overlay:'none',style:'classic',perspective:'topdown'};
   if(typeof S.mapVisuals.hex3d!=='boolean')S.mapVisuals.hex3d=true;
   if(['none','contour','vegetation','survey'].indexOf(S.mapVisuals.overlay)<0)S.mapVisuals.overlay='none';
+  if(!getMapHexStylePack(S.mapVisuals.style)||(!MAP_HEX_STYLE_PRESETS[S.mapVisuals.style]&&!MAP_HEX_CUSTOM_STYLE_PACKS[S.mapVisuals.style]))S.mapVisuals.style='classic';
+  if(['topdown','level'].indexOf(S.mapVisuals.perspective)<0)S.mapVisuals.perspective='topdown';
   return S.mapVisuals;
 }
 function getMapVisualSettings(){
   const cfg=ensureMapVisualSettings();
-  return {hex3d:!!cfg.hex3d,overlay:cfg.overlay||'none'};
+  return {
+    hex3d:!!cfg.hex3d,
+    overlay:cfg.overlay||'none',
+    style:cfg.style||'classic',
+    perspective:cfg.perspective||'topdown'
+  };
 }
 window.getMapVisualSettings=getMapVisualSettings;
 function overlayStyleForKind(kind){
@@ -11798,11 +11815,15 @@ function updateMapVisualUI(){
   const cfg=getMapVisualSettings();
   const btn=document.getElementById('mapHex3dBtn');
   const sel=document.getElementById('mapOverlaySel');
+  const styleSel=document.getElementById('mapHexStyleSel');
+  const perspectiveSel=document.getElementById('mapPerspectiveSel');
   if(btn){
     btn.textContent='Hex 3D: '+(cfg.hex3d?'On':'Off');
     btn.className='btn btn-sm '+(cfg.hex3d?'btn-teal':'btn-red');
   }
   if(sel)sel.value=cfg.overlay;
+  if(styleSel)styleSel.value=cfg.style;
+  if(perspectiveSel)perspectiveSel.value=cfg.perspective;
 }
 function toggleMapHex3d(){
   const cfg=ensureMapVisualSettings();
@@ -11812,6 +11833,23 @@ function toggleMapHex3d(){
   showNotif('Hex 3D '+(cfg.hex3d?'enabled.':'disabled.'),cfg.hex3d?'good':'warn');
 }
 window.toggleMapHex3d=toggleMapHex3d;
+function setMapHexStyle(style){
+  const cfg=ensureMapVisualSettings();
+  const next=String(style||'').trim().toLowerCase();
+  cfg.style=getMapHexStylePack(next)&&(MAP_HEX_STYLE_PRESETS[next]||MAP_HEX_CUSTOM_STYLE_PACKS[next])?next:'classic';
+  updateMapVisualUI();
+  refreshAllHexMaps();
+  showNotif('Hex style set to '+cfg.style+'.','good');
+}
+window.setMapHexStyle=setMapHexStyle;
+function setMapPerspective(mode){
+  const cfg=ensureMapVisualSettings();
+  cfg.perspective=(String(mode||'').toLowerCase()==='level')?'level':'topdown';
+  updateMapVisualUI();
+  refreshAllHexMaps();
+  showNotif('Map perspective set to '+(cfg.perspective==='level'?'Level 3D':'Top-Down')+'.','good');
+}
+window.setMapPerspective=setMapPerspective;
 function setMapOverlay(mode){
   const cfg=ensureMapVisualSettings();
   cfg.overlay=['none','contour','vegetation','survey'].indexOf(mode)>=0?mode:'none';
@@ -11826,6 +11864,15 @@ function randomizeMapOverlay(){
   showNotif('Map overlay set to '+next+'.','good');
 }
 window.randomizeMapOverlay=randomizeMapOverlay;
+function hexPointArray(cx,cy,r){
+  return Array.from({length:6},function(_,i){
+    const a=Math.PI/180*(60*i-30);
+    return {x:cx+r*Math.cos(a),y:cy+r*Math.sin(a)};
+  });
+}
+function hexPointsFromArray(points){
+  return (points||[]).map(function(p){return String(p.x)+','+String(p.y);}).join(' ');
+}
 function hexToPixel(col,row){const w=HEX_SIZE*2,h=Math.sqrt(3)*HEX_SIZE;return{x:col*w*0.75+HEX_SIZE+10,y:row*h+(col%2)*h/2+HEX_SIZE+10};}
 function hexPoints(cx,cy,r){return Array.from({length:6},(_,i)=>{const a=Math.PI/180*(60*i-30);return`${cx+r*Math.cos(a)},${cy+r*Math.sin(a)}`;}).join(' ');}
 
@@ -12166,6 +12213,84 @@ window.adjustProvinceFrontPressure=adjustProvinceFrontPressure;
 const HEX_COLORS={wilderness:'#1a2010',seat:'#8b3030',holding:'#7a4020',dwelling:'#3a6820',temple:'#502878',monument:'#484848',peril:'#783820',ruins:'#403830',depths:'#172028',library:'#1a2436',event:'#6a5800',gate:'#1a5048',lostcity:'#5a1040',barrier:'#282828',trade:'#3a2800'};
 const HEX_BORDERS={wilderness:'#252848',seat:'#e8c050',holding:'#c9a227',dwelling:'#6ed090',temple:'#b060d0',monument:'#7a7898',peril:'#e05050',ruins:'#a09870',depths:'#7ed7ff',library:'#9cb8ff',event:'#c9a227',gate:'#2ec4b6',lostcity:'#e080c0',barrier:'#555555',trade:'#f0a840'};
 const HEX_ICONS={seat:'★',holding:'⌂',dwelling:'◉',temple:'✦',monument:'◈',peril:'⚠',ruins:'◫',depths:'⬢',library:'📚',event:'✧',gate:'◆',lostcity:'⬡',trade:'═'};
+const MAP_HEX_STYLE_PRESETS={
+  classic:{label:'Classic',fillShift:0,strokeShift:0,strokeWidthMul:1,wildernessTint:'',wildernessTintMix:0,featureTint:'',featureTintMix:0,iconOverrides:null},
+  painterly:{label:'Painterly',fillShift:10,strokeShift:6,strokeWidthMul:1.08,wildernessTint:'#4c6a34',wildernessTintMix:0.28,featureTint:'#e6c98d',featureTintMix:0.08,iconOverrides:{trade:'⇄',gate:'⬢'}},
+  parchment:{label:'Parchment',fillShift:20,strokeShift:14,strokeWidthMul:1.12,wildernessTint:'#807152',wildernessTintMix:0.42,featureTint:'#b6976e',featureTintMix:0.2,iconOverrides:{temple:'✶',ruins:'⌘',trade:'⋯'}},
+  modular:{label:'Modular',fillShift:-4,strokeShift:18,strokeWidthMul:1.18,wildernessTint:'#2e3f2b',wildernessTintMix:0.22,featureTint:'#283246',featureTintMix:0.1,iconOverrides:{seat:'⬣',holding:'⬢',dwelling:'◌',gate:'⟡',trade:'➠'}}
+};
+const MAP_HEX_CUSTOM_STYLE_PACKS={};
+
+function mapHexColorToRgb(hex){
+  const raw=String(hex||'').trim();
+  const hit=raw.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if(!hit)return null;
+  const token=hit[1].length===3?hit[1].split('').map(function(ch){return ch+ch;}).join(''):hit[1];
+  return {
+    r:parseInt(token.slice(0,2),16),
+    g:parseInt(token.slice(2,4),16),
+    b:parseInt(token.slice(4,6),16)
+  };
+}
+function mapHexRgbToColor(rgb){
+  if(!rgb)return '';
+  const r=Math.max(0,Math.min(255,Math.round(Number(rgb.r||0))));
+  const g=Math.max(0,Math.min(255,Math.round(Number(rgb.g||0))));
+  const b=Math.max(0,Math.min(255,Math.round(Number(rgb.b||0))));
+  return '#'+[r,g,b].map(function(v){return v.toString(16).padStart(2,'0');}).join('');
+}
+function mapHexShadeColor(hex,shift){
+  const rgb=mapHexColorToRgb(hex);
+  if(!rgb)return String(hex||'');
+  return mapHexRgbToColor({r:rgb.r+shift,g:rgb.g+shift,b:rgb.b+shift});
+}
+function mapHexMixColor(a,b,t){
+  const c1=mapHexColorToRgb(a);
+  const c2=mapHexColorToRgb(b);
+  if(!c1||!c2)return String(a||'');
+  const ratio=Math.max(0,Math.min(1,Number(t||0)));
+  return mapHexRgbToColor({
+    r:c1.r+(c2.r-c1.r)*ratio,
+    g:c1.g+(c2.g-c1.g)*ratio,
+    b:c1.b+(c2.b-c1.b)*ratio
+  });
+}
+function getMapHexStylePack(styleKey){
+  const key=String(styleKey||'classic');
+  return MAP_HEX_CUSTOM_STYLE_PACKS[key]||MAP_HEX_STYLE_PRESETS[key]||MAP_HEX_STYLE_PRESETS.classic;
+}
+function getMapHexPaintForHex(hex,mapFx){
+  const type=String((hex&&hex.type)||'wilderness').toLowerCase();
+  const baseFill=type==='wilderness'&&hex&&hex.terrain?String(hex.terrain.color||HEX_COLORS.wilderness):String(HEX_COLORS[type]||HEX_COLORS.wilderness);
+  const baseStroke=String(HEX_BORDERS[type]||HEX_BORDERS.wilderness);
+  const stylePack=getMapHexStylePack(mapFx&&mapFx.style);
+  let fill=baseFill;
+  let stroke=baseStroke;
+  if(type==='wilderness'&&stylePack.wildernessTint){
+    fill=mapHexMixColor(fill,stylePack.wildernessTint,stylePack.wildernessTintMix);
+  }else if(type!=='wilderness'&&stylePack.featureTint){
+    fill=mapHexMixColor(fill,stylePack.featureTint,stylePack.featureTintMix);
+  }
+  fill=mapHexShadeColor(fill,Number(stylePack.fillShift||0));
+  stroke=mapHexShadeColor(stylePack.strokeTint?mapHexMixColor(stroke,stylePack.strokeTint,0.35):stroke,Number(stylePack.strokeShift||0));
+  const iconMap=stylePack.iconOverrides&&typeof stylePack.iconOverrides==='object'?stylePack.iconOverrides:{};
+  const icon=(iconMap[type]||HEX_ICONS[type]||'');
+  return {
+    fill:fill,
+    stroke:stroke,
+    icon:icon,
+    strokeWidthMul:Math.max(0.8,Number(stylePack.strokeWidthMul||1))
+  };
+}
+window.registerMapHexStylePack=function(name,pack){
+  const key=String(name||'').trim().toLowerCase();
+  if(!key||!pack||typeof pack!=='object')return false;
+  MAP_HEX_CUSTOM_STYLE_PACKS[key]=pack;
+  return true;
+};
+window.getMapHexStylePack=function(name){
+  return getMapHexStylePack(name);
+};
 let selectedHex=null;
 let provinceMapCoreSignature='';
 let provinceMapSelectedKeyCache='';
@@ -12390,31 +12515,65 @@ function renderHexMap(){
   });
   renderProvinceMarkerLegend(liveMarkers);
   updateProvinceContextUi();
-  const svgW=COLS*HEX_SIZE*1.52+HEX_SIZE+20,svgH=ROWS*Math.sqrt(3)*HEX_SIZE+HEX_SIZE+20;
+  const levelPerspective=mapFx.perspective==='level';
+  const levelDepth=levelPerspective?Math.max(10,Math.floor(HEX_SIZE*.36)):0;
+  const projectPoint=function(pt){
+    if(!pt)return {x:0,y:0};
+    if(!levelPerspective)return {x:pt.x,y:pt.y};
+    const topOffset=HEX_SIZE+10;
+    return {
+      x:pt.x,
+      y:((pt.y-topOffset)*0.84)+topOffset+6
+    };
+  };
+  const svgW=COLS*HEX_SIZE*1.52+HEX_SIZE+20,svgH=ROWS*Math.sqrt(3)*HEX_SIZE+HEX_SIZE+20+levelDepth+14;
   const svg=document.getElementById('hexMapSvg');
   svg.setAttribute('width',svgW);svg.setAttribute('height',svgH);svg.innerHTML='';
   applyMapOverlayStyle(svg,'province');
   const hasProvinceSelection=!!selectedHex;
   mapData.forEach(hex=>{
-    const{x,y}=hexToPixel(hex.col,hex.row);
+    const projected=projectPoint(hexToPixel(hex.col,hex.row));
+    const x=projected.x;
+    const y=projected.y;
     const markerKey=`${hex.col},${hex.row}`;
     const r=HEX_SIZE-1;
-    const pts=hexPoints(x,y,r);
+    const ptsData=hexPointArray(x,y,r);
+    const pts=hexPointsFromArray(ptsData);
+    const paint=getMapHexPaintForHex(hex,mapFx);
     const g=document.createElementNS('http://www.w3.org/2000/svg','g');
     const isSelected=!!(selectedHex&&selectedHex===hex);
     g.setAttribute('class','svg-hex'+(isSelected?' sel':'')+((hasProvinceSelection&&!isSelected)?' dim':''));
+    if(levelPerspective&&mapFx.hex3d){
+      const sideFaces=[[1,2],[2,3],[3,4]];
+      sideFaces.forEach(function(edge,idx){
+        const p1=ptsData[edge[0]];
+        const p2=ptsData[edge[1]];
+        const side=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+        side.setAttribute('points',hexPointsFromArray([
+          {x:p1.x,y:p1.y},
+          {x:p2.x,y:p2.y},
+          {x:p2.x,y:p2.y+levelDepth},
+          {x:p1.x,y:p1.y+levelDepth}
+        ]));
+        side.setAttribute('fill',mapHexShadeColor(paint.fill,-20-(idx*4)));
+        side.setAttribute('stroke',mapHexShadeColor(paint.stroke,-10));
+        side.setAttribute('stroke-width',String((hex.type==='wilderness'?0.6:1.1)*paint.strokeWidthMul));
+        side.setAttribute('pointer-events','none');
+        g.appendChild(side);
+      });
+    }
     const poly=document.createElementNS('http://www.w3.org/2000/svg','polygon');
     poly.setAttribute('points',pts);
-    poly.setAttribute('fill',hex.type==='wilderness'?hex.terrain.color:HEX_COLORS[hex.type]||'#1a2010');
-    poly.setAttribute('stroke',HEX_BORDERS[hex.type]||'#252848');
-    poly.setAttribute('stroke-width',hex.type==='wilderness'?(mapFx.hex3d?0.9:0.5):(mapFx.hex3d?1.8:1.5));
+    poly.setAttribute('fill',paint.fill);
+    poly.setAttribute('stroke',paint.stroke);
+    poly.setAttribute('stroke-width',String((hex.type==='wilderness'?(mapFx.hex3d?0.9:0.5):(mapFx.hex3d?1.8:1.5))*paint.strokeWidthMul));
     g.appendChild(poly);
     if(mapFx.hex3d){
       const topA=(Math.PI/180)*(-30),topB=(Math.PI/180)*(30),rightA=(Math.PI/180)*(30),rightB=(Math.PI/180)*(90);
       const hi=document.createElementNS('http://www.w3.org/2000/svg','line');
       hi.setAttribute('x1',String(x+r*Math.cos(topA)));hi.setAttribute('y1',String(y+r*Math.sin(topA)));
       hi.setAttribute('x2',String(x+r*Math.cos(topB)));hi.setAttribute('y2',String(y+r*Math.sin(topB)));
-      hi.setAttribute('stroke','rgba(255,255,255,.22)');hi.setAttribute('stroke-width','1.2');hi.setAttribute('pointer-events','none');
+      hi.setAttribute('stroke','rgba(255,255,255,.22)');hi.setAttribute('stroke-width',levelPerspective?'1.4':'1.2');hi.setAttribute('pointer-events','none');
       g.appendChild(hi);
 
       const shadow=document.createElementNS('http://www.w3.org/2000/svg','line');
@@ -12434,12 +12593,12 @@ function renderHexMap(){
         }
       }
     }
-    if(HEX_ICONS[hex.type]){
+    if(paint.icon){
       const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
-      txt.setAttribute('x',x);txt.setAttribute('y',y+4);txt.setAttribute('text-anchor','middle');
+      txt.setAttribute('x',x);txt.setAttribute('y',y+4+(levelPerspective?Math.max(0,Math.floor(levelDepth*.1)):0));txt.setAttribute('text-anchor','middle');
       txt.setAttribute('font-size',hex.type==='seat'?14:hex.type==='trade'?10:11);
-      txt.setAttribute('fill',HEX_BORDERS[hex.type]||'#fff');txt.setAttribute('pointer-events','none');
-      txt.textContent=HEX_ICONS[hex.type];g.appendChild(txt);
+      txt.setAttribute('fill',paint.stroke||'#fff');txt.setAttribute('pointer-events','none');
+      txt.textContent=paint.icon;g.appendChild(txt);
     }
     if(hexNotes[`${hex.col},${hex.row}`]){
       const dot=document.createElementNS('http://www.w3.org/2000/svg','circle');
@@ -12818,8 +12977,8 @@ function renderHexMap(){
       const fromHex=resolveProvinceHexFromKey(edge.fromKey);
       const toHex=resolveProvinceHexFromKey(edge.toKey);
       if(!fromHex||!toHex)return;
-      const a=hexToPixel(fromHex.col,fromHex.row);
-      const b=hexToPixel(toHex.col,toHex.row);
+      const a=projectPoint(hexToPixel(fromHex.col,fromHex.row));
+      const b=projectPoint(hexToPixel(toHex.col,toHex.row));
       const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
       const dx=b.x-a.x,dy=b.y-a.y;
       const len=Math.max(1,Math.sqrt(dx*dx+dy*dy));

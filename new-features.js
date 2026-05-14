@@ -2338,6 +2338,7 @@
     }
 
     var units = (match.allies || []).concat(match.enemies || []).filter(function (u) { return u && u.position && Number(u.hp || 0) > 0; });
+    var highContrast = !!(match && match.expedition && match.expedition.highContrastOutline);
     var unitsByKey = {};
     units.forEach(function (u) {
       var key = String(Number(u.position.q || 0)) + ',' + String(Number(u.position.r || 0));
@@ -2400,10 +2401,11 @@
       }
       var canClick = !!reach[k] && !isCollapsed;
       var clearedHex = !isCollapsed && isCrucibleExpeditionCellCleared(match, cell);
-      var strokeWidth = canClick ? '2' : '1.1';
+      var strokeWidth = highContrast ? (canClick ? '2.8' : '2') : (canClick ? '2' : '1.1');
+      var strokeColor = highContrast ? (canClick ? '#ffffff' : '#f4f4f4') : (canClick ? '#f0d070' : stroke);
       var clickAttr = canClick ? (' onclick="return window.holdingCrucibleExpeditionMoveTo(' + Number(cell.q || 0) + ',' + Number(cell.r || 0) + ')" style="cursor:pointer;"') : '';
-      svg += '<g><polygon points="' + points(px.x, px.y, size) + '" fill="' + fill + '" stroke="' + (canClick ? '#f0d070' : stroke) + '" stroke-width="' + strokeWidth + '"' + clickAttr + '/>';
-      if (icon) svg += '<text x="' + px.x + '" y="' + (px.y + 3) + '" text-anchor="middle" font-size="11" fill="' + (isCollapsed ? '#f2a3a3' : '#e8d9bd') + '" pointer-events="none">' + icon + '</text>';
+      svg += '<g><polygon points="' + points(px.x, px.y, size) + '" fill="' + fill + '" stroke="' + strokeColor + '" stroke-width="' + strokeWidth + '"' + clickAttr + '/>';
+      if (icon) svg += '<text x="' + px.x + '" y="' + (px.y + 4) + '" text-anchor="middle" font-size="' + (highContrast ? '13' : '12') + '" fill="' + (isCollapsed ? '#f2a3a3' : '#f5f0dd') + '" stroke="' + (highContrast ? '#000000' : 'rgba(0,0,0,.55)') + '" stroke-width="' + (highContrast ? '1.2' : '.65') + '" paint-order="stroke fill" pointer-events="none">' + icon + '</text>';
       if (clearedHex) svg += '<text x="' + (px.x + 10) + '" y="' + (px.y - 9) + '" text-anchor="middle" font-size="8" fill="#7ee38b" pointer-events="none">✓</text>';
       svg += '</g>';
     });
@@ -2415,8 +2417,8 @@
       var unitClick = isPlayer
         ? ' onclick="selectHoldingCrucibleUnit(\'' + String(u.id || '').replace(/'/g, '&#39;') + '\')" style="cursor:pointer;"'
         : (String(u.side || '') === 'enemy' ? ' onclick="selectHoldingCrucibleEnemy(\'' + String(u.id || '').replace(/'/g, '&#39;') + '\')" style="cursor:pointer;"' : '');
-      svg += '<g' + unitClick + '><circle cx="' + px.x + '" cy="' + px.y + '" r="8.2" fill="rgba(10,12,22,.92)" stroke="' + unitColor + '" stroke-width="1.5"/>'
-        + '<text x="' + px.x + '" y="' + (px.y + 2.8) + '" text-anchor="middle" font-size="7.2" fill="' + unitColor + '">' + String(u.name || 'U').charAt(0).toUpperCase() + '</text>'
+      svg += '<g' + unitClick + '><circle cx="' + px.x + '" cy="' + px.y + '" r="8.8" fill="rgba(10,12,22,.95)" stroke="' + unitColor + '" stroke-width="' + (highContrast ? '2.1' : '1.7') + '"/>'
+        + '<text x="' + px.x + '" y="' + (px.y + 3.1) + '" text-anchor="middle" font-size="8.2" fill="' + unitColor + '" stroke="' + (highContrast ? '#000000' : 'rgba(0,0,0,.6)') + '" stroke-width="' + (highContrast ? '.9' : '.5') + '" paint-order="stroke fill">' + String(u.name || 'U').charAt(0).toUpperCase() + '</text>'
         + (isPlayer ? ('<text x="' + px.x + '" y="' + (px.y - 11) + '" text-anchor="middle" font-size="6.2" fill="#f0d070">YOU</text>') : '')
         + '</g>';
     });
@@ -2568,6 +2570,7 @@
       portalEvent: null,
       pendingPortalPuzzle: false,
       mapZoom: 1,
+      highContrastOutline: false,
       provinceFeatures: stamped,
       clearedHexes: {},
       currentBossIndex: 0,
@@ -3312,6 +3315,8 @@
     var stamped = stampCrucibleExpeditionProvinceFeatures(newMap, nextDay);
     match.hexMap = newMap;
     var expedition = match.expedition;
+    var preservedZoom = Math.max(0.7, Math.min(2.6, Number(expedition.mapZoom || 1)));
+    var preservedContrast = !!expedition.highContrastOutline;
     expedition.day = nextDay;
     expedition.phase = 'explore';
     expedition.clickedHexes = 0;
@@ -3323,7 +3328,8 @@
     expedition.currentCombatProfile = null;
     expedition.portalEvent = null;
     expedition.pendingPortalPuzzle = false;
-    expedition.mapZoom = 1;
+    expedition.mapZoom = preservedZoom;
+    expedition.highContrastOutline = preservedContrast;
     expedition.provinceFeatures = stamped;
     expedition.clearedHexes = {};
     expedition.raidBossNerfed = Number(expedition.portalsClosed || 0) >= Number(expedition.portalQuestTarget || 5);
@@ -4691,6 +4697,7 @@
     if (isExpedition && !opts.forceTacticalBoard && typeof buildCrucibleExpeditionProvinceParityMapHtml === 'function') {
       var provinceSvg = buildCrucibleExpeditionProvinceParityMapHtml(match, selectedUnit, reachableKeys);
       var mapZoom = Math.max(0.7, Math.min(2.6, Number(expedition.mapZoom || 1)));
+      var highContrastOutline = !!expedition.highContrastOutline;
       var moveChooserHtml = (String(expedition.phase || 'explore') === 'explore' && selectedUnit && typeof buildCrucibleExpeditionMoveOptionsHtml === 'function')
         ? buildCrucibleExpeditionMoveOptionsHtml(match, selectedUnit, reachableHexes)
         : '';
@@ -4755,6 +4762,7 @@
         + '<button class="btn btn-xs" onclick="holdingCrucibleExpeditionSetMapZoom(1);">Reset</button>'
         + '<button class="btn btn-xs" onclick="holdingCrucibleExpeditionAdjustMapZoom(0.2);">+</button>'
         + '<span style="font-size:.68rem;color:var(--gold2);">' + Math.round(mapZoom * 100) + '%</span>'
+        + '<button class="btn btn-xs" onclick="holdingCrucibleExpeditionToggleHighContrastOutline();" style="margin-left:.18rem;">Outline: ' + (highContrastOutline ? 'High' : 'Normal') + '</button>'
         + '</div>'
         + combatHint
         + moveChooserHtml
@@ -5128,6 +5136,14 @@
     var current = Number(match.expedition.mapZoom || 1);
     var next = current + Number(delta || 0);
     return holdingCrucibleExpeditionSetMapZoom(next);
+  }
+
+  function holdingCrucibleExpeditionToggleHighContrastOutline() {
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition) return false;
+    match.expedition.highContrastOutline = !match.expedition.highContrastOutline;
+    renderHoldingCruciblePopup();
+    return true;
   }
 
   function holdingCrucibleExpeditionHandleMapWheel(evt) {
@@ -7605,46 +7621,22 @@
     ensureNewFeatureState();
     var c = S && S.holding && S.holding.crucible ? S.holding.crucible : {};
     var exp = c.expedition || {};
-    var cards = [
-      {
-        mode: 'expedition',
-        title: 'Nightreign Expedition',
-        subtitle: '12x12 province run · shrinking edge · 3 boss nights',
-        desc: 'Rogue run with map collapse, field encounters, mini-boss loot, portals, flasks, and a Night Lord finale.'
-      },
-      {
-        mode: 'control',
-        title: 'Arena Control',
-        subtitle: '3v3 zone pressure skirmish',
-        desc: 'Capture A/B/C zones by holding a zone for 3 rounds. Hold 2/3 zones to score in the 10-round match.'
-      }
-    ];
     var active = c.match ? String(c.match.mode || '') : '';
     return ''
       + '<div style="padding:.95rem;display:grid;gap:.7rem;">'
       + '<div class="card">'
-      + '<div class="section-title">Mini Games</div>'
-      + '<div style="font-size:.78rem;color:var(--muted2);line-height:1.55;">Dedicated game-mode launcher. Choose a run type and jump in immediately.</div>'
+      + '<div class="section-title">Mini Games Retired</div>'
+      + '<div style="font-size:.78rem;color:var(--muted2);line-height:1.55;">The old Mini Games launcher has been removed to keep the experience focused.</div>'
       + '<div style="margin-top:.45rem;display:flex;gap:.45rem;flex-wrap:wrap;font-size:.72rem;color:var(--muted2);">'
       + '<span style="border:1px solid var(--border2);padding:.18rem .3rem;">Runs: ' + Number(exp.runs || 0) + '</span>'
       + '<span style="border:1px solid var(--border2);padding:.18rem .3rem;">Clears: ' + Number(exp.clears || 0) + '</span>'
       + '<span style="border:1px solid var(--border2);padding:.18rem .3rem;">Best Day: ' + Number(exp.bestDay || 0) + '</span>'
       + '<span style="border:1px solid var(--border2);padding:.18rem .3rem;">Active: ' + (active ? active.charAt(0).toUpperCase() + active.slice(1) : 'None') + '</span>'
       + '</div>'
+      + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;margin-top:.45rem;">'
+      + '<button class="btn btn-sm btn-primary" onclick="openHoldingCrucibleMatch(\'expedition\');">Open Expedition</button>'
+      + '<button class="btn btn-sm" onclick="openHoldingCrucibleMatch(\'control\');">Open Arena Control</button>'
       + '</div>'
-      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.55rem;">'
-      + cards.map(function (card) {
-        var isActive = active && active === card.mode;
-        return '<div class="card" style="border-color:' + (isActive ? 'rgba(240,208,112,.55)' : 'var(--border2)') + ';">'
-          + '<div style="font-family:Cinzel,serif;font-size:.86rem;color:var(--gold2);">' + card.title + '</div>'
-          + '<div style="font-size:.7rem;color:var(--teal);margin:.12rem 0 .2rem;">' + card.subtitle + '</div>'
-          + '<div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">' + card.desc + '</div>'
-          + '<div style="margin-top:.45rem;display:flex;gap:.28rem;flex-wrap:wrap;">'
-          + '<button class="btn btn-sm btn-primary" onclick="window.openMiniGamesMode(\'' + card.mode + '\');">Play ' + card.title + '</button>'
-          + (card.mode === 'expedition' ? '<button class="btn btn-sm" onclick="window.openMiniGamesMode(\'expedition\');">New Run</button>' : '')
-          + '</div>'
-          + '</div>';
-      }).join('')
       + '</div>'
       + '</div>';
   }
@@ -11409,6 +11401,7 @@
   window.holdingCrucibleExpeditionSwitchTab = holdingCrucibleExpeditionSwitchTab;
   window.holdingCrucibleExpeditionSetMapZoom = holdingCrucibleExpeditionSetMapZoom;
   window.holdingCrucibleExpeditionAdjustMapZoom = holdingCrucibleExpeditionAdjustMapZoom;
+  window.holdingCrucibleExpeditionToggleHighContrastOutline = holdingCrucibleExpeditionToggleHighContrastOutline;
   window.holdingCrucibleExpeditionHandleMapWheel = holdingCrucibleExpeditionHandleMapWheel;
   window.holdingCrucibleExpeditionViewportMouseDown = holdingCrucibleExpeditionViewportMouseDown;
   window.holdingCrucibleExpeditionViewportMouseMove = holdingCrucibleExpeditionViewportMouseMove;

@@ -1219,6 +1219,26 @@
         group.appendChild(gt);
       }
 
+      // Keep map icons/markers readable by painting fog before overlays.
+      if (fogHidden) {
+        const fogCover = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+        fogCover.setAttribute("points", seaHexPoints(x, y));
+        fogCover.setAttribute("fill", "rgba(6,10,16,.84)");
+        fogCover.setAttribute("stroke", "rgba(110,124,148,.35)");
+        fogCover.setAttribute("stroke-width", "1");
+        fogCover.setAttribute("pointer-events", "none");
+        group.appendChild(fogCover);
+        const fogMark = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        fogMark.setAttribute("x", x);
+        fogMark.setAttribute("y", y + 4);
+        fogMark.setAttribute("text-anchor", "middle");
+        fogMark.setAttribute("font-size", "11");
+        fogMark.setAttribute("fill", "rgba(201,214,240,.65)");
+        fogMark.setAttribute("pointer-events", "none");
+        fogMark.textContent = "?";
+        group.appendChild(fogMark);
+      }
+
       // Render mission tokens for sea missions
       const missionToken = S.lastSea.missionTokens && S.lastSea.missionTokens[hex.key];
       if (missionToken) {
@@ -1383,25 +1403,6 @@
         group.appendChild(bsIcon);
       }
 
-      if (fogHidden) {
-        const fogCover = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
-        fogCover.setAttribute("points", seaHexPoints(x, y));
-        fogCover.setAttribute("fill", "rgba(6,10,16,.84)");
-        fogCover.setAttribute("stroke", "rgba(110,124,148,.35)");
-        fogCover.setAttribute("stroke-width", "1");
-        fogCover.setAttribute("pointer-events", "none");
-        group.appendChild(fogCover);
-        const fogMark = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        fogMark.setAttribute("x", x);
-        fogMark.setAttribute("y", y + 4);
-        fogMark.setAttribute("text-anchor", "middle");
-        fogMark.setAttribute("font-size", "11");
-        fogMark.setAttribute("fill", "rgba(201,214,240,.65)");
-        fogMark.setAttribute("pointer-events", "none");
-        fogMark.textContent = "?";
-        group.appendChild(fogMark);
-      }
-
       group.addEventListener("click", () => {
         var moved = false;
         if (S.lastSea.clickMode === "travel") {
@@ -1415,10 +1416,10 @@
         }
         S.lastSea.selectedKey = hex.key;
         if (S.lastSea.clickMode === "fog" && typeof window.revealMapFogHex === "function") {
-          window.revealMapFogHex("sea", String(hex.key || ""));
+          window.revealMapFogHex("sea", String(hex.key || ""), { onlyKey: true });
           showNotif('Sea fog lifted. Hex [' + (hex.col + 1) + ',' + (hex.row + 1) + '] revealed.', 'good');
         } else if (moved && typeof window.revealMapFogHex === "function") {
-          window.revealMapFogHex("sea", String(hex.key || ""));
+          window.revealMapFogHex("sea", String(hex.key || ""), { onlyKey: true });
         }
         renderLastSeaMap();
         renderLastSeaInfo(hex);
@@ -1449,7 +1450,7 @@
     });
     // ── Render compass at bottom-right ──
     const compassGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
-    const svgRect=svg.getBoundingClientRect();compassGroup.setAttribute('transform','translate('+(svgRect.width-28)+','+(svgRect.height-28)+')');
+    compassGroup.setAttribute('transform','translate('+(Math.round(width)-28)+','+(Math.round(height)-28)+')');
     const compassCircle=document.createElementNS('http://www.w3.org/2000/svg','circle');
     compassCircle.setAttribute('cx','0');compassCircle.setAttribute('cy','0');
     compassCircle.setAttribute('r','12');compassCircle.setAttribute('fill','rgba(70,196,182,.15)');
@@ -1461,6 +1462,11 @@
     compassArrow.setAttribute('text-anchor','middle');compassArrow.setAttribute('font-size','10');
     compassArrow.setAttribute('fill','#46c4b6');compassArrow.setAttribute('pointer-events','none');
     compassArrow.textContent='↑';compassGroup.appendChild(compassArrow);
+    const compassNorth=document.createElementNS('http://www.w3.org/2000/svg','text');
+    compassNorth.setAttribute('x','0');compassNorth.setAttribute('y','9');
+    compassNorth.setAttribute('text-anchor','middle');compassNorth.setAttribute('font-size','6.5');
+    compassNorth.setAttribute('font-family','Cinzel,serif');compassNorth.setAttribute('fill','#46c4b6');compassNorth.setAttribute('pointer-events','none');
+    compassNorth.textContent='N';compassGroup.appendChild(compassNorth);
     svg.appendChild(compassGroup);
   }
 

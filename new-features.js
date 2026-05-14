@@ -5937,8 +5937,122 @@
     return true;
   }
 
+  function getCrucibleExpeditionObserveDirections(match, cell) {
+    if (!match || !match.hexMap || !match.hexMap.hexes || !cell) return [];
+    var dirs = [
+      { key: 'north', label: 'North', dq: 0, dr: -1 },
+      { key: 'northeast', label: 'Northeast', dq: 1, dr: -1 },
+      { key: 'southeast', label: 'Southeast', dq: 1, dr: 0 },
+      { key: 'south', label: 'South', dq: 0, dr: 1 },
+      { key: 'southwest', label: 'Southwest', dq: -1, dr: 1 },
+      { key: 'northwest', label: 'Northwest', dq: -1, dr: 0 }
+    ];
+    return dirs.filter(function (dir) {
+      var key = String(Number(cell.q || 0) + dir.dq) + ',' + String(Number(cell.r || 0) + dir.dr);
+      return !!match.hexMap.hexes[key];
+    });
+  }
+
+  function getCrucibleExpeditionObserveTarget(match, cell, directionKey) {
+    var dirs = getCrucibleExpeditionObserveDirections(match, cell);
+    var dir = dirs.find(function (entry) { return entry.key === String(directionKey || ''); }) || null;
+    if (!dir) return null;
+    var q = Number(cell.q || 0) + dir.dq;
+    var r = Number(cell.r || 0) + dir.dr;
+    var key = String(q) + ',' + String(r);
+    var targetCell = (match && match.hexMap && match.hexMap.hexes) ? match.hexMap.hexes[key] : null;
+    if (!targetCell) return null;
+    return { dir: dir, cell: targetCell, key: key };
+  }
+
+  function buildCrucibleExpeditionObserveSummary(match, targetCell) {
+    if (!targetCell) return 'No hex in that direction.';
+    var status = getCrucibleExpeditionCellStatus(match, targetCell);
+    var terrain = String(targetCell.provinceTerrainName || targetCell.terrain || 'Unknown');
+    return '<div style="padding:.22rem .42rem;border-left:2px solid rgba(201,162,39,.4);">'
+      + '<div style="font-size:.78rem;color:var(--teal);font-weight:700;margin-bottom:.15rem;">[' + (Number(targetCell.q || 0) + 1) + ',' + (Number(targetCell.r || 0) + 1) + '] ' + terrain + '</div>'
+      + '<div style="font-size:.72rem;color:' + String(status.tone || 'var(--muted2)') + ';margin-bottom:.12rem;"><strong>' + String(status.label || 'Unknown') + '</strong></div>'
+      + '<div style="font-size:.7rem;color:var(--muted2);">' + String(status.detail || 'No intel available.') + '</div>'
+      + '</div>';
+  }
+
+  function holdingCrucibleExpeditionObserveDirection(directionKey) {
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition || !match.hexMap || !match.hexMap.hexes) return false;
+    var player = getCrucibleExpeditionPlayer(match);
+    if (!player || !player.position) {
+      if (typeof showNotif === 'function') showNotif('Select an expedition hex first.', 'warn');
+      return false;
+    }
+    var playerKey = String(Number(player.position.q || 0)) + ',' + String(Number(player.position.r || 0));
+    var origin = match.hexMap.hexes[playerKey];
+    if (!origin) {
+      if (typeof showNotif === 'function') showNotif('Current expedition hex is unavailable.', 'warn');
+      return false;
+    }
+    var target = getCrucibleExpeditionObserveTarget(match, origin, directionKey);
+    if (!target) {
+      if (typeof showNotif === 'function') showNotif('No hex in that direction.', 'warn');
+      return false;
+    }
+    var leadDie = getCrucibleExpeditionStatDie('lead', 6);
+    var action = (typeof explodingRoll === 'function')
+      ? explodingRoll(leadDie, { type: 'action', major: true, label: 'Observe Adjacent (Lead)' })
+      : { total: Math.floor(Math.random() * Math.max(1, leadDie)) + 1 };
+    var dread = (typeof explodingRoll === 'function')
+      ? explodingRoll(6, { type: 'dread', major: true, label: 'Observe Adjacent DD6' })
+      : { total: Math.floor(Math.random() * 6) + 1 };
+    var success = Number(action.total || 0) >= Number(dread.total || 0);
+
+    var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;">'
+      + '<div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">Lead d' + Number(leadDie || 6) + '</div><div style="font-size:1.6rem;color:var(--teal);font-family:Rajdhani,sans-serif;font-weight:700;">' + Number(action.total || 0) + '</div></div>'
+      + '<div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">DD6</div><div style="font-size:1.6rem;color:var(--red2);font-family:Rajdhani,sans-serif;font-weight:700;">' + Number(dread.total || 0) + '</div></div>'
+      + '</div>';
+
+    if (success) {
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+      html += '<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.4rem;">'
+        + '<div style="font-size:.72rem;color:var(--green2);font-weight:700;margin-bottom:.25rem;">✓ Observation success (' + String(target.dir.label || 'Direction') + ')</div>'
+        + buildCrucibleExpeditionObserveSummary(match, target.cell)
+        + '</div>';
+    } else {
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+      html += '<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;">'
+        + '<div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">✗ Observation failed</div>'
+        + '<div style="font-size:.8rem;color:var(--text2);">The province haze obscures that lane.</div>'
+        + '</div>';
+    }
+    if (typeof openModal === 'function') openModal('Observe Adjacent Province Hex', html);
+    return true;
+  }
+
   function holdingCrucibleExpeditionObserveAdjacent() {
-    return holdingCrucibleExpeditionSearchHex();
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition || !match.hexMap || !match.hexMap.hexes) return false;
+    var player = getCrucibleExpeditionPlayer(match);
+    if (!player || !player.position) {
+      if (typeof showNotif === 'function') showNotif('Select an expedition hex first.', 'warn');
+      return false;
+    }
+    var playerKey = String(Number(player.position.q || 0)) + ',' + String(Number(player.position.r || 0));
+    var origin = match.hexMap.hexes[playerKey];
+    if (!origin) {
+      if (typeof showNotif === 'function') showNotif('Current expedition hex is unavailable.', 'warn');
+      return false;
+    }
+    var options = getCrucibleExpeditionObserveDirections(match, origin);
+    if (!options.length) {
+      if (typeof showNotif === 'function') showNotif('No adjacent expedition hexes to observe.', 'warn');
+      return false;
+    }
+    var html = '<div style="font-size:.82rem;color:var(--text2);margin-bottom:.35rem;">Choose one adjacent direction to observe (Lead vs DD6).</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.3rem;">';
+    options.forEach(function (opt) {
+      html += '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleExpeditionObserveDirection(\'' + String(opt.key || '') + '\')">' + String(opt.label || 'Direction') + '</button>';
+    });
+    html += '</div>';
+    if (typeof openModal === 'function') openModal('Observe Adjacent Province Hex', html);
+    return true;
   }
 
   function holdingCrucibleExpeditionRandomEncounter() {
@@ -11373,6 +11487,7 @@
   window.holdingCrucibleExpeditionViewportMouseUp = holdingCrucibleExpeditionViewportMouseUp;
   window.holdingCrucibleReturnToHolding = holdingCrucibleReturnToHolding;
   window.holdingCrucibleExpeditionSearchHex = holdingCrucibleExpeditionSearchHex;
+  window.holdingCrucibleExpeditionObserveDirection = holdingCrucibleExpeditionObserveDirection;
   window.holdingCrucibleExpeditionObserveAdjacent = holdingCrucibleExpeditionObserveAdjacent;
   window.holdingCrucibleExpeditionRandomEncounter = holdingCrucibleExpeditionRandomEncounter;
   window.holdingCrucibleExpeditionWildernessRoll = holdingCrucibleExpeditionWildernessRoll;

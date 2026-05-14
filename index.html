@@ -12038,6 +12038,13 @@ function revealMapFogHex(region,key,opts){
   const cfg=getMapFogConfig(region);
   const options=opts&&typeof opts==='object'?opts:{};
   let changed=false;
+  if(options.onlyKey){
+    const keys=Object.keys(cfg.revealed||{});
+    if(keys.length){
+      cfg.revealed={};
+      changed=true;
+    }
+  }
   const applyKey=function(k){
     const sk=String(k||'');
     if(!sk)return;
@@ -13560,10 +13567,10 @@ function renderHexMap(){
         }
         selectedHex=hex;
         if(clickMode==='fog'){
-          revealMapFogHex('province',markerKey);
+          revealMapFogHex('province',markerKey,{onlyKey:true});
           if(typeof showNotif==='function')showNotif('Fog lifted. Hex ['+(hex.col+1)+','+(hex.row+1)+'] revealed.','good');
         }else if(moved){
-          revealMapFogHex('province',markerKey);
+          revealMapFogHex('province',markerKey,{onlyKey:true});
         }
         // ⚡ Check for active bounties/threat interceptors BEFORE rendering
         if(typeof triggerWorldEventThreatOnHex==='function'){

@@ -12364,7 +12364,7 @@
     else if (window.enemyManualReactionData && window.enemyManualReactionData.mode === 'arena-enemy-reaction') mode = 'enemy_reaction';
     else if (window.manualRollData && window.manualRollData.mode === 'surprise-check') mode = 'surprise_check';
 
-    var success = actionValue > dreadValue;
+    var success = actionValue >= dreadValue;
     var diff = Math.max(1, success ? actionValue - dreadValue : dreadValue - actionValue);
     var targetEnemy = (typeof getPrimaryCombatEnemy === 'function') ? getPrimaryCombatEnemy() : null;
     var resultEl = (typeof document !== 'undefined') ? document.getElementById('wayfarerActionResult') : null;

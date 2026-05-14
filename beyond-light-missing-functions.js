@@ -163,31 +163,14 @@ const CONTEXT_QUICK_ACTION_HANDLERS = {
 };
 
 function runContextQuickAction(actionId) {
-  const fn = CONTEXT_QUICK_ACTION_HANDLERS[String(actionId || '')];
-  if (typeof fn === 'function') fn();
+  return;
 }
 
 function renderContextQuickActions(tabId) {
   const root = document.getElementById('contextQuickActions');
   if (!root) return;
-  let activeTabId = String(tabId || '');
-  if (!activeTabId) {
-    const activePanel = document.querySelector('.tab-panel.active[id^="tab-"]');
-    if (activePanel) activeTabId = String(activePanel.id || '').replace(/^tab-/, '');
-  }
-  const actions = CONTEXT_QUICK_ACTIONS[activeTabId] || [];
-  if (!actions.length) {
-    root.style.display = 'none';
-    root.innerHTML = '';
-    return;
-  }
-  let html = '<span class="qa-label">Context Actions</span>';
-  actions.forEach(function (action) {
-    if (!action || !action.id || !action.label) return;
-    html += '<button class="btn btn-sm" onclick="runContextQuickAction(\'' + String(action.id).replace(/'/g, '&#39;') + '\')">' + String(action.label) + '</button>';
-  });
-  root.innerHTML = html;
-  root.style.display = 'flex';
+  root.style.display = 'none';
+  root.innerHTML = '';
 }
 
 window.runContextQuickAction = runContextQuickAction;
@@ -2790,13 +2773,13 @@ function syncManualCheckPanel() {
   if (dreadLabel) dreadLabel.textContent = "Dread d" + dreadDie;
   if (actionInput) {
     actionInput.min = "1";
-    actionInput.max = String(actionDie);
-    actionInput.placeholder = "1-" + actionDie;
+    actionInput.removeAttribute("max");
+    actionInput.placeholder = "1+ (explode ok)";
   }
   if (dreadInput) {
     dreadInput.min = "1";
-    dreadInput.max = String(dreadDie);
-    dreadInput.placeholder = "1-" + dreadDie;
+    dreadInput.removeAttribute("max");
+    dreadInput.placeholder = "1+ (explode ok)";
   }
   if (prompt) {
     prompt.textContent = manualMode
@@ -2818,8 +2801,8 @@ function readManualCheckValue(kind, consume) {
     return null;
   }
   var value = Number.parseInt(raw, 10);
-  if (!Number.isFinite(value) || value < 1 || value > die) {
-    showNotif((kind === "action" ? "Action" : "Dread") + " result must be between 1 and " + die + ".", "warn");
+  if (!Number.isFinite(value) || value < 1) {
+    showNotif((kind === "action" ? "Action" : "Dread") + " result must be 1 or higher.", "warn");
     input.focus();
     return null;
   }

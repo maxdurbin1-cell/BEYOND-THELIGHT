@@ -7574,6 +7574,7 @@ var AFFIX_EFFECT_DESCRIPTIONS={
   vicious:'Adds Body to strike damage.',
   silent:'+2 Control, but -1 Action.',
   distance:'+1 bonus to close-range shooting.',
+  "dragon's breath":'+3 damage on hit.',
   stormcaller:'+3 damage on hit and enemies can lose their next turn.',
   frostheart:'+1 damage on hit and can freeze an enemy turn.',
   lifedrinker:'Heals from successful life-draining hits.',
@@ -7932,7 +7933,7 @@ function openSoulMissionRewardChoice(mission, affix){
 }
 
 function showAffixDetails(affixName){
-  var affix = String(affixName || 'Keen').toLowerCase();
+  var affix = normalizeAffixLabel(affixName || 'Keen');
   var affixMap = {
     'keen': { name: 'Keen', effect: '+1 Strike Flat', description: 'Your Strike attacks gain +1 flat damage.' },
     'swift': { name: 'Swift', effect: '+1 Action', description: 'Gain +1 Action point per turn.' },

@@ -288,12 +288,6 @@ function switchTab(tabId, btn) {
     }
   }
 
-  if (tabId === "minigames") {
-    if (typeof window.renderMiniGamesPage === "function") {
-      window.renderMiniGamesPage();
-    }
-  }
-
   if (tabId === "map") {
     var provinceState = (typeof window.getProvinceMapState === "function") ? window.getProvinceMapState() : null;
     var hasProvinceMap = !!(provinceState && Array.isArray(provinceState.mapData) && provinceState.mapData.length);

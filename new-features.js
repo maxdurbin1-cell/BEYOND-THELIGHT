@@ -1538,14 +1538,6 @@
       maxRounds: 10,
       teamSize: 3,
       mapSize: 12
-    },
-    expedition: {
-      id: 'expedition',
-      label: 'Expedition',
-      objective: '3-day rogue incursion. Survive shrinking hexes, beat Day 1 and Day 2 bosses, then slay the Raid Boss.',
-      scoreToWin: 3,
-      killPoints: 0,
-      zonePoints: 0
     }
 
   };
@@ -3923,7 +3915,13 @@
   function getHoldingCrucibleMatch() {
     ensureNewFeatureState();
     var c = S.holding.crucible;
-    return c && c.match && c.match.active ? c.match : null;
+    if (!(c && c.match && c.match.active)) return null;
+    if (String(c.match.mode || '') === 'expedition') {
+      c.match = null;
+      c.preferredMode = 'control';
+      return null;
+    }
+    return c.match;
   }
 
   function getLivingTeamUnits(units) {
@@ -5371,14 +5369,12 @@
 
   function openHoldingCrucibleModePrompt() {
     ensureNewFeatureState();
-    var specs = ['control', 'expedition'].map(function (key) { return getCrucibleModeSpec(key); });
+    var specs = ['control'].map(function (key) { return getCrucibleModeSpec(key); });
     var html = '<div style="font-size:.84rem;color:var(--text2);line-height:1.55;">'
       + '<div style="font-family:Cinzel,serif;font-size:.86rem;color:var(--gold2);margin-bottom:.2rem;">Select Crucible Playlist</div>'
-      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;">Crucible now focuses on 3v3 Control (Destiny-style) plus Expedition. Control capture rules: stand on a zone for 3 rounds to lock it.</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.35rem;">Crucible now focuses on 3v3 Control. Capture rules: stand on a zone for 3 rounds to lock it.</div>'
       + specs.map(function (spec) {
-        var extra = spec.id === 'control'
-          ? 'Briefing: 10 rounds. Capture zones A/B/C by holding each zone for 3 rounds. Score by controlling 2/3 zones.'
-          : 'Briefing: province survival run with daily collapse pressure and boss progression.';
+        var extra = 'Briefing: 10 rounds. Capture zones A/B/C by holding each zone for 3 rounds. Score by controlling 2/3 zones.';
         return '<div style="border:1px solid var(--border2);padding:.32rem .38rem;margin-bottom:.22rem;background:rgba(255,255,255,.02);">'
           + '<div style="font-size:.76rem;color:var(--gold2);"><strong>' + spec.label + '</strong></div>'
           + '<div style="font-size:.7rem;color:var(--muted2);margin:.1rem 0 .2rem;">' + spec.objective + '</div>'
@@ -5402,26 +5398,19 @@
       S.holding.crucible.match = null;
     }
     var match = getHoldingCrucibleMatch() || createHoldingCrucibleMatch();
-    var isExpeditionNewMatch = String(match.mode || '') === 'expedition' && !(match.expedition && match.expedition.loaded);
     var isControlNewMatch = String(match.mode || '') === 'control' && Number(match.round || 1) === 1 && !match.controlLoaded;
     if (isControlNewMatch && typeof openModal === 'function') {
       openModal('Control Briefing & Loadout', buildCrucibleControlLoadoutSelectionHtml());
-    } else if (isExpeditionNewMatch && typeof openModal === 'function') {
-      openModal('Expedition Loadout Selection', buildCrucibleExpeditionLoadoutSelectionHtml());
     } else {
       if (typeof openModal === 'function') {
         var openMode = getCrucibleModeSpec(match && match.mode);
         var teamSize = getCrucibleModeTeamSize(openMode.id);
-        openModal(match && String(match.mode || '') === 'expedition'
-          ? 'Expedition Province'
-          : ('Crucible ' + teamSize + 'v' + teamSize + ' Tactical Simulator'), buildHoldingCruciblePopupHtml());
+        openModal('Crucible ' + teamSize + 'v' + teamSize + ' Tactical Simulator', buildHoldingCruciblePopupHtml());
       }
       if (typeof showNotif === 'function' && match && Number(match.round || 1) === 1) {
         var openedSpec = getCrucibleModeSpec(match.mode);
         var teamSize = getCrucibleModeTeamSize(openedSpec.id);
-        showNotif(openedSpec.id === 'expedition'
-          ? 'Crucible Expedition opened: 3-day rogue run initialized.'
-          : ('Crucible opened: ' + teamSize + 'v' + teamSize + ' tactical training scenario ready.'), 'good');
+        showNotif('Crucible opened: ' + teamSize + 'v' + teamSize + ' tactical training scenario ready.', 'good');
       }
     }
     renderHoldingUI();
@@ -7558,9 +7547,7 @@
     renderHoldingUI();
     if (typeof showNotif === 'function') {
       var mode = getCrucibleModeSpec(S.holding.crucible.preferredMode || 'control');
-      showNotif(mode.id === 'expedition'
-        ? 'Expedition run reset. You return to the safe hub.'
-        : 'Crucible match reset. New 3v3 Control scenario generated.', 'info');
+      showNotif('Crucible match reset. New 3v3 Control scenario generated.', 'info');
     }
     return true;
   }
@@ -7585,7 +7572,6 @@
       + '<div style="font-size:.7rem;color:var(--teal);margin-bottom:.3rem;">Preferred Mode: ' + mode.label + ' · ' + mode.objective + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.3rem;">'
       + '<button class="btn btn-xs ' + (mode.id === 'control' ? 'btn-primary' : '') + '" onclick="holdingCrucibleSetMode(\'control\');">Control</button>'
-      + '<button class="btn btn-xs ' + (mode.id === 'expedition' ? 'btn-primary' : '') + '" onclick="startHoldingMiniGamesExpedition();">Expedition</button>'
       + '</div>'
       + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;">'
       + (match ? '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleAttackSelected();">Attack (Selected)</button>' : '')
@@ -7596,46 +7582,28 @@
 
   function startHoldingMiniGamesExpedition(sourceKey) {
     ensureNewFeatureState();
-    var key = String(sourceKey || '').trim();
-    if (key) {
-      S.holding.crucible.expedition = S.holding.crucible.expedition || {};
-      S.holding.crucible.expedition.lastProvinceMiniGamesHex = key;
-    }
-    S.holding.crucible.preferredMode = 'expedition';
+    S.holding.crucible.preferredMode = 'control';
     S.holding.crucible.match = null;
-    return openHoldingCrucibleMatch('expedition');
+    if (typeof showNotif === 'function') showNotif('Expedition has been removed. Opening Crucible Control.', 'info');
+    return openHoldingCrucibleMatch('control');
   }
 
   function openMiniGamesMode(modeId) {
     ensureNewFeatureState();
-    var mode = String(modeId || '').toLowerCase();
-    if (!mode) return false;
-    if (mode === 'expedition') return startHoldingMiniGamesExpedition('mini-games-page');
-    var spec = getCrucibleModeSpec(mode);
-    S.holding.crucible.preferredMode = spec.id;
+    S.holding.crucible.preferredMode = 'control';
     S.holding.crucible.match = null;
-    return openHoldingCrucibleMatch(spec.id);
+    if (typeof showNotif === 'function') showNotif('Mini Games has been removed. Opening Crucible Control.', 'info');
+    return openHoldingCrucibleMatch('control');
   }
 
   function buildMiniGamesPageHtml() {
-    ensureNewFeatureState();
-    var c = S && S.holding && S.holding.crucible ? S.holding.crucible : {};
-    var exp = c.expedition || {};
-    var active = c.match ? String(c.match.mode || '') : '';
     return ''
       + '<div style="padding:.95rem;display:grid;gap:.7rem;">'
       + '<div class="card">'
-      + '<div class="section-title">Mini Games Retired</div>'
-      + '<div style="font-size:.78rem;color:var(--muted2);line-height:1.55;">The old Mini Games launcher has been removed to keep the experience focused.</div>'
-      + '<div style="margin-top:.45rem;display:flex;gap:.45rem;flex-wrap:wrap;font-size:.72rem;color:var(--muted2);">'
-      + '<span style="border:1px solid var(--border2);padding:.18rem .3rem;">Runs: ' + Number(exp.runs || 0) + '</span>'
-      + '<span style="border:1px solid var(--border2);padding:.18rem .3rem;">Clears: ' + Number(exp.clears || 0) + '</span>'
-      + '<span style="border:1px solid var(--border2);padding:.18rem .3rem;">Best Day: ' + Number(exp.bestDay || 0) + '</span>'
-      + '<span style="border:1px solid var(--border2);padding:.18rem .3rem;">Active: ' + (active ? active.charAt(0).toUpperCase() + active.slice(1) : 'None') + '</span>'
-      + '</div>'
+      + '<div class="section-title">Mini Games Removed</div>'
+      + '<div style="font-size:.78rem;color:var(--muted2);line-height:1.55;">Mini Games and Expedition have been removed from this build.</div>'
       + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;margin-top:.45rem;">'
-      + '<button class="btn btn-sm btn-primary" onclick="openHoldingCrucibleMatch(\'expedition\');">Open Expedition</button>'
-      + '<button class="btn btn-sm" onclick="openHoldingCrucibleMatch(\'control\');">Open Arena Control</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="openHoldingCrucibleMatch(\'control\');">Open Crucible Control</button>'
       + '</div>'
       + '</div>'
       + '</div>';

@@ -425,7 +425,6 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="ctx-btn" data-ctx="holding" aria-pressed="false" onclick="setContext('holding',this)">🏰 Holding</button>
     <button class="ctx-btn" data-ctx="sea" aria-pressed="false" onclick="setContext('sea',this)">⚓ At Sea</button>
     <button class="ctx-btn" data-ctx="space" aria-pressed="false" onclick="setContext('space',this)">🚀 Space</button>
-    <button class="ctx-btn" data-ctx="minigames" aria-pressed="false" onclick="setContext('minigames',this)">◬ Mini Games</button>
   </div>
   <nav aria-label="Main navigation" id="mainNavTablist" role="tablist" aria-orientation="horizontal">
     <button class="tab-btn active ctx-traveling" role="tab" aria-selected="true" aria-controls="tab-character" id="tabnav-character" onclick="switchTab('character',this)">Character</button>
@@ -444,7 +443,6 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-map" id="tabnav-map" onclick="switchTab('map',this)">Province</button>
     <button class="tab-btn ctx-sea" role="tab" aria-selected="false" aria-controls="tab-lastsea" id="tabnav-lastsea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-galaxy" id="tabnav-galaxy" style="display:none;" onclick="switchTab('galaxy',this)">Galaxy</button>
-    <button class="tab-btn ctx-minigames" role="tab" aria-selected="false" aria-controls="tab-minigames" id="tabnav-minigames" style="display:none;" onclick="switchTab('minigames',this)">Mini Games</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-theos" id="tabnav-theos" onclick="switchTab('theos',this)">Theos Atlas</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-worldthatwas" id="tabnav-worldthatwas" onclick="switchTab('worldthatwas',this)">World That Was</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-planet" id="tabnav-planet" style="display:none;" onclick="switchTab('planet',this)">Planet Exploration</button>
@@ -931,9 +929,6 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
   <div id="starsGalaxyPanel" style="padding:.85rem;"></div>
   <div id="starsDatePanelGalaxy" style="padding:.85rem;"></div>
 </div>
-
-<!-- MINI GAMES TAB -->
-<div class="tab-panel" id="tab-minigames"></div>
 
 <!-- THEOS ATLAS TAB -->
 <div class="tab-panel" id="tab-theos"></div>
@@ -11943,8 +11938,7 @@ function setContext(ctx,btn){
     traveling:'character',
     holding:'map',
     sea:'lastsea',
-    space:'galaxy',
-    minigames:'minigames'
+    space:'galaxy'
   };
   const defaultTab=defaultTabByContext[ctx]||'character';
   const defaultBtn=document.querySelector('nav .tab-btn.ctx-'+ctx+'[onclick*="switchTab(\''+defaultTab+'\'"]');
@@ -12285,7 +12279,6 @@ function generateMap(){
   for(let i=0;i<roll(2);i++)placeUnique('monument',pick(MONUMENT_FORMS),{effect:pick(MONUMENT_EFFECTS)});
   for(let i=0;i<roll(3)+1;i++){const p=pickUniquePeril();placeUnique('peril',p.name,{desc:p.desc});}
   for(let i=0;i<roll(3)+1;i++)placeUnique('ruins',pick(['The Fallen Hall','Ossuary Depths','Ruin of the Old World','Broken Spire','The Warden\'s Tomb','Collapsed Citadel']),{builder:pick(RUIN_BUILDERS),builtFor:pick(RUIN_BUILT_FOR),novelty:pick(RUIN_NOVELTIES),construction:pick(RUIN_CONSTRUCTIONS),entrance:pick(RUIN_ENTRANCES),rooms:roll(4)+2});
-  for(let i=0;i<roll(2);i++)placeUnique('minigames',pick(['Moonchain Trial Grounds','The Kneeling Field','Ashfall Crucible Ring','Chapel of Broken Statues']),{sky:pick(['A castle hangs from chains tied into the moon.','Clouds fold inward around a silent eclipse.','An unmoving storm circles this hex like a crown.']),floraFauna:pick(['Black reeds grow through shattered helms while carrion birds refuse to land.','White moths drift over kneeling skeletons that never fall.','No insects, no birds, only ash moving against the wind.']),wonder:pick(['A giant stone hand is buried beneath the village road.','A throne room burns underwater inside a collapsed basilica.','Impossible stairs rise into open air and end at nothing.']),goal:'Enter a rogue run: survive collapsing hexes, beat Day 1/2 bosses, then slay the Night Lord.'});
   placeUnique('depths',pick(['The Lantern Below','The Unfinished Vault','The Ashen Descent','The Black Stair','The Null Catacomb','The Endless Reliquary']),{entrance:pick(['A cracked stairwell drops beneath the province bedrock.','An iron lift shaft hums with old power.','A spiral stair bores into the dark below.','A collapsed chapel floor opens into a buried avenue.']),motif:pick(['Builder works and ossuaries','Flooded archive halls','Clockwork tomb corridors','Basalt shrines and sealed gates','Collapsed barracks beneath old roads']),seal:pick(['Sigils must be aligned to move deeper.','Some chambers only yield to a spoken key.','Secret doors answer to light, spellcraft, or patient searching.','Lower vaults wake only after nearby wards are broken.'])});
   ensureProvinceLibraryHex();
   const evts=[...EVENTS[S.currentAge]].sort(()=>Math.random()-.5).slice(0,roll(4)+3);
@@ -13734,15 +13727,12 @@ function renderHexInfo(hex){
   }else if(hex.type==='minigames'){
     html+=`<div class="rest-boon" style="background:rgba(144,76,184,.08);border-color:rgba(207,156,255,.45);">
       <div class="rb-label" style="color:#cf9cff;">◬ Mini Games</div>
-      <div style="font-size:.82rem;color:var(--text2);">A rogue expedition branch built from Province-map logic: collapsing edges, procedural encounters, and a 3-boss night cycle.</div>
+      <div style="font-size:.82rem;color:var(--text2);">Mini Games and Expedition are no longer available in this build.</div>
     </div>`;
     html+=`<div class="wild-panel"><div class="wp-label">Sky</div><div class="wp-text">${d.sky||'The sky hangs too low, as if dragged by chains.'}</div></div>`;
     html+=`<div class="wild-panel"><div class="wp-label">Flora & Fauna</div><div class="wp-text">${d.floraFauna||'The land is quiet except for ash and distant wingbeats.'}</div></div>`;
     html+=`<div class="wild-panel"><div class="wp-label">Wonder</div><div class="wp-text">${d.wonder||'Impossible architecture contradicts every known map.'}</div></div>`;
-    html+=`<div class="npc-block" style="margin-top:.3rem;"><div class="nb-label">Expedition Goal</div><div style="font-size:.79rem;color:var(--text2);line-height:1.55;">${d.goal||'Survive each collapse cycle and defeat the final Night Lord.'}</div></div>`;
-    html+=`<div style="margin:.4rem 0;display:flex;gap:.3rem;flex-wrap:wrap;">
-      <button class="btn btn-sm btn-primary" onclick="if(typeof window.startHoldingMiniGamesExpedition==='function')window.startHoldingMiniGamesExpedition('${nk}');else showNotif('Mini Games launcher unavailable. Open Holding → Crucible manually.','warn');">Enter Mini Games Expedition</button>
-    </div>`;
+    html+=`<div class="npc-block" style="margin-top:.3rem;"><div class="nb-label">Status</div><div style="font-size:.79rem;color:var(--text2);line-height:1.55;">This content is retired.</div></div>`;
 
   // ── DEPTHS ──
   }else if(hex.type==='depths'){

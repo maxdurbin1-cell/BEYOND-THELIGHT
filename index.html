@@ -2413,6 +2413,7 @@ function resolveTerrainDescriptorKey(name){
     frostmarsh:'FrostMarsh',
     desertmountain:'DesertMountain',
     desertfarm:'DesertFarm',
+    desertfarms:'DesertFarm',
     desertcave:'DesertCave',
     snowytown:'SnowyTown',
     snowyfields:'SnowyFields',
@@ -2427,6 +2428,25 @@ function resolveTerrainDescriptorKey(name){
     if(keys[i].toLowerCase().replace(/[^a-z0-9]/g,'')===compact)return keys[i];
   }
   return raw;
+}
+
+function resolveTerrainTypeByName(name){
+  const raw=String(name||'').trim();
+  if(!raw)return {name:'Hills',color:'#354027'};
+  if(Array.isArray(TERRAIN_TYPES)){
+    for(let i=0;i<TERRAIN_TYPES.length;i++){
+      const t=TERRAIN_TYPES[i];
+      if(t&&String(t.name||'')===raw)return t;
+    }
+    const compact=raw.toLowerCase().replace(/[^a-z0-9]/g,'');
+    for(let j=0;j<TERRAIN_TYPES.length;j++){
+      const t2=TERRAIN_TYPES[j];
+      if(!t2)continue;
+      if(String(t2.name||'').toLowerCase().replace(/[^a-z0-9]/g,'')===compact)return t2;
+    }
+  }
+  const key=resolveTerrainDescriptorKey(raw);
+  return {name:key,color:'#354027'};
 }
 
 const WEATHER={spring:[{result:'Rainstorm',rough:true,desc:'Sheets of driving rain. Visibility falls to nothing.'},{result:'Cold Drizzle',rough:false,desc:'A persistent grey drizzle. Roads are muddy but passable.'},{result:'Clear and Sunny',rough:false,desc:'A bright morning. Good light for navigation.'},{result:'Overcast',rough:false,desc:'Heavy cloud but dry. Comfortable traveling weather.'},{result:'Clear and Warm',rough:false,desc:'Blue sky, light breeze. Near-perfect for travel.'},{result:'Clear and Warm',rough:false,desc:'A fine spring day. Nothing impedes the road.'}],harvest:[{result:'Wild Winds',rough:true,desc:'Gales that knock travelers sideways. Navigation is nearly impossible.'},{result:'Heavy Rain',rough:false,desc:'Sustained downpour. Everything gets wet. Roads hold.'},{result:'Clear and Warm',rough:false,desc:'Harvest sunshine, golden and full.'},{result:'Cool Rain',rough:false,desc:'Refreshing after the heat. Light and intermittent.'},{result:'Overcast',rough:false,desc:'Clouds in every direction but nothing falls.'},{result:'Overcast',rough:false,desc:'Grey and still. A quiet traveling day.'}],winter:[{result:'Snowstorm',rough:true,desc:'Blizzard conditions. White-out visibility. All paths vanish.'},{result:'Hail',rough:false,desc:'Hard pellets of ice. Stings exposed skin. Brief but sharp.'},{result:'Bitter Cold',rough:false,desc:'Still and freezing. Every breath is visible. Water freezes.'},{result:'Clear and Crisp',rough:false,desc:'Bright winter day. Cold but navigable. The sky is enormous.'},{result:'Overcast',rough:false,desc:'Heavy grey clouds. No snow yet. Cold but not deadly.'},{result:'Overcast',rough:false,desc:'A dull winter day. Nothing unusual.'}]};
@@ -12372,7 +12392,16 @@ function sanitizeProvinceHexEntry(hex){
   if(!hex||typeof hex!=='object')return null;
   const col=Number(hex.col),row=Number(hex.row);
   if(!Number.isFinite(col)||!Number.isFinite(row))return null;
-  const safeTerrain=(hex.terrain&&typeof hex.terrain==='object')?hex.terrain:{name:'Unknown',color:'#1a2010'};
+  let safeTerrain;
+  if(hex.terrain&&typeof hex.terrain==='object'){
+    safeTerrain=Object.assign({},hex.terrain);
+  }else if(typeof hex.terrain==='string'){
+    safeTerrain=Object.assign({},resolveTerrainTypeByName(hex.terrain));
+  }else if(typeof hex.name==='string'&&hex.name){
+    safeTerrain=Object.assign({},resolveTerrainTypeByName(hex.name));
+  }else{
+    safeTerrain={name:'Hills',color:'#354027'};
+  }
   if(typeof safeTerrain.name!=='string')safeTerrain.name='Unknown';
   if(typeof safeTerrain.color!=='string')safeTerrain.color='#1a2010';
   return {
@@ -13409,7 +13438,7 @@ function renderHexInfo(hex){
   // Store weather roll in hex data so it persists across renders (fixes Province tab rerolling in campaign mode)
   const wr=d.weatherRoll || roll(6);if(!d.weatherRoll)d.weatherRoll=wr;
   const weatherResult=WEATHER[season][wr-1];
-  const td=TERRAIN_DESC[resolveTerrainDescriptorKey(hex&&hex.terrain&&hex.terrain.name)]||{};
+  const td=TERRAIN_DESC[resolveTerrainDescriptorKey(hex&&hex.terrain&&hex.terrain.name)]||TERRAIN_DESC.Hills||{};
 
   let html='<div class="hex-info-inner">';
   html+=`<div class="hex-type-tag ${hex.type}">${hex.type.toUpperCase()}</div>`;

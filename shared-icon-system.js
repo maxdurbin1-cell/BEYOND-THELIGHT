@@ -375,12 +375,23 @@
     var portraitSource = safeState.portraitSource || 'Custom portrait';
     var perchanceUrl = getPerchanceCharacterGeneratorUrl(safeState);
     var accent = resolveAccent([name, career, background, omen].join('|'));
+    var compact = !!(opts && opts.compact);
     var portraitSize = Math.max(72, Number(opts && opts.size || 84));
     var portrait = portraitImage
       ? '<button type="button" class="btn btn-xs" onclick="window.SharedIconSystem.openWayfarerPortraitPreview(' + JSON.stringify(String(portraitImage)) + ',' + JSON.stringify(String(name)) + ',' + JSON.stringify(String(portraitSource)) + ');" style="padding:0;border:none;background:transparent;line-height:0;cursor:pointer;">'
         + '<img src="' + escHtml(portraitImage) + '" alt="' + escHtml(name) + ' portrait" style="width:' + portraitSize + 'px;height:' + portraitSize + 'px;object-fit:cover;border-radius:14px;border:1px solid ' + accent + ';box-shadow:0 8px 18px rgba(0,0,0,.22);display:block;"/>'
         + '</button>'
       : iconWayfarer([name, career].join('|'), { size: portraitSize, accent: accent, title: name });
+    if (compact) {
+      return '<div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:.5rem;align-items:center;padding:.48rem .54rem;border:1px solid ' + accent + '55;background:linear-gradient(155deg, ' + accent + '14, rgba(9,13,18,.9));">'
+        + '<div style="flex:0 0 auto;">' + portrait + '</div>'
+        + '<div style="min-width:0;">'
+          + '<div style="font-size:.78rem;color:var(--text2);font-family:Cinzel,serif;line-height:1.2;">' + escHtml(name) + '</div>'
+          + '<div style="font-size:.68rem;color:' + accent + ';text-transform:uppercase;letter-spacing:.1em;">' + escHtml(career) + '</div>'
+          + '<div style="font-size:.64rem;color:var(--muted2);line-height:1.35;margin-top:.1rem;">' + escHtml(background) + '</div>'
+        + '</div>'
+      + '</div>';
+    }
     return '<div style="display:flex;flex-direction:column;gap:.5rem;padding:.58rem .62rem;border:1px solid ' + accent + '55;background:linear-gradient(155deg, ' + accent + '16, rgba(9,13,18,.92));">'
       + '<div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:.65rem;align-items:start;">'
       + '<div style="flex:0 0 auto;">' + portrait + '</div>'

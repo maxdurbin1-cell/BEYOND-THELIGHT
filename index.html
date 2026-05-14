@@ -2401,6 +2401,34 @@ LostCity:{
   wonder:['Intact buildings containing pre-collapse artifacts.','Libraries or archives with readable records.','Technology still functioning.','Underground systems accessible and explorable.','A person who knows the city\'s history.']
 }
 };
+
+function resolveTerrainDescriptorKey(name){
+  const raw=String(name||'').trim();
+  if(!raw)return 'Hills';
+  if(TERRAIN_DESC[raw])return raw;
+  const compact=raw.toLowerCase().replace(/[^a-z0-9]/g,'');
+  const aliases={
+    deadforest:'DeadForest',
+    ashwastes:'AshWastes',
+    frostmarsh:'FrostMarsh',
+    desertmountain:'DesertMountain',
+    desertfarm:'DesertFarm',
+    desertcave:'DesertCave',
+    snowytown:'SnowyTown',
+    snowyfields:'SnowyFields',
+    snowyforest:'SnowyForest',
+    snowyswamp:'SnowySwamp',
+    traderoute:'TradeRoute',
+    lostcity:'LostCity'
+  };
+  if(aliases[compact]&&TERRAIN_DESC[aliases[compact]])return aliases[compact];
+  const keys=Object.keys(TERRAIN_DESC);
+  for(let i=0;i<keys.length;i++){
+    if(keys[i].toLowerCase().replace(/[^a-z0-9]/g,'')===compact)return keys[i];
+  }
+  return raw;
+}
+
 const WEATHER={spring:[{result:'Rainstorm',rough:true,desc:'Sheets of driving rain. Visibility falls to nothing.'},{result:'Cold Drizzle',rough:false,desc:'A persistent grey drizzle. Roads are muddy but passable.'},{result:'Clear and Sunny',rough:false,desc:'A bright morning. Good light for navigation.'},{result:'Overcast',rough:false,desc:'Heavy cloud but dry. Comfortable traveling weather.'},{result:'Clear and Warm',rough:false,desc:'Blue sky, light breeze. Near-perfect for travel.'},{result:'Clear and Warm',rough:false,desc:'A fine spring day. Nothing impedes the road.'}],harvest:[{result:'Wild Winds',rough:true,desc:'Gales that knock travelers sideways. Navigation is nearly impossible.'},{result:'Heavy Rain',rough:false,desc:'Sustained downpour. Everything gets wet. Roads hold.'},{result:'Clear and Warm',rough:false,desc:'Harvest sunshine, golden and full.'},{result:'Cool Rain',rough:false,desc:'Refreshing after the heat. Light and intermittent.'},{result:'Overcast',rough:false,desc:'Clouds in every direction but nothing falls.'},{result:'Overcast',rough:false,desc:'Grey and still. A quiet traveling day.'}],winter:[{result:'Snowstorm',rough:true,desc:'Blizzard conditions. White-out visibility. All paths vanish.'},{result:'Hail',rough:false,desc:'Hard pellets of ice. Stings exposed skin. Brief but sharp.'},{result:'Bitter Cold',rough:false,desc:'Still and freezing. Every breath is visible. Water freezes.'},{result:'Clear and Crisp',rough:false,desc:'Bright winter day. Cold but navigable. The sky is enormous.'},{result:'Overcast',rough:false,desc:'Heavy grey clouds. No snow yet. Cold but not deadly.'},{result:'Overcast',rough:false,desc:'A dull winter day. Nothing unusual.'}]};
 const VENTURE_RESULTS=['Shift in Weather — reroll the weather for this Phase.','Overland Encounter — something found on the road.','Wonder — you spot something remarkable in the distance.','Landmark — spot a Landmark 1 Hex Zone away.','Event — roll on the Events of the Aether for a Mystery encounter.','Event — roll on the Events of the Aether for a Mystery encounter.'];
 const TASK_VERBS=['Investigate','Capture','Hunt','Transport','Aid','Guard','Destroy','Conceal','Salvage','Retrieve'];
@@ -6010,7 +6038,8 @@ if(typeof window!=='undefined'){
 // ── WILDERNESS FULL (continued) ──────────────────────────────────────────────
 function rollWildernessFull(){
   const terrain=pick(TERRAIN_TYPES);
-  const td2=TERRAIN_DESC[terrain.name]||{land:'Open land.',sky:'Clear sky.',water:'A stream.',flora:'Wild plants.',fauna:'Small animals.',wonder:'An old structure.'};
+  const terrainKey=resolveTerrainDescriptorKey(terrain&&terrain.name);
+  const td2=TERRAIN_DESC[terrainKey]||{land:'Open land.',sky:'Clear sky.',water:'A stream.',flora:'Wild plants.',fauna:'Small animals.',wonder:'An old structure.'};
   const season=S.currentSeason||'spring';
   const wr=roll(6),weatherResult=WEATHER[season][wr-1];
   const vr=roll(6);
@@ -13380,7 +13409,7 @@ function renderHexInfo(hex){
   // Store weather roll in hex data so it persists across renders (fixes Province tab rerolling in campaign mode)
   const wr=d.weatherRoll || roll(6);if(!d.weatherRoll)d.weatherRoll=wr;
   const weatherResult=WEATHER[season][wr-1];
-  const td=TERRAIN_DESC[hex.terrain.name]||{};
+  const td=TERRAIN_DESC[resolveTerrainDescriptorKey(hex&&hex.terrain&&hex.terrain.name)]||{};
 
   let html='<div class="hex-info-inner">';
   html+=`<div class="hex-type-tag ${hex.type}">${hex.type.toUpperCase()}</div>`;

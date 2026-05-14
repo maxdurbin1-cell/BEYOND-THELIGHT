@@ -7546,125 +7546,6 @@
     return (Math.abs(aq - bq) + Math.abs((aq + ar) - (bq + br)) + Math.abs(ar - br)) / 2;
   }
 
-  function getArcboardNodePositions() {
-    return {
-      A: { q: -1, r: 0 },
-      B: { q: 0, r: 0 },
-      C: { q: 1, r: 0 }
-    };
-  }
-
-  function isArcboardHexOccupied(arc, q, r, ignoreId) {
-    var iq = Number(q || 0);
-    var ir = Number(r || 0);
-    var ignored = String(ignoreId || '');
-    var units = getArcboardLivingUnits((arc.allies || []).concat(arc.enemies || []));
-    return units.some(function (unit) {
-      if (!unit || String(unit.id || '') === ignored || !unit.position) return false;
-      return Number(unit.position.q || 0) === iq && Number(unit.position.r || 0) === ir;
-    });
-  }
-
-  function getArcboardAdjacentHexes(position) {
-    var q = Number(position && position.q || 0);
-    var r = Number(position && position.r || 0);
-    return [
-      { q: q + 1, r: r },
-      { q: q - 1, r: r },
-      { q: q, r: r + 1 },
-      { q: q, r: r - 1 },
-      { q: q + 1, r: r - 1 },
-      { q: q - 1, r: r + 1 }
-    ];
-  }
-
-  function arcboardStepUnitToward(unit, target, arc) {
-    if (!unit || !unit.position || !target || !target.position || !arc) return false;
-    if (Number(unit.ap || 0) <= 0) return false;
-    var currentDist = getArcboardDistance(unit, target);
-    var candidates = getArcboardAdjacentHexes(unit.position)
-      .filter(function (hex) {
-        return Math.abs(Number(hex.q || 0)) <= 3 && Math.abs(Number(hex.r || 0)) <= 3 && !isArcboardHexOccupied(arc, hex.q, hex.r, unit.id);
-      })
-      .sort(function (a, b) {
-        var da = getArcboardDistance({ position: a }, target);
-        var db = getArcboardDistance({ position: b }, target);
-        return da - db;
-      });
-    if (!candidates.length) {
-      unit.ap = Math.max(0, Number(unit.ap || 0) - 1);
-      arc.log = (arc.log || []).concat([unit.name + ' is blocked and holds position.']).slice(-120);
-      return false;
-    }
-    var next = candidates[0];
-    var nextDist = getArcboardDistance({ position: next }, target);
-    if (nextDist >= currentDist) {
-      unit.ap = Math.max(0, Number(unit.ap || 0) - 1);
-      arc.log = (arc.log || []).concat([unit.name + ' cannot improve angle and steadies.']).slice(-120);
-      return false;
-    }
-    unit.position = { q: Number(next.q || 0), r: Number(next.r || 0) };
-    unit.ap = Math.max(0, Number(unit.ap || 0) - 1);
-    arc.log = (arc.log || []).concat([unit.name + ' advances to [' + unit.position.q + ',' + unit.position.r + '].']).slice(-120);
-    return true;
-  }
-
-  function getArcboardNodeControlScore(arc, side) {
-    var nodes = arc && arc.nodeControl ? arc.nodeControl : {};
-    var owner = String(side || '');
-    return ['A', 'B', 'C'].reduce(function (sum, key) {
-      var node = nodes[key] || {};
-      return sum + ((String(node.owner || '') === owner && Number(node.progress || 0) >= 3) ? 1 : 0);
-    }, 0);
-  }
-
-  function updateArcboardNodeControl(arc) {
-    if (!arc) return false;
-    var nodePos = getArcboardNodePositions();
-    ['A', 'B', 'C'].forEach(function (key) {
-      var node = arc.nodeControl && arc.nodeControl[key] ? arc.nodeControl[key] : { owner: '', progress: 0 };
-      var origin = nodePos[key];
-      var alliesNear = getArcboardLivingUnits(arc.allies).filter(function (unit) {
-        return getArcboardDistance(unit, { position: origin }) <= 1;
-      }).length;
-      var enemiesNear = getArcboardLivingUnits(arc.enemies).filter(function (unit) {
-        return getArcboardDistance(unit, { position: origin }) <= 1;
-      }).length;
-      var priorOwner = String(node.owner || '');
-      var priorProgress = Number(node.progress || 0);
-      var pressureSide = alliesNear === enemiesNear ? '' : (alliesNear > enemiesNear ? 'ally' : 'enemy');
-
-      if (!pressureSide) {
-        if (node.owner) {
-          node.progress = Math.max(0, Number(node.progress || 0) - 1);
-          if (node.progress <= 0) {
-            node.owner = '';
-            node.progress = 0;
-          }
-        }
-      } else if (!node.owner) {
-        node.owner = pressureSide;
-        node.progress = 1;
-      } else if (String(node.owner) === pressureSide) {
-        node.progress = Math.min(3, Number(node.progress || 0) + 1);
-      } else {
-        node.progress = Math.max(0, Number(node.progress || 0) - 1);
-        if (node.progress <= 0) {
-          node.owner = pressureSide;
-          node.progress = 1;
-        }
-      }
-
-      arc.nodeControl[key] = node;
-
-      if (String(node.owner || '') !== priorOwner || Number(node.progress || 0) !== priorProgress) {
-        var ownerLabel = node.owner ? (node.owner === 'ally' ? 'Blue' : 'Red') : 'Neutral';
-        arc.log = (arc.log || []).concat(['Node ' + key + ' shifts -> ' + ownerLabel + ' (' + Number(node.progress || 0) + '/3).']).slice(-120);
-      }
-    });
-    return true;
-  }
-
   function resetArcboardAp(arc) {
     (arc.allies || []).forEach(function (unit) {
       if (!unit || Number(unit.hp || 0) <= 0) return;
@@ -7687,18 +7568,6 @@
     }
     if (allyArchon && Number(allyArchon.hp || 0) <= 0) {
       arc.result = { winner: 'enemy', reason: 'Ally Archon defeated' };
-      arc.active = false;
-      return arc.result;
-    }
-    var allyNodeScore = getArcboardNodeControlScore(arc, 'ally');
-    var enemyNodeScore = getArcboardNodeControlScore(arc, 'enemy');
-    if (allyNodeScore >= 2) {
-      arc.result = { winner: 'ally', reason: 'Node domination (2/3 secured)' };
-      arc.active = false;
-      return arc.result;
-    }
-    if (enemyNodeScore >= 2) {
-      arc.result = { winner: 'enemy', reason: 'Node domination (2/3 secured)' };
       arc.active = false;
       return arc.result;
     }
@@ -7772,7 +7641,7 @@
       + '<div style="display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:.4rem;margin-top:.38rem;">'
       + '<div id="arcboardUnitListAlly"><div style="font-size:.7rem;color:var(--teal);margin-bottom:.14rem;">Blue Side</div>' + buildArcboardUnitRows(allies, 'ally') + '</div>'
       + '<div id="arcboardHexBoard" style="border:1px solid var(--border2);padding:.34rem;background:rgba(255,255,255,.02);">'
-      + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.18rem;">7x7 Hex Board Shell (Phase 2): nodes pressure progression and tactical strike flow.</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.18rem;">7x7 Hex Board Shell (Phase 1): nodes and strike path testing.</div>'
       + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.2rem;font-size:.66rem;">'
       + '<div style="border:1px dashed var(--border2);padding:.2rem;text-align:center;">Node A</div>'
       + '<div style="border:1px dashed var(--border2);padding:.2rem;text-align:center;">Node B</div>'
@@ -7803,7 +7672,7 @@
       + '<button class="btn btn-xs" onclick="window.closeArcboardPlaytest();">Close Arcboard</button>'
       + '</div>'
       + '<div id="arcboardLog" style="margin-top:.3rem;border:1px solid var(--border2);padding:.25rem;max-height:180px;overflow:auto;background:rgba(255,255,255,.01);">' + (logTail || '<div style="font-size:.66rem;color:var(--muted2);">No events yet.</div>') + '</div>'
-        + '<div id="arcboardRuleHint" style="font-size:.62rem;color:var(--muted2);margin-top:.2rem;">Action math: Action Die vs Dread Die, success on tie. Win by Archon takedown or securing 2 nodes at 3/3.</div>'
+      + '<div id="arcboardRuleHint" style="font-size:.62rem;color:var(--muted2);margin-top:.2rem;">Action math: Action Die vs Dread Die, success on tie, damage scales by margin.</div>'
       + '</div>'
       + '</div>';
   }
@@ -7907,55 +7776,18 @@
 
   function arcboardResolveEnemyTurn(arc) {
     if (!arc || !arc.active) return false;
-    var acted = false;
-    var enemyUnits = getArcboardLivingUnits(arc.enemies)
-      .sort(function (a, b) {
-        var aArchon = String(a.role || '') === 'archon' ? 1 : 0;
-        var bArchon = String(b.role || '') === 'archon' ? 1 : 0;
-        if (aArchon !== bArchon) return bArchon - aArchon;
-        return Number(b.hp || 0) - Number(a.hp || 0);
-      });
+    var enemy = getArcboardLivingUnits(arc.enemies).filter(function (unit) { return Number(unit.ap || 0) > 0; })[0] || null;
+    var ally = getArcboardLivingUnits(arc.allies)[0] || null;
+    if (!enemy || !ally) return false;
 
-    function pickPriorityTarget(enemy) {
-      var allies = getArcboardLivingUnits(arc.allies);
-      if (!allies.length) return null;
-      var scored = allies.map(function (ally) {
-        var dist = getArcboardDistance(enemy, ally);
-        var score = 0;
-        if (String(ally.role || '') === 'archon') score += 120;
-        score += Math.max(0, Number(ally.maxHp || 8) - Number(ally.hp || 0)) * 4;
-        score += dist <= 1 ? 35 : 0;
-        score -= dist * 6;
-        score += Number(ally.hp || 0) <= 2 ? 12 : 0;
-        return { ally: ally, score: score, dist: dist };
-      }).sort(function (a, b) {
-        if (a.score !== b.score) return b.score - a.score;
-        return a.dist - b.dist;
-      });
-      return scored.length ? scored[0].ally : null;
+    var inRange = getArcboardDistance(enemy, ally) <= 1;
+    if (!inRange) {
+      enemy.ap = Math.max(0, Number(enemy.ap || 0) - 1);
+      arc.log = (arc.log || []).concat([enemy.name + ' repositions (placeholder AI move).']).slice(-120);
+      return true;
     }
-
-    enemyUnits.forEach(function (enemy) {
-      while (!arc.result && Number(enemy.ap || 0) > 0) {
-        var target = pickPriorityTarget(enemy);
-        if (!target) {
-          enemy.ap = 0;
-          break;
-        }
-        var inRange = getArcboardDistance(enemy, target) <= 1;
-        if (inRange) {
-          if (arcboardResolveStrike(enemy, target, arc)) {
-            acted = true;
-          } else {
-            enemy.ap = Math.max(0, Number(enemy.ap || 0) - 1);
-          }
-          continue;
-        }
-        acted = arcboardStepUnitToward(enemy, target, arc) || acted;
-      }
-    });
-
-    return acted;
+    arcboardResolveStrike(enemy, ally, arc);
+    return true;
   }
 
   function arcboardEndSideTurn() {
@@ -7965,10 +7797,6 @@
       arc.turnSide = 'enemy';
       arc.log = (arc.log || []).concat(['Enemy turn begins.']).slice(-120);
       arcboardResolveEnemyTurn(arc);
-      if (!arc.result) {
-        updateArcboardNodeControl(arc);
-        checkArcboardVictory(arc);
-      }
       if (!arc.result) {
         arc.turnSide = 'ally';
         arc.round = Math.max(1, Number(arc.round || 1) + 1);
@@ -8037,7 +7865,7 @@
         mode: 'arcboard',
         title: 'Arcboard Playtest',
         subtitle: '4v4 tactical board scaffold',
-        desc: 'Phase 2 scaffold: Strike action path + AP enemy AI priorities + node capture progression and domination win condition.'
+        desc: 'Phase 1 implementation: state init, UI shell, and fully working Strike action path (Action vs Dread, AP, damage, turn flow).'
       }
     ];
     var activeModes = [];

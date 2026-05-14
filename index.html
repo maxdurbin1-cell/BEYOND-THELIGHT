@@ -16712,7 +16712,7 @@ function showCodexCat(cat,btn){
       <div style="margin-bottom:.65rem;"><button class="btn btn-primary" onclick="rollWayfarer()">⚄ Roll Random Wayfarer</button></div>
       <div id="wayfarerResult" style="margin-bottom:.6rem;"></div>
       <div class="wayfarer-grid">
-        ${TRAVELING_WAYFARERS.map((w,i)=>`<div class="wayfarer-card"><div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:.45rem;align-items:start;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getWayfarerPortraitHtml==='function'?window.SharedIconSystem.getWayfarerPortraitHtml({name:w[1]+' '+w[2],career:w[0],background:w[3],omen:w[4]},{size:34,compact:true}):''}<div style="min-width:0;"><div style="display:flex;justify-content:space-between;gap:.35rem;align-items:flex-start;"><div class="wf-name">${w[1]} ${w[2]}</div><div style="font-family:'Rajdhani',sans-serif;font-size:.72rem;color:var(--muted2);flex-shrink:0;">#${i+1}</div></div><div class="wf-bg">${w[0]}</div><div class="wf-story">${w[3]}</div><div class="wf-drive">Drive: ${w[4]}</div></div></div></div>`).join('')}
+        ${TRAVELING_WAYFARERS.map((w,i)=>`<div class="wayfarer-card"><div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:.45rem;align-items:start;"><div style="padding-top:.05rem;">${window.SharedIconSystem&&typeof window.SharedIconSystem.iconWayfarer==='function'?window.SharedIconSystem.iconWayfarer(w[1]+' '+w[2],{size:30,title:w[1]+' '+w[2]}):'🧭'}</div><div style="min-width:0;"><div style="display:flex;justify-content:space-between;gap:.35rem;align-items:flex-start;"><div class="wf-name">${w[1]} ${w[2]}</div><div style="font-family:'Rajdhani',sans-serif;font-size:.72rem;color:var(--muted2);flex-shrink:0;">#${i+1}</div></div><div class="wf-bg">${w[0]}</div><div class="wf-story">${w[3]}</div><div class="wf-drive">Drive: ${w[4]}</div></div></div></div>`).join('')}
       </div>
     </div>`;
   }else if(cat==='lore'){
@@ -17290,6 +17290,12 @@ document.addEventListener('DOMContentLoaded',()=>{
         name:String(entry&&entry.name||('Enemy Move '+String(idx+1))),
         desc:String(entry&&entry.desc||entry&&entry.text||'A hostile pattern from the codex.'),
         kind:String(entry&&entry.kind||'special'),
+        stat:String(entry&&entry.stat||'defend').toLowerCase(),
+        condition:String(entry&&entry.condition||''),
+        bonus:Number(entry&&entry.bonus||0),
+        scale:Number(entry&&entry.scale||0),
+        dreadDie:Number(entry&&entry.dreadDie||0),
+        damage:String(entry&&entry.damage||''),
         source:entry&&entry.raidBoss?'Raid Boss':'Combat Tab',
         ranges:Array.isArray(entry&&entry.ranges)?entry.ranges.join(' / '):'all'
       };
@@ -17346,15 +17352,92 @@ document.addEventListener('DOMContentLoaded',()=>{
     };
   }
 
+  function formatCodexStatLabel(stat){
+    var key=String(stat||'defend').toLowerCase();
+    if(key==='mind'||key==='body'||key==='spirit'||key==='control'||key==='lead'||key==='defend')return key.charAt(0).toUpperCase()+key.slice(1);
+    return 'Control';
+  }
+
+  function describeCodexBestiaryMoveRules(move, monsterDread){
+    var m=move||{};
+    var dd=Math.max(4,Number(m.dreadDie||monsterDread||6));
+    var kind=String(m.kind||'special').toLowerCase();
+    var statLabel=formatCodexStatLabel(m.stat||'defend');
+    if(kind==='hack'){
+      return {
+        roll: statLabel + ' vs Dread d' + dd,
+        fail: 'Lose 1 AP immediately and cannot use Hack actions until your next turn.',
+        success: 'Systems hold. No AP loss and Hacks remain available.'
+      };
+    }
+    if(kind==='radiation'){
+      return {
+        roll: 'Spirit vs Dread d' + dd,
+        fail: 'Gain Radiation equal to the difference (Dread - Spirit), minimum 1.',
+        success: 'You vent the coolant exposure and gain no Radiation.'
+      };
+    }
+    if(kind==='savecondition'){
+      var cond=String(m.condition||'a condition');
+      return {
+        roll: statLabel + ' vs Dread d' + dd,
+        fail: 'Apply ' + cond + ' until end of next enemy turn.',
+        success: 'Resist the effect. No condition applied.'
+      };
+    }
+    if(kind==='defendcheck'){
+      return {
+        roll: 'Defend vs Dread d' + dd,
+        fail: 'Take Stress equal to the difference + ' + Number(m.bonus||0) + ' bonus.',
+        success: 'Block the strike and trigger any on-defend benefits.'
+      };
+    }
+    if(kind==='directstress'){
+      var scale=Math.max(0,Number(m.scale||0));
+      return {
+        roll: 'No save (cover can still reduce incoming pressure)',
+        fail: 'Take Stress = ceil(d' + dd + '/3) + ' + scale + '.',
+        success: 'N/A - only mitigation is cover/abilities.'
+      };
+    }
+    if(kind==='healthstrike'){
+      var hs=Math.max(1,Number(m.scale||4));
+      return {
+        roll: 'No save unless a specific skill says otherwise',
+        fail: 'Take Health damage = ceil(d' + dd + '/' + hs + ').',
+        success: 'N/A - avoid via positioning, interrupts, or prevention effects.'
+      };
+    }
+    if(kind==='forcetrauma'){
+      return {
+        roll: 'Forced Trauma Check (Adventure vs scene Dread)',
+        fail: 'Resolve Trauma consequences from the failed check.',
+        success: 'You stabilize and avoid additional Trauma fallout.'
+      };
+    }
+    return {
+      roll: statLabel + ' vs Dread d' + dd,
+      fail: 'GM applies a hard consequence appropriate to the move description.',
+      success: 'Move is resisted or reduced at GM discretion.'
+    };
+  }
+
   function renderCodexBestiaryMonsterCard(monster){
     var m=monster||buildCodexBestiaryMonster();
     var icon=window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'
       ? window.SharedIconSystem.getBestiaryEntryIconHtml(String(m.region||'province'),{name:String(m.name||'Monster')},{size:40})
       : '';
     var moveCards=(Array.isArray(m.moves)?m.moves:[]).map(function(move,idx){
+      var rules=describeCodexBestiaryMoveRules(move,m.dread);
       return '<div class="hist-entry" style="display:grid;grid-template-columns:auto 1fr;gap:.5rem;align-items:flex-start;">'
         + '<div class="hist-num">' + String(idx+1) + '</div>'
-        + '<div class="hist-text"><strong>' + String(move&&move.name||'Move') + '</strong><br>' + String(move&&move.desc||'') + '<br><span style="color:var(--muted2);font-size:.75rem;">Source: ' + String(move&&move.source||'Combat Tab') + ' · Range: ' + String(move&&move.ranges||'all') + '</span></div>'
+        + '<div class="hist-text"><strong>' + String(move&&move.name||'Move') + '</strong><br>' + String(move&&move.desc||'')
+        + '<div style="margin-top:.18rem;padding:.26rem .34rem;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);font-size:.75rem;color:var(--text2);line-height:1.45;">'
+          + '<div><strong style="color:var(--gold2);">Roll:</strong> ' + String(rules.roll||'') + '</div>'
+          + '<div><strong style="color:var(--red2);">On Fail:</strong> ' + String(rules.fail||'') + '</div>'
+          + '<div><strong style="color:var(--teal);">On Success:</strong> ' + String(rules.success||'') + '</div>'
+        + '</div>'
+        + '<span style="color:var(--muted2);font-size:.75rem;">Source: ' + String(move&&move.source||'Combat Tab') + ' · Range: ' + String(move&&move.ranges||'all') + '</span></div>'
         + '</div>';
     }).join('');
     return '<div class="card" style="border:1px dashed rgba(232,192,80,.45);background:rgba(232,192,80,.04);">'
@@ -17472,6 +17555,36 @@ document.addEventListener('DOMContentLoaded',()=>{
     '- Notable relics and technologies',
     '- Bestiary of mutated creatures',
     '- Rituals, festivals, and daily life',
+    '',
+    '### Detailed Province Guides',
+    '- **Starward Marches:** Crashed observatories, oath-bands, and sky relic caravans. Typical pressure: weather, raiders, and long-range scarcity.',
+    '- **Iron Valleys:** Foundry cults, fungal steelworks, and machine-spirits bound to old reactors. Typical pressure: contamination, labor wars, and salvage rights.',
+    '- **Luminous Steppe:** Nomad circles following radiant bloom-cycles and mutation pilgrimages. Typical pressure: migration conflicts and omen disputes.',
+    '- **Shrouded Bastions:** Reactor-fortresses with strict gate law, sealed archives, and military guild courts. Typical pressure: succession crises and relic embargoes.',
+    '',
+    '### Faction Histories and Key Figures',
+    '- **Solar Cults:** Split between Dawnkeepers (ritual orthodoxy), Ash Witnesses (sacrifice doctrine), and Lantern Reformists (technology-first ignition).',
+    '- **Barrier Wardens:** Descended from pre-Sundering engineers. Key figure: **Marshal Iven Saar**, keeper of the Last Seal keys.',
+    '- **Crucible Guilds:** Fleshcraft and steelcraft syndicates competing for mutation patents. Key figure: **Magister Vey Runehand**.',
+    '- **Bone Oracles:** Memory-diviners who read marrow and battlefield remains. Key figure: **Mother Keth of the White Vault**.',
+    '',
+    '### Notable Relics and Technologies',
+    '- **The Heliarch Core:** A damaged stellar seed reactor rumored to kindle a false dawn for one province at a time.',
+    '- **Mnemonic Lattice:** Pre-fall data weave storing partial lives, maps, and unresolved war commands.',
+    '- **Crown of Lenses:** A ritual helm that can reveal gate trajectories but inflicts severe mental recoil.',
+    '- **Ashline Rails:** Semi-functioning transit lines linking major holdings during safe weather windows.',
+    '',
+    '### Bestiary of Mutated Creatures',
+    '- **March Hounds:** Pack hunters that track heat and grief signatures rather than scent.',
+    '- **Reactor Stags:** Antlered grazers whose marrow glows and attracts scavenger cults.',
+    '- **Vault Leeches:** Pale burrowers that nest in data conduits and drain bio-electric charge.',
+    '- **Halo Drakes:** High-altitude predators that ride storm fronts near old orbital debris.',
+    '',
+    '### Rituals, Festivals, and Daily Life',
+    '- **First Ember Vigil:** Settlements extinguish all light, then relight from one communal flame to renew pacts.',
+    '- **The Four-Phase Bell:** Work, prayer, patrol, and trade rotate on the old phase clock to preserve order.',
+    '- **Marrow Oaths:** Disputes are settled by sworn testimony over ancestral remains under Oracle witness.',
+    '- **Dimming Markets:** Night bazaars trading coolant, old-world lenses, and gate-safe route maps.',
     '',
     '*This Codex page is a living document. As the story of Theos unfolds, so too will its lore.*'
   ].join('\n');

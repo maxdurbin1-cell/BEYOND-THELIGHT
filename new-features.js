@@ -4758,7 +4758,7 @@
         + '</div>'
         + combatHint
         + moveChooserHtml
-        + '<div id="expeditionProvinceMapViewport" style="overflow:auto;max-height:72vh;border:1px solid rgba(255,255,255,.08);padding:.18rem;background:rgba(0,0,0,.14);">'
+        + '<div id="expeditionProvinceMapViewport" onwheel="return holdingCrucibleExpeditionHandleMapWheel(event);" onmousedown="return holdingCrucibleExpeditionViewportMouseDown(event);" onmousemove="return holdingCrucibleExpeditionViewportMouseMove(event);" onmouseup="return holdingCrucibleExpeditionViewportMouseUp();" onmouseleave="return holdingCrucibleExpeditionViewportMouseUp();" style="overflow:auto;max-height:72vh;border:1px solid rgba(255,255,255,.08);padding:.18rem;background:rgba(0,0,0,.14);cursor:grab;">'
         + '<div style="width:' + Math.round(760 * mapZoom) + 'px;margin:0 auto;">' + provinceSvg + '</div>'
         + '</div>'
         + coreActions
@@ -4994,6 +4994,12 @@
     var portalStatus = portalsClosed >= portalGoal ? 'Raid Boss weakened (d12 | 24 HP)' : ('Need ' + Math.max(0, portalGoal - portalsClosed) + ' more before Day 3');
     var openHexes = getCrucibleExpeditionOpenHexCount(match);
     var isCombatActive = String(expedition.phase || '') === 'combat' && !!enemy;
+    var cadence = Math.max(1, Number(expedition.collapseEveryClicks || 1));
+    var clicked = Math.max(0, Number(expedition.clickedHexes || 0));
+    var nextCollapseIn = cadence - (clicked % cadence);
+    if (nextCollapseIn <= 0) nextCollapseIn = cadence;
+    var gatesClosed = Math.max(0, Number(expedition.gatesClosed || 0));
+    var phaseLabel = String(expedition.phase || 'explore');
     var tabRow = '<div style="display:flex;gap:.22rem;margin-bottom:.3rem;">'
       + '<button class="btn btn-sm ' + (uiTab === 'province' ? 'btn-primary' : '') + '" onclick="holdingCrucibleExpeditionSwitchTab(\'province\')">Province</button>'
       + (isCombatActive || uiTab === 'combat' ? '<button class="btn btn-sm ' + (uiTab === 'combat' ? 'btn-primary' : '') + '" onclick="holdingCrucibleExpeditionSwitchTab(\'combat\')">Combat</button>' : '')
@@ -5007,6 +5013,13 @@
       + ' · Active ' + String(player && player.name || 'Wayfarer') + ' · ' + currentHexLabel + ' · Flasks ' + Number(expedition.flasks || 0) + '/' + Number(expedition.maxFlasks || 7) + ' · Open Hexes ' + Number(openHexes || 0) + '</div>'
       + '<div style="font-size:.69rem;color:var(--teal);margin-bottom:.08rem;">Day 1 closes edges every 6 hex clicks. Day 2 closes every 3 clicks. Day 3 pressure intensifies.</div>'
       + '<div style="font-size:.69rem;color:var(--gold2);margin-bottom:.28rem;">Portal Mission: ' + portalsClosed + '/' + portalGoal + ' closed in Nights 1-2 · ' + portalStatus + '</div>'
+      + '<div style="display:flex;gap:.18rem;flex-wrap:wrap;margin:-.1rem 0 .24rem 0;font-size:.68rem;color:var(--muted2);">'
+      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Phase: ' + phaseLabel + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Portals: ' + portalsClosed + '/' + portalGoal + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Gates: ' + gatesClosed + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Open Hexes: ' + openHexes + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Next Collapse: ' + nextCollapseIn + ' action(s)</span>'
+      + '</div>'
       + '<div style="display:flex;gap:.18rem;flex-wrap:wrap;margin:-.08rem 0 .24rem 0;">' + party.map(function (ally, idx) {
         var active = ally && player && String(ally.id || '') === String(player.id || '');
         return '<button class="btn btn-xs ' + (active ? 'btn-teal' : '') + '" onclick="selectHoldingCrucibleUnit(\'' + String(ally && ally.id || '').replace(/'/g, '&#39;') + '\')">'
@@ -5115,6 +5128,53 @@
     var current = Number(match.expedition.mapZoom || 1);
     var next = current + Number(delta || 0);
     return holdingCrucibleExpeditionSetMapZoom(next);
+  }
+
+  function holdingCrucibleExpeditionHandleMapWheel(evt) {
+    var event = evt || (typeof window !== 'undefined' ? window.event : null);
+    if (!event) return false;
+    if (typeof event.preventDefault === 'function') event.preventDefault();
+    var delta = Number(event.deltaY || 0);
+    if (!Number.isFinite(delta) || delta === 0) return false;
+    return holdingCrucibleExpeditionAdjustMapZoom(delta > 0 ? -0.1 : 0.1);
+  }
+
+  function holdingCrucibleExpeditionViewportMouseDown(evt) {
+    var event = evt || (typeof window !== 'undefined' ? window.event : null);
+    if (!event || !S || !S.holding) return false;
+    var viewport = document.getElementById('expeditionProvinceMapViewport');
+    if (!viewport) return false;
+    S.holding.crucibleDrag = {
+      active: true,
+      x: Number(event.clientX || 0),
+      y: Number(event.clientY || 0),
+      left: Number(viewport.scrollLeft || 0),
+      top: Number(viewport.scrollTop || 0)
+    };
+    viewport.style.cursor = 'grabbing';
+    return true;
+  }
+
+  function holdingCrucibleExpeditionViewportMouseMove(evt) {
+    var event = evt || (typeof window !== 'undefined' ? window.event : null);
+    var drag = S && S.holding ? S.holding.crucibleDrag : null;
+    if (!event || !drag || !drag.active) return false;
+    var viewport = document.getElementById('expeditionProvinceMapViewport');
+    if (!viewport) return false;
+    var dx = Number(event.clientX || 0) - Number(drag.x || 0);
+    var dy = Number(event.clientY || 0) - Number(drag.y || 0);
+    viewport.scrollLeft = Math.max(0, Number(drag.left || 0) - dx);
+    viewport.scrollTop = Math.max(0, Number(drag.top || 0) - dy);
+    if (typeof event.preventDefault === 'function') event.preventDefault();
+    return true;
+  }
+
+  function holdingCrucibleExpeditionViewportMouseUp() {
+    if (!S || !S.holding || !S.holding.crucibleDrag) return false;
+    S.holding.crucibleDrag.active = false;
+    var viewport = document.getElementById('expeditionProvinceMapViewport');
+    if (viewport) viewport.style.cursor = 'grab';
+    return true;
   }
 
   function buildHoldingCruciblePopupHtml() {
@@ -11349,6 +11409,10 @@
   window.holdingCrucibleExpeditionSwitchTab = holdingCrucibleExpeditionSwitchTab;
   window.holdingCrucibleExpeditionSetMapZoom = holdingCrucibleExpeditionSetMapZoom;
   window.holdingCrucibleExpeditionAdjustMapZoom = holdingCrucibleExpeditionAdjustMapZoom;
+  window.holdingCrucibleExpeditionHandleMapWheel = holdingCrucibleExpeditionHandleMapWheel;
+  window.holdingCrucibleExpeditionViewportMouseDown = holdingCrucibleExpeditionViewportMouseDown;
+  window.holdingCrucibleExpeditionViewportMouseMove = holdingCrucibleExpeditionViewportMouseMove;
+  window.holdingCrucibleExpeditionViewportMouseUp = holdingCrucibleExpeditionViewportMouseUp;
   window.holdingCrucibleReturnToHolding = holdingCrucibleReturnToHolding;
   window.holdingCrucibleExpeditionSearchHex = holdingCrucibleExpeditionSearchHex;
   window.holdingCrucibleExpeditionObserveAdjacent = holdingCrucibleExpeditionObserveAdjacent;

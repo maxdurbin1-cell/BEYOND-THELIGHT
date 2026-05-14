@@ -7441,401 +7441,10 @@
     return openHoldingCrucibleMatch('expedition');
   }
 
-  function ensureArcboardState() {
-    ensureNewFeatureState();
-    if (!S.holding.minigames || typeof S.holding.minigames !== 'object') {
-      S.holding.minigames = {};
-    }
-    if (!S.holding.minigames.arcboard || typeof S.holding.minigames.arcboard !== 'object') {
-      S.holding.minigames.arcboard = {
-        active: false,
-        mode: 'solo',
-        round: 1,
-        turnSide: 'ally',
-        selectedUnitId: '',
-        selectedTargetId: '',
-        result: null,
-        nodeControl: {
-          A: { owner: '', progress: 0 },
-          B: { owner: '', progress: 0 },
-          C: { owner: '', progress: 0 }
-        },
-        allies: [],
-        enemies: [],
-        log: []
-      };
-    }
-    return S.holding.minigames.arcboard;
-  }
-
-  function createArcboardUnit(id, name, role, side, q, r) {
-    return {
-      id: String(id || ''),
-      name: String(name || 'Unit'),
-      role: String(role || 'unit'),
-      side: String(side || 'ally'),
-      hp: role === 'archon' ? 14 : 8,
-      maxHp: role === 'archon' ? 14 : 8,
-      ap: 2,
-      maxAp: 2,
-      actionDie: 8,
-      dreadDie: role === 'archon' ? 8 : 6,
-      controlDie: 6,
-      advDice: [],
-      flatBonus: 0,
-      position: { q: Number(q || 0), r: Number(r || 0) }
-    };
-  }
-
-  function createArcboardMatch() {
-    var arc = ensureArcboardState();
-    arc.active = true;
-    arc.round = 1;
-    arc.turnSide = 'ally';
-    arc.result = null;
-    arc.nodeControl = {
-      A: { owner: '', progress: 0 },
-      B: { owner: '', progress: 0 },
-      C: { owner: '', progress: 0 }
-    };
-    arc.allies = [
-      createArcboardUnit('ally-archon', 'Blue Archon', 'archon', 'ally', -2, 0),
-      createArcboardUnit('ally-vanguard', 'Blue Vanguard', 'unit', 'ally', -2, 1),
-      createArcboardUnit('ally-ranger', 'Blue Ranger', 'unit', 'ally', -1, -1),
-      createArcboardUnit('ally-mystic', 'Blue Mystic', 'unit', 'ally', -1, 1)
-    ];
-    arc.enemies = [
-      createArcboardUnit('enemy-archon', 'Red Archon', 'archon', 'enemy', 2, 0),
-      createArcboardUnit('enemy-vanguard', 'Red Vanguard', 'unit', 'enemy', 2, -1),
-      createArcboardUnit('enemy-ranger', 'Red Ranger', 'unit', 'enemy', 1, 1),
-      createArcboardUnit('enemy-mystic', 'Red Mystic', 'unit', 'enemy', 1, -1)
-    ];
-    arc.selectedUnitId = arc.allies.length ? String(arc.allies[0].id) : '';
-    arc.selectedTargetId = arc.enemies.length ? String(arc.enemies[0].id) : '';
-    arc.log = ['Arcboard initialized: eliminate the enemy Archon or dominate nodes.'];
-    return arc;
-  }
-
-  function getArcboardState() {
-    return ensureArcboardState();
-  }
-
-  function getArcboardUnitById(arc, id) {
-    if (!arc) return null;
-    var key = String(id || '');
-    var i;
-    for (i = 0; i < (arc.allies || []).length; i++) {
-      if (String(arc.allies[i].id) === key) return arc.allies[i];
-    }
-    for (i = 0; i < (arc.enemies || []).length; i++) {
-      if (String(arc.enemies[i].id) === key) return arc.enemies[i];
-    }
-    return null;
-  }
-
-  function getArcboardLivingUnits(units) {
-    return (units || []).filter(function (unit) { return unit && Number(unit.hp || 0) > 0; });
-  }
-
-  function getArcboardDistance(unitA, unitB) {
-    if (!unitA || !unitB || !unitA.position || !unitB.position) return 99;
-    var aq = Number(unitA.position.q || 0);
-    var ar = Number(unitA.position.r || 0);
-    var bq = Number(unitB.position.q || 0);
-    var br = Number(unitB.position.r || 0);
-    return (Math.abs(aq - bq) + Math.abs((aq + ar) - (bq + br)) + Math.abs(ar - br)) / 2;
-  }
-
-  function resetArcboardAp(arc) {
-    (arc.allies || []).forEach(function (unit) {
-      if (!unit || Number(unit.hp || 0) <= 0) return;
-      unit.ap = Math.max(1, Number(unit.maxAp || 2));
-    });
-    (arc.enemies || []).forEach(function (unit) {
-      if (!unit || Number(unit.hp || 0) <= 0) return;
-      unit.ap = Math.max(1, Number(unit.maxAp || 2));
-    });
-  }
-
-  function checkArcboardVictory(arc) {
-    if (!arc) return null;
-    var allyArchon = getArcboardUnitById(arc, 'ally-archon');
-    var enemyArchon = getArcboardUnitById(arc, 'enemy-archon');
-    if (enemyArchon && Number(enemyArchon.hp || 0) <= 0) {
-      arc.result = { winner: 'ally', reason: 'Enemy Archon defeated' };
-      arc.active = false;
-      return arc.result;
-    }
-    if (allyArchon && Number(allyArchon.hp || 0) <= 0) {
-      arc.result = { winner: 'enemy', reason: 'Ally Archon defeated' };
-      arc.active = false;
-      return arc.result;
-    }
-    return null;
-  }
-
-  function buildArcboardUnitRows(units, side) {
-    return (units || []).map(function (unit) {
-      if (!unit) return '';
-      var hp = Math.max(0, Number(unit.hp || 0));
-      var maxHp = Math.max(1, Number(unit.maxHp || 1));
-      var ap = Math.max(0, Number(unit.ap || 0));
-      var role = String(unit.role || 'unit') === 'archon' ? 'Archon' : 'Unit';
-      return '<div style="border:1px solid var(--border2);padding:.24rem .32rem;background:rgba(255,255,255,.02);margin-bottom:.16rem;">'
-        + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;">'
-        + '<span style="font-size:.72rem;color:' + (side === 'ally' ? 'var(--teal)' : 'var(--red2)') + ';"><strong>' + String(unit.name || 'Unit') + '</strong></span>'
-        + '<span style="font-size:.62rem;color:var(--muted2);">' + role + '</span>'
-        + '</div>'
-        + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.08rem;">HP ' + hp + '/' + maxHp + ' · AP ' + ap + ' · d' + Number(unit.actionDie || 8) + ' vs DD d' + Number(unit.dreadDie || 6) + '</div>'
-        + '</div>';
-    }).join('');
-  }
-
-  function buildArcboardNodeTrack(nodeControl) {
-    var keys = ['A', 'B', 'C'];
-    return keys.map(function (key) {
-      var node = nodeControl && nodeControl[key] ? nodeControl[key] : { owner: '', progress: 0 };
-      var owner = String(node.owner || 'neutral');
-      var progress = Math.max(0, Number(node.progress || 0));
-      return '<span style="border:1px solid var(--border2);padding:.16rem .28rem;font-size:.66rem;color:var(--muted2);">'
-        + 'Node ' + key + ': ' + owner + ' (' + progress + '/3)'
-        + '</span>';
-    }).join('');
-  }
-
-  function buildArcboardPanelHtml() {
-    var arc = getArcboardState();
-    if (!arc.active) {
-      return '<div id="arcboardRoot" class="card" style="margin-top:.55rem;">'
-        + '<div style="font-family:Cinzel,serif;font-size:.84rem;color:var(--gold2);">Arcboard Playtest</div>'
-        + '<div style="font-size:.74rem;color:var(--muted2);margin-top:.2rem;">No active match. Start a match from the Arcboard card above.</div>'
-        + '</div>';
-    }
-
-    var allies = getArcboardLivingUnits(arc.allies || []);
-    var enemies = getArcboardLivingUnits(arc.enemies || []);
-    var resultText = arc.result ? ('<span style="color:' + (arc.result.winner === 'ally' ? 'var(--green2)' : 'var(--red2)') + ';">' + arc.result.winner.toUpperCase() + ' WIN · ' + arc.result.reason + '</span>') : '';
-    var selectedActor = getArcboardUnitById(arc, arc.selectedUnitId);
-    var selectedTarget = getArcboardUnitById(arc, arc.selectedTargetId);
-    var targetOptions = enemies.map(function (unit) {
-      return '<option value="' + String(unit.id).replace(/"/g, '&quot;') + '"' + (String(arc.selectedTargetId || '') === String(unit.id || '') ? ' selected' : '') + '>'
-        + String(unit.name || 'Enemy') + ' (HP ' + Number(unit.hp || 0) + ')'
-        + '</option>';
-    }).join('');
-    var actionOptions = '<option value="strike">Strike (1 AP)</option>';
-    var logTail = (arc.log || []).slice(-8).reverse().map(function (line) {
-      return '<div style="font-size:.68rem;color:var(--text2);line-height:1.45;border-bottom:1px solid var(--border2);padding:.12rem 0;">' + String(line || '') + '</div>';
-    }).join('');
-
-    return ''
-      + '<div id="arcboardRoot" class="card" style="margin-top:.55rem;">'
-      + '<div style="display:flex;justify-content:space-between;gap:.3rem;align-items:center;flex-wrap:wrap;">'
-      + '<div style="font-family:Cinzel,serif;font-size:.86rem;color:var(--gold2);">Arcboard Playtest</div>'
-      + '<div id="arcboardRound" style="font-size:.7rem;color:var(--muted2);">Round ' + Number(arc.round || 1) + '</div>'
-      + '</div>'
-      + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;margin-top:.2rem;">'
-      + '<span id="arcboardTurnSide" style="font-size:.7rem;color:var(--teal);">Turn: ' + (String(arc.turnSide || 'ally') === 'ally' ? 'Allies' : 'Enemies') + '</span>'
-      + '<span id="arcboardVictoryTrack" style="font-size:.7rem;color:var(--muted2);">' + buildArcboardNodeTrack(arc.nodeControl) + '</span>'
-      + (resultText ? '<span style="font-size:.72rem;">' + resultText + '</span>' : '')
-      + '</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:.4rem;margin-top:.38rem;">'
-      + '<div id="arcboardUnitListAlly"><div style="font-size:.7rem;color:var(--teal);margin-bottom:.14rem;">Blue Side</div>' + buildArcboardUnitRows(allies, 'ally') + '</div>'
-      + '<div id="arcboardHexBoard" style="border:1px solid var(--border2);padding:.34rem;background:rgba(255,255,255,.02);">'
-      + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.18rem;">7x7 Hex Board Shell (Phase 1): nodes and strike path testing.</div>'
-      + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.2rem;font-size:.66rem;">'
-      + '<div style="border:1px dashed var(--border2);padding:.2rem;text-align:center;">Node A</div>'
-      + '<div style="border:1px dashed var(--border2);padding:.2rem;text-align:center;">Node B</div>'
-      + '<div style="border:1px dashed var(--border2);padding:.2rem;text-align:center;">Node C</div>'
-      + '</div>'
-      + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.25rem;">Selected: '
-      + (selectedActor ? selectedActor.name : 'none') + ' -> ' + (selectedTarget ? selectedTarget.name : 'none') + '</div>'
-      + '</div>'
-      + '<div id="arcboardUnitListEnemy"><div style="font-size:.7rem;color:var(--red2);margin-bottom:.14rem;">Red Side</div>' + buildArcboardUnitRows(enemies, 'enemy') + '</div>'
-      + '</div>'
-      + '<div style="margin-top:.42rem;border-top:1px solid var(--border2);padding-top:.35rem;">'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:.25rem;align-items:end;">'
-      + '<label style="font-size:.66rem;color:var(--muted2);">Actor'
-      + '<select id="arcboardSelectedUnit" onchange="window.arcboardSelectUnit(this.value)" style="width:100%;margin-top:.08rem;">'
-      + allies.map(function (unit) {
-        return '<option value="' + String(unit.id).replace(/"/g, '&quot;') + '"' + (String(arc.selectedUnitId || '') === String(unit.id || '') ? ' selected' : '') + '>' + String(unit.name || 'Unit') + ' (AP ' + Number(unit.ap || 0) + ')</option>';
-      }).join('')
-      + '</select></label>'
-      + '<label style="font-size:.66rem;color:var(--muted2);">Action'
-      + '<select id="arcboardActionSelect" style="width:100%;margin-top:.08rem;">' + actionOptions + '</select></label>'
-      + '<label style="font-size:.66rem;color:var(--muted2);">Target'
-      + '<select id="arcboardTargetSelect" onchange="window.arcboardSelectTarget(this.value)" style="width:100%;margin-top:.08rem;">' + targetOptions + '</select></label>'
-      + '<button id="arcboardExecuteBtn" class="btn btn-sm btn-primary" onclick="window.arcboardExecuteAction();">Execute</button>'
-      + '<button id="arcboardEndTurnBtn" class="btn btn-sm" onclick="window.arcboardEndSideTurn();">End Turn</button>'
-      + '</div>'
-      + '<div style="display:flex;gap:.25rem;margin-top:.28rem;flex-wrap:wrap;">'
-      + '<button class="btn btn-xs" onclick="window.resetArcboardPlaytest();">Reset Match</button>'
-      + '<button class="btn btn-xs" onclick="window.closeArcboardPlaytest();">Close Arcboard</button>'
-      + '</div>'
-      + '<div id="arcboardLog" style="margin-top:.3rem;border:1px solid var(--border2);padding:.25rem;max-height:180px;overflow:auto;background:rgba(255,255,255,.01);">' + (logTail || '<div style="font-size:.66rem;color:var(--muted2);">No events yet.</div>') + '</div>'
-      + '<div id="arcboardRuleHint" style="font-size:.62rem;color:var(--muted2);margin-top:.2rem;">Action math: Action Die vs Dread Die, success on tie, damage scales by margin.</div>'
-      + '</div>'
-      + '</div>';
-  }
-
-  function arcboardSelectUnit(unitId) {
-    var arc = getArcboardState();
-    arc.selectedUnitId = String(unitId || '');
-    renderMiniGamesPage();
-    return true;
-  }
-
-  function arcboardSelectTarget(unitId) {
-    var arc = getArcboardState();
-    arc.selectedTargetId = String(unitId || '');
-    renderMiniGamesPage();
-    return true;
-  }
-
-  function arcboardResolveStrike(actor, target, arc) {
-    if (!actor || !target || !arc) return false;
-    if (Number(actor.ap || 0) <= 0) {
-      if (typeof showNotif === 'function') showNotif(actor.name + ' has no AP.', 'warn');
-      return false;
-    }
-    var dist = getArcboardDistance(actor, target);
-    if (dist > 1) {
-      if (typeof showNotif === 'function') showNotif('Strike requires range 1 (Engaged).', 'warn');
-      return false;
-    }
-
-    var advDice = Array.isArray(actor.advDice) ? actor.advDice.slice() : [];
-    var ra = (typeof rollWithAdvantage === 'function')
-      ? rollWithAdvantage(Math.max(4, Number(actor.actionDie || 8)), advDice, { type: 'action', major: true, label: 'Arcboard Strike' })
-      : { total: (typeof explodingRoll === 'function' ? explodingRoll(Math.max(4, Number(actor.actionDie || 8))).total : (Math.floor(Math.random() * Math.max(4, Number(actor.actionDie || 8))) + 1)), exploded: false };
-    var dreadRoll = (typeof explodingRoll === 'function')
-      ? explodingRoll(Math.max(4, Number(target.dreadDie || 6)), { type: 'dread', major: true, label: 'Arcboard Dread' })
-      : { total: (Math.floor(Math.random() * Math.max(4, Number(target.dreadDie || 6))) + 1) };
-
-    var finalAction = Math.max(0, Number(ra.total || 0) + Number(actor.flatBonus || 0));
-    var finalDread = Math.max(1, Number(dreadRoll.total || 1));
-    var success = finalAction >= finalDread;
-    var margin = Math.max(1, Math.abs(finalAction - finalDread));
-    var damage = 0;
-
-    if (success) {
-      var baseDamage = 1 + Math.floor(margin / 3);
-      var critBonus = (ra.exploded || (ra.base && ra.base.exploded)) ? 1 : 0;
-      damage = Math.max(1, baseDamage + critBonus);
-      target.hp = Math.max(0, Number(target.hp || 0) - damage);
-      arc.log = (arc.log || []).concat([
-        actor.name + ' Strike: ' + finalAction + ' vs DD ' + finalDread + ' -> HIT for ' + damage + ' (' + target.name + ' HP ' + target.hp + '/' + target.maxHp + ')'
-      ]).slice(-120);
-      if (typeof showDccSuccessOutcome === 'function') {
-        showDccSuccessOutcome('strike', margin, { actionTotal: finalAction, dreadTotal: finalDread, context: 'Arcboard Strike' });
-      }
-    } else {
-      arc.log = (arc.log || []).concat([
-        actor.name + ' Strike: ' + finalAction + ' vs DD ' + finalDread + ' -> MISS'
-      ]).slice(-120);
-      if (typeof showDccFailureOutcome === 'function') {
-        showDccFailureOutcome('strike', margin, { actionTotal: finalAction, dreadTotal: finalDread, context: 'Arcboard Strike' });
-      }
-    }
-
-    actor.ap = Math.max(0, Number(actor.ap || 0) - 1);
-    checkArcboardVictory(arc);
-    return true;
-  }
-
-  function arcboardExecuteAction() {
-    var arc = getArcboardState();
-    if (!arc.active || String(arc.turnSide || 'ally') !== 'ally') return false;
-    var actionEl = document.getElementById('arcboardActionSelect');
-    var action = String(actionEl && actionEl.value || 'strike').toLowerCase();
-    var actor = getArcboardUnitById(arc, arc.selectedUnitId);
-    var target = getArcboardUnitById(arc, arc.selectedTargetId);
-    if (!actor || String(actor.side || '') !== 'ally' || Number(actor.hp || 0) <= 0) {
-      if (typeof showNotif === 'function') showNotif('Select a living ally actor first.', 'warn');
-      return false;
-    }
-    if (!target || String(target.side || '') !== 'enemy' || Number(target.hp || 0) <= 0) {
-      if (typeof showNotif === 'function') showNotif('Select a living enemy target first.', 'warn');
-      return false;
-    }
-
-    var ok = false;
-    if (action === 'strike') {
-      ok = arcboardResolveStrike(actor, target, arc);
-    }
-    if (!ok) return false;
-
-    if (!arc.result) {
-      var alliesCanAct = getArcboardLivingUnits(arc.allies).some(function (unit) { return Number(unit.ap || 0) > 0; });
-      if (!alliesCanAct) {
-        arc.log = (arc.log || []).concat(['All ally AP spent. End turn to resolve enemy response.']).slice(-120);
-      }
-    }
-    renderMiniGamesPage();
-    return true;
-  }
-
-  function arcboardResolveEnemyTurn(arc) {
-    if (!arc || !arc.active) return false;
-    var enemy = getArcboardLivingUnits(arc.enemies).filter(function (unit) { return Number(unit.ap || 0) > 0; })[0] || null;
-    var ally = getArcboardLivingUnits(arc.allies)[0] || null;
-    if (!enemy || !ally) return false;
-
-    var inRange = getArcboardDistance(enemy, ally) <= 1;
-    if (!inRange) {
-      enemy.ap = Math.max(0, Number(enemy.ap || 0) - 1);
-      arc.log = (arc.log || []).concat([enemy.name + ' repositions (placeholder AI move).']).slice(-120);
-      return true;
-    }
-    arcboardResolveStrike(enemy, ally, arc);
-    return true;
-  }
-
-  function arcboardEndSideTurn() {
-    var arc = getArcboardState();
-    if (!arc.active) return false;
-    if (String(arc.turnSide || 'ally') === 'ally') {
-      arc.turnSide = 'enemy';
-      arc.log = (arc.log || []).concat(['Enemy turn begins.']).slice(-120);
-      arcboardResolveEnemyTurn(arc);
-      if (!arc.result) {
-        arc.turnSide = 'ally';
-        arc.round = Math.max(1, Number(arc.round || 1) + 1);
-        resetArcboardAp(arc);
-        arc.log = (arc.log || []).concat(['Round ' + arc.round + ' begins. AP reset.']).slice(-120);
-      }
-    }
-    checkArcboardVictory(arc);
-    renderMiniGamesPage();
-    return true;
-  }
-
-  function openArcboardPlaytest() {
-    createArcboardMatch();
-    renderMiniGamesPage();
-    if (typeof showNotif === 'function') showNotif('Arcboard playtest started.', 'good');
-    return true;
-  }
-
-  function resetArcboardPlaytest() {
-    createArcboardMatch();
-    renderMiniGamesPage();
-    if (typeof showNotif === 'function') showNotif('Arcboard match reset.', 'info');
-    return true;
-  }
-
-  function closeArcboardPlaytest() {
-    var arc = getArcboardState();
-    arc.active = false;
-    arc.result = null;
-    renderMiniGamesPage();
-    return true;
-  }
-
   function openMiniGamesMode(modeId) {
     ensureNewFeatureState();
     var mode = String(modeId || '').toLowerCase();
     if (!mode) return false;
-    if (mode === 'arcboard') return openArcboardPlaytest();
     if (mode === 'expedition') return startHoldingMiniGamesExpedition('mini-games-page');
     var spec = getCrucibleModeSpec(mode);
     S.holding.crucible.preferredMode = spec.id;
@@ -7846,7 +7455,6 @@
   function buildMiniGamesPageHtml() {
     ensureNewFeatureState();
     var c = S && S.holding && S.holding.crucible ? S.holding.crucible : {};
-    var arc = getArcboardState();
     var exp = c.expedition || {};
     var cards = [
       {
@@ -7860,18 +7468,9 @@
         title: 'Arena Control',
         subtitle: '3v3 zone pressure skirmish',
         desc: 'Capture A/B/C zones by holding a zone for 3 rounds. Hold 2/3 zones to score in the 10-round match.'
-      },
-      {
-        mode: 'arcboard',
-        title: 'Arcboard Playtest',
-        subtitle: '4v4 tactical board scaffold',
-        desc: 'Phase 1 implementation: state init, UI shell, and fully working Strike action path (Action vs Dread, AP, damage, turn flow).'
       }
     ];
-    var activeModes = [];
-    if (c.match) activeModes.push(String(c.match.mode || ''));
-    if (arc && arc.active) activeModes.push('arcboard');
-    var activeLabel = activeModes.length ? activeModes.join(', ') : 'None';
+    var active = c.match ? String(c.match.mode || '') : '';
     return ''
       + '<div style="padding:.95rem;display:grid;gap:.7rem;">'
       + '<div class="card">'
@@ -7881,12 +7480,12 @@
       + '<span style="border:1px solid var(--border2);padding:.18rem .3rem;">Runs: ' + Number(exp.runs || 0) + '</span>'
       + '<span style="border:1px solid var(--border2);padding:.18rem .3rem;">Clears: ' + Number(exp.clears || 0) + '</span>'
       + '<span style="border:1px solid var(--border2);padding:.18rem .3rem;">Best Day: ' + Number(exp.bestDay || 0) + '</span>'
-      + '<span style="border:1px solid var(--border2);padding:.18rem .3rem;">Active: ' + activeLabel + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.18rem .3rem;">Active: ' + (active ? active.charAt(0).toUpperCase() + active.slice(1) : 'None') + '</span>'
       + '</div>'
       + '</div>'
       + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.55rem;">'
       + cards.map(function (card) {
-        var isActive = activeModes.indexOf(card.mode) >= 0;
+        var isActive = active && active === card.mode;
         return '<div class="card" style="border-color:' + (isActive ? 'rgba(240,208,112,.55)' : 'var(--border2)') + ';">'
           + '<div style="font-family:Cinzel,serif;font-size:.86rem;color:var(--gold2);">' + card.title + '</div>'
           + '<div style="font-size:.7rem;color:var(--teal);margin:.12rem 0 .2rem;">' + card.subtitle + '</div>'
@@ -7894,12 +7493,10 @@
           + '<div style="margin-top:.45rem;display:flex;gap:.28rem;flex-wrap:wrap;">'
           + '<button class="btn btn-sm btn-primary" onclick="window.openMiniGamesMode(\'' + card.mode + '\');">Play ' + card.title + '</button>'
           + (card.mode === 'expedition' ? '<button class="btn btn-sm" onclick="window.openMiniGamesMode(\'expedition\');">New Run</button>' : '')
-            + (card.mode === 'arcboard' ? '<button class="btn btn-sm" onclick="window.resetArcboardPlaytest();">Reset</button>' : '')
           + '</div>'
           + '</div>';
       }).join('')
       + '</div>'
-          + (arc && arc.active ? buildArcboardPanelHtml() : '')
       + '</div>';
   }
 
@@ -11651,13 +11248,6 @@
   window.getHoldingCrucibleMatch = getHoldingCrucibleMatch;
   window.holdingCrucibleSetMode = holdingCrucibleSetMode;
   window.startHoldingMiniGamesExpedition = startHoldingMiniGamesExpedition;
-  window.openArcboardPlaytest = openArcboardPlaytest;
-  window.resetArcboardPlaytest = resetArcboardPlaytest;
-  window.closeArcboardPlaytest = closeArcboardPlaytest;
-  window.arcboardSelectUnit = arcboardSelectUnit;
-  window.arcboardSelectTarget = arcboardSelectTarget;
-  window.arcboardExecuteAction = arcboardExecuteAction;
-  window.arcboardEndSideTurn = arcboardEndSideTurn;
   window.openMiniGamesMode = openMiniGamesMode;
   window.renderMiniGamesPage = renderMiniGamesPage;
   window.holdingCrucibleRestAtDwelling = holdingCrucibleRestAtDwelling;

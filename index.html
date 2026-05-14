@@ -910,7 +910,8 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="btn btn-primary" onclick="generateMap()">⚄ Generate Province</button>
     <button class="btn" onclick="clearMap()">✕ Clear</button>
     <button class="btn btn-sm" id="nightModeToggleBtn" onclick="toggleNightMode()">Night Mode: Off</button>
-    <button class="btn btn-sm btn-teal" id="mapClickModeBtn" onclick="toggleMapClickMode()">Map Click: Travel</button>
+    <button class="btn btn-sm btn-teal" id="mapClickModeBtn" onclick="toggleMapClickMode()">Map Mode: Travel</button>
+    <button class="btn btn-sm" id="campaignFogVisionBtn" onclick="toggleCampaignFogPlayerVision()">Campaign Player Vision: Path</button>
     <select id="mapHexStyleSel" onchange="setMapHexStyle(this.value)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
       <option value="classic">Hex Style: Classic</option>
     </select>
@@ -11996,7 +11997,94 @@ function setContext(ctx,btn){
     if(typeof applySpaceNavalPresentation==='function') setTimeout(applySpaceNavalPresentation,0);
   }
 }
-function ensureMapClickMode(){if(!S.mapClickMode)S.mapClickMode='travel';return S.mapClickMode;}
+function ensureMapClickMode(){
+  if(!S.mapClickMode)S.mapClickMode='travel';
+  if(['travel','inspect','fog'].indexOf(String(S.mapClickMode))<0)S.mapClickMode='travel';
+  return S.mapClickMode;
+}
+function ensureMapFogState(){
+  if(!S||typeof S!=='object')return {};
+  if(!S.mapFog||typeof S.mapFog!=='object')S.mapFog={};
+  ['province','sea','galaxy'].forEach(function(region){
+    if(!S.mapFog[region]||typeof S.mapFog[region]!=='object')S.mapFog[region]={};
+    const cfg=S.mapFog[region];
+    cfg.enabled=!!cfg.enabled;
+    if(typeof cfg.playerCurrentOnlyInCampaign!=='boolean')cfg.playerCurrentOnlyInCampaign=false;
+    if(!cfg.revealed||typeof cfg.revealed!=='object')cfg.revealed={};
+  });
+  return S.mapFog;
+}
+function getMapFogConfig(region){
+  const scope=String(region||'province').toLowerCase();
+  const fog=ensureMapFogState();
+  if(!fog[scope])fog[scope]={enabled:false,playerCurrentOnlyInCampaign:false,revealed:{}};
+  return fog[scope];
+}
+function getCampaignRoleSnapshot(){
+  if(!window.campaignSystem||typeof window.campaignSystem.getState!=='function')return null;
+  return window.campaignSystem.getState()||null;
+}
+function isMapFogHexVisible(region,key,currentKey){
+  const cfg=getMapFogConfig(region);
+  if(!cfg.enabled)return true;
+  const cs=getCampaignRoleSnapshot();
+  if(cs&&cs.code&&cs.role==='gm')return true;
+  if(cs&&cs.code&&cs.role==='player'&&cfg.playerCurrentOnlyInCampaign){
+    return String(key||'')===String(currentKey||'');
+  }
+  return !!cfg.revealed[String(key||'')];
+}
+function revealMapFogHex(region,key,opts){
+  const cfg=getMapFogConfig(region);
+  const options=opts&&typeof opts==='object'?opts:{};
+  let changed=false;
+  const applyKey=function(k){
+    const sk=String(k||'');
+    if(!sk)return;
+    if(!cfg.revealed[sk]){cfg.revealed[sk]=true;changed=true;}
+  };
+  applyKey(key);
+  if(Array.isArray(options.adjacentKeys))options.adjacentKeys.forEach(applyKey);
+  return changed;
+}
+function toggleMapFogForRegion(region){
+  const cfg=getMapFogConfig(region);
+  cfg.enabled=!cfg.enabled;
+  return cfg.enabled;
+}
+function setCampaignFogPlayerVision(currentOnly){
+  const val=!!currentOnly;
+  ['province','sea','galaxy'].forEach(function(region){
+    const cfg=getMapFogConfig(region);
+    cfg.playerCurrentOnlyInCampaign=val;
+  });
+  updateCampaignFogPlayerVisionUI();
+  return val;
+}
+function updateCampaignFogPlayerVisionUI(){
+  const b=document.getElementById('campaignFogVisionBtn');
+  if(!b)return;
+  const cfg=getMapFogConfig('province');
+  const currentOnly=!!cfg.playerCurrentOnlyInCampaign;
+  b.textContent='Campaign Player Vision: '+(currentOnly?'Current Hex':'Path');
+  if(currentOnly)b.classList.add('btn-teal');
+  else b.classList.remove('btn-teal');
+}
+function toggleCampaignFogPlayerVision(){
+  const cfg=getMapFogConfig('province');
+  const next=setCampaignFogPlayerVision(!cfg.playerCurrentOnlyInCampaign);
+  if(typeof showNotif==='function')showNotif('Campaign player fog vision set to '+(next?'current hex only.':'revealed path.') ,'good');
+  if(typeof renderHexMap==='function')renderHexMap();
+  if(typeof renderLastSeaMap==='function')renderLastSeaMap();
+  if(typeof renderLastSeaInfo==='function')renderLastSeaInfo();
+  if(typeof renderStarSystemMap==='function')renderStarSystemMap();
+  if(typeof updateStarSystemReadouts==='function')updateStarSystemReadouts();
+}
+window.isMapFogHexVisible=isMapFogHexVisible;
+window.revealMapFogHex=revealMapFogHex;
+window.toggleMapFogForRegion=toggleMapFogForRegion;
+window.getMapFogConfig=getMapFogConfig;
+window.toggleCampaignFogPlayerVision=toggleCampaignFogPlayerVision;
 function getCurrentTravelPhaseToken(){
   if(S&&S.gameDate&&typeof S.gameDate==='object'){
     const gd=S.gameDate;
@@ -12056,14 +12144,25 @@ function updateMapClickModeUI(){
   const b=document.getElementById('mapClickModeBtn');
   if(!b)return;
   const m=ensureMapClickMode();
-  b.textContent='Map Click: '+(m==='travel'?'Travel':'Inspect');
-  if(m==='travel'){b.classList.add('btn-teal');}else{b.classList.remove('btn-teal');}
+  const label=(m==='travel')?'Travel':(m==='inspect'?'Inspect':'Fog');
+  b.textContent='Map Mode: '+label;
+  if(m==='travel'||m==='fog'){b.classList.add('btn-teal');}else{b.classList.remove('btn-teal');}
+  updateCampaignFogPlayerVisionUI();
 }
 function toggleMapClickMode(){
   ensureMapClickMode();
-  S.mapClickMode=S.mapClickMode==='travel'?'inspect':'travel';
+  const order=['travel','inspect','fog'];
+  const idx=order.indexOf(String(S.mapClickMode));
+  S.mapClickMode=order[(idx+1)%order.length];
+  if(S.mapClickMode==='fog')getMapFogConfig('province').enabled=true;
   updateMapClickModeUI();
-  showNotif('Map clicks now '+(S.mapClickMode==='travel'?'advance travel time.':'inspect only.'),'good');
+  if(S.mapClickMode!=='fog')getMapFogConfig('province').enabled=false;
+  showNotif(
+    S.mapClickMode==='travel'?'Province clicks now advance travel time.':
+    (S.mapClickMode==='inspect'?'Province clicks now inspect only.':'Province clicks now reveal fog.'),
+    'good'
+  );
+  if(typeof renderHexMap==='function')renderHexMap();
 }
 function ensureMapVisualSettings(){
   if(!S.mapVisuals||typeof S.mapVisuals!=='object')S.mapVisuals={hex3d:true,overlay:'none',style:'classic',perspective:'topdown'};
@@ -12306,6 +12405,8 @@ function pickProvinceTerrainType(){
 function generateMap(){
   ensureBackstoryState();
   ensureProvinceConflictFronts(true);
+  const provinceFog=getMapFogConfig('province');
+  provinceFog.revealed={};
   mapData=[];usedPerils=[];usedBarriers=[];hexNotes={};
   for(let col=0;col<COLS;col++)for(let row=0;row<ROWS;row++)mapData.push({col,row,terrain:pickProvinceTerrainType(),type:'wilderness',name:'',data:{}});
 
@@ -12344,6 +12445,13 @@ function generateMap(){
   });
 
   assignBackstoryProvinceMarkers();
+  const homeMarker=(typeof getBackstoryMapMarker==='function')?getBackstoryMapMarker('province','home'):null;
+  const homeHex=homeMarker&&homeMarker.key?resolveProvinceHexFromKey(homeMarker.key):null;
+  selectedHex=homeHex||sh||mapData[0]||null;
+  if(selectedHex){
+    const currentKey=String(selectedHex.col)+','+String(selectedHex.row);
+    revealMapFogHex('province',currentKey);
+  }
   ensureProvinceConflictFronts(false);
   renderHexMap();showNotif('Province generated!','good');
 }
@@ -12365,7 +12473,7 @@ function markTradeRoutes(nodes){
   }
 }
 
-function clearMap(){mapData=[];selectedHex=null;hexNotes={};usedPerils=[];usedBarriers=[];provinceEdgeBarriers=[];provinceMapCoreSignature='';provinceMapSelectedKeyCache='';ensureProvinceConflictFronts(true);if(S&&S.mapLinks)delete S.mapLinks.provinceSecretPadKey;const svg=document.getElementById('hexMapSvg');svg.setAttribute('width','760');svg.setAttribute('height','660');svg.innerHTML='<text x="380" y="318" text-anchor="middle" font-family="Cinzel,serif" font-size="13" fill="#252848">Click "Generate Province" to begin</text><text x="380" y="343" text-anchor="middle" font-family="Cinzel,serif" font-size="10" fill="#1a1c35">Select an Age and Season above before generating</text>';document.getElementById('hexInfo').innerHTML='<div class="hex-info-inner"><div style="font-size:.83rem;color:var(--muted2);">Generate a map to begin exploring.</div></div>';}
+function clearMap(){mapData=[];selectedHex=null;hexNotes={};usedPerils=[];usedBarriers=[];provinceEdgeBarriers=[];provinceMapCoreSignature='';provinceMapSelectedKeyCache='';ensureProvinceConflictFronts(true);const provinceFog=getMapFogConfig('province');provinceFog.revealed={};if(S&&S.mapLinks)delete S.mapLinks.provinceSecretPadKey;const svg=document.getElementById('hexMapSvg');svg.setAttribute('width','760');svg.setAttribute('height','660');svg.innerHTML='<text x="380" y="318" text-anchor="middle" font-family="Cinzel,serif" font-size="13" fill="#252848">Click "Generate Province" to begin</text><text x="380" y="343" text-anchor="middle" font-family="Cinzel,serif" font-size="10" fill="#1a1c35">Select an Age and Season above before generating</text>';document.getElementById('hexInfo').innerHTML='<div class="hex-info-inner"><div style="font-size:.83rem;color:var(--muted2);">Generate a map to begin exploring.</div></div>';}
 
 function cloneProvinceState(value){
   try{return JSON.parse(JSON.stringify(value));}catch(_err){return null;}
@@ -12380,7 +12488,8 @@ function getProvinceMapCoreSignature(payload){
       usedPerils:Array.isArray(src.usedPerils)?src.usedPerils:[],
       usedBarriers:Array.isArray(src.usedBarriers)?src.usedBarriers:[],
       provinceEdgeBarriers:Array.isArray(src.provinceEdgeBarriers)?src.provinceEdgeBarriers:[],
-      provinceSecretPadKey:typeof src.provinceSecretPadKey==='string'?src.provinceSecretPadKey:''
+      provinceSecretPadKey:typeof src.provinceSecretPadKey==='string'?src.provinceSecretPadKey:'',
+      fog:src.fog&&typeof src.fog==='object'?src.fog:{}
     });
   }catch(_err){
     return '';
@@ -12396,6 +12505,42 @@ function resolveProvinceHexFromKey(key){
   return mapData.find(h=>h&&h.col===sc&&h.row===sr)||null;
 }
 
+function getProvinceAdjacentKeys(key){
+  const hex=resolveProvinceHexFromKey(key);
+  if(!hex)return [];
+  const out=[];
+  for(let dc=-1;dc<=1;dc++){
+    for(let dr=-1;dr<=1;dr++){
+      if(dc===0&&dr===0)continue;
+      const h=mapData.find(function(entry){return entry&&entry.col===hex.col+dc&&entry.row===hex.row+dr;});
+      if(h)out.push(String(h.col)+','+String(h.row));
+    }
+  }
+  return out;
+}
+
+function revealProvinceRumorHex(col,row){
+  const origin=mapData.find(function(h){return h&&h.col===col&&h.row===row;});
+  if(!origin)return;
+  const currentKey=selectedHex?String(selectedHex.col)+','+String(selectedHex.row):'';
+  const hidden=mapData.filter(function(h){
+    if(!h)return false;
+    const k=String(h.col)+','+String(h.row);
+    if(k===currentKey)return false;
+    return !isMapFogHexVisible('province',k,currentKey);
+  });
+  const pool=hidden.length?hidden:mapData.filter(function(h){return h&&String(h.col)+','+String(h.row)!==currentKey;});
+  if(!pool.length){
+    showNotif('No additional province hexes to reveal.', 'info');
+    return;
+  }
+  const target=pick(pool);
+  const key=String(target.col)+','+String(target.row);
+  revealMapFogHex('province',key);
+  if(typeof renderHexMap==='function')renderHexMap();
+  if(typeof showNotif==='function')showNotif('Local rumors reveal distant activity near ['+(target.col+1)+','+(target.row+1)+'].','good');
+}
+
 function getProvinceMapState(){
   const selectedKey=selectedHex?`${selectedHex.col},${selectedHex.row}`:'';
   return cloneProvinceState({
@@ -12405,7 +12550,8 @@ function getProvinceMapState(){
     usedBarriers:usedBarriers,
     provinceEdgeBarriers:provinceEdgeBarriers,
     selectedKey:selectedKey,
-    provinceSecretPadKey:(S&&S.mapLinks)?(S.mapLinks.provinceSecretPadKey||''):''
+    provinceSecretPadKey:(S&&S.mapLinks)?(S.mapLinks.provinceSecretPadKey||''):'',
+    fog:cloneProvinceState(getMapFogConfig('province'))||{}
   })||{};
 }
 
@@ -12490,6 +12636,7 @@ function applyProvinceMapState(payload,opts){
   usedBarriers=Array.isArray(incoming.usedBarriers)?incoming.usedBarriers.slice():[];
   provinceEdgeBarriers=sanitizeProvinceEdgeBarriers(cloneProvinceState(incoming.provinceEdgeBarriers)||[]);
   selectedHex=resolveProvinceHexFromKey(selectedKey);
+  if(incoming.fog&&typeof incoming.fog==='object')S.mapFog=Object.assign({},S.mapFog||{}, {province:cloneProvinceState(incoming.fog)||{enabled:false,playerCurrentOnlyInCampaign:false,revealed:{}}});
   if(S&&S.mapLinks&&typeof incoming.provinceSecretPadKey==='string'){S.mapLinks.provinceSecretPadKey=incoming.provinceSecretPadKey;}
   provinceMapCoreSignature=incomingCoreSignature;
   provinceMapSelectedKeyCache=selectedKey;
@@ -12935,6 +13082,8 @@ function renderHexMap(){
   });
   renderProvinceMarkerLegend(liveMarkers);
   updateProvinceContextUi();
+  const selectedProvinceKey=selectedHex?String(selectedHex.col)+','+String(selectedHex.row):'';
+  if(selectedProvinceKey)revealMapFogHex('province',selectedProvinceKey);
   const levelPerspective=mapFx.perspective==='level';
   const levelDepth=levelPerspective?Math.max(10,Math.floor(HEX_SIZE*.36)):0;
   const projectPoint=function(pt){
@@ -12963,6 +13112,7 @@ function renderHexMap(){
     const x=projected.x;
     const y=projected.y-elevationLift;
     const markerKey=`${hex.col},${hex.row}`;
+    const fogHidden=!isMapFogHexVisible('province',markerKey,selectedProvinceKey);
     const r=HEX_SIZE-1;
     const ptsData=hexPointArray(x,y,r);
     const pts=hexPointsFromArray(ptsData);
@@ -13372,10 +13522,29 @@ function renderHexMap(){
       youTag.textContent='YOU';
       g.appendChild(youTag);
     }
+    if(fogHidden){
+      const fogCover=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+      fogCover.setAttribute('points',pts);
+      fogCover.setAttribute('fill','rgba(6,10,16,.84)');
+      fogCover.setAttribute('stroke','rgba(110,124,148,.35)');
+      fogCover.setAttribute('stroke-width','1');
+      fogCover.setAttribute('pointer-events','none');
+      g.appendChild(fogCover);
+      const fogMark=document.createElementNS('http://www.w3.org/2000/svg','text');
+      fogMark.setAttribute('x',x);
+      fogMark.setAttribute('y',y+4);
+      fogMark.setAttribute('text-anchor','middle');
+      fogMark.setAttribute('font-size','11');
+      fogMark.setAttribute('fill','rgba(201,214,240,.65)');
+      fogMark.setAttribute('pointer-events','none');
+      fogMark.textContent='?';
+      g.appendChild(fogMark);
+    }
     g.addEventListener('click',()=>{
       try{
         let moved=false;
-        if(ensureMapClickMode()==='travel'){
+        const clickMode=ensureMapClickMode();
+        if(clickMode==='travel'){
           const edgeBlock=(selectedHex&&selectedHex!==hex)?getProvinceEdgeBarrierBetween(selectedHex,hex):null;
           if(edgeBlock){
             const nowToken=getCurrentTravelPhaseToken();
@@ -13389,6 +13558,12 @@ function renderHexMap(){
           moved=true;
         }
         selectedHex=hex;
+        if(clickMode==='fog'){
+          revealMapFogHex('province',markerKey,{adjacentKeys:getProvinceAdjacentKeys(markerKey)});
+          if(typeof showNotif==='function')showNotif('Fog lifted around ['+(hex.col+1)+','+(hex.row+1)+'].','good');
+        }else if(moved){
+          revealMapFogHex('province',markerKey);
+        }
         // ⚡ Check for active bounties/threat interceptors BEFORE rendering
         if(typeof triggerWorldEventThreatOnHex==='function'){
           triggerWorldEventThreatOnHex(hex.col,hex.row);
@@ -13464,6 +13639,15 @@ function renderHexInfo(hex){
   const c=document.getElementById('hexInfo');if(!c)return;
   const d=hex.data||{};
   const nk=`${hex.col},${hex.row}`;
+  const visibleByFog=isMapFogHexVisible('province',nk,getProvinceSelectedKey());
+  if(!visibleByFog){
+    c.innerHTML='<div class="hex-info-inner">'
+      +'<div class="hex-type-tag wilderness">UNEXPLORED</div>'
+      +'<div class="hex-name">Fogged Hex ['+(hex.col+1)+','+(hex.row+1)+']</div>'
+      +'<div class="hex-desc">Details are obscured. Travel here or use Fog mode / observation to reveal it.</div>'
+      +'</div>';
+    return;
+  }
   const provinceItemFlags=(typeof getProvinceNarrativeItemFlags==='function')?getProvinceNarrativeItemFlags():{};
   const weatherBtnHint=provinceItemFlags.compass?' (+Compass +2)':(provinceItemFlags.torch?' (Torch eases fail stress)':'');
   const weatherBtnTitle=provinceItemFlags.compass?'Compass grants +2 to Lead/Control weather checks.':(provinceItemFlags.torch?'Torch reduces weather-failure stress by 1.':'');
@@ -13482,6 +13666,9 @@ function renderHexInfo(hex){
   html+=`<div class="hex-type-tag ${hex.type}">${hex.type.toUpperCase()}</div>`;
   html+=`<div class="hex-name">${hex.name||hex.terrain.name}</div>`;
   html+=`<div class="hex-desc" style="margin-bottom:.4rem;">${hex.terrain.name} terrain${activeProvinceCtx&&activeProvinceCtx.name?` · ${activeProvinceCtx.name}`:''}</div>`;
+  if(hex.type==='dwelling'||hex.type==='temple'||hex.type==='holding'||hex.type==='seat'){
+    html+=`<div style="margin-bottom:.35rem;"><button class="btn btn-xs btn-teal" onclick="revealProvinceRumorHex(${hex.col},${hex.row})">🗺 Ask Locals (Reveal Random Hex)</button></div>`;
+  }
 
   if(d.theosFlavor&&d.theosFlavor.detail){
     html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(126,215,255,.35);background:rgba(126,215,255,.06);">

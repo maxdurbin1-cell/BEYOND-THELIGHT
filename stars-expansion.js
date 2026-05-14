@@ -8463,6 +8463,7 @@ function ensureStarsState() {
     royalShipLog: [],
     activePlanetHexId: null,
     planetExplorationByHex: {},
+    clickMode: 'travel',
   };
   S.spaceNaval = S.spaceNaval || null;
   S.seaNaval = S.seaNaval || null;
@@ -16545,6 +16546,10 @@ function pickSpaceTextureVariant(type, ring) {
 
 function generateStarSystemMap(galaxyType) {
   ensureStarsState();
+  if (typeof window.getMapFogConfig === 'function') {
+    const galaxyFog = window.getMapFogConfig('galaxy');
+    galaxyFog.revealed = {};
+  }
   const type = galaxyType || S.starSystem.galaxyType || 'cluster';
   const center = { q: 0, r: 0 };
   const cells = [];
@@ -16664,10 +16669,108 @@ function getStarHexGlyph(hex) {
   return map[hex.type] || String(hex.id);
 }
 
+function ensureGalaxyClickMode() {
+  ensureStarsState();
+  const mode = String((S.starSystem && S.starSystem.clickMode) || 'travel');
+  if (['travel', 'inspect', 'fog'].indexOf(mode) < 0) {
+    S.starSystem.clickMode = 'travel';
+  }
+  return S.starSystem.clickMode;
+}
+
+function updateGalaxyClickModeUI() {
+  const btn = document.getElementById('starMapClickModeBtn');
+  if (!btn) return;
+  const mode = ensureGalaxyClickMode();
+  const label = mode === 'travel' ? 'Travel' : (mode === 'inspect' ? 'Inspect' : 'Fog');
+  btn.textContent = 'Map Mode: ' + label;
+  if (mode === 'travel' || mode === 'fog') btn.classList.add('btn-teal');
+  else btn.classList.remove('btn-teal');
+}
+
+function toggleGalaxyClickMode() {
+  const order = ['travel', 'inspect', 'fog'];
+  const cur = ensureGalaxyClickMode();
+  const idx = order.indexOf(cur);
+  S.starSystem.clickMode = order[(idx + 1) % order.length];
+  if (S.starSystem.clickMode === 'fog' && typeof window.getMapFogConfig === 'function') {
+    window.getMapFogConfig('galaxy').enabled = true;
+  }
+  if (S.starSystem.clickMode !== 'fog' && typeof window.getMapFogConfig === 'function') {
+    window.getMapFogConfig('galaxy').enabled = false;
+  }
+  updateGalaxyClickModeUI();
+  renderStarSystemMap();
+  updateStarSystemReadouts();
+  showNotif(
+    S.starSystem.clickMode === 'travel'
+      ? 'Galaxy clicks now spend fuel and travel.'
+      : (S.starSystem.clickMode === 'inspect' ? 'Galaxy clicks now inspect only.' : 'Galaxy clicks now reveal fog.'),
+    'good'
+  );
+}
+
+function getAdjacentGalaxyHexIds(hexId) {
+  ensureStarsState();
+  const base = (S.starSystem.hexes || []).find(function (hex) { return hex && hex.id === hexId; });
+  if (!base) return [];
+  return (S.starSystem.hexes || [])
+    .filter(function (hex) {
+      if (!hex || hex.id === base.id) return false;
+      return starHexDistance(base, hex) <= 1;
+    })
+    .map(function (hex) { return String(hex.id); });
+}
+
+function observeAdjacentGalaxyFromCurrent() {
+  ensureStarsState();
+  const current = getCurrentStarHex();
+  if (!current) {
+    showNotif('Select a galaxy hex first.', 'warn');
+    return;
+  }
+  const neighbors = (S.starSystem.hexes || []).filter(function (hex) {
+    return hex && hex.id !== current.id && starHexDistance(current, hex) <= 1;
+  });
+  if (!neighbors.length) {
+    showNotif('No adjacent galaxy hexes to observe.', 'warn');
+    return;
+  }
+  const mindDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('mind') : ((S.stats && S.stats.mind) || 4);
+  const action = explodingRoll(mindDie);
+  const dread = explodingRoll(6);
+  const success = action.total >= dread.total;
+  let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;">'
+    + '<div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">Mind d' + mindDie + '</div><div style="font-size:1.6rem;color:var(--teal);font-family:Rajdhani,sans-serif;font-weight:700;">' + action.total + '</div></div>'
+    + '<div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">DD6</div><div style="font-size:1.6rem;color:var(--red2);font-family:Rajdhani,sans-serif;font-weight:700;">' + dread.total + '</div></div>'
+    + '</div>';
+  if (success) {
+    const hidden = neighbors.filter(function (hex) {
+      return !(typeof window.isMapFogHexVisible === 'function' ? window.isMapFogHexVisible('galaxy', String(hex.id), String(current.id)) : true);
+    });
+    const target = pick(hidden.length ? hidden : neighbors);
+    if (typeof window.revealMapFogHex === 'function') window.revealMapFogHex('galaxy', String(target.id));
+    if (typeof addSuccessRoll === 'function') addSuccessRoll();
+    html += '<div style="font-size:.82rem;color:var(--green2);">✓ Observation success. Signal lock on Hex ' + target.id + ' (' + (STAR_SIGHTING_COLORS[target.type] ? STAR_SIGHTING_COLORS[target.type].label : target.type) + ').</div>';
+  } else {
+    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+    html += '<div style="font-size:.82rem;color:var(--red2);">✗ Observation failed. Sensor noise obscures adjacent signatures.</div>';
+  }
+  if (typeof openModal === 'function') openModal('Observe Adjacent Galaxy Hex', html);
+  renderStarSystemMap();
+  updateStarSystemReadouts();
+}
+window.toggleGalaxyClickMode = toggleGalaxyClickMode;
+window.observeAdjacentGalaxyFromCurrent = observeAdjacentGalaxyFromCurrent;
+
 function renderStarSystemMap() {
   const host = document.getElementById('starSystemMap');
   if (!host) return;
   ensureStarsState();
+  updateGalaxyClickModeUI();
+  if (typeof window.revealMapFogHex === 'function' && S.starSystem.currentHexId != null) {
+    window.revealMapFogHex('galaxy', String(S.starSystem.currentHexId));
+  }
   // Reconcile resolved taskMarkers array entries back onto hex objects so
   // markers completed via any code path are hidden from the map.
   (S.starSystem.taskMarkers || []).forEach(function (task) {
@@ -16781,6 +16884,9 @@ function renderStarSystemMap() {
       ? window.getBackstoryMapMarker('galaxy', String(hex.id))
       : null;
     const isStoryObjective = storyObjectiveHexId === hex.id;
+    const fogHidden = (typeof window.isMapFogHexVisible === 'function')
+      ? !window.isMapFogHexVisible('galaxy', String(hex.id), String(S.starSystem.currentHexId == null ? '' : S.starSystem.currentHexId))
+      : false;
     const storyGlyph = isStoryObjective
       ? `<text x="${x - 14}" y="${y - 12}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="14" fill="#f0d070" pointer-events="none">➤</text>`
       : '';
@@ -16813,6 +16919,7 @@ function renderStarSystemMap() {
         ${factionTask ? `<text x="${x + 13}" y="${y + 17}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="${factionTask.status === 'combat_pending' ? '#e05050' : '#e8c050'}" pointer-events="none">${factionTask.monsterTask ? '⚔' : '✦'}</text>` : ''}
         ${bsMarker ? `<circle cx="${x - 12}" cy="${y + 16}" r="7" fill="rgba(123,154,255,.16)" stroke="#7b9aff" stroke-width="1.2" pointer-events="none"></circle><text x="${x - 12}" y="${y + 20}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="10" fill="#9db3ff" pointer-events="none">${bsMarker.icon || '✶'}</text>` : ''}
         ${markerGlyph ? `<text x="${x + 13}" y="${y - 10}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="13" fill="${markerColor}" onclick="event.stopPropagation(); ${hasTaskMarker ? `openGalaxyTaskFromMap(${hex.id})` : ''}" style="cursor:${hasTaskMarker ? 'zoom-in' : 'pointer'};">${markerGlyph}</text>` : ''}
+        ${fogHidden ? `<polygon points="${pts}" fill="rgba(6,10,16,.84)" stroke="rgba(110,124,148,.35)" stroke-width="1" pointer-events="none"></polygon><text x="${x}" y="${y + 4}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="12" fill="rgba(201,214,240,.65)" pointer-events="none">?</text>` : ''}
       </g>`;
   }).join('');
 
@@ -16851,11 +16958,30 @@ function renderStarSystemMap() {
 
 function selectStarSystemHex(hexId) {
   ensureStarsState();
+  const clickMode = ensureGalaxyClickMode();
   const prevId = S.starSystem.currentHexId;
   var traveled = false;
   const next = (S.starSystem.hexes || []).find(hx => hx.id === hexId);
   const prev = (S.starSystem.hexes || []).find(hx => hx.id === prevId);
   if (!next) return;
+
+  if (clickMode === 'fog') {
+    S.starSystem.currentHexId = hexId;
+    if (typeof window.revealMapFogHex === 'function') {
+      window.revealMapFogHex('galaxy', String(hexId), { adjacentKeys: getAdjacentGalaxyHexIds(hexId) });
+    }
+    renderStarSystemMap();
+    updateStarSystemReadouts();
+    showNotif('Galaxy fog revealed around hex ' + String(hexId) + '.', 'good');
+    return;
+  }
+
+  if (clickMode === 'inspect') {
+    S.starSystem.currentHexId = hexId;
+    renderStarSystemMap();
+    updateStarSystemReadouts();
+    return;
+  }
 
   if (prevId != null && prevId !== hexId && prev && next && next.ring !== 'core') {
     const distance = starHexDistance(prev, next);
@@ -16885,6 +17011,9 @@ function selectStarSystemHex(hexId) {
     }
   }
   S.starSystem.currentHexId = hexId;
+  if (typeof window.revealMapFogHex === 'function') {
+    window.revealMapFogHex('galaxy', String(hexId));
+  }
   const h = getCurrentStarHex();
   if (h && h.type === 'planet') {
     S.starSystem.activePlanetHexId = h.id;
@@ -17066,9 +17195,24 @@ function updateStarSystemReadouts() {
     } else {
       const sig = STAR_SIGHTING_COLORS[current.type] || STAR_SIGHTING_COLORS.nothing;
       const actionButtons = [];
+      actionButtons.push('<button class="btn btn-xs btn-teal" onclick="observeAdjacentGalaxyFromCurrent()">🔍 Observe Adjacent (Mind vs DD6)</button>');
       const hubState = current.type === 'hub'
         ? getHexPersistentState(current, 'hub', function() { return createSpaceHubState(current.ring); })
         : null;
+      const fogVisible = (typeof window.isMapFogHexVisible === 'function')
+        ? window.isMapFogHexVisible('galaxy', String(current.id), String(S.starSystem.currentHexId == null ? '' : S.starSystem.currentHexId))
+        : true;
+      if (!fogVisible) {
+        panel.innerHTML = `
+          <div style="display:grid;gap:.35rem;">
+            <div style="padding:.45rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);font-size:.82rem;color:var(--muted2);line-height:1.6;">
+              <div style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Unexplored</div>
+              <div style="margin-top:.15rem;">Hex ${current.id} is still masked by deep-space fog. Travel here, switch to Fog mode, or Observe Adjacent to reveal it.</div>
+            </div>
+            <div style="display:flex;gap:.25rem;flex-wrap:wrap;">${actionButtons.join('')}</div>
+          </div>`;
+        return;
+      }
       if (current.type === 'hub') {
         actionButtons.push('<button class="btn btn-xs btn-primary" onclick="if(typeof openSpaceHubHexcrawl===\'function\')openSpaceHubHexcrawl(\'' + String(current.label || current.name || 'Orbital Hub').replace(/'/g, "\\'") + '\');else if(typeof openHoldingSettlementHexcrawl===\'function\')openHoldingSettlementHexcrawl();">◫ Enter Space Hub</button>');
       }
@@ -20005,6 +20149,7 @@ function getGalaxySystemPanelMarkup() {
     <option value="hub">Hub Jump</option>
     <option value="hyper">Hyperdrive</option>
   </select>
+  <button class="btn btn-sm btn-teal" id="starMapClickModeBtn" onclick="toggleGalaxyClickMode()">Map Mode: Travel</button>
   <button class="btn btn-sm btn-teal" onclick="travelToSelectedGalaxyHex()">Travel To Selected</button>
   <span id="starFuelReadout" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--gold2);margin-left:.4rem;">Fuel S/H/H: 0/0/0</span>
   <span id="starCoords" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--muted2);margin-left:.4rem;"></span>

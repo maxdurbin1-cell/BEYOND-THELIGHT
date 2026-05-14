@@ -367,7 +367,7 @@
           </select>
           <button class="btn btn-primary" onclick="generateLastSea()">Chart Last Sea</button>
           <button class="btn" onclick="clearLastSea()">Clear</button>
-          <button class="btn btn-sm btn-teal" id="lastSeaClickModeBtn" onclick="toggleLastSeaClickMode()">Map Click: Travel</button>
+          <button class="btn btn-sm btn-teal" id="lastSeaClickModeBtn" onclick="toggleLastSeaClickMode()">Map Mode: Travel</button>
           <span id="lastSeaTimeDisplay" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--gold2);margin-left:.4rem;">Month 1, Day 1, Year 1 — Morning</span>
           <span id="lastSeaCoords" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--muted2);margin-left:.4rem;"></span>
         </div>
@@ -823,6 +823,10 @@
 
   function generateLastSea() {
     ensureExpansionState();
+    if (typeof window.getMapFogConfig === 'function') {
+      const seaFog = window.getMapFogConfig('sea');
+      seaFog.revealed = {};
+    }
     const layoutSelect = document.getElementById("lastSeaLayoutSelect");
     if (layoutSelect) {
       S.lastSea.layout = layoutSelect.value;
@@ -958,6 +962,10 @@
 
   function clearLastSea() {
     ensureExpansionState();
+    if (typeof window.getMapFogConfig === 'function') {
+      const seaFog = window.getMapFogConfig('sea');
+      seaFog.revealed = {};
+    }
     S.lastSea.map = [];
     S.lastSea.islands = [];
     S.lastSea.selectedKey = null;
@@ -1048,6 +1056,67 @@
     return S.mapLinks.seaSecretPadKey || "";
   }
 
+  function getAdjacentSeaKeysForHex(hex) {
+    if (!hex || !Array.isArray(S.lastSea.map)) return [];
+    return S.lastSea.map
+      .filter(function (entry) {
+        if (!entry || entry.key === hex.key) return false;
+        return Math.abs(Number(entry.col) - Number(hex.col)) <= 1
+          && Math.abs(Number(entry.row) - Number(hex.row)) <= 1;
+      })
+      .map(function (entry) { return String(entry.key || ""); })
+      .filter(Boolean);
+  }
+
+  function isSeaHexVisibleByFog(hexKey) {
+    if (typeof window.isMapFogHexVisible !== "function") return true;
+    return window.isMapFogHexVisible("sea", String(hexKey || ""), String(S.lastSea.selectedKey || ""));
+  }
+
+  function observeAdjacentSeaFromSelected() {
+    ensureExpansionState();
+    const hex = Array.isArray(S.lastSea.map)
+      ? S.lastSea.map.find(function (entry) { return entry && entry.key === S.lastSea.selectedKey; })
+      : null;
+    if (!hex) {
+      showNotif('Select a sea hex first.', 'warn');
+      return;
+    }
+    const neighbors = (Array.isArray(S.lastSea.map) ? S.lastSea.map : []).filter(function (entry) {
+      if (!entry || entry.key === hex.key) return false;
+      return Math.abs(Number(entry.col) - Number(hex.col)) <= 1
+        && Math.abs(Number(entry.row) - Number(hex.row)) <= 1;
+    });
+    if (!neighbors.length) {
+      showNotif('No adjacent sea hexes to observe.', 'warn');
+      return;
+    }
+    const leadDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
+    const action = explodingRoll(leadDie);
+    const dread = explodingRoll(6);
+    const success = action.total >= dread.total;
+    let result = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;">'
+      + '<div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">Lead d' + leadDie + '</div><div style="font-size:1.6rem;color:var(--teal);font-family:Rajdhani,sans-serif;font-weight:700;">' + action.total + '</div></div>'
+      + '<div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">DD6</div><div style="font-size:1.6rem;color:var(--red2);font-family:Rajdhani,sans-serif;font-weight:700;">' + dread.total + '</div></div>'
+      + '</div>';
+    if (success) {
+      const hidden = neighbors.filter(function (entry) { return !isSeaHexVisibleByFog(entry.key); });
+      const target = pick(hidden.length ? hidden : neighbors);
+      if (typeof window.revealMapFogHex === 'function') {
+        window.revealMapFogHex('sea', String(target.key || ''));
+      }
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+      result += '<div style="font-size:.82rem;color:var(--green2);">✓ Observation success. New lane intel: [' + (target.col + 1) + ',' + (target.row + 1) + '] ' + (target.title || target.islandName || target.seaLabel || 'Open Sea') + '.</div>';
+    } else {
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+      result += '<div style="font-size:.82rem;color:var(--red2);">✗ Observation fails. The fog and spray hide the route.</div>';
+    }
+    if (typeof openModal === 'function') openModal('Observe Adjacent Sea Hex', result);
+    renderLastSeaMap();
+    renderLastSeaInfo();
+  }
+  window.observeAdjacentSeaFromSelected = observeAdjacentSeaFromSelected;
+
   function renderLastSeaMap() {
     if (window.factionSystem && typeof window.factionSystem.syncBaseMarkers === "function") window.factionSystem.syncBaseMarkers();
     const svg = document.getElementById("lastSeaSvg");
@@ -1090,6 +1159,9 @@
       }), { homeTypes: ["island", "harbor"], rivalTypes: ["sea", "storm", "peril"], connectionTypes: ["island", "market", "harbor"] });
     }
     const hasSeaSelection = !!(S.lastSea && S.lastSea.selectedKey);
+    if (hasSeaSelection && typeof window.revealMapFogHex === 'function') {
+      window.revealMapFogHex('sea', String(S.lastSea.selectedKey || ''));
+    }
     S.lastSea.map.forEach((hex) => {
       const { x, y } = seaHexToPixel(hex.col, hex.row);
       const r = LAST_SEA_HEX - 1;
@@ -1102,6 +1174,7 @@
           : '';
       }
       const isSelected = S.lastSea.selectedKey === hex.key;
+      const fogHidden = !isSeaHexVisibleByFog(hex.key);
       const stroke = isSelected ? "#e8c050" : hex.type === "sea" ? "#2ec4b6" : "#c9a227";
 
       const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
@@ -1315,6 +1388,25 @@
         group.appendChild(bsIcon);
       }
 
+      if (fogHidden) {
+        const fogCover = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+        fogCover.setAttribute("points", seaHexPoints(x, y));
+        fogCover.setAttribute("fill", "rgba(6,10,16,.84)");
+        fogCover.setAttribute("stroke", "rgba(110,124,148,.35)");
+        fogCover.setAttribute("stroke-width", "1");
+        fogCover.setAttribute("pointer-events", "none");
+        group.appendChild(fogCover);
+        const fogMark = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        fogMark.setAttribute("x", x);
+        fogMark.setAttribute("y", y + 4);
+        fogMark.setAttribute("text-anchor", "middle");
+        fogMark.setAttribute("font-size", "11");
+        fogMark.setAttribute("fill", "rgba(201,214,240,.65)");
+        fogMark.setAttribute("pointer-events", "none");
+        fogMark.textContent = "?";
+        group.appendChild(fogMark);
+      }
+
       group.addEventListener("click", () => {
         var moved = false;
         if (S.lastSea.clickMode === "travel") {
@@ -1327,6 +1419,12 @@
           }
         }
         S.lastSea.selectedKey = hex.key;
+        if (S.lastSea.clickMode === "fog" && typeof window.revealMapFogHex === "function") {
+          window.revealMapFogHex("sea", String(hex.key || ""), { adjacentKeys: getAdjacentSeaKeysForHex(hex) });
+          showNotif('Sea fog lifted around [' + (hex.col + 1) + ',' + (hex.row + 1) + '].', 'good');
+        } else if (moved && typeof window.revealMapFogHex === "function") {
+          window.revealMapFogHex("sea", String(hex.key || ""));
+        }
         renderLastSeaMap();
         renderLastSeaInfo(hex);
         if (moved && typeof window.rollRivalEncounterForMap === "function") {
@@ -1628,6 +1726,16 @@
       `;
       return;
     }
+    if (!isSeaHexVisibleByFog(hex.key)) {
+      panel.innerHTML = `
+        <div class="sea-info-inner">
+          <div class="hex-type-tag wilderness">UNEXPLORED</div>
+          <div class="hex-name">Fogged Sea Hex [${hex.col + 1},${hex.row + 1}]</div>
+          <div class="hex-desc">Sails and spray hide details. Travel here, use Fog mode, or Observe Adjacent to reveal it.</div>
+        </div>
+      `;
+      return;
+    }
 
     const island = S.lastSea.islands.find((item) => item.id === hex.islandId);
     const normalizedResultHtml = ensureSeaPerilResultHtml(hex);
@@ -1754,7 +1862,8 @@
           <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">A submerged launch platform can sling your ship straight to the Galaxy routes.</div>
           <div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(typeof travelToGalaxyFromMap==='function')travelToGalaxyFromMap();">Launch To Galaxy</button></div>
         </div>` : ''}
-        <div style="margin-top:.55rem;">
+        <div style="margin-top:.55rem;display:flex;gap:.3rem;flex-wrap:wrap;">
+          <button class="btn btn-teal" onclick="observeAdjacentSeaFromSelected()">🔍 Observe Adjacent (Lead vs DD6)</button>
           <button class="btn btn-primary" onclick="exploreLastSeaHex(${hex.col},${hex.row})">${hex.type === "sea" ? "Explore Waters" : "Explore Island"}</button>
         </div>
         ${normalizedResultHtml ? `<div class="sea-result">${normalizedResultHtml}</div>` : ""}
@@ -5090,7 +5199,7 @@
 
   function ensureLastSeaClickMode() {
     ensureExpansionState();
-    if (S.lastSea.clickMode !== "inspect" && S.lastSea.clickMode !== "travel") {
+    if (S.lastSea.clickMode !== "inspect" && S.lastSea.clickMode !== "travel" && S.lastSea.clickMode !== "fog") {
       S.lastSea.clickMode = "travel";
     }
     return S.lastSea.clickMode;
@@ -5102,8 +5211,9 @@
       return;
     }
     const mode = ensureLastSeaClickMode();
-    button.textContent = `Map Click: ${mode === "travel" ? "Travel" : "Inspect"}`;
-    if (mode === "travel") {
+    const label = mode === "travel" ? "Travel" : (mode === "inspect" ? "Inspect" : "Fog");
+    button.textContent = `Map Mode: ${label}`;
+    if (mode === "travel" || mode === "fog") {
       button.classList.add("btn-teal");
     } else {
       button.classList.remove("btn-teal");
@@ -5112,9 +5222,24 @@
 
   function toggleLastSeaClickMode() {
     const mode = ensureLastSeaClickMode();
-    S.lastSea.clickMode = mode === "travel" ? "inspect" : "travel";
+    const order = ["travel", "inspect", "fog"];
+    const idx = order.indexOf(String(mode));
+    S.lastSea.clickMode = order[(idx + 1) % order.length];
+    if (S.lastSea.clickMode === 'fog' && typeof window.getMapFogConfig === 'function') {
+      window.getMapFogConfig('sea').enabled = true;
+    }
+    if (S.lastSea.clickMode !== 'fog' && typeof window.getMapFogConfig === 'function') {
+      window.getMapFogConfig('sea').enabled = false;
+    }
     updateLastSeaClickModeUI();
-    showNotif(`Last Sea clicks now ${S.lastSea.clickMode === "travel" ? "advance travel time." : "inspect only."}`, "good");
+    showNotif(
+      S.lastSea.clickMode === "travel"
+        ? "Last Sea clicks now advance travel time."
+        : (S.lastSea.clickMode === "inspect" ? "Last Sea clicks now inspect only." : "Last Sea clicks now reveal fog."),
+      "good"
+    );
+    renderLastSeaMap();
+    renderLastSeaInfo();
   }
 
   function setLastSeaSeason(season, button) {

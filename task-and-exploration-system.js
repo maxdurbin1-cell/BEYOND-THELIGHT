@@ -72,6 +72,7 @@ function performWildernessObservation(col,row,directionKey){
     if(!target){
       html+=`<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">No Adjacent Hex</div>There is no mapped hex in that direction.</div>`;
     }else{
+      if(typeof window.revealMapFogHex==='function')window.revealMapFogHex('province',String(target.hex.col)+','+String(target.hex.row));
       // Assign a wonder to the target hex if it doesn't have one yet
       if(target.hex.type==='wilderness'&&!target.hex.data.wonder&&target.hex.terrain&&typeof pick==='function'){
         const terrainData=TERRAIN_DESC[target.hex.terrain.name];
@@ -86,6 +87,7 @@ function performWildernessObservation(col,row,directionKey){
     if(typeof addTMWOnFail==='function')addTMWOnFail();
     html+=`<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">✗ Observation Failed</div>The horizon is obscured. No details visible.</div>`;
   }
+  if(typeof renderHexMap==='function')renderHexMap();
   
   openModal('Observation — Adjacent Hexes',html);
   appendHexNote(col,row,`[Observation] Lead vs DD6 (${directionKey||'adjacent'}): ${leadRoll.total} vs ${dreadRoll.total} => ${success?'success':'failure'}`);
@@ -192,6 +194,7 @@ function finalizeWildernessManualRoll(col,row,directionKey){
     if(!target){
       html+=`<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">No Adjacent Hex</div>There is no mapped hex in that direction.</div>`;
     }else{
+      if(typeof window.revealMapFogHex==='function')window.revealMapFogHex('province',String(target.hex.col)+','+String(target.hex.row));
       // Assign a wonder to the target hex if it doesn't have one yet
       if(target.hex.type==='wilderness'&&!target.hex.data.wonder&&target.hex.terrain&&typeof pick==='function'){
         const terrainData=TERRAIN_DESC[target.hex.terrain.name];
@@ -206,6 +209,7 @@ function finalizeWildernessManualRoll(col,row,directionKey){
     if(typeof addTMWOnFail==='function')addTMWOnFail('observation-failure');
     html+=`<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">✗ Observation Failed</div>The horizon is obscured. No details visible.</div>`;
   }
+  if(typeof renderHexMap==='function')renderHexMap();
   
   openModal('Observation — Adjacent Hexes',html);
   appendHexNote(col,row,`[Observation] Lead d${leadDie} vs DD${dreadDie} (${directionKey||'adjacent'}): ${actionValue} vs ${dreadValue} => ${success?'success':'failure'}`);

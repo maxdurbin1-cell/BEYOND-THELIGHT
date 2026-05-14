@@ -2182,6 +2182,48 @@
     return match.hexMap.hexes[key] || null;
   }
 
+  function getCrucibleExpeditionCellKey(cell) {
+    if (!cell) return '';
+    return String(Number(cell.q || 0)) + ',' + String(Number(cell.r || 0));
+  }
+
+  function isCrucibleExpeditionCellCleared(match, cell) {
+    if (!match || !match.expedition || !cell) return false;
+    var key = getCrucibleExpeditionCellKey(cell);
+    var cleared = match.expedition.clearedHexes || {};
+    if (cleared[key]) return true;
+    if (cell.ruin && cell.ruin.searched) return true;
+    if (cell.portal && cell.portal.closed) return true;
+    if (cell.gate && cell.gate.closed) return true;
+    return false;
+  }
+
+  function getCrucibleExpeditionCellStatus(match, cell) {
+    if (!cell) return { label: 'Unknown', tone: 'var(--muted2)', detail: 'No active hex.' };
+    if (isCrucibleExpeditionCellCleared(match, cell)) {
+      return { label: 'Cleared', tone: 'var(--green2)', detail: 'This hex has been resolved for this day.' };
+    }
+    if (cell.portal && !cell.portal.closed) {
+      return { label: 'Active Threat', tone: 'var(--red2)', detail: 'Portal breach is still open.' };
+    }
+    if (cell.gate && !cell.gate.closed) {
+      return { label: 'Unsealed Gate', tone: 'var(--gold2)', detail: 'Gate interaction available.' };
+    }
+    if (cell.ruin && !cell.ruin.searched) {
+      return { label: 'Uncleared Ruin', tone: 'var(--orange)', detail: 'Ruin crawl is available.' };
+    }
+    return { label: 'Unscouted', tone: 'var(--teal)', detail: 'Roll encounter to scout this hex.' };
+  }
+
+  function getCrucibleExpeditionBiomeLine(flora, fauna) {
+    var f1 = String(flora || '').replace(/\.$/, '').trim();
+    var f2 = String(fauna || '').replace(/\.$/, '').trim();
+    if (!f1 && !f2) return 'No notable signs.';
+    if (!f1) return f2 + '.';
+    if (!f2) return f1 + '.';
+    return f1 + '; ' + f2 + '.';
+  }
+
   function pickCrucibleExpeditionStableText(list, cell, channel) {
     if (!Array.isArray(list) || !list.length) return '';
     var c = cell || {};
@@ -2214,11 +2256,12 @@
     var wr = Math.max(1, Math.min(6, Number(cell.weatherRoll || 1)));
     var weather = weatherTable[wr - 1] || { result: 'Still Air', desc: 'No immediate weather pressure.', rough: false };
     var land = pickCrucibleExpeditionStableText(Array.isArray(td.land) ? td.land : [String(td.land || 'Open land.')], cell, 'land');
-    var sky = pickCrucibleExpeditionStableText(Array.isArray(td.sky) ? td.sky : [String(td.sky || 'Grey and still.')], cell, 'sky');
-    var water = pickCrucibleExpeditionStableText(Array.isArray(td.water) ? td.water : [String(td.water || 'No visible water.')], cell, 'water');
     var flora = pickCrucibleExpeditionStableText(Array.isArray(td.flora) ? td.flora : [String(td.flora || 'Sparse growth.')], cell, 'flora');
     var fauna = pickCrucibleExpeditionStableText(Array.isArray(td.fauna) ? td.fauna : [String(td.fauna || 'No known fauna.')], cell, 'fauna');
     var wonder = pickCrucibleExpeditionStableText(Array.isArray(td.wonder) ? td.wonder : [String(td.wonder || 'A weathered structure.')], cell, 'wonder');
+    var status = getCrucibleExpeditionCellStatus(match, cell);
+    var biomeLine = getCrucibleExpeditionBiomeLine(flora, fauna);
+    var rollLabel = String(status.label || '') === 'Cleared' ? 'Recheck Encounter' : 'Roll Encounter';
     var contextual = '';
     if (cell.portal && !cell.portal.closed) {
       contextual = (match.expedition && String(match.expedition.phase || '') === 'portalPuzzle')
@@ -2228,25 +2271,21 @@
     return ''
       + '<div class="card" style="margin-top:.35rem;">'
       + '<div class="section-title">Province Detail</div>'
-      + '<div class="theos-region-kicker">' + escapeCrucibleExpeditionHtml(terrainName) + ' · Day ' + escapeCrucibleExpeditionHtml(String(cell.weatherRoll || 1)) + '</div>'
-      + '<p class="theos-region-copy">The active Expedition hex surfaces all six Province descriptor channels from the current terrain card.</p>'
+      + '<div class="theos-region-kicker">' + escapeCrucibleExpeditionHtml(terrainName) + ' · Day ' + escapeCrucibleExpeditionHtml(String(match.expedition && match.expedition.day || 1)) + '</div>'
+      + '<p class="theos-region-copy">Nightreign-style scout brief for the active hex.</p>'
       + '<div class="theos-chip-row">'
-      + '<span class="theos-chip">Terrain: ' + escapeCrucibleExpeditionHtml(terrainName) + '</span>'
+      + '<span class="theos-chip">Status: <strong style="color:' + escapeCrucibleExpeditionHtml(status.tone) + ';font-weight:700;">' + escapeCrucibleExpeditionHtml(status.label) + '</strong></span>'
       + '<span class="theos-chip">Climate: ' + escapeCrucibleExpeditionHtml(season.charAt(0).toUpperCase() + season.slice(1)) + '</span>'
-      + '<span class="theos-chip">Architecture: Expedition</span>'
       + '<span class="theos-chip">Weather: ' + escapeCrucibleExpeditionHtml(String(weather.result || 'Unknown')) + '</span>'
       + '</div>'
       + '<div class="theos-kv-grid">'
       + '<div><strong>Land</strong><span>' + escapeCrucibleExpeditionHtml(land) + '</span></div>'
-      + '<div><strong>Sky</strong><span>' + escapeCrucibleExpeditionHtml(sky) + '</span></div>'
-      + '<div><strong>Water</strong><span>' + escapeCrucibleExpeditionHtml(water) + '</span></div>'
-      + '<div><strong>Weather</strong><span>' + escapeCrucibleExpeditionHtml(String(weather.result || 'Unknown') + ' — ' + String(weather.desc || '')) + (weather.rough ? ' • Rough weather pressure is active.' : '') + '</span></div>'
-      + '<div><strong>Flora</strong><span>' + escapeCrucibleExpeditionHtml(flora) + '</span></div>'
-      + '<div><strong>Fauna</strong><span>' + escapeCrucibleExpeditionHtml(fauna) + '</span></div>'
+      + '<div><strong>Fauna &amp; Flora</strong><span>' + escapeCrucibleExpeditionHtml(biomeLine) + '</span></div>'
       + '<div><strong>Wonder</strong><span>' + escapeCrucibleExpeditionHtml(wonder) + '</span></div>'
+      + '<div><strong>Route Note</strong><span>' + escapeCrucibleExpeditionHtml(String(status.detail || 'Scout the route.')) + '</span></div>'
       + '</div>'
       + '<div class="theos-region-actions">'
-        + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExpeditionSearchHex();">Roll Encounter</button>'
+        + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExpeditionSearchHex();">' + escapeCrucibleExpeditionHtml(rollLabel) + '</button>'
         + contextual
       + '</div>'
       + '</div>';
@@ -2306,7 +2345,7 @@
       unitsByKey[key].push(u);
     });
 
-    var svg = '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" style="border:1px solid rgba(240,208,112,.45);background:radial-gradient(circle at 50% 42%, rgba(182,232,167,.55), rgba(113,188,214,.42) 42%, rgba(52,88,126,.35) 100%);border-radius:8px;margin-bottom:.2rem;"><defs>';
+    var svg = '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="xMidYMid meet" style="display:block;width:100%;height:auto;max-height:64vh;border:1px solid rgba(240,208,112,.45);background:radial-gradient(circle at 50% 42%, rgba(182,232,167,.55), rgba(113,188,214,.42) 42%, rgba(52,88,126,.35) 100%);border-radius:8px;margin-bottom:.2rem;"><defs>';
     var defs = '';
     var globalTiles = (typeof S !== 'undefined' && S && S.holding && S.holding.customHexTiles) ? S.holding.customHexTiles : {};
     var usedTypes = {};
@@ -2360,10 +2399,12 @@
         fill = String(cell.provinceTerrainColor || '#1a2010');
       }
       var canClick = !!reach[k] && !isCollapsed;
+      var clearedHex = !isCollapsed && isCrucibleExpeditionCellCleared(match, cell);
       var strokeWidth = canClick ? '2' : '1.1';
       var clickAttr = canClick ? (' onclick="return window.holdingCrucibleExpeditionMoveTo(' + Number(cell.q || 0) + ',' + Number(cell.r || 0) + ')" style="cursor:pointer;"') : '';
       svg += '<g><polygon points="' + points(px.x, px.y, size) + '" fill="' + fill + '" stroke="' + (canClick ? '#f0d070' : stroke) + '" stroke-width="' + strokeWidth + '"' + clickAttr + '/>';
       if (icon) svg += '<text x="' + px.x + '" y="' + (px.y + 3) + '" text-anchor="middle" font-size="11" fill="' + (isCollapsed ? '#f2a3a3' : '#e8d9bd') + '" pointer-events="none">' + icon + '</text>';
+      if (clearedHex) svg += '<text x="' + (px.x + 10) + '" y="' + (px.y - 9) + '" text-anchor="middle" font-size="8" fill="#7ee38b" pointer-events="none">✓</text>';
       svg += '</g>';
     });
 
@@ -2383,34 +2424,14 @@
     svg += '</svg>';
     svg += '<div style="display:flex;gap:.16rem;flex-wrap:wrap;font-size:.66rem;color:var(--muted2);line-height:1.35;margin-top:.04rem;">'
       + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">YOU = active Wayfarer</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">Gold border = reachable move</span>'
       + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">◫ Ruins</span>'
       + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⚠ Peril</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">✦ Temple</span>'
       + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⛨ Barrier</span>'
       + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">◆ Gate</span>'
       + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⬡ Portal</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⌂ Dwelling</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⬢ Holding</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">↔ Trade Route</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">◬ Lost City</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">◩ Library</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⬟ Depths</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">≋ Field</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">♣ Forest</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">≈ Swamp</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">〜 Lake</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⊞ Farm</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⌇ Rift</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">∷ Stones</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">△ Desert Mtn</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⎔ Desert Cave</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⊸ Ravine</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⬜ City</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⌸ Town</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">❄ Snowy Town</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">· Snowy Fields</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">❄ Snowy Forest</span>'
-      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">≈ Snowy Swamp</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">⌂ Dwelling / ⬢ Holding</span>'
+      + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">✓ Cleared hex</span>'
       + '<span style="border:1px solid var(--border2);padding:.08rem .18rem;">✖ Collapsed edge</span>'
       + '</div>';
     return svg;
@@ -2547,6 +2568,7 @@
       portalEvent: null,
       pendingPortalPuzzle: false,
       provinceFeatures: stamped,
+      clearedHexes: {},
       currentBossIndex: 0,
       currentCombatType: '',
       currentCombatProfile: null,
@@ -3300,6 +3322,7 @@
     expedition.portalEvent = null;
     expedition.pendingPortalPuzzle = false;
     expedition.provinceFeatures = stamped;
+    expedition.clearedHexes = {};
     expedition.raidBossNerfed = Number(expedition.portalsClosed || 0) >= Number(expedition.portalQuestTarget || 5);
     expedition.miniBossHexKeys = seedCrucibleExpeditionMiniBossHexes(newMap, 3);
     expedition.miniBossDefeated = {};
@@ -4507,6 +4530,8 @@
         if (expedition.activeRuin && match.hexMap && match.hexMap.hexes) {
           var ruinCell = match.hexMap.hexes[String(expedition.activeRuin.hexKey || '')];
           if (ruinCell && ruinCell.ruin) ruinCell.ruin.searched = true;
+          expedition.clearedHexes = expedition.clearedHexes || {};
+          expedition.clearedHexes[String(expedition.activeRuin.hexKey || '')] = true;
           expedition.activeRuin.cleared = true;
           expedition.phase = 'ruin';
         }
@@ -5637,7 +5662,9 @@
       return false;
     }
     var playerKey = getCrucibleExpeditionPlayerHexKey(match);
+    var player = getCrucibleExpeditionPlayer(match);
     var cell = (match.hexMap && match.hexMap.hexes) ? match.hexMap.hexes[playerKey] : null;
+    expedition.clearedHexes = expedition.clearedHexes || {};
     resolveCrucibleExpeditionDangerousWeather(match, 'Search Hex');
 
     var wildTable = [
@@ -5781,6 +5808,7 @@
         }
       }
     }
+    expedition.clearedHexes[playerKey] = true;
     match.log = (match.log || []).concat([logLine]).slice(-120);
     renderHoldingCruciblePopup();
     renderHoldingUI();
@@ -5820,6 +5848,8 @@
     }
     cell.gate.closed = true;
     cell.gate.used = true;
+    match.expedition.clearedHexes = match.expedition.clearedHexes || {};
+    match.expedition.clearedHexes[key] = true;
     match.expedition.gatesClosed = Math.max(0, Number(match.expedition.gatesClosed || 0) + 1);
     var player = getCrucibleExpeditionPlayer(match);
     var jump = getCrucibleRandomOpenHex(player, match, 999);
@@ -5916,6 +5946,8 @@
       cell.portal.closed = true;
       cell.portal.active = false;
       cell.portal.puzzleSolved = true;
+      match.expedition.clearedHexes = match.expedition.clearedHexes || {};
+      match.expedition.clearedHexes[hexKey] = true;
       match.expedition.portalsClosed = Math.max(0, Number(match.expedition.portalsClosed || 0) + 1);
       match.expedition.raidBossNerfed = Number(match.expedition.portalsClosed || 0) >= Number(match.expedition.portalQuestTarget || 5);
       match.expedition.phase = 'explore';

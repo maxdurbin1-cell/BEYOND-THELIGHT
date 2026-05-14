@@ -17650,15 +17650,62 @@ document.addEventListener('DOMContentLoaded',()=>{
     {era:'Dimming Century', year:'Current', summary:'Old Sun decline accelerates faction conflict.', detail:'Faith, science, and force all claim authority over New Sun ignition methods.'}
   ];
 
+  var CODEX_THEOS_PROVINCES = [
+    {name:'Dyn\'s Well', rumors:['A drowned archive rises one night per month, then vanishes before dawn.','Cearacil tax ledgers list households that have never existed.'], hazards:['Sinkwell collapse zones beneath old plazas.','Spectral static storms that scramble comms and compass reads.'], hooks:['Escort a ledger-runner through disputed wards.','Recover a vault-key before a rival house triggers a purge.']},
+    {name:'Rose Grove', rumors:['The orchard nobles are breeding roses that bloom in ash.','A pilgrim choir vanished after singing the Third Bell litany.'], hazards:['Pollen mists inflict Distracted on failed Spirit saves.','Predator vines that trigger in crowded lanes.'], hooks:['Negotiate water rights between grove guilds and nomad caravans.','Hunt a grafted beast nesting beneath a ceremonial greenhouse.']},
+    {name:'Agramir', rumors:['An old machine senate still votes at midnight.','A mapmaker sells routes to a city that should not exist.'], hazards:['Magnetic dust fields disable hacks and augmentations briefly.','Collapsed tram-bridges over acid runoff.'], hooks:['Broker peace between two salvage militias.','Extract a trapped survey team before the night flood.']},
+    {name:'Sungrave Coast', rumors:['Lighthouse mirrors still answer signals from dead fleets.','Smugglers claim to have seen the New Sun reflected in black tide.'], hazards:['Brine fog causes Shaken on failed Mind saves.','Keel-raider ambushes on moonless phases.'], hooks:['Board a derelict and recover a triarch warrant.','Stop a cult from opening a gate beneath the breakwater.']},
+    {name:'Akaria', rumors:['Eldar annals preserve a pre-Sundering oath hidden from Triarch courts.','Three judges issue contradictory decrees from the same seal.'], hazards:['Ward-lattice backlash strips one Action on failed Control saves.','Diplomatic duels that escalate into formal blood trials.'], hooks:['Deliver a sealed testimony to the Achameria enclave.','Unmask a forger rewriting provincial succession law.']},
+    {name:'Old Akaria', rumors:['The old capitol bells ring for rulers buried centuries ago.','A masked archivist trades truth for names.'], hazards:['Memory bleed zones inflict Vulnerable on failed Mind saves.','Glassfall alleys with lethal vertical collapse risk.'], hooks:['Recover a missing chronicle page before a tribunal vote.','Defend an archive convoy from oathbreak mercenaries.']},
+    {name:'Allmaker', rumors:['A foundry-priest can reforge mutation scars into relic marks.','A reactor choir predicts disasters one phase early.'], hazards:['Heat bursts cause immediate Mental Stress on failed Body saves.','Factory warbands enforcing private salvage law.'], hooks:['Shut down an illegal relic furnace before detonation.','Secure a prototype coolant core for a border holding.']},
+    {name:'Briin', rumors:['Iceborn cartographers mapped a road across the Meridian void.','A ghost convoy pays in pre-Sundering coin.'], hazards:['Whiteout fronts lock vision to Engaged range.','Frostbite pressure adds 1 Trauma on failed Body saves.'], hooks:['Guide a refugee chain through blizzard raider territory.','Investigate a vanished watch-post under aurora cover.']},
+    {name:'Dralen', rumors:['A bone oracle there can name your killer before sunrise.','Three rival houses share one throne and none will sit it.'], hazards:['Grave gas pockets trigger hallucinations and false enemy markers.','Night processions that become armed faction marches.'], hooks:['Prevent a funeral rite from becoming a civil war spark.','Track a relic-thief through catacomb districts before dawn.']}
+  ];
+
+  function setTheosTimelineFocus(idx){
+    var item = CODEX_THEOS_TIMELINE[Math.max(0, Math.min(CODEX_THEOS_TIMELINE.length - 1, Number(idx || 0)))];
+    var panel = document.getElementById('theosTimelinePanel');
+    if(!item || !panel) return;
+    panel.innerHTML = ''
+      + '<div style="font-size:.74rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">' + escapeCodexHtml(item.era) + ' · ' + escapeCodexHtml(item.year) + '</div>'
+      + '<div style="font-size:.84rem;color:var(--text2);margin-top:.2rem;line-height:1.5;">' + escapeCodexHtml(item.summary) + '</div>'
+      + '<div style="font-size:.78rem;color:var(--muted2);margin-top:.24rem;line-height:1.55;">' + escapeCodexHtml(item.detail) + '</div>';
+  }
+  window.setTheosTimelineFocus = setTheosTimelineFocus;
+
+  function renderTheosProvinceCards(){
+    return CODEX_THEOS_PROVINCES.map(function(p, idx){
+      var rumors = (p.rumors || []).map(function(r){ return '<li>' + escapeCodexHtml(r) + '</li>'; }).join('');
+      var hazards = (p.hazards || []).map(function(h){ return '<li>' + escapeCodexHtml(h) + '</li>'; }).join('');
+      var hooks = (p.hooks || []).map(function(h){ return '<li>' + escapeCodexHtml(h) + '</li>'; }).join('');
+      return '<details ' + (idx===0?'open':'') + ' style="border:1px solid var(--border2);padding:.38rem .45rem;background:rgba(255,255,255,.02);">'
+        + '<summary style="cursor:pointer;color:var(--gold2);font-family:Cinzel,serif;">' + escapeCodexHtml(p.name) + '</summary>'
+        + '<div style="margin-top:.28rem;display:grid;gap:.28rem;">'
+          + '<div><strong style="font-size:.74rem;color:var(--teal);text-transform:uppercase;letter-spacing:.08em;">Rumors</strong><ul style="margin:.18rem 0 .1rem 1.05rem;padding:0;color:var(--text2);line-height:1.5;font-size:.8rem;">' + rumors + '</ul></div>'
+          + '<div><strong style="font-size:.74rem;color:var(--red2);text-transform:uppercase;letter-spacing:.08em;">Hazards</strong><ul style="margin:.18rem 0 .1rem 1.05rem;padding:0;color:var(--text2);line-height:1.5;font-size:.8rem;">' + hazards + '</ul></div>'
+          + '<div><strong style="font-size:.74rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">Encounter Hooks</strong><ul style="margin:.18rem 0 .1rem 1.05rem;padding:0;color:var(--text2);line-height:1.5;font-size:.8rem;">' + hooks + '</ul></div>'
+        + '</div>'
+      + '</details>';
+    }).join('');
+  }
+
   function renderTheosLoreInteractivePanel(){
-    var timeline = CODEX_THEOS_TIMELINE.map(function(t){
-      return '<button class="btn btn-xs" title="' + escapeCodexHtml(t.detail) + '" style="border-color:rgba(232,192,80,.4);">'
-        + '<strong>' + escapeCodexHtml(t.era) + '</strong> · ' + escapeCodexHtml(t.year)
-      + '</button>';
+    var timeline = CODEX_THEOS_TIMELINE.map(function(t, idx){
+      return '<button class="btn btn-xs" onmouseenter="setTheosTimelineFocus(' + idx + ')" onfocus="setTheosTimelineFocus(' + idx + ')" style="border-color:rgba(232,192,80,.4);">'
+        + '<strong>' + escapeCodexHtml(t.era) + '</strong> · ' + escapeCodexHtml(t.year) + '</button>';
     }).join('');
     return '<div style="display:grid;gap:.45rem;margin-bottom:.7rem;">'
-      + '<div style="font-size:.78rem;color:var(--muted2);">Timeline (hover any node for major events):</div>'
-      + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;">' + timeline + '</div>'
+      + '<div style="font-size:.78rem;color:var(--muted2);">Timeline (hover or focus an era to inspect the event panel):</div>'
+      + '<div style="display:grid;grid-template-columns:minmax(260px,1fr) minmax(220px,.9fr);gap:.38rem;align-items:start;">'
+        + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;">' + timeline + '</div>'
+        + '<div id="theosTimelinePanel" style="border:1px solid rgba(232,192,80,.35);background:rgba(232,192,80,.08);padding:.36rem .42rem;min-height:96px;">'
+          + '<div style="font-size:.74rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">' + escapeCodexHtml(CODEX_THEOS_TIMELINE[0].era) + ' · ' + escapeCodexHtml(CODEX_THEOS_TIMELINE[0].year) + '</div>'
+          + '<div style="font-size:.84rem;color:var(--text2);margin-top:.2rem;line-height:1.5;">' + escapeCodexHtml(CODEX_THEOS_TIMELINE[0].summary) + '</div>'
+          + '<div style="font-size:.78rem;color:var(--muted2);margin-top:.24rem;line-height:1.55;">' + escapeCodexHtml(CODEX_THEOS_TIMELINE[0].detail) + '</div>'
+        + '</div>'
+      + '</div>'
+      + '<div style="font-size:.78rem;color:var(--muted2);margin-top:.08rem;">Province dossiers (expand for rumors, hazards, and encounter hooks):</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:.35rem;">' + renderTheosProvinceCards() + '</div>'
       + '<details open style="border:1px solid var(--border2);padding:.35rem .45rem;background:rgba(255,255,255,.02);">'
         + '<summary style="cursor:pointer;color:var(--gold2);font-family:Cinzel,serif;">Notable People</summary>'
         + '<div style="margin-top:.3rem;font-size:.8rem;line-height:1.55;color:var(--text2);">Êgeryn Southronson · Elithaea Mycelle · Marshal Iven Saar · Magister Vey Runehand · Mother Keth of the White Vault</div>'

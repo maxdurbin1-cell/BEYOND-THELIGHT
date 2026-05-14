@@ -2567,6 +2567,7 @@
       raidBossNerfed: false,
       portalEvent: null,
       pendingPortalPuzzle: false,
+      mapZoom: 1,
       provinceFeatures: stamped,
       clearedHexes: {},
       currentBossIndex: 0,
@@ -3216,6 +3217,7 @@
 
   function openCrucibleExpeditionCombatPopup(match) {
     if (!match) return false;
+    if (match.expedition) match.expedition.uiTab = 'combat';
     if (typeof openModal === 'function') {
       openModal('Expedition Combat', buildCrucibleExpeditionPopupHtml(match));
       return true;
@@ -3321,6 +3323,7 @@
     expedition.currentCombatProfile = null;
     expedition.portalEvent = null;
     expedition.pendingPortalPuzzle = false;
+    expedition.mapZoom = 1;
     expedition.provinceFeatures = stamped;
     expedition.clearedHexes = {};
     expedition.raidBossNerfed = Number(expedition.portalsClosed || 0) >= Number(expedition.portalQuestTarget || 5);
@@ -4635,8 +4638,9 @@
     return true;
   }
 
-  function buildHoldingCrucibleBoardHtml(match) {
+  function buildHoldingCrucibleBoardHtml(match, options) {
     if (!match || !match.hexMap) return '<div style="font-size:.74rem;color:var(--muted2);">No tactical map.</div>';
+    var opts = options || {};
     var isExpedition = String(match.mode || '') === 'expedition';
     var expedition = isExpedition ? (match.expedition || {}) : null;
     var selectedUnit = getSelectedCrucibleActiveUnit(match);
@@ -4684,8 +4688,9 @@
         + '</div>';
     }
     
-    if (isExpedition && typeof buildCrucibleExpeditionProvinceParityMapHtml === 'function') {
+    if (isExpedition && !opts.forceTacticalBoard && typeof buildCrucibleExpeditionProvinceParityMapHtml === 'function') {
       var provinceSvg = buildCrucibleExpeditionProvinceParityMapHtml(match, selectedUnit, reachableKeys);
+      var mapZoom = Math.max(0.7, Math.min(2.6, Number(expedition.mapZoom || 1)));
       var moveChooserHtml = (String(expedition.phase || 'explore') === 'explore' && selectedUnit && typeof buildCrucibleExpeditionMoveOptionsHtml === 'function')
         ? buildCrucibleExpeditionMoveOptionsHtml(match, selectedUnit, reachableHexes)
         : '';
@@ -4721,6 +4726,7 @@
         : '';
       var coreActions = '<div class="theos-region-actions">'
         + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleExpeditionSearchHex();">Roll Encounter</button>'
+        + (String(expedition.phase || '') === 'combat' ? '<button class="btn btn-sm btn-red" onclick="holdingCrucibleExpeditionSwitchTab(\'combat\');">Open Combat Page</button>' : '')
         + contextualExpeditionButtons
         + '</div>';
       var utilityActions = '<details class="card" style="margin-top:.28rem;">'
@@ -4743,9 +4749,18 @@
         + '<span class="theos-chip">Gates</span>'
         + '<span class="theos-chip">Portals</span>'
         + '</div>'
+        + '<div style="display:flex;gap:.2rem;align-items:center;flex-wrap:wrap;margin:.2rem 0 .28rem 0;">'
+        + '<span style="font-size:.68rem;color:var(--muted2);">Map Zoom</span>'
+        + '<button class="btn btn-xs" onclick="holdingCrucibleExpeditionAdjustMapZoom(-0.2);">-</button>'
+        + '<button class="btn btn-xs" onclick="holdingCrucibleExpeditionSetMapZoom(1);">Reset</button>'
+        + '<button class="btn btn-xs" onclick="holdingCrucibleExpeditionAdjustMapZoom(0.2);">+</button>'
+        + '<span style="font-size:.68rem;color:var(--gold2);">' + Math.round(mapZoom * 100) + '%</span>'
+        + '</div>'
         + combatHint
         + moveChooserHtml
-        + provinceSvg
+        + '<div id="expeditionProvinceMapViewport" style="overflow:auto;max-height:72vh;border:1px solid rgba(255,255,255,.08);padding:.18rem;background:rgba(0,0,0,.14);">'
+        + '<div style="width:' + Math.round(760 * mapZoom) + 'px;margin:0 auto;">' + provinceSvg + '</div>'
+        + '</div>'
         + coreActions
         + utilityActions
         + '</div>';
@@ -5042,11 +5057,35 @@
         + '</div></div>';
     }
 
-    var board = buildHoldingCrucibleBoardHtml(match);
+    var useCombatPage = uiTab === 'combat';
+    var board = buildHoldingCrucibleBoardHtml(match, {
+      forceTacticalBoard: useCombatPage
+    });
     var combatSection = buildCrucibleExpeditionCombatSectionHtml(match);
     var logLines = (match.log || []).slice(-10).reverse().map(function (line) {
       return '<div style="font-size:.72rem;color:var(--text2);line-height:1.45;border-bottom:1px solid var(--border2);padding:.12rem 0;">' + String(line || '') + '</div>';
     }).join('');
+
+    if (useCombatPage) {
+      var combatFooter = isCombatActive
+        ? '<div style="display:flex;gap:.22rem;flex-wrap:wrap;margin-top:.32rem;">'
+          + '<button class="btn btn-sm" onclick="holdingCrucibleExpeditionSwitchTab(\'province\')">View Province</button>'
+          + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleReturnToHolding();">Return To Holding</button>'
+          + '</div>'
+        : '<div style="display:flex;gap:.22rem;flex-wrap:wrap;margin-top:.32rem;">'
+          + '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleExpeditionSwitchTab(\'province\')">Return To Expedition</button>'
+          + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleReturnToHolding();">Return To Holding</button>'
+          + '</div>';
+      return top
+        + '<div class="card" style="margin-top:.1rem;">'
+        + '<div class="section-title">Expedition Combat Page</div>'
+        + '<div style="font-size:.72rem;color:var(--muted2);margin:.1rem 0 .25rem;">Colosseum-style tactical board for encounter resolution. Finish combat, then return to Expedition.</div>'
+        + combatSection
+        + '<div style="margin-top:.3rem;">' + board + '</div>'
+        + '<div style="margin-top:.35rem;border:1px solid var(--border2);padding:.28rem .34rem;max-height:180px;overflow:auto;background:rgba(255,255,255,.02);">' + (logLines || '<div style="font-size:.72rem;color:var(--muted2);">No events yet.</div>') + '</div>'
+        + combatFooter
+        + '</div></div>';
+    }
 
     return top
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.3rem;">'
@@ -5058,6 +5097,24 @@
       + '<div style="display:flex;gap:.22rem;flex-wrap:wrap;margin-top:.32rem;">'
       + '<button class="btn btn-sm btn-primary" onclick="holdingCrucibleReturnToHolding();">Return To Holding</button>'
       + '</div></div>';
+  }
+
+  function holdingCrucibleExpeditionSetMapZoom(value) {
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition) return false;
+    var zoom = Number(value);
+    if (!Number.isFinite(zoom)) return false;
+    match.expedition.mapZoom = Math.max(0.7, Math.min(2.6, zoom));
+    renderHoldingCruciblePopup();
+    return true;
+  }
+
+  function holdingCrucibleExpeditionAdjustMapZoom(delta) {
+    var match = getHoldingCrucibleMatch();
+    if (!match || String(match.mode || '') !== 'expedition' || !match.expedition) return false;
+    var current = Number(match.expedition.mapZoom || 1);
+    var next = current + Number(delta || 0);
+    return holdingCrucibleExpeditionSetMapZoom(next);
   }
 
   function buildHoldingCruciblePopupHtml() {
@@ -11290,6 +11347,8 @@
   window.selectHoldingCrucibleAllyTarget = selectHoldingCrucibleAllyTarget;
   window.openCrucibleEnemyLore = openCrucibleEnemyLore;
   window.holdingCrucibleExpeditionSwitchTab = holdingCrucibleExpeditionSwitchTab;
+  window.holdingCrucibleExpeditionSetMapZoom = holdingCrucibleExpeditionSetMapZoom;
+  window.holdingCrucibleExpeditionAdjustMapZoom = holdingCrucibleExpeditionAdjustMapZoom;
   window.holdingCrucibleReturnToHolding = holdingCrucibleReturnToHolding;
   window.holdingCrucibleExpeditionSearchHex = holdingCrucibleExpeditionSearchHex;
   window.holdingCrucibleExpeditionObserveAdjacent = holdingCrucibleExpeditionObserveAdjacent;

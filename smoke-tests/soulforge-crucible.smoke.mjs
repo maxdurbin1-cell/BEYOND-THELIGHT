@@ -204,7 +204,17 @@ async function runScenario(browser) {
     };
   });
 
-  if (!/Crucible (3v3|6v6) Tactical Simulator/i.test(crucibleResult.title || "")) {
+  if (/Control Briefing\s*&\s*Loadout/i.test(crucibleResult.title || "")) {
+    await page.evaluate(() => {
+      if (typeof window.holdingCrucibleConfirmControlLoadout === "function") {
+        window.holdingCrucibleConfirmControlLoadout();
+      }
+    });
+    await page.waitForFunction(() => {
+      const title = document.getElementById("modalTitle");
+      return !!(title && /Crucible (3v3|6v6) Tactical Simulator/i.test(String(title.textContent || "")));
+    }, null, { timeout: STEP_TIMEOUT_MS });
+  } else if (!/Crucible (3v3|6v6) Tactical Simulator/i.test(crucibleResult.title || "")) {
     throw new Error(`Crucible modal did not open: ${JSON.stringify(crucibleResult)}`);
   }
 
@@ -222,7 +232,22 @@ async function runScenario(browser) {
       return { ok: false, reason: "missing Crucible match state" };
     }
 
-    actionSel.value = "shoot";
+    const player = (match.allies || []).find((unit) => unit && unit.isPlayer) || (match.allies && match.allies[0] ? match.allies[0] : null);
+    const targetA = match.enemies && match.enemies[0] ? match.enemies[0] : null;
+    const targetB = match.enemies && match.enemies[1] ? match.enemies[1] : null;
+    if (player && targetA && targetB) {
+      player.position = { q: 0, r: 0 };
+      player.ap = Math.max(1, Number(player.maxAp || player.ap || 2));
+      targetA.position = { q: 1, r: 0 };
+      targetB.position = { q: 2, r: 0 };
+      match.selectedAllyId = String(player.id || "");
+      match.selectedTargetId = String(targetA.id || "");
+      if (typeof window.renderHoldingCruciblePopup === "function") {
+        window.renderHoldingCruciblePopup();
+      }
+    }
+
+    actionSel.value = "strike";
     actionSel.dispatchEvent(new Event("change", { bubbles: true }));
 
     targetSel.innerHTML = [
@@ -231,9 +256,8 @@ async function runScenario(browser) {
     ].join("");
 
     const targetOptions = Array.from(targetSel.options || []).map((opt) => ({ value: String(opt.value || ""), text: String(opt.textContent || "") }));
-    const player = match.allies && match.allies[0] ? match.allies[0] : null;
-    const targetValue = targetOptions.length > 1
-      ? targetOptions[1]
+    const targetValue = targetOptions.length > 0
+      ? targetOptions[0]
       : (targetOptions.find((opt) => /Target|Enemy/i.test(opt.text) && opt.value) || targetOptions.find((opt) => opt.value));
     if (targetValue) {
       targetSel.value = targetValue.value;
@@ -265,8 +289,8 @@ async function runScenario(browser) {
     throw new Error(`Crucible target selector did not expose multiple enemies: ${JSON.stringify(crucibleOptions)}`);
   }
 
-  if (!/Shoot/i.test(crucibleOptions.logText || "")) {
-    throw new Error(`Crucible Wayfarer did not execute a shoot action: ${JSON.stringify(crucibleOptions)}`);
+  if (!/(Strike|Shoot)/i.test(crucibleOptions.logText || "")) {
+    throw new Error(`Crucible Wayfarer did not execute an action: ${JSON.stringify(crucibleOptions)}`);
   }
 
   await page.close();

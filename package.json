@@ -22,6 +22,8 @@
     "smoke:bone-oracle": "node smoke-tests/bone-oracle.smoke.mjs",
     "smoke:newsun-scheduler": "node smoke-tests/new-sun-scheduler.smoke.mjs",
     "smoke:open-world": "node smoke-tests/open-world.smoke.mjs",
+    "smoke:manual-exploded-rolls": "node smoke-tests/manual-exploded-rolls.smoke.mjs",
+    "smoke:affix-normalization": "node smoke-tests/affix-normalization.smoke.mjs",
     "smoke:authority-travel": "node smoke-tests/campaign-authority-travel.smoke.mjs",
     "smoke:portrait-preview": "node smoke-tests/portrait-upload-preview.smoke.mjs",
     "smoke:reconnect": "node smoke-tests/reconnect-churn.smoke.mjs",

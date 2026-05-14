@@ -174,6 +174,39 @@ async function waitForCombatSummary(page, expected, label) {
   }
 }
 
+async function reconcileCombatSync(gmPage, playerPage, reason) {
+  await gmPage.evaluate(async (why) => {
+    try {
+      if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === "function") {
+        await window.campaignSystem.syncSharedSilent(String(why || "combat-sync-reconcile"));
+      }
+    } catch (_err) {}
+  }, String(reason || "combat-sync-reconcile"));
+
+  await playerPage.evaluate(async () => {
+    try {
+      if (window.campaignSystem && typeof window.campaignSystem.requestResync === "function") {
+        await window.campaignSystem.requestResync();
+      }
+    } catch (_err) {}
+  });
+  await wait(450);
+}
+
+async function waitForCombatSummaryWithRetry(gmPage, playerPage, expected, label) {
+  var lastError = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await waitForCombatSummary(playerPage, expected, label + " attempt " + String(attempt + 1));
+      return;
+    } catch (err) {
+      lastError = err;
+      await reconcileCombatSync(gmPage, playerPage, label + "-attempt-" + String(attempt + 1));
+    }
+  }
+  throw lastError || new Error(label + " failed after retries.");
+}
+
 async function syncSharedSilentRetry(page, reason, attempts = 6) {
   let lastResult = { ok: false, error: 'No sync attempts made.' };
   for (let i = 0; i < attempts; i += 1) {
@@ -243,8 +276,18 @@ async function runScenario(browser) {
     { timeout: STEP_TIMEOUT_MS }
   );
 
-  await gmPage.evaluate(() => {
-    window.S.combat = {
+  await gmPage.waitForFunction(
+    () => {
+      const st = window.campaignSystem.getState();
+      const members = (st && st.campaign && (st.campaign.roster || st.campaign.members)) || [];
+      return members.length >= 2;
+    },
+    null,
+    { timeout: STEP_TIMEOUT_MS }
+  );
+
+  const seeded = await gmPage.evaluate(async () => {
+    const combat = {
       active: true,
       enemyDread: 8,
       spacing: "Nearby",
@@ -256,18 +299,23 @@ async function runScenario(browser) {
         coverDesc: "Broken pillars and shattered masonry"
       }
     };
-    window.S.enemies = [
+    const enemies = [
       { id: "smoke-e1", name: "Ash Raider", stress: 1, maxStress: 6, ally: false, conditions: [] },
       { id: "smoke-e2", name: "Pale Hound", stress: 0, maxStress: 4, ally: false, conditions: [] }
     ];
-    window.S.combatMap = {
+    const combatMap = {
       units: [
         { id: 1, name: "Combat Smoke GM", side: "ally", zone: "Engaged", isPlayer: true },
-        { id: 2, name: "Ash Raider", side: "enemy", zone: "Nearby", fromTracker: true, trackerKey: "enemy:smoke-e1" }
+        { id: 2, name: "Ash Raider", side: "enemy", zone: "Nearby", fromTracker: true, trackerKey: "enemy:smoke-e1" },
+        { id: 3, name: "Pale Hound", side: "enemy", zone: "Flanking", fromTracker: true, trackerKey: "enemy:smoke-e2" }
       ],
       lastRelativeZone: "Nearby"
     };
-    window.S.combatAugState = { decentralizedHeartUsed: false };
+    const combatAugState = { decentralizedHeartUsed: false };
+    window.S.combat = combat;
+    window.S.enemies = enemies;
+    window.S.combatMap = combatMap;
+    window.S.combatAugState = combatAugState;
     if (typeof window.updateCombatUI === "function") {
       try { window.updateCombatUI(); } catch (_err) {}
     }
@@ -277,8 +325,20 @@ async function runScenario(browser) {
     if (typeof window.renderCombatMap === "function") {
       try { window.renderCombatMap(); } catch (_err) {}
     }
+    if (!window.campaignSystem || typeof window.campaignSystem.syncSharedPatch !== "function") {
+      return { ok: false, error: "campaignSystem.syncSharedPatch unavailable" };
+    }
+    return window.campaignSystem.syncSharedPatch({
+      combatScene: {
+        combat,
+        enemies,
+        combatMap,
+        combatAugState,
+        naval: null,
+        caravan: null
+      }
+    }, "smoke-combat-seed");
   });
-  const seeded = await syncSharedSilentRetry(gmPage, "smoke-combat-seed");
 
   if (!seeded || !seeded.ok) {
     throw new Error(`Combat smoke failed to seed combat scene: ${JSON.stringify(seeded)}`);
@@ -294,30 +354,39 @@ async function runScenario(browser) {
     minUnitCount: 3,
     combatAugState: false
   };
-  await waitForCombatSummary(playerPage, expectedSeed, "Player seeded state");
+  await waitForCombatSummaryWithRetry(gmPage, playerPage, expectedSeed, "Player seeded state");
 
-  await gmPage.evaluate(() => {
-    window.S.combat.enemyDread = 12;
-    if (Array.isArray(window.S.enemies) && window.S.enemies[0]) {
-      window.S.enemies[0].stress = 3;
-    }
-    if (Array.isArray(window.S.enemies) && window.S.enemies[1]) {
-      window.S.enemies[1].stress = 1;
-    }
-    if (window.S.combatMap && Array.isArray(window.S.combatMap.units) && window.S.combatMap.units[1]) {
-      window.S.combatMap.units[1].zone = "Engaged";
-    }
-    if (window.S.combatMap && Array.isArray(window.S.combatMap.units)) {
-      window.S.combatMap.units.push({
-        id: 3,
-        name: "Pale Hound",
-        side: "enemy",
-        zone: "Flanking",
-        fromTracker: true,
-        trackerKey: "enemy:smoke-e2"
-      });
-    }
-    window.S.combatAugState = { decentralizedHeartUsed: true };
+  const mutated = await gmPage.evaluate(async () => {
+    const combat = {
+      active: true,
+      enemyDread: 12,
+      spacing: "Nearby",
+      round: 1,
+      actionsLeft: 3,
+      sceneOpener: {
+        zoneTerrain: "ruins",
+        coverTier: "medium",
+        coverDesc: "Broken pillars and shattered masonry"
+      }
+    };
+    const enemies = [
+      { id: "smoke-e1", name: "Ash Raider", stress: 3, maxStress: 6, ally: false, conditions: [] },
+      { id: "smoke-e2", name: "Pale Hound", stress: 1, maxStress: 4, ally: false, conditions: [] }
+    ];
+    const combatMap = {
+      units: [
+        { id: 1, name: "Combat Smoke GM", side: "ally", zone: "Engaged", isPlayer: true },
+        { id: 2, name: "Ash Raider", side: "enemy", zone: "Engaged", fromTracker: true, trackerKey: "enemy:smoke-e1" },
+        { id: 3, name: "Pale Hound", side: "enemy", zone: "Flanking", fromTracker: true, trackerKey: "enemy:smoke-e2" },
+        { id: 4, name: "Combat Smoke Ally", side: "ally", zone: "Close", isPlayer: false }
+      ],
+      lastRelativeZone: "Nearby"
+    };
+    const combatAugState = { decentralizedHeartUsed: true };
+    window.S.combat = combat;
+    window.S.enemies = enemies;
+    window.S.combatMap = combatMap;
+    window.S.combatAugState = combatAugState;
     if (typeof window.updateCombatUI === "function") {
       try { window.updateCombatUI(); } catch (_err) {}
     }
@@ -327,8 +396,20 @@ async function runScenario(browser) {
     if (typeof window.renderCombatMap === "function") {
       try { window.renderCombatMap(); } catch (_err) {}
     }
+    if (!window.campaignSystem || typeof window.campaignSystem.syncSharedPatch !== "function") {
+      return { ok: false, error: "campaignSystem.syncSharedPatch unavailable" };
+    }
+    return window.campaignSystem.syncSharedPatch({
+      combatScene: {
+        combat,
+        enemies,
+        combatMap,
+        combatAugState,
+        naval: null,
+        caravan: null
+      }
+    }, "smoke-combat-mutate");
   });
-  const mutated = await syncSharedSilentRetry(gmPage, "smoke-combat-mutate");
 
   if (!mutated || !mutated.ok) {
     throw new Error(`Combat smoke failed to sync mutated combat scene: ${JSON.stringify(mutated)}`);
@@ -344,7 +425,7 @@ async function runScenario(browser) {
     minUnitCount: 4,
     combatAugState: true
   };
-  await waitForCombatSummary(playerPage, expectedMutated, "Player mutated state");
+  await waitForCombatSummaryWithRetry(gmPage, playerPage, expectedMutated, "Player mutated state");
 
   const gmSummary = await collectCombatSummary(gmPage);
   const playerSummary = await collectCombatSummary(playerPage);

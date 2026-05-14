@@ -16771,6 +16771,7 @@ function showCodexCat(cat,btn){
         ${Object.keys(CODEX_BESTIARY).map(region=>`<div class="card"><div class="section-title" style="display:flex;align-items:center;gap:.45rem;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,{name:region==='wtw'?'World That Was':'Bestiary Region'},{size:26}):''}<span>${region==='wtw'?'World That Was':region.charAt(0).toUpperCase()+region.slice(1)}</span></div>
           ${CODEX_BESTIARY[region].map(entry=>`<div class="hist-entry" style="display:grid;grid-template-columns:auto auto 1fr;gap:.55rem;align-items:center;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,entry,{size:42}):''}<div class="hist-num">${Math.ceil(entry.hp/2)}</div><div class="hist-text"><strong>${entry.name}</strong><br>${entry.desc}<br><span style="color:var(--gold2);">Health ${entry.hp} · Death Number ${Math.ceil(entry.hp/2)}</span></div></div>`).join('')}
         </div>`).join('')}
+        ${renderCodexBestiaryForgeCard()}
       </div>
     </div>`;
   }else if(cat==='maplegend'){
@@ -17273,6 +17274,123 @@ document.addEventListener('DOMContentLoaded',()=>{
       renderQP('combat');
     }
   };
+
+  function getCodexBestiaryMovePool(){
+    var source=[];
+    if(typeof getActiveEnemyActionEventPool==='function'){
+      source=getActiveEnemyActionEventPool()||[];
+    }else if(Array.isArray(ENEMY_ACTION_EVENTS)){
+      source=ENEMY_ACTION_EVENTS;
+    }
+    return (Array.isArray(source)?source:[]).map(function(entry,idx){
+      return {
+        name:String(entry&&entry.name||('Enemy Move '+String(idx+1))),
+        desc:String(entry&&entry.desc||entry&&entry.text||'A hostile pattern from the codex.'),
+        kind:String(entry&&entry.kind||'special'),
+        source:entry&&entry.raidBoss?'Raid Boss':'Combat Tab',
+        ranges:Array.isArray(entry&&entry.ranges)?entry.ranges.join(' / '):'all'
+      };
+    }).filter(function(entry){ return !!entry.name; });
+  }
+
+  function getCodexBestiaryMoveSeverity(move){
+    var kind=String(move&&move.kind||'').toLowerCase();
+    if(kind==='forcetrauma'||kind==='healthstrike')return 4;
+    if(kind==='radiation'||kind==='hack')return 3;
+    if(kind==='directstress'||kind==='savecondition'||kind==='defendcheck')return 2;
+    return 2;
+  }
+
+  function buildCodexBestiaryMonster(){
+    var regions=Object.keys(CODEX_BESTIARY||{});
+    var region=pick(regions)||'province';
+    var adjectives=['Ashen','Brine','Ruin','Static','Thorn','Glass','Iron','Null','Storm','Void','Mire','Bone','Radiant','Grave','Sable'];
+    var nouns=['Graft','Gnasher','Lurker','Carrier','Oracle','Hunter','Tidebeast','Howler','Archivist','Husk','Spearhead','Maw','Sentinel','Beast','Marshal'];
+    var roles=['Stalker','Sentinel','Predator','Reaver','Warden','Brute'];
+    var pool=getCodexBestiaryMovePool();
+    if(!pool.length){
+      pool=[
+        {name:'Savage Rush',desc:'A reckless charge that breaks lines and punishes hesitation.',kind:'healthStrike',source:'Fallback',ranges:'engaged / close'},
+        {name:'Hex Snare',desc:'A trap-spell that locks down the lane and clouds thought.',kind:'saveCondition',source:'Fallback',ranges:'close / nearby'},
+        {name:'Toxic Pulse',desc:'A burst of corrosive pressure lashes the whole zone.',kind:'directStress',source:'Fallback',ranges:'nearby / far'}
+      ];
+    }
+    var first=pick(pool);
+    var secondPool=pool.filter(function(move){ return !first || move.name!==first.name; });
+    var second=pick(secondPool.length?secondPool:pool);
+    if(!second) second=first;
+    var threat=Math.max(2,getCodexBestiaryMoveSeverity(first)+getCodexBestiaryMoveSeverity(second)+roll(4));
+    var dread=threat>=10?12:threat>=8?10:threat>=6?8:threat>=4?6:4;
+    var health=Math.max(8,dread*2);
+    var title=pick(adjectives)+' '+pick(nouns);
+    var role=pick(roles);
+    var tact=pick([
+      'Strikes first, then shifts away from the heaviest pressure.',
+      'Prefers to lock the lane with one move and punish escape with the other.',
+      'Turns the battlefield into a hazard before it commits to a direct hit.',
+      'Baits reactions, then spends its second move on the weakest opening.'
+    ]);
+    var sourceLabel=first&&second&&first.source===second.source ? first.source : 'Combat Tab / Raid Boss';
+    return {
+      name:title,
+      region:region,
+      role:role,
+      dread:dread,
+      health:health,
+      moves:[first,second],
+      tactic:tact,
+      sourceLabel:sourceLabel
+    };
+  }
+
+  function renderCodexBestiaryMonsterCard(monster){
+    var m=monster||buildCodexBestiaryMonster();
+    var icon=window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'
+      ? window.SharedIconSystem.getBestiaryEntryIconHtml(String(m.region||'province'),{name:String(m.name||'Monster')},{size:40})
+      : '';
+    var moveCards=(Array.isArray(m.moves)?m.moves:[]).map(function(move,idx){
+      return '<div class="hist-entry" style="display:grid;grid-template-columns:auto 1fr;gap:.5rem;align-items:flex-start;">'
+        + '<div class="hist-num">' + String(idx+1) + '</div>'
+        + '<div class="hist-text"><strong>' + String(move&&move.name||'Move') + '</strong><br>' + String(move&&move.desc||'') + '<br><span style="color:var(--muted2);font-size:.75rem;">Source: ' + String(move&&move.source||'Combat Tab') + ' · Range: ' + String(move&&move.ranges||'all') + '</span></div>'
+        + '</div>';
+    }).join('');
+    return '<div class="card" style="border:1px dashed rgba(232,192,80,.45);background:rgba(232,192,80,.04);">'
+      + '<div class="section-title" style="display:flex;align-items:center;gap:.45rem;justify-content:space-between;flex-wrap:wrap;">'
+        + '<span style="display:flex;align-items:center;gap:.45rem;">' + icon + '<span>Monster Forge</span></span>'
+        + '<span style="font-size:.68rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Generated from live combat moves</span>'
+      + '</div>'
+      + '<div style="font-size:.82rem;color:var(--muted2);margin-bottom:.55rem;">This card rolls a new bestiary entry with two distinct special moves pulled from the current enemy-action pool or raid boss patterns.</div>'
+      + '<div style="display:grid;grid-template-columns:1fr;gap:.35rem;">'
+        + '<div class="hist-entry" style="display:grid;grid-template-columns:auto auto 1fr;gap:.55rem;align-items:center;">'
+          + icon
+          + '<div class="hist-num">' + String(m.dread || 4) + '</div>'
+          + '<div class="hist-text"><strong>' + String(m.name || 'Unnamed Horror') + '</strong><br>' + String(m.role || 'Predator') + ' · ' + String(m.region || 'province') + '<br><span style="color:var(--gold2);">Health ' + String(m.health || 8) + ' · Death Number ' + Math.ceil(Number(m.health || 8) / 2) + '</span></div>'
+        + '</div>'
+        + moveCards
+        + '<div class="hist-entry" style="display:block;">'
+          + '<div class="hist-text"><strong>Tactic</strong><br>' + String(m.tactic || 'It hunts in layers.') + '<br><span style="color:var(--muted2);font-size:.75rem;">Move source: ' + String(m.sourceLabel || 'Combat Tab') + '</span></div>'
+        + '</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.55rem;">'
+        + '<button class="btn btn-primary btn-sm" onclick="generateCodexBestiaryMonster()">⚄ Generate Monster</button>'
+        + '<button class="btn btn-sm" onclick="generateCodexBestiaryMonster()">Reroll Skills</button>'
+      + '</div>'
+    + '</div>';
+  }
+
+  function renderCodexBestiaryForgeCard(){
+    if(!window._codexBestiaryForge){
+      window._codexBestiaryForge=buildCodexBestiaryMonster();
+    }
+    return renderCodexBestiaryMonsterCard(window._codexBestiaryForge);
+  }
+
+  function generateCodexBestiaryMonster(){
+    window._codexBestiaryForge=buildCodexBestiaryMonster();
+    var currentBtn=document.querySelector('.codex-cats .scat.on');
+    showCodexCat('bestiary',currentBtn);
+    return window._codexBestiaryForge;
+  }
 
   window.qpMoveRange=function(newSpacing){
     var raidFlow = S && S.combat && S.combat.raidFlow && S.combat.raidFlow.active ? S.combat.raidFlow : null;

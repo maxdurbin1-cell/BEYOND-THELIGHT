@@ -375,29 +375,32 @@
     var portraitSource = safeState.portraitSource || 'Custom portrait';
     var perchanceUrl = getPerchanceCharacterGeneratorUrl(safeState);
     var accent = resolveAccent([name, career, background, omen].join('|'));
+    var portraitSize = Math.max(72, Number(opts && opts.size || 84));
     var portrait = portraitImage
       ? '<button type="button" class="btn btn-xs" onclick="window.SharedIconSystem.openWayfarerPortraitPreview(' + JSON.stringify(String(portraitImage)) + ',' + JSON.stringify(String(name)) + ',' + JSON.stringify(String(portraitSource)) + ');" style="padding:0;border:none;background:transparent;line-height:0;cursor:pointer;">'
-        + '<img src="' + escHtml(portraitImage) + '" alt="' + escHtml(name) + ' portrait" style="width:' + (opts && opts.size || 92) + 'px;height:' + (opts && opts.size || 92) + 'px;object-fit:cover;border-radius:14px;border:1px solid ' + accent + ';box-shadow:0 8px 18px rgba(0,0,0,.22);display:block;"/>'
+        + '<img src="' + escHtml(portraitImage) + '" alt="' + escHtml(name) + ' portrait" style="width:' + portraitSize + 'px;height:' + portraitSize + 'px;object-fit:cover;border-radius:14px;border:1px solid ' + accent + ';box-shadow:0 8px 18px rgba(0,0,0,.22);display:block;"/>'
         + '</button>'
-      : iconWayfarer([name, career].join('|'), { size: opts && opts.size || 92, accent: accent, title: name });
-    return '<div style="display:grid;grid-template-columns:auto 1fr;gap:.65rem;align-items:center;padding:.58rem .62rem;border:1px solid ' + accent + '55;background:linear-gradient(155deg, ' + accent + '16, rgba(9,13,18,.92));">'
-      + portrait
-      + '<div style="min-width:0;">'
+      : iconWayfarer([name, career].join('|'), { size: portraitSize, accent: accent, title: name });
+    return '<div style="display:flex;flex-direction:column;gap:.5rem;padding:.58rem .62rem;border:1px solid ' + accent + '55;background:linear-gradient(155deg, ' + accent + '16, rgba(9,13,18,.92));">'
+      + '<div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:.65rem;align-items:start;">'
+      + '<div style="flex:0 0 auto;">' + portrait + '</div>'
+      + '<div style="min-width:0;display:flex;flex-direction:column;gap:.12rem;">'
       + '<div style="font-size:.8rem;color:var(--text2);font-family:Cinzel,serif;line-height:1.2;">' + escHtml(name) + '</div>'
-      + '<div style="font-size:.7rem;color:' + accent + ';text-transform:uppercase;letter-spacing:.1em;margin-top:.08rem;">' + escHtml(career) + '</div>'
-      + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;margin-top:.18rem;">' + escHtml(background) + '</div>'
-      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">'
+      + '<div style="font-size:.7rem;color:' + accent + ';text-transform:uppercase;letter-spacing:.1em;">' + escHtml(career) + '</div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.45;">' + escHtml(background) + '</div>'
+      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;align-items:center;margin-top:.08rem;">'
       + '<span style="font-size:.58rem;padding:.08rem .22rem;border:1px solid ' + accent + '44;color:' + accent + ';text-transform:uppercase;letter-spacing:.08em;">Omen</span>'
       + '<span style="font-size:.6rem;color:var(--muted2);">' + escHtml(omen) + '</span>'
       + '</div>'
-      + '<div style="margin-top:.28rem;display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;">'
+      + '</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;padding-top:.35rem;border-top:1px solid ' + accent + '22;">'
       + '<a class="btn btn-xs btn-primary" href="' + perchanceUrl + '" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">📖 Open Perchance</a>'
       + '<button class="btn btn-xs" onclick="window.SharedIconSystem.promptWayfarerPortraitImageUrl();" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">🔗 Image URL</button>'
       + '<button class="btn btn-xs" onclick="window.SharedIconSystem.pickWayfarerPortraitImage();" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">📁 Upload Image</button>'
       + (portraitImage ? '<button class="btn btn-xs btn-red" onclick="window.SharedIconSystem.clearWayfarerPortraitImage();" style="display:inline-flex;align-items:center;gap:.25rem;text-decoration:none;">✕ Clear Image</button>' : '')
       + '</div>'
-      + (portraitImage ? '<div style="font-size:.62rem;color:var(--muted);margin-top:.2rem;">Click the portrait to open a larger preview. Source: ' + escHtml(portraitSource) + '</div>' : '<div style="font-size:.62rem;color:var(--muted);margin-top:.2rem;">Open Perchance, then paste or upload the resulting image into this slot.</div>')
-      + '</div>'
+      + (portraitImage ? '<div style="font-size:.62rem;color:var(--muted);">Click the portrait to open a larger preview. Source: ' + escHtml(portraitSource) + '</div>' : '<div style="font-size:.62rem;color:var(--muted);">Open Perchance, then paste or upload the resulting image into this slot.</div>')
       + '</div>';
   }
 
@@ -405,7 +408,7 @@
     if (typeof document === 'undefined') return false;
     var el = typeof targetId === 'string' ? document.getElementById(targetId) : targetId;
     if (!el) return false;
-    el.innerHTML = getWayfarerPortraitHtml(state || {}, { size: 92 });
+    el.innerHTML = getWayfarerPortraitHtml(state || {}, { size: 84 });
     return true;
   }
 

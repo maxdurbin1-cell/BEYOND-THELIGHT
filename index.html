@@ -17279,6 +17279,28 @@ document.addEventListener('DOMContentLoaded',()=>{
   };
 
   function getCodexBestiaryMovePool(){
+    var rangeOrder=['engaged','close','nearby','far'];
+    function normalizeSave(kind, stat){
+      var allowed=['Body','Spirit','Mind','Control','Lead','Defend'];
+      var key=String(stat||'').toLowerCase();
+      if(key==='body'||key==='spirit'||key==='mind'||key==='control'||key==='lead'||key==='defend'){
+        return key.charAt(0).toUpperCase()+key.slice(1);
+      }
+      var k=String(kind||'').toLowerCase();
+      if(k==='hack')return 'Control';
+      if(k==='radiation')return 'Spirit';
+      if(k==='forcetrauma')return 'Mind';
+      if(k==='healthstrike'||k==='defendcheck')return 'Defend';
+      if(k==='savecondition')return 'Mind';
+      return pick(allowed);
+    }
+    function normalizeRanges(ranges){
+      var arr=Array.isArray(ranges)&&ranges.length?ranges:['close'];
+      var clean=arr.map(function(r){return String(r||'').toLowerCase();}).filter(function(r){return rangeOrder.indexOf(r)>=0;});
+      if(!clean.length)clean=['close'];
+      clean.sort(function(a,b){return rangeOrder.indexOf(a)-rangeOrder.indexOf(b);});
+      return clean.map(function(r){return r.charAt(0).toUpperCase()+r.slice(1);});
+    }
     var source=[];
     if(typeof getActiveEnemyActionEventPool==='function'){
       source=getActiveEnemyActionEventPool()||[];
@@ -17296,6 +17318,8 @@ document.addEventListener('DOMContentLoaded',()=>{
         scale:Number(entry&&entry.scale||0),
         dreadDie:Number(entry&&entry.dreadDie||0),
         damage:String(entry&&entry.damage||''),
+        saveStat:normalizeSave(entry&&entry.kind,entry&&entry.stat),
+        rangesNormalized:normalizeRanges(entry&&entry.ranges),
         source:entry&&entry.raidBoss?'Raid Boss':'Combat Tab',
         ranges:Array.isArray(entry&&entry.ranges)?entry.ranges.join(' / '):'all'
       };
@@ -17352,26 +17376,25 @@ document.addEventListener('DOMContentLoaded',()=>{
     };
   }
 
-  function formatCodexStatLabel(stat){
-    var key=String(stat||'defend').toLowerCase();
-    if(key==='mind'||key==='body'||key==='spirit'||key==='control'||key==='lead'||key==='defend')return key.charAt(0).toUpperCase()+key.slice(1);
-    return 'Control';
-  }
-
   function describeCodexBestiaryMoveRules(move, monsterDread){
     var m=move||{};
     var dd=Math.max(4,Number(m.dreadDie||monsterDread||6));
     var kind=String(m.kind||'special').toLowerCase();
-    var statLabel=formatCodexStatLabel(m.stat||'defend');
+    var statLabel=String(m.saveStat||'Defend');
+    var rangeLabel=Array.isArray(m.rangesNormalized)&&m.rangesNormalized.length?m.rangesNormalized.join(' / '):'Close';
     if(kind==='hack'){
       return {
+        save: statLabel,
+        range: rangeLabel,
         roll: statLabel + ' vs Dread d' + dd,
-        fail: 'Lose 1 AP immediately and cannot use Hack actions until your next turn.',
-        success: 'Systems hold. No AP loss and Hacks remain available.'
+        fail: 'Lose 1 Action and cannot cast hacks until your next turn.',
+        success: 'No action loss. Hack systems remain available.'
       };
     }
     if(kind==='radiation'){
       return {
+        save: statLabel,
+        range: rangeLabel,
         roll: 'Spirit vs Dread d' + dd,
         fail: 'Gain Radiation equal to the difference (Dread - Spirit), minimum 1.',
         success: 'You vent the coolant exposure and gain no Radiation.'
@@ -17380,6 +17403,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(kind==='savecondition'){
       var cond=String(m.condition||'a condition');
       return {
+        save: statLabel,
+        range: rangeLabel,
         roll: statLabel + ' vs Dread d' + dd,
         fail: 'Apply ' + cond + ' until end of next enemy turn.',
         success: 'Resist the effect. No condition applied.'
@@ -17387,38 +17412,54 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
     if(kind==='defendcheck'){
       return {
+        save: statLabel,
+        range: rangeLabel,
         roll: 'Defend vs Dread d' + dd,
-        fail: 'Take Stress equal to the difference + ' + Number(m.bonus||0) + ' bonus.',
+        fail: 'Take Mental Stress equal to the difference + ' + Number(m.bonus||0) + '.',
         success: 'Block the strike and trigger any on-defend benefits.'
       };
     }
     if(kind==='directstress'){
       var scale=Math.max(0,Number(m.scale||0));
       return {
-        roll: 'No save (cover can still reduce incoming pressure)',
-        fail: 'Take Stress = ceil(d' + dd + '/3) + ' + scale + '.',
-        success: 'N/A - only mitigation is cover/abilities.'
+        save: statLabel,
+        range: rangeLabel,
+        roll: statLabel + ' vs Dread d' + dd,
+        fail: 'Take Mental Stress equal to the difference + ' + scale + '.',
+        success: 'No mental stress applied.'
       };
     }
     if(kind==='healthstrike'){
-      var hs=Math.max(1,Number(m.scale||4));
       return {
-        roll: 'No save unless a specific skill says otherwise',
-        fail: 'Take Health damage = ceil(d' + dd + '/' + hs + ').',
-        success: 'N/A - avoid via positioning, interrupts, or prevention effects.'
+        save: statLabel,
+        range: rangeLabel,
+        roll: statLabel + ' vs Dread d' + dd,
+        fail: 'Take HP damage equal to the difference in failed save.',
+        success: 'No HP damage applied.'
       };
     }
     if(kind==='forcetrauma'){
       return {
-        roll: 'Forced Trauma Check (Adventure vs scene Dread)',
-        fail: 'Resolve Trauma consequences from the failed check.',
-        success: 'You stabilize and avoid additional Trauma fallout.'
+        save: statLabel,
+        range: rangeLabel,
+        roll: statLabel + ' vs Dread d' + dd,
+        fail: 'Gain 1 Trauma and one condition (Weakened, Distracted, Shaken, or Vulnerable).',
+        success: 'No Trauma gained.'
       };
     }
+    var fallbackFail=pick([
+      'Lose 1 Action.',
+      'You have no actions next turn.',
+      'Cannot cast spells until your next turn.',
+      'Cannot cast hacks until your next turn.',
+      'Cannot use augmentations until your next turn.'
+    ]);
     return {
+      save: statLabel,
+      range: rangeLabel,
       roll: statLabel + ' vs Dread d' + dd,
-      fail: 'GM applies a hard consequence appropriate to the move description.',
-      success: 'Move is resisted or reduced at GM discretion.'
+      fail: fallbackFail,
+      success: 'You resist the move and remain fully operational.'
     };
   }
 
@@ -17433,6 +17474,8 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '<div class="hist-num">' + String(idx+1) + '</div>'
         + '<div class="hist-text"><strong>' + String(move&&move.name||'Move') + '</strong><br>' + String(move&&move.desc||'')
         + '<div style="margin-top:.18rem;padding:.26rem .34rem;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);font-size:.75rem;color:var(--text2);line-height:1.45;">'
+          + '<div><strong style="color:var(--gold2);">Save:</strong> ' + String(rules.save||'Defend') + '</div>'
+          + '<div><strong style="color:var(--gold2);">Range:</strong> ' + String(rules.range||'Close') + '</div>'
           + '<div><strong style="color:var(--gold2);">Roll:</strong> ' + String(rules.roll||'') + '</div>'
           + '<div><strong style="color:var(--red2);">On Fail:</strong> ' + String(rules.fail||'') + '</div>'
           + '<div><strong style="color:var(--teal);">On Success:</strong> ' + String(rules.success||'') + '</div>'
@@ -17586,8 +17629,50 @@ document.addEventListener('DOMContentLoaded',()=>{
     '- **Marrow Oaths:** Disputes are settled by sworn testimony over ancestral remains under Oracle witness.',
     '- **Dimming Markets:** Night bazaars trading coolant, old-world lenses, and gate-safe route maps.',
     '',
+    '### Annals of Mythriel (Excerpted Tradition)',
+    'Historians often cite *The History of the Known Realm* by Êgeryn Southronson as the defining survey of Theos, praised for scope and criticized for era-bound bias. Later Eldar commentator Elithaea Mycelle challenged those assumptions by reframing events through non-human memory cycles and southern archive fragments.',
+    '',
+    '### Mythriel and the Wider World',
+    '- **Mythriel** is the mythic center of Theos with nine provinces: Dyn’s Well, Rose Grove, Agramir, Sungrave Coast, Akaria, Old Akaria, Allmaker, Briin, Dralen.',
+    '- **Nominion** lies east of Mythriel with four known regions: The Northern Shield, Deus, The Everwilds, and Fortune’s Peninsula.',
+    '- **Ioniir** lies north of the Meridian Sea and preserves Kithfolk ancestral routes and Aethari legends from Icehaven.',
+    '- **Cyphyyr** lies south of the Meridian Sea and holds Orosi, Dwemer, and Duende cultural centers.',
+    '- Lost and disputed lands include Ghostfence (Aldmeris memory), Neben, and the Meridian void tied in scripture to the Heart of the Nexus myth.',
+    '',
     '*This Codex page is a living document. As the story of Theos unfolds, so too will its lore.*'
   ].join('\n');
+
+  var CODEX_THEOS_TIMELINE = [
+    {era:'Age of Makers', year:'0-812', summary:'Machine-city flowering and barrier theory.', detail:'Foundries, observatories, and covenant houses codify early star engineering and regional law.'},
+    {era:'Great Sundering', year:'813', summary:'Radiant collapse reshapes life and memory.', detail:'Irradiation storms fracture empires, mutate biospheres, and force emergency barrier deployment.'},
+    {era:'Exile Routes', year:'814-890', summary:'Selected populations depart through sealed lanes.', detail:'Starward convoys leave; those remaining become the first post-Sundering lineages of Theos.'},
+    {era:'Meridian Unity', year:'1201', summary:'Triarchic rule stabilizes core provinces.', detail:'House Cearacil formalizes rule blocs while border provinces bargain for autonomy and relic rights.'},
+    {era:'Dimming Century', year:'Current', summary:'Old Sun decline accelerates faction conflict.', detail:'Faith, science, and force all claim authority over New Sun ignition methods.'}
+  ];
+
+  function renderTheosLoreInteractivePanel(){
+    var timeline = CODEX_THEOS_TIMELINE.map(function(t){
+      return '<button class="btn btn-xs" title="' + escapeCodexHtml(t.detail) + '" style="border-color:rgba(232,192,80,.4);">'
+        + '<strong>' + escapeCodexHtml(t.era) + '</strong> · ' + escapeCodexHtml(t.year)
+      + '</button>';
+    }).join('');
+    return '<div style="display:grid;gap:.45rem;margin-bottom:.7rem;">'
+      + '<div style="font-size:.78rem;color:var(--muted2);">Timeline (hover any node for major events):</div>'
+      + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;">' + timeline + '</div>'
+      + '<details open style="border:1px solid var(--border2);padding:.35rem .45rem;background:rgba(255,255,255,.02);">'
+        + '<summary style="cursor:pointer;color:var(--gold2);font-family:Cinzel,serif;">Notable People</summary>'
+        + '<div style="margin-top:.3rem;font-size:.8rem;line-height:1.55;color:var(--text2);">Êgeryn Southronson · Elithaea Mycelle · Marshal Iven Saar · Magister Vey Runehand · Mother Keth of the White Vault</div>'
+      + '</details>'
+      + '<details style="border:1px solid var(--border2);padding:.35rem .45rem;background:rgba(255,255,255,.02);">'
+        + '<summary style="cursor:pointer;color:var(--gold2);font-family:Cinzel,serif;">Factions at a Glance</summary>'
+        + '<div style="margin-top:.3rem;font-size:.8rem;line-height:1.55;color:var(--text2);">Solar Cults · Barrier Wardens · Crucible Guilds · Bone Oracles · Triarch Houses</div>'
+      + '</details>'
+      + '<details style="border:1px solid var(--border2);padding:.35rem .45rem;background:rgba(255,255,255,.02);">'
+        + '<summary style="cursor:pointer;color:var(--gold2);font-family:Cinzel,serif;">Mythriel Provincial Index</summary>'
+        + '<div style="margin-top:.3rem;font-size:.8rem;line-height:1.55;color:var(--text2);">Dyn’s Well · Rose Grove · Agramir · Sungrave Coast · Akaria · Old Akaria · Allmaker · Briin · Dralen</div>'
+      + '</details>'
+    + '</div>';
+  }
 
   function escapeCodexHtml(text){
     return String(text || '')
@@ -17642,7 +17727,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     var c = document.getElementById('codexContent');
     if(!c) return;
     c.innerHTML = '<div class="card"><div class="section-title">The Known Realm of Theos</div><div style="font-size:.82rem;color:var(--muted2);">Loading lore page…</div></div>';
-    c.innerHTML = '<div class="card"><div class="section-title">The Known Realm of Theos</div><div style="font-size:.82rem;color:var(--muted2);margin-bottom:.65rem;">The living codex page for provinces, factions, myths, and the New Sun.</div>' + renderCodexMarkdown(CODEX_THEOS_LORE_TEXT) + '</div>';
+    c.innerHTML = '<div class="card"><div class="section-title">The Known Realm of Theos</div><div style="font-size:.82rem;color:var(--muted2);margin-bottom:.65rem;">The living codex page for provinces, factions, myths, and the New Sun.</div>' + renderTheosLoreInteractivePanel() + renderCodexMarkdown(CODEX_THEOS_LORE_TEXT) + '</div>';
   }
   window.renderCodexTheosLorePage = renderCodexTheosLorePage;
   window.showCodexCat = showCodexCat;

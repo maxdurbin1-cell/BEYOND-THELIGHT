@@ -13228,6 +13228,25 @@ function renderHexMap(){
       taskIcon.textContent='📜';
       g.appendChild(taskIcon);
     }
+    // ── Render fog BEFORE mission icons so mission icons appear on top ──────
+    if(fogHidden){
+      const fogCover=document.createElementNS('http://www.w3.org/2000/svg','polygon');
+      fogCover.setAttribute('points',pts);
+      fogCover.setAttribute('fill','rgba(6,10,16,.84)');
+      fogCover.setAttribute('stroke','rgba(110,124,148,.35)');
+      fogCover.setAttribute('stroke-width','1');
+      fogCover.setAttribute('pointer-events','none');
+      g.appendChild(fogCover);
+      const fogMark=document.createElementNS('http://www.w3.org/2000/svg','text');
+      fogMark.setAttribute('x',x);
+      fogMark.setAttribute('y',y+4);
+      fogMark.setAttribute('text-anchor','middle');
+      fogMark.setAttribute('font-size','11');
+      fogMark.setAttribute('fill','rgba(201,214,240,.65)');
+      fogMark.setAttribute('pointer-events','none');
+      fogMark.textContent='?';
+      g.appendChild(fogMark);
+    }
     if(S.missionTokens&&S.missionTokens[markerKey]){
       const mt=S.missionTokens[markerKey];
       const mtMission=(S&&Array.isArray(S.activeMissions))?S.activeMissions.find(m=>m&&String(m.id||'')===String(mt.missionId||'')):null;
@@ -13522,24 +13541,6 @@ function renderHexMap(){
       youTag.textContent='YOU';
       g.appendChild(youTag);
     }
-    if(fogHidden){
-      const fogCover=document.createElementNS('http://www.w3.org/2000/svg','polygon');
-      fogCover.setAttribute('points',pts);
-      fogCover.setAttribute('fill','rgba(6,10,16,.84)');
-      fogCover.setAttribute('stroke','rgba(110,124,148,.35)');
-      fogCover.setAttribute('stroke-width','1');
-      fogCover.setAttribute('pointer-events','none');
-      g.appendChild(fogCover);
-      const fogMark=document.createElementNS('http://www.w3.org/2000/svg','text');
-      fogMark.setAttribute('x',x);
-      fogMark.setAttribute('y',y+4);
-      fogMark.setAttribute('text-anchor','middle');
-      fogMark.setAttribute('font-size','11');
-      fogMark.setAttribute('fill','rgba(201,214,240,.65)');
-      fogMark.setAttribute('pointer-events','none');
-      fogMark.textContent='?';
-      g.appendChild(fogMark);
-    }
     g.addEventListener('click',()=>{
       try{
         let moved=false;
@@ -13559,8 +13560,8 @@ function renderHexMap(){
         }
         selectedHex=hex;
         if(clickMode==='fog'){
-          revealMapFogHex('province',markerKey,{adjacentKeys:getProvinceAdjacentKeys(markerKey)});
-          if(typeof showNotif==='function')showNotif('Fog lifted around ['+(hex.col+1)+','+(hex.row+1)+'].','good');
+          revealMapFogHex('province',markerKey);
+          if(typeof showNotif==='function')showNotif('Fog lifted. Hex ['+(hex.col+1)+','+(hex.row+1)+'] revealed.','good');
         }else if(moved){
           revealMapFogHex('province',markerKey);
         }
@@ -13633,6 +13634,21 @@ function renderHexMap(){
       svg.appendChild(glyph);
     });
   }
+  // ── Render compass at bottom-right ──
+  const compassGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
+  compassGroup.setAttribute('transform','translate('+String(svgW-28)+','+String(svgH-28)+')');
+  const compassCircle=document.createElementNS('http://www.w3.org/2000/svg','circle');
+  compassCircle.setAttribute('cx','0');compassCircle.setAttribute('cy','0');
+  compassCircle.setAttribute('r','12');compassCircle.setAttribute('fill','rgba(123,154,255,.15)');
+  compassCircle.setAttribute('stroke','#7b9aff');compassCircle.setAttribute('stroke-width','0.8');
+  compassCircle.setAttribute('pointer-events','none');
+  compassGroup.appendChild(compassCircle);
+  const compassArrow=document.createElementNS('http://www.w3.org/2000/svg','text');
+  compassArrow.setAttribute('x','0');compassArrow.setAttribute('y','-2');
+  compassArrow.setAttribute('text-anchor','middle');compassArrow.setAttribute('font-size','10');
+  compassArrow.setAttribute('fill','#7b9aff');compassArrow.setAttribute('pointer-events','none');
+  compassArrow.textContent='↑';compassGroup.appendChild(compassArrow);
+  svg.appendChild(compassGroup);
 }
 // ── RENDER HEX INFO ──────────────────────────────────────────────────────────
 function renderHexInfo(hex){

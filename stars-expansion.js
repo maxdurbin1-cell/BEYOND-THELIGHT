@@ -15894,6 +15894,26 @@ function renderPlanetExplorationPanel() {
   const planetSvg = target.querySelector('.planet-svg');
   if (planetSvg && typeof window.applyMapOverlayStyle === 'function') {
     window.applyMapOverlayStyle(planetSvg, 'planet');
+  @@  if (planetSvg) {
+  @@    // ── Render compass at bottom-right ──
+  @@    const compassGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  @@    const svgW = Number(planetSvg.getAttribute('width')) || 900;
+  @@    const svgH = Number(planetSvg.getAttribute('height')) || 900;
+  @@    compassGroup.setAttribute('transform', 'translate(' + (svgW - 28) + ',' + (svgH - 28) + ')');
+  @@    const compassCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  @@    compassCircle.setAttribute('cx', '0'); compassCircle.setAttribute('cy', '0');
+  @@    compassCircle.setAttribute('r', '12'); compassCircle.setAttribute('fill', 'rgba(255,160,100,.15)');
+  @@    compassCircle.setAttribute('stroke', '#ffa064'); compassCircle.setAttribute('stroke-width', '0.8');
+  @@    compassCircle.setAttribute('pointer-events', 'none');
+  @@    compassGroup.appendChild(compassCircle);
+  @@    const compassArrow = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  @@    compassArrow.setAttribute('x', '0'); compassArrow.setAttribute('y', '-2');
+  @@    compassArrow.setAttribute('text-anchor', 'middle'); compassArrow.setAttribute('font-size', '10');
+  @@    compassArrow.setAttribute('fill', '#ffa064'); compassArrow.setAttribute('pointer-events', 'none');
+  @@    compassArrow.textContent = '↑'; compassGroup.appendChild(compassArrow);
+  @@    planetSvg.appendChild(compassGroup);
+  @@  }
+  @@}
   }
 }
 
@@ -16722,45 +16742,44 @@ function getAdjacentGalaxyHexIds(hexId) {
     .map(function (hex) { return String(hex.id); });
 }
 
-function observeAdjacentGalaxyFromCurrent() {
-  ensureStarsState();
+function getAdjacentGalaxyDirections(hex) {
+  const dirs = [{key:'north',label:'North',dq:0,dr:-1},{key:'northeast',label:'Northeast',dq:1,dr:-1},{key:'southeast',label:'Southeast',dq:1,dr:0},{key:'south',label:'South',dq:0,dr:1},{key:'southwest',label:'Southwest',dq:-1,dr:1},{key:'northwest',label:'Northwest',dq:-1,dr:0}];
+  return dirs.filter(d => (S.starSystem.hexes || []).some(h => h && h.q === hex.q + d.dq && h.r === hex.r + d.dr));
+}
+function getGalaxyHexByDirection(hex, directionKey) {
+  const dirs = getAdjacentGalaxyDirections(hex);
+  const d = dirs.find(x => x.key === directionKey);
+  if (!d) return null;
+  const found = (S.starSystem.hexes || []).find(h => h && h.q === hex.q + d.dq && h.r === hex.r + d.dr);
+  if (!found) return null;
+  return {hex: found, label: d.label};
+}
+function performGalaxyObservation(directionKey) {
   const current = getCurrentStarHex();
-  if (!current) {
-    showNotif('Select a galaxy hex first.', 'warn');
-    return;
-  }
-  const neighbors = (S.starSystem.hexes || []).filter(function (hex) {
-    return hex && hex.id !== current.id && starHexDistance(current, hex) <= 1;
-  });
-  if (!neighbors.length) {
-    showNotif('No adjacent galaxy hexes to observe.', 'warn');
-    return;
-  }
+  if (!current) { showNotif('Select a galaxy hex first.', 'warn'); return; }
   const mindDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('mind') : ((S.stats && S.stats.mind) || 4);
   const action = explodingRoll(mindDie);
   const dread = explodingRoll(6);
   const success = action.total >= dread.total;
-  let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;">'
-    + '<div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">Mind d' + mindDie + '</div><div style="font-size:1.6rem;color:var(--teal);font-family:Rajdhani,sans-serif;font-weight:700;">' + action.total + '</div></div>'
-    + '<div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">DD6</div><div style="font-size:1.6rem;color:var(--red2);font-family:Rajdhani,sans-serif;font-weight:700;">' + dread.total + '</div></div>'
-    + '</div>';
+  const target = getGalaxyHexByDirection(current, directionKey);
+  let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;"><div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">Mind d' + mindDie + '</div><div style="font-size:1.6rem;color:var(--teal);font-family:Rajdhani,sans-serif;font-weight:700;">' + action.total + '</div></div><div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">DD6</div><div style="font-size:1.6rem;color:var(--red2);font-family:Rajdhani,sans-serif;font-weight:700;">' + dread.total + '</div></div></div>';
   if (success) {
-    const hidden = neighbors.filter(function (hex) {
-      return !(typeof window.isMapFogHexVisible === 'function' ? window.isMapFogHexVisible('galaxy', String(hex.id), String(current.id)) : true);
-    });
-    const target = pick(hidden.length ? hidden : neighbors);
-    if (typeof window.revealMapFogHex === 'function') window.revealMapFogHex('galaxy', String(target.id));
-    if (typeof addSuccessRoll === 'function') addSuccessRoll();
-    html += '<div style="font-size:.82rem;color:var(--green2);">✓ Observation success. Signal lock on Hex ' + target.id + ' (' + (STAR_SIGHTING_COLORS[target.type] ? STAR_SIGHTING_COLORS[target.type].label : target.type) + ').</div>';
-  } else {
-    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
-    html += '<div style="font-size:.82rem;color:var(--red2);">✗ Observation failed. Sensor noise obscures adjacent signatures.</div>';
-  }
+    if (target) { if (typeof window.revealMapFogHex === 'function') window.revealMapFogHex('galaxy', String(target.hex.id)); if (typeof addSuccessRoll === 'function') addSuccessRoll(); html += '<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--green2);font-weight:700;margin-bottom:.25rem;">✓ Observation success (' + target.label + ')</div><div style="padding:.22rem .42rem;border-left:2px solid rgba(201,162,39,.4);"><div style="font-size:.78rem;color:var(--teal);font-weight:700;margin-bottom:.15rem;">Hex ' + target.hex.id + ': ' + (STAR_SIGHTING_COLORS[target.hex.type] ? STAR_SIGHTING_COLORS[target.hex.type].label : target.hex.type) + '</div><div style="font-size:.7rem;color:var(--muted2);">Signal lock established.</div></div></div>'; } else { html += '<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">No hex in that direction</div></div>'; }
+  } else { if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure'); html += '<div style="font-size:.82rem;color:var(--red2);">✗ Observation failed. Sensor noise obscures the signal.</div>'; }
   if (typeof openModal === 'function') openModal('Observe Adjacent Galaxy Hex', html);
   renderStarSystemMap();
   updateStarSystemReadouts();
 }
+function observeAdjacentGalaxyFromCurrent() {
+  ensureStarsState();
+  const current = getCurrentStarHex();
+  if (!current) { showNotif('Select a galaxy hex first.', 'warn'); return; }
+  const options = getAdjacentGalaxyDirections(current);
+  if (!options.length) { showNotif('No adjacent galaxy hexes to observe.', 'warn'); return; }
+  let html = '<div style="font-size:.82rem;color:var(--text2);margin-bottom:.35rem;">Choose one adjacent direction to observe (Mind vs DD6).</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.3rem;">'; options.forEach(opt => { html += '<button class="btn btn-sm btn-teal" onclick="performGalaxyObservation(\'' + opt.key + '\')">' + opt.label + '</button>'; }); html += '</div>'; if (typeof openModal === 'function') openModal('Observe Adjacent Galaxy Hex', html);
+}
 window.toggleGalaxyClickMode = toggleGalaxyClickMode;
+window.performGalaxyObservation = performGalaxyObservation;
 window.observeAdjacentGalaxyFromCurrent = observeAdjacentGalaxyFromCurrent;
 
 function renderStarSystemMap() {
@@ -16945,6 +16964,25 @@ function renderStarSystemMap() {
     window.applyMapOverlayStyle(galaxySvg, 'galaxy');
   }
 
+  if (galaxySvg) {
+    // ── Render compass at bottom-right ──
+    const compassGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    const svgW = 1000, svgH = 760;
+    compassGroup.setAttribute('transform', 'translate(' + (svgW - 28) + ',' + (svgH - 28) + ')');
+    const compassCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    compassCircle.setAttribute('cx', '0'); compassCircle.setAttribute('cy', '0');
+    compassCircle.setAttribute('r', '12'); compassCircle.setAttribute('fill', 'rgba(157,179,255,.15)');
+    compassCircle.setAttribute('stroke', '#9db3ff'); compassCircle.setAttribute('stroke-width', '0.8');
+    compassCircle.setAttribute('pointer-events', 'none');
+    compassGroup.appendChild(compassCircle);
+    const compassArrow = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    compassArrow.setAttribute('x', '0'); compassArrow.setAttribute('y', '-2');
+    compassArrow.setAttribute('text-anchor', 'middle'); compassArrow.setAttribute('font-size', '10');
+    compassArrow.setAttribute('fill', '#9db3ff'); compassArrow.setAttribute('pointer-events', 'none');
+    compassArrow.textContent = '↑'; compassGroup.appendChild(compassArrow);
+    galaxySvg.appendChild(compassGroup);
+  }
+
   const fuel = document.getElementById('starFuelReadout');
   if (fuel) {
     fuel.textContent = `Fuel S/H/H: ${S.starship.fuel.standard || 0}/${S.starship.fuel.hubJump || 0}/${S.starship.fuel.hyperdrive || 0}`;
@@ -16968,11 +17006,11 @@ function selectStarSystemHex(hexId) {
   if (clickMode === 'fog') {
     S.starSystem.currentHexId = hexId;
     if (typeof window.revealMapFogHex === 'function') {
-      window.revealMapFogHex('galaxy', String(hexId), { adjacentKeys: getAdjacentGalaxyHexIds(hexId) });
+      window.revealMapFogHex('galaxy', String(hexId));
     }
     renderStarSystemMap();
     updateStarSystemReadouts();
-    showNotif('Galaxy fog revealed around hex ' + String(hexId) + '.', 'good');
+    showNotif('Galaxy fog revealed. Hex ' + String(hexId) + ' revealed.', 'good');
     return;
   }
 

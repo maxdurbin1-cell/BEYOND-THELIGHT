@@ -1073,48 +1073,43 @@
     return window.isMapFogHexVisible("sea", String(hexKey || ""), String(S.lastSea.selectedKey || ""));
   }
 
-  function observeAdjacentSeaFromSelected() {
-    ensureExpansionState();
-    const hex = Array.isArray(S.lastSea.map)
-      ? S.lastSea.map.find(function (entry) { return entry && entry.key === S.lastSea.selectedKey; })
-      : null;
-    if (!hex) {
-      showNotif('Select a sea hex first.', 'warn');
-      return;
-    }
-    const neighbors = (Array.isArray(S.lastSea.map) ? S.lastSea.map : []).filter(function (entry) {
-      if (!entry || entry.key === hex.key) return false;
-      return Math.abs(Number(entry.col) - Number(hex.col)) <= 1
-        && Math.abs(Number(entry.row) - Number(hex.row)) <= 1;
-    });
-    if (!neighbors.length) {
-      showNotif('No adjacent sea hexes to observe.', 'warn');
-      return;
-    }
+  function getAdjacentSeaDirections(hex) {
+    const dirs = [{key:'north',label:'North',dc:0,dr:-1},{key:'northeast',label:'Northeast',dc:1,dr:-1},{key:'east',label:'East',dc:1,dr:0},{key:'southeast',label:'Southeast',dc:1,dr:1},{key:'south',label:'South',dc:0,dr:1},{key:'southwest',label:'Southwest',dc:-1,dr:1},{key:'west',label:'West',dc:-1,dr:0},{key:'northwest',label:'Northwest',dc:-1,dr:-1}];
+    return dirs.filter(d => (Array.isArray(S.lastSea.map) ? S.lastSea.map : []).some(e => e && Number(e.col) === Number(hex.col) + d.dc && Number(e.row) === Number(hex.row) + d.dr));
+  }
+  function getSeaHexByDirection(hex, directionKey) {
+    const dirs = getAdjacentSeaDirections(hex);
+    const d = dirs.find(x => x.key === directionKey);
+    if (!d) return null;
+    const found = (Array.isArray(S.lastSea.map) ? S.lastSea.map : []).find(e => e && Number(e.col) === Number(hex.col) + d.dc && Number(e.row) === Number(hex.row) + d.dr);
+    if (!found) return null;
+    return {hex: found, label: d.label};
+  }
+  function performSeaObservation(directionKey) {
+    const hex = (Array.isArray(S.lastSea.map) ? S.lastSea.map : []).find(e => e && e.key === S.lastSea.selectedKey);
+    if (!hex) { showNotif('Select a sea hex first.', 'warn'); return; }
     const leadDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
     const action = explodingRoll(leadDie);
     const dread = explodingRoll(6);
     const success = action.total >= dread.total;
-    let result = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;">'
-      + '<div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">Lead d' + leadDie + '</div><div style="font-size:1.6rem;color:var(--teal);font-family:Rajdhani,sans-serif;font-weight:700;">' + action.total + '</div></div>'
-      + '<div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">DD6</div><div style="font-size:1.6rem;color:var(--red2);font-family:Rajdhani,sans-serif;font-weight:700;">' + dread.total + '</div></div>'
-      + '</div>';
+    const target = getSeaHexByDirection(hex, directionKey);
+    let result = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;"><div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">Lead d' + leadDie + '</div><div style="font-size:1.6rem;color:var(--teal);font-family:Rajdhani,sans-serif;font-weight:700;">' + action.total + '</div></div><div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">DD6</div><div style="font-size:1.6rem;color:var(--red2);font-family:Rajdhani,sans-serif;font-weight:700;">' + dread.total + '</div></div></div>';
     if (success) {
-      const hidden = neighbors.filter(function (entry) { return !isSeaHexVisibleByFog(entry.key); });
-      const target = pick(hidden.length ? hidden : neighbors);
-      if (typeof window.revealMapFogHex === 'function') {
-        window.revealMapFogHex('sea', String(target.key || ''));
-      }
-      if (typeof addSuccessRoll === 'function') addSuccessRoll();
-      result += '<div style="font-size:.82rem;color:var(--green2);">✓ Observation success. New lane intel: [' + (target.col + 1) + ',' + (target.row + 1) + '] ' + (target.title || target.islandName || target.seaLabel || 'Open Sea') + '.</div>';
-    } else {
-      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
-      result += '<div style="font-size:.82rem;color:var(--red2);">✗ Observation fails. The fog and spray hide the route.</div>';
-    }
+      if (target) { if (typeof window.revealMapFogHex === 'function') window.revealMapFogHex('sea', String(target.hex.key || '')); if (typeof addSuccessRoll === 'function') addSuccessRoll(); result += '<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--green2);font-weight:700;margin-bottom:.25rem;">✓ Observation success (' + target.label + ')</div><div style="padding:.22rem .42rem;border-left:2px solid rgba(201,162,39,.4);"><div style="font-size:.78rem;color:var(--teal);font-weight:700;margin-bottom:.15rem;">[' + (target.hex.col + 1) + ',' + (target.hex.row + 1) + '] ' + (target.hex.title || target.hex.islandName || target.hex.seaLabel || 'Open Sea') + '</div><div style="font-size:.7rem;color:var(--muted2);">New lane intel acquired.</div></div></div>'; } else { result += '<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">No hex in that direction</div></div>'; }
+    } else { if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure'); result += '<div style="font-size:.82rem;color:var(--red2);">✗ Observation fails. Fog and spray obscure the route.</div>'; }
     if (typeof openModal === 'function') openModal('Observe Adjacent Sea Hex', result);
     renderLastSeaMap();
     renderLastSeaInfo();
   }
+  function observeAdjacentSeaFromSelected() {
+    ensureExpansionState();
+    const hex = (Array.isArray(S.lastSea.map) ? S.lastSea.map : []).find(e => e && e.key === S.lastSea.selectedKey);
+    if (!hex) { showNotif('Select a sea hex first.', 'warn'); return; }
+    const options = getAdjacentSeaDirections(hex);
+    if (!options.length) { showNotif('No adjacent sea hexes to observe.', 'warn'); return; }
+    let html = '<div style="font-size:.82rem;color:var(--text2);margin-bottom:.35rem;">Choose one adjacent direction to observe (Lead vs DD6).</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.3rem;">'; options.forEach(opt => { html += '<button class="btn btn-sm btn-teal" onclick="performSeaObservation(\'' + opt.key + '\')">' + opt.label + '</button>'; }); html += '</div>'; if (typeof openModal === 'function') openModal('Observe Adjacent Sea Hex', html);
+  }
+  window.performSeaObservation = performSeaObservation;
   window.observeAdjacentSeaFromSelected = observeAdjacentSeaFromSelected;
 
   function renderLastSeaMap() {
@@ -1420,8 +1415,8 @@
         }
         S.lastSea.selectedKey = hex.key;
         if (S.lastSea.clickMode === "fog" && typeof window.revealMapFogHex === "function") {
-          window.revealMapFogHex("sea", String(hex.key || ""), { adjacentKeys: getAdjacentSeaKeysForHex(hex) });
-          showNotif('Sea fog lifted around [' + (hex.col + 1) + ',' + (hex.row + 1) + '].', 'good');
+          window.revealMapFogHex("sea", String(hex.key || ""));
+          showNotif('Sea fog lifted. Hex [' + (hex.col + 1) + ',' + (hex.row + 1) + '] revealed.', 'good');
         } else if (moved && typeof window.revealMapFogHex === "function") {
           window.revealMapFogHex("sea", String(hex.key || ""));
         }
@@ -1452,6 +1447,21 @@
       });
       svg.appendChild(group);
     });
+    // ── Render compass at bottom-right ──
+    const compassGroup=document.createElementNS('http://www.w3.org/2000/svg','g');
+    const svgRect=svg.getBoundingClientRect();compassGroup.setAttribute('transform','translate('+(svgRect.width-28)+','+(svgRect.height-28)+')');
+    const compassCircle=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    compassCircle.setAttribute('cx','0');compassCircle.setAttribute('cy','0');
+    compassCircle.setAttribute('r','12');compassCircle.setAttribute('fill','rgba(70,196,182,.15)');
+    compassCircle.setAttribute('stroke','#46c4b6');compassCircle.setAttribute('stroke-width','0.8');
+    compassCircle.setAttribute('pointer-events','none');
+    compassGroup.appendChild(compassCircle);
+    const compassArrow=document.createElementNS('http://www.w3.org/2000/svg','text');
+    compassArrow.setAttribute('x','0');compassArrow.setAttribute('y','-2');
+    compassArrow.setAttribute('text-anchor','middle');compassArrow.setAttribute('font-size','10');
+    compassArrow.setAttribute('fill','#46c4b6');compassArrow.setAttribute('pointer-events','none');
+    compassArrow.textContent='↑';compassGroup.appendChild(compassArrow);
+    svg.appendChild(compassGroup);
   }
 
   function renderCurrentSeaWeather() {

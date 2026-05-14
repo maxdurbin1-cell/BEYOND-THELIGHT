@@ -2053,6 +2053,69 @@
 
   var DEFAULT_TERRAIN_POOL = ['Field', 'Forest', 'Swamp', 'Lake', 'Farm', 'Rift', 'Stones', 'DesertMountain', 'DesertCave', 'Ravine', 'City', 'Town', 'SnowyTown', 'SnowyFields', 'SnowyForest', 'SnowySwamp'];
 
+  var TERRAIN_DESCRIPTOR_KEY_ALIASES = {
+    marsh: 'Marsh',
+    forest: 'Forest',
+    valley: 'Valley',
+    lake: 'Lake',
+    mountain: 'Mountain',
+    desert: 'Desert',
+    hills: 'Hills',
+    meadow: 'Meadow',
+    heath: 'Heath',
+    crags: 'Crags',
+    bog: 'Bog',
+    glades: 'Glades',
+    snowfield: 'Snowfield',
+    deadforest: 'DeadForest',
+    ashwastes: 'AshWastes',
+    frostmarsh: 'FrostMarsh',
+    rift: 'Rift',
+    stones: 'Stones',
+    desertmountain: 'DesertMountain',
+    farm: 'Farm',
+    desertfarm: 'DesertFarm',
+    desertcave: 'DesertCave',
+    ravine: 'Ravine',
+    city: 'City',
+    town: 'Town',
+    snowytown: 'SnowyTown',
+    snowyfields: 'SnowyFields',
+    snowyforest: 'SnowyForest',
+    snowyswamp: 'SnowySwamp',
+    dwelling: 'Dwelling',
+    temple: 'Temple',
+    library: 'Library',
+    depths: 'Depths',
+    ruins: 'Ruins',
+    holding: 'Holding',
+    traderoute: 'TradeRoute',
+    gate: 'Gate',
+    peril: 'Peril',
+    seat: 'Seat',
+    trade: 'Trade',
+    monument: 'Monument',
+    lostcity: 'LostCity'
+  };
+
+  function normalizeTerrainNameToken(value) {
+    return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  function resolveTerrainDescriptorKey(value) {
+    var src = String(value || '').trim();
+    if (!src) return 'Hills';
+    if (typeof TERRAIN_DESC !== 'undefined' && TERRAIN_DESC && TERRAIN_DESC[src]) return src;
+    var aliased = TERRAIN_DESCRIPTOR_KEY_ALIASES[normalizeTerrainNameToken(src)] || '';
+    if (aliased && typeof TERRAIN_DESC !== 'undefined' && TERRAIN_DESC && TERRAIN_DESC[aliased]) return aliased;
+    return src;
+  }
+
+  function descriptorKeyToMapTerrainKey(name) {
+    var canonical = resolveTerrainDescriptorKey(name);
+    return String(canonical || 'hills').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+  }
+
   // Returns the allowed terrain pool for a province and season
   function getProvinceTerrainPool(provinceName, season) {
     var p = PROVINCE_TERRAIN_POOLS[String(provinceName)];
@@ -2061,12 +2124,14 @@
     return DEFAULT_TERRAIN_POOL;
   }
 
-  // provinceName should be available on map or via S.holding.provinceName
   function stampCrucibleExpeditionVarietyTerrains(map, provinceName, season) {
     if (!map || !map.hexes) return;
     var SPECIAL = ['ruin','trap','temple','barrier','gate','portal','dwelling','holding','trade_route','lost_city','library','depths'];
     var seed = Math.max(1, Number(map.seed || 1));
-    var pool = getProvinceTerrainPool(provinceName, season);
+    var activeProvince = String(provinceName || map.provinceName || (S && S.holding && S.holding.provinceName) || 'Midlands');
+    var activeSeason = String(season || (S && S.currentSeason) || 'spring').toLowerCase();
+    if (activeSeason !== 'spring' && activeSeason !== 'harvest' && activeSeason !== 'winter') activeSeason = 'spring';
+    var pool = getProvinceTerrainPool(activeProvince, activeSeason);
     var n = pool.length;
     Object.keys(map.hexes).forEach(function (k) {
       var cell = map.hexes[k];
@@ -2080,28 +2145,9 @@
       var cr = Math.round(r / 2);
       var h = Math.abs(Math.sin(cq * 439.7 + cr * 317.3 + seed * 71.11));
       var idx = Math.floor((h - Math.floor(h)) * n) % n;
-      cell.terrain = pool[idx];
-    });
-  }
-
-  function stampCrucibleExpeditionVarietyTerrains(map) {
-    if (!map || !map.hexes) return;
-    var SPECIAL = ['ruin','trap','temple','barrier','gate','portal','dwelling','holding','trade_route','lost_city','library','depths'];
-    var seed = Math.max(1, Number(map.seed || 1));
-    var n = PROVINCE_VARIETY_TERRAINS.length;
-    Object.keys(map.hexes).forEach(function (k) {
-      var cell = map.hexes[k];
-      if (!cell) return;
-      if (SPECIAL.indexOf(cell.terrain) !== -1) return;
-      if (cell.trap || cell.barrier) return;
-      var q = Number(cell.q || 0);
-      var r = Number(cell.r || 0);
-      // Use a coarse cluster grid so nearby hexes share terrain (natural biome patches)
-      var cq = Math.round(q / 2);
-      var cr = Math.round(r / 2);
-      var h = Math.abs(Math.sin(cq * 439.7 + cr * 317.3 + seed * 71.11));
-      var idx = Math.floor((h - Math.floor(h)) * n) % n;
-      cell.terrain = PROVINCE_VARIETY_TERRAINS[idx];
+      var descriptorKey = resolveTerrainDescriptorKey(pool[idx]);
+      cell.provinceTerrainName = descriptorKey;
+      cell.terrain = descriptorKeyToMapTerrainKey(descriptorKey);
     });
   }
 
@@ -2121,7 +2167,8 @@
       var h2 = Math.abs(Math.sin((q + 7) * 431 + (r + 41) * 263 + seed * 29));
       var tIdx = Math.floor((h1 - Math.floor(h1)) * terrainPool.length) % terrainPool.length;
       var picked = terrainPool[Math.max(0, tIdx)] || terrainPool[0];
-      if (!cell.provinceTerrainName) cell.provinceTerrainName = String((picked && picked.name) || 'Hills');
+      if (!cell.provinceTerrainName) cell.provinceTerrainName = resolveTerrainDescriptorKey(String((picked && picked.name) || 'Hills'));
+      else cell.provinceTerrainName = resolveTerrainDescriptorKey(cell.provinceTerrainName);
       if (!cell.provinceTerrainColor) cell.provinceTerrainColor = String((picked && picked.color) || '#354027');
       if (!cell.weatherRoll) cell.weatherRoll = 1 + (Math.floor((h2 - Math.floor(h2)) * 6) % 6);
     });
@@ -2158,15 +2205,17 @@
     if (!match || !match.hexMap || !match.hexMap.hexes || String(match.mode || '') !== 'expedition') return '';
     var cell = getCrucibleExpeditionCellFromPlayer(match);
     if (!cell) return '';
-    var terrainName = String(cell.provinceTerrainName || 'Hills');
+    var terrainName = resolveTerrainDescriptorKey(cell.provinceTerrainName || cell.terrain || 'Hills');
     var td = (typeof TERRAIN_DESC !== 'undefined' && TERRAIN_DESC && TERRAIN_DESC[terrainName])
       ? TERRAIN_DESC[terrainName]
-      : { land: ['Open land.'], flora: ['Sparse growth.'], fauna: ['No readings.'], wonder: ['A half-buried monument.'] };
+      : { land: ['Open land.'], sky: ['Grey and still.'], water: ['No visible water.'], flora: ['Sparse growth.'], fauna: ['No readings.'], wonder: ['A half-buried monument.'] };
     var season = String((typeof S !== 'undefined' && S && S.currentSeason) ? S.currentSeason : 'spring');
     var weatherTable = (typeof WEATHER !== 'undefined' && WEATHER && Array.isArray(WEATHER[season])) ? WEATHER[season] : [];
     var wr = Math.max(1, Math.min(6, Number(cell.weatherRoll || 1)));
     var weather = weatherTable[wr - 1] || { result: 'Still Air', desc: 'No immediate weather pressure.', rough: false };
     var land = pickCrucibleExpeditionStableText(Array.isArray(td.land) ? td.land : [String(td.land || 'Open land.')], cell, 'land');
+    var sky = pickCrucibleExpeditionStableText(Array.isArray(td.sky) ? td.sky : [String(td.sky || 'Grey and still.')], cell, 'sky');
+    var water = pickCrucibleExpeditionStableText(Array.isArray(td.water) ? td.water : [String(td.water || 'No visible water.')], cell, 'water');
     var flora = pickCrucibleExpeditionStableText(Array.isArray(td.flora) ? td.flora : [String(td.flora || 'Sparse growth.')], cell, 'flora');
     var fauna = pickCrucibleExpeditionStableText(Array.isArray(td.fauna) ? td.fauna : [String(td.fauna || 'No known fauna.')], cell, 'fauna');
     var wonder = pickCrucibleExpeditionStableText(Array.isArray(td.wonder) ? td.wonder : [String(td.wonder || 'A weathered structure.')], cell, 'wonder');
@@ -2180,7 +2229,7 @@
       + '<div class="card" style="margin-top:.35rem;">'
       + '<div class="section-title">Province Detail</div>'
       + '<div class="theos-region-kicker">' + escapeCrucibleExpeditionHtml(terrainName) + ' · Day ' + escapeCrucibleExpeditionHtml(String(cell.weatherRoll || 1)) + '</div>'
-      + '<p class="theos-region-copy">The active Expedition hex uses the same Province wilderness reading structure: land, weather, flora/fauna, and wonder are all surfaced from the current map cell.</p>'
+      + '<p class="theos-region-copy">The active Expedition hex surfaces all six Province descriptor channels from the current terrain card.</p>'
       + '<div class="theos-chip-row">'
       + '<span class="theos-chip">Terrain: ' + escapeCrucibleExpeditionHtml(terrainName) + '</span>'
       + '<span class="theos-chip">Climate: ' + escapeCrucibleExpeditionHtml(season.charAt(0).toUpperCase() + season.slice(1)) + '</span>'
@@ -2189,8 +2238,11 @@
       + '</div>'
       + '<div class="theos-kv-grid">'
       + '<div><strong>Land</strong><span>' + escapeCrucibleExpeditionHtml(land) + '</span></div>'
+      + '<div><strong>Sky</strong><span>' + escapeCrucibleExpeditionHtml(sky) + '</span></div>'
+      + '<div><strong>Water</strong><span>' + escapeCrucibleExpeditionHtml(water) + '</span></div>'
       + '<div><strong>Weather</strong><span>' + escapeCrucibleExpeditionHtml(String(weather.result || 'Unknown') + ' — ' + String(weather.desc || '')) + (weather.rough ? ' • Rough weather pressure is active.' : '') + '</span></div>'
-      + '<div><strong>Flora Fauna</strong><span>' + escapeCrucibleExpeditionHtml(flora + ' ' + fauna) + '</span></div>'
+      + '<div><strong>Flora</strong><span>' + escapeCrucibleExpeditionHtml(flora) + '</span></div>'
+      + '<div><strong>Fauna</strong><span>' + escapeCrucibleExpeditionHtml(fauna) + '</span></div>'
       + '<div><strong>Wonder</strong><span>' + escapeCrucibleExpeditionHtml(wonder) + '</span></div>'
       + '</div>'
       + '<div class="theos-region-actions">'

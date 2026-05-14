@@ -17662,6 +17662,90 @@ document.addEventListener('DOMContentLoaded',()=>{
     {name:'Dralen', rumors:['A bone oracle there can name your killer before sunrise.','Three rival houses share one throne and none will sit it.'], hazards:['Grave gas pockets trigger hallucinations and false enemy markers.','Night processions that become armed faction marches.'], hooks:['Prevent a funeral rite from becoming a civil war spark.','Track a relic-thief through catacomb districts before dawn.']}
   ];
 
+  // Reusable lore block set for timeline dossiers, generated documents, and regional arcs.
+  var CODEX_THEOS_LORE_BLOCKS = {
+    timelineDossiers: [
+      {
+        year: '143 AS',
+        title: 'Blight Ledger Winter',
+        card: 'Irradiated fog seasons break terrace harvests and fracture grain contracts.',
+        causes: ['Fog belts linger two phases longer than expected.', 'Seed vault lots from Meridian stock fail germination checks.'],
+        consequences: ['Salt and lentil prices triple in market courts.', 'Tenant militias seize private granaries under emergency custom.'],
+        migrations: ['Hill laborers move toward road hubs for ration wages.'],
+        sources: ['Western grain board ledgers', 'Bone Oracle hunger songs (contested)']
+      },
+      {
+        year: '146 AS',
+        title: 'The Ash Processional',
+        card: 'Night bells from buried pylons pull pilgrims, debtors, and refugees onto old roads.',
+        causes: ['Three shrine-cities report synchronized sub-surface bell tones.', 'Funerary fraternities declare shared atonement marches.'],
+        consequences: ['Road markets revive in abandoned relay stations.', 'Bandit hosts rebrand as toll fraternities with shrine charters.'],
+        migrations: ['Displaced farm families settle around processional camps.'],
+        sources: ['Ninth Record of Marshal Vey', 'Collected Briin axle-prayers']
+      },
+      {
+        year: '151 AS',
+        title: 'Briin Compact Season',
+        card: 'Caravan republic law formalizes neutral roads and paid escort guilds.',
+        causes: ['Escalating raids on food and relic convoys.', 'City-lords fail to guarantee safe passage.'],
+        consequences: ['Neutral route law weakens direct noble toll control.', 'Escort guilds become hereditary political blocs.'],
+        migrations: ['Marsh and frostline families resettle along compact routes.'],
+        sources: ['Third Compact of Briin Ford', 'Dralen mercantile tribunal copies']
+      },
+      {
+        year: '159 AS',
+        title: 'First False Dawn',
+        card: 'A pale second sunrise appears over Akaria Basin and ignites doctrine wars.',
+        causes: ['Unknown sky-lens reflection or atmospheric flare event.', 'Observatory watch records disappear after seizure orders.'],
+        consequences: ['Sun-faith splits into Dawn Witness and Last Ember sects.', 'Councils invoke emergency powers over observatories and towers.'],
+        migrations: ['Apprentice lenswrights flee Akaria for coast enclaves.'],
+        sources: ['Akaria basin witness roll', 'Root tablet fragments (authenticity disputed)']
+      },
+      {
+        year: '166-171 AS',
+        title: 'Schism Road Wars',
+        card: 'Limited wars over rites, route control, and archive legitimacy reshape public law.',
+        causes: ['Competing sun liturgies weaponize civic processions.', 'Route guilds enforce competing legitimacy papers.'],
+        consequences: ['Amber-glass routes collapse; funerary resin is rationed.', 'Ash-veil mourning becomes both rite and faction signal.'],
+        migrations: ['Urban households abandon interior wards for compact enclaves.'],
+        sources: ['Schism tribunal transcripts', 'Household ash-tax registries']
+      }
+    ],
+    documentTemplates: {
+      chronicle: {
+        label: 'Chronicle',
+        body: 'Excerpt from the {RECORD_NAME}, copied in {YEAR}.\n\nIn {PROVINCE}, the ward-bells rang before first meal and before dusk. Scribes of {FACTION} counted {COUNT_UNIT} along the old road and marked each with ash.\n\nThe western copyists claim this proved the New Sun had already chosen its heirs. Marsh historians reject this and note the levy records were altered after the third audit.\n\nWitness named: {WITNESS}.\nMargin note: "{OMEN}"'
+      },
+      decree: {
+        label: 'Decree',
+        body: 'By order of {OFFICE}, sealed in {PROVINCE} during {YEAR}.\n\n1. No shrine, guild, or household may obstruct compact traffic after second bell.\n2. All mirrors, lenses, and signal towers are subject to inspection by {FACTION}.\n3. Funeral processions exceeding fifty persons must register route rights and ash-mark intent.\n\nPenalty for breach: {PENALTY}.\nCounter-sign: {WITNESS}.'
+      },
+      hymn: {
+        label: 'Hymn',
+        body: 'Processional Hymn of {PROVINCE}, Verse copy from {YEAR}.\n\nKeep us through the dimming, Old Sun,\nCount our dead and count us done.\nIf New Sun rises, let it see\nWho kept the road and buried free.\n\nChorus used by {FACTION}:\n"{CHORUS_LINE}"'
+      },
+      letter: {
+        label: 'Letter',
+        body: 'To {RECIPIENT}, carried by axle-post from {PROVINCE}.\nDated: {YEAR}.\n\nYou asked whether the second light was a miracle or mirror-work. I answer only this: the ones who speak with certainty are the ones already paid.\n\n{FACTION} patrols now demand road papers and hymn tokens at each ford. If you travel, avoid {ROAD_WARNING}.\n\nI kept your place at the dusk table.\nSigned, {WITNESS}.'
+      }
+    },
+    regionArcs: [
+      { province: 'Dyn\'s Well', factions: ['Triarch Houses', 'Barrier Wardens'], arc: 'Civic grain law collapses into household oath blocs.', pressures: ['Ledger fraud tribunals', 'Sinkwell district evacuations'], consequence: 'Archive legitimacy now determines ration priority.' },
+      { province: 'Rose Grove', factions: ['Solar Cults', 'Crucible Guilds'], arc: 'Orchard biotech rites merge with ash penitence.', pressures: ['Water-right sabotage', 'Greenhouse militia skirmishes'], consequence: 'Seed monopolies decide marriage dowries and debt terms.' },
+      { province: 'Agramir', factions: ['Crucible Guilds', 'Triarch Houses'], arc: 'Salvage blocs contest machine-senate ruins for legal claims.', pressures: ['Bridge collapse toll disputes', 'Night salvage bans'], consequence: 'Route licenses become hereditary political assets.' },
+      { province: 'Sungrave Coast', factions: ['Barrier Wardens', 'Solar Cults'], arc: 'Harbor cult processions compete with customs authority.', pressures: ['Derelict seizure conflicts', 'Breakwater gate unrest'], consequence: 'Port rites now function as de facto border law.' },
+      { province: 'Akaria', factions: ['Triarch Houses', 'Solar Cults'], arc: 'Competing legal schools rewrite succession doctrine after the False Dawn.', pressures: ['Tribunal forgery claims', 'Observatory lockdown orders'], consequence: 'Court precedent splits by district and patron house.' },
+      { province: 'Old Akaria', factions: ['Bone Oracles', 'Triarch Houses'], arc: 'Memory archives become battlefield evidence in oath courts.', pressures: ['Chronicle theft rings', 'Glassfall route quarantines'], consequence: 'Private family records now outrank civic testimony in some wards.' },
+      { province: 'Allmaker', factions: ['Crucible Guilds', 'Barrier Wardens'], arc: 'Foundry religion and reactor pragmatism form uneasy labor compacts.', pressures: ['Coolant embargo threats', 'Private furnace militias'], consequence: 'Industrial rites dictate shift law and burial privilege.' },
+      { province: 'Briin', factions: ['Barrier Wardens', 'Bone Oracles'], arc: 'Compact road law collides with omen jurisdiction on winter routes.', pressures: ['Aurora convoy disappearances', 'Watch-post legitimacy feuds'], consequence: 'Caravan courts rival city courts in practical authority.' },
+      { province: 'Dralen', factions: ['Bone Oracles', 'Solar Cults'], arc: 'Funerary politics and sun-hermeneutics trigger recurring procession crises.', pressures: ['Catacomb march militarization', 'Throne-share succession deadlock'], consequence: 'Mourning custom now determines militia muster rights.' }
+    ]
+  };
+
+  var theosDocTemplateType = 'chronicle';
+  var theosDocProvince = 'Dyn\'s Well';
+  var theosGeneratedDocText = '';
+
 
   // Timeline pinning logic
   var theosTimelinePinnedIdx = null;
@@ -17753,6 +17837,118 @@ document.addEventListener('DOMContentLoaded',()=>{
   window.setTheosProvinceFilter = setTheosProvinceFilter;
   window.rollProvinceItem = rollProvinceItem;
 
+  function pickTheosLoreSeed(arr) {
+    var items = Array.isArray(arr) ? arr : [];
+    if (!items.length) return '';
+    return items[Math.floor(Math.random() * items.length)];
+  }
+  function escapeJsSingleQuote(text) {
+    var out = String(text || '').replace(/\\/g, '\\\\');
+    return out.split("'").join("\\'");
+  }
+  function renderTheosLoreList(title, items, color) {
+    var rows = (items || []).map(function(v) {
+      return '<li>' + escapeCodexHtml(v) + '</li>';
+    }).join('');
+    return '<div>'
+      + '<strong style="font-size:.72rem;color:' + color + ';text-transform:uppercase;letter-spacing:.08em;">' + escapeCodexHtml(title) + '</strong>'
+      + '<ul style="margin:.14rem 0 .12rem 1.05rem;padding:0;color:var(--text2);line-height:1.5;font-size:.79rem;">' + rows + '</ul>'
+    + '</div>';
+  }
+  function renderTheosTimelineDossierBlocks() {
+    var cards = CODEX_THEOS_LORE_BLOCKS.timelineDossiers.map(function(entry, idx) {
+      return '<details ' + (idx === 0 ? 'open' : '') + ' style="border:1px solid var(--border2);padding:.34rem .42rem;background:rgba(255,255,255,.02);">'
+        + '<summary style="cursor:pointer;color:var(--gold2);font-family:Cinzel,serif;">'
+          + '<strong>' + escapeCodexHtml(entry.year) + '</strong> · ' + escapeCodexHtml(entry.title)
+          + '<div style="font-family:inherit;font-size:.78rem;color:var(--text2);margin-top:.16rem;line-height:1.45;">' + escapeCodexHtml(entry.card) + '</div>'
+        + '</summary>'
+        + '<div style="margin-top:.3rem;display:grid;gap:.22rem;">'
+          + renderTheosLoreList('Causes', entry.causes, 'var(--teal)')
+          + renderTheosLoreList('Consequences', entry.consequences, 'var(--red2)')
+          + renderTheosLoreList('Migrations', entry.migrations, 'var(--gold2)')
+          + renderTheosLoreList('Sources', entry.sources, 'var(--muted2)')
+        + '</div>'
+      + '</details>';
+    }).join('');
+    return '<div style="display:grid;gap:.34rem;">' + cards + '</div>';
+  }
+  function buildTheosDocumentFromTemplate() {
+    var tpl = (CODEX_THEOS_LORE_BLOCKS.documentTemplates || {})[theosDocTemplateType];
+    if (!tpl || !tpl.body) return '';
+    var provinceArc = (CODEX_THEOS_LORE_BLOCKS.regionArcs || []).find(function(arc) { return arc.province === theosDocProvince; }) || null;
+    var context = {
+      YEAR: pickTheosLoreSeed(['143 AS', '146 AS', '151 AS', '159 AS', '167 AS', '171 AS']),
+      PROVINCE: theosDocProvince,
+      FACTION: pickTheosLoreSeed((provinceArc && provinceArc.factions) || ['Triarch Houses', 'Barrier Wardens', 'Solar Cults']),
+      WITNESS: pickTheosLoreSeed(['Marshal Iven Saar', 'Elithaea Mycelle', 'Quartermaster Sera Coilhand', 'Mother Keth of the White Vault', 'Archivist Talan Vei']),
+      OMEN: pickTheosLoreSeed(['Count your lamps before second light.', 'No bell rings without a payer.', 'Ash remembers the foot that made it.']),
+      RECORD_NAME: pickTheosLoreSeed(['Ninth Record of Marshal Vey', 'Briin Axle Ledger', 'Glass Tribunal Abstract', 'Root Margin Codex']),
+      COUNT_UNIT: pickTheosLoreSeed(['pilgrim chains', 'ration wagons', 'funerary veils', 'mirror crates']),
+      OFFICE: pickTheosLoreSeed(['the Ash Tribunal', 'the Third Compact Court', 'the Dusk Registry', 'the Meridian Road Seal']),
+      PENALTY: pickTheosLoreSeed(['three seasons labor on compact roads', 'property seizure under ward law', 'loss of route rights for one year']),
+      CHORUS_LINE: pickTheosLoreSeed(['Keep the wick, keep the witness.', 'No dawn without the dead remembered.', 'Road first, throne after.']),
+      RECIPIENT: pickTheosLoreSeed(['Magister Vey', 'Cousin Ren', 'Captain of the North Axle', 'the Dralen Archive Clerk']),
+      ROAD_WARNING: pickTheosLoreSeed(['the drowned stair at Dyn\'s Well', 'the glassfall lanes in Old Akaria', 'the moonless coast road', 'the Briin whiteout pass'])
+    };
+    return String(tpl.body).replace(/\{([A-Z_]+)\}/g, function(_, key) {
+      return context[key] || key;
+    });
+  }
+  function setTheosDocumentTemplateType(type) {
+    if (!(CODEX_THEOS_LORE_BLOCKS.documentTemplates || {})[type]) return;
+    theosDocTemplateType = type;
+    renderCodexTheosLorePage();
+  }
+  function setTheosDocumentProvince(name) {
+    theosDocProvince = name;
+    renderCodexTheosLorePage();
+  }
+  function generateTheosDocumentTemplate() {
+    theosGeneratedDocText = buildTheosDocumentFromTemplate();
+    var out = document.getElementById('theosDocGeneratorOutput');
+    if (out) {
+      out.textContent = theosGeneratedDocText;
+    }
+  }
+  function renderTheosDocumentTemplatePanel() {
+    var docTypes = Object.keys(CODEX_THEOS_LORE_BLOCKS.documentTemplates || {}).map(function(key) {
+      var t = CODEX_THEOS_LORE_BLOCKS.documentTemplates[key];
+      return '<button class="btn btn-xs' + (theosDocTemplateType === key ? ' btn-gold' : '') + '" onclick="setTheosDocumentTemplateType(\'' + key + '\')">' + escapeCodexHtml(t.label || key) + '</button>';
+    }).join(' ');
+    var provinces = CODEX_THEOS_PROVINCES.map(function(p) {
+      return '<button class="btn btn-xs' + (theosDocProvince === p.name ? ' btn-teal' : '') + '" onclick="setTheosDocumentProvince(\'' + escapeJsSingleQuote(p.name) + '\')">' + escapeCodexHtml(p.name) + '</button>';
+    }).join(' ');
+    var output = theosGeneratedDocText || 'Select a template and province, then generate an in-world source document.';
+    return '<div style="border:1px solid var(--border2);padding:.36rem .44rem;background:rgba(255,255,255,.02);display:grid;gap:.3rem;">'
+      + '<div style="font-size:.78rem;color:var(--muted2);">In-world Document Generator Template</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:.22rem;">' + docTypes + '</div>'
+      + '<div style="font-size:.74rem;color:var(--muted2);">Province Lens</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:.22rem;">' + provinces + '</div>'
+      + '<div><button class="btn btn-xs btn-gold" onclick="generateTheosDocumentTemplate()">Generate Document</button></div>'
+      + '<pre id="theosDocGeneratorOutput" style="white-space:pre-wrap;margin:0;padding:.38rem .42rem;border:1px solid rgba(232,192,80,.25);background:rgba(0,0,0,.22);font-size:.78rem;line-height:1.5;color:var(--text2);">' + escapeCodexHtml(output) + '</pre>'
+    + '</div>';
+  }
+  function renderTheosRegionArcBlocks() {
+    var cards = CODEX_THEOS_LORE_BLOCKS.regionArcs.map(function(arc) {
+      var factions = (arc.factions || []).map(function(f) {
+        return '<span style="display:inline-block;border:1px solid rgba(232,192,80,.35);padding:.08rem .28rem;font-size:.72rem;color:var(--gold2);margin-right:.18rem;margin-bottom:.12rem;">' + escapeCodexHtml(f) + '</span>';
+      }).join('');
+      return '<details style="border:1px solid var(--border2);padding:.34rem .42rem;background:rgba(255,255,255,.02);">'
+        + '<summary style="cursor:pointer;color:var(--gold2);font-family:Cinzel,serif;">' + escapeCodexHtml(arc.province) + '</summary>'
+        + '<div style="margin-top:.28rem;font-size:.8rem;line-height:1.5;color:var(--text2);">'
+          + '<div style="margin-bottom:.18rem;"><strong style="color:var(--teal);font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;">Linked Factions</strong><br>' + factions + '</div>'
+          + '<div style="margin-bottom:.18rem;"><strong style="color:var(--gold2);font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;">Historical Arc</strong><br>' + escapeCodexHtml(arc.arc) + '</div>'
+          + '<div style="margin-bottom:.18rem;"><strong style="color:var(--red2);font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;">Current Pressures</strong><ul style="margin:.16rem 0 .08rem 1.02rem;padding:0;">' + (arc.pressures || []).map(function(p) { return '<li>' + escapeCodexHtml(p) + '</li>'; }).join('') + '</ul></div>'
+          + '<div><strong style="color:var(--muted2);font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;">Campaign Consequence</strong><br>' + escapeCodexHtml(arc.consequence) + '</div>'
+        + '</div>'
+      + '</details>';
+    }).join('');
+    return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:.34rem;">' + cards + '</div>';
+  }
+  window.setTheosDocumentTemplateType = setTheosDocumentTemplateType;
+  window.setTheosDocumentProvince = setTheosDocumentProvince;
+  window.generateTheosDocumentTemplate = generateTheosDocumentTemplate;
+
 
   function renderTheosLoreInteractivePanel() {
     // Timeline buttons with pin/unpin
@@ -17788,6 +17984,11 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '<div style="font-size:.78rem;color:var(--muted2);margin-top:.08rem;">Province dossiers (expand for rumors, hazards, and encounter hooks):</div>'
       + '<div style="margin-bottom:.3rem;">' + filterBtns + '</div>'
       + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:.35rem;">' + renderTheosProvinceCards() + '</div>'
+      + '<div style="font-size:.78rem;color:var(--muted2);margin-top:.08rem;">Timeline-ready entries (short card + expandable dossier per year):</div>'
+      + renderTheosTimelineDossierBlocks()
+      + renderTheosDocumentTemplatePanel()
+      + '<div style="font-size:.78rem;color:var(--muted2);margin-top:.08rem;">Region-by-region historical arcs tied to provinces and faction pressures:</div>'
+      + renderTheosRegionArcBlocks()
       + '<details open style="border:1px solid var(--border2);padding:.35rem .45rem;background:rgba(255,255,255,.02);">'
         + '<summary style="cursor:pointer;color:var(--gold2);font-family:Cinzel,serif;">Notable People</summary>'
         + '<div style="margin-top:.3rem;font-size:.8rem;line-height:1.55;color:var(--text2);">Êgeryn Southronson · Elithaea Mycelle · Marshal Iven Saar · Magister Vey Runehand · Mother Keth of the White Vault</div>'

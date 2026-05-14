@@ -4,6 +4,11 @@
   const SETTINGS_ID = "settingsPanel";
   const COLORBLIND_PREVIEW_MS = 10000;
   const TERRAIN_ASSET_STORAGE_KEY = 'beyond-light-terrain-assets-v1';
+  const TERRAIN_ASSET_DB_NAME = 'beyond-light-terrain-assets-db';
+  const TERRAIN_ASSET_DB_VERSION = 1;
+  const TERRAIN_ASSET_DB_STORE = 'terrain_assets';
+  const TERRAIN_ASSET_DB_RECORD_KEY = 'payload';
+  const TERRAIN_ASSET_LOCAL_CACHE_MAX_BYTES = 350000;
   const TERRAIN_ASSET_CATALOG = {
     province: ['marsh', 'forest', 'valley', 'lake', 'mountain', 'desert', 'hills', 'meadow', 'heath', 'crags', 'bog', 'glades', 'snowfield', 'dead_forest', 'ash_wastes', 'frost_marsh', 'rift', 'stones', 'desert_mountain', 'farm', 'desert_farm', 'desert_cave', 'ravine', 'city', 'town', 'snowy_town', 'snowy_fields', 'snowy_forest', 'snowy_swamp', 'dwelling', 'temple', 'library', 'depths', 'ruins', 'holding', 'trade_route', 'gate', 'event', 'peril', 'seat', 'trade', 'monument', 'lostcity'],
     sea: ['sea', 'open_sea', 'island', 'harbor', 'reef', 'storm', 'trench', 'shoal', 'peril', 'island_meadow', 'island_bluffs', 'island_heath', 'island_canopy', 'island_grove', 'island_mosswood', 'island_jungle', 'island_mangrove', 'island_rainridge', 'island_dunes', 'island_saltflat', 'island_sunrock', 'island_crags', 'island_highland', 'island_peakline', 'island_marsh', 'island_bog', 'island_reedbank', 'island_tundra', 'island_frostmoor', 'island_icefield', 'island_snowpack', 'island_glacier', 'island_frostcliff', 'island_badlands', 'island_shatterplain', 'island_drygorge', 'island_shore', 'island_inland'],
@@ -15,6 +20,7 @@
   let colorBlindPreviewActive = false;
   let colorBlindPreviewEndsAt = 0;
   let terrainAssetsByRegion = {};
+  let terrainAssetDbPromise = null;
 
   function normalizeTerrainAssetKey(value) {
     return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
@@ -53,16 +59,147 @@
     } catch (_err) {
       terrainAssetsByRegion = {};
     }
+    loadTerrainAssetsFromIndexedDb().then(function (dbPayload) {
+      if (!dbPayload || typeof dbPayload !== 'object') return;
+      var merged = normalizeTerrainAssetPayload(terrainAssetsByRegion);
+      Object.keys(dbPayload).forEach(function (region) {
+        if (!merged[region] || typeof merged[region] !== 'object') merged[region] = {};
+        var bucket = dbPayload[region] && typeof dbPayload[region] === 'object' ? dbPayload[region] : {};
+        Object.keys(bucket).forEach(function (terrain) {
+          merged[region][terrain] = bucket[terrain];
+        });
+      });
+      terrainAssetsByRegion = merged;
+      rerenderTerrainAssetConsumers();
+    }).catch(function (_err) {
+      // Non-fatal: local cache and in-memory tiles remain usable.
+    });
   }
 
   function persistTerrainAssets() {
+    var payload = normalizeTerrainAssetPayload(terrainAssetsByRegion);
+    var payloadJson = '{}';
     try {
-      localStorage.setItem(TERRAIN_ASSET_STORAGE_KEY, JSON.stringify(terrainAssetsByRegion));
-    } catch (err) {
-      console.warn('Could not save terrain assets:', err);
-      if (typeof showNotif === 'function') {
-        showNotif('Terrain tile storage is full. Clear a few tiles and retry.', 'warn');
+      payloadJson = JSON.stringify(payload);
+    } catch (_err) {
+      payloadJson = '{}';
+    }
+    var hasIndexedDb = typeof window !== 'undefined' && typeof window.indexedDB !== 'undefined';
+
+    if (hasIndexedDb) {
+      saveTerrainAssetsToIndexedDb(payload).catch(function (err) {
+        console.warn('Could not save terrain assets to IndexedDB:', err);
+      });
+    }
+
+    try {
+      if (hasIndexedDb && payloadJson.length > TERRAIN_ASSET_LOCAL_CACHE_MAX_BYTES) {
+        localStorage.setItem(TERRAIN_ASSET_STORAGE_KEY, JSON.stringify({
+          indexedDbBacked: true,
+          count: countTerrainAssets(payload),
+          updatedAt: Date.now()
+        }));
+      } else {
+        localStorage.setItem(TERRAIN_ASSET_STORAGE_KEY, payloadJson);
       }
+    } catch (err) {
+      if (!hasIndexedDb) {
+        console.warn('Could not save terrain assets:', err);
+        if (typeof showNotif === 'function') {
+          showNotif('Terrain tile storage is full. Enable IndexedDB or clear a few tiles and retry.', 'warn');
+        }
+      }
+    }
+  }
+
+  function countTerrainAssets(payload) {
+    var src = payload && typeof payload === 'object' ? payload : {};
+    var total = 0;
+    Object.keys(src).forEach(function (region) {
+      var bucket = src[region] && typeof src[region] === 'object' ? src[region] : {};
+      total += Object.keys(bucket).length;
+    });
+    return total;
+  }
+
+  function openTerrainAssetDb() {
+    if (terrainAssetDbPromise) return terrainAssetDbPromise;
+    if (typeof window === 'undefined' || typeof window.indexedDB === 'undefined') {
+      terrainAssetDbPromise = Promise.resolve(null);
+      return terrainAssetDbPromise;
+    }
+    terrainAssetDbPromise = new Promise(function (resolve) {
+      try {
+        var req = window.indexedDB.open(TERRAIN_ASSET_DB_NAME, TERRAIN_ASSET_DB_VERSION);
+        req.onupgradeneeded = function (event) {
+          var db = event.target.result;
+          if (!db.objectStoreNames.contains(TERRAIN_ASSET_DB_STORE)) {
+            db.createObjectStore(TERRAIN_ASSET_DB_STORE);
+          }
+        };
+        req.onsuccess = function () { resolve(req.result || null); };
+        req.onerror = function () { resolve(null); };
+      } catch (_err) {
+        resolve(null);
+      }
+    });
+    return terrainAssetDbPromise;
+  }
+
+  function loadTerrainAssetsFromIndexedDb() {
+    return openTerrainAssetDb().then(function (db) {
+      return new Promise(function (resolve) {
+        if (!db) {
+          resolve(null);
+          return;
+        }
+        try {
+          var tx = db.transaction(TERRAIN_ASSET_DB_STORE, 'readonly');
+          var store = tx.objectStore(TERRAIN_ASSET_DB_STORE);
+          var req = store.get(TERRAIN_ASSET_DB_RECORD_KEY);
+          req.onsuccess = function () {
+            var payload = req.result && req.result.payload ? req.result.payload : req.result;
+            resolve(normalizeTerrainAssetPayload(payload || {}));
+          };
+          req.onerror = function () { resolve(null); };
+        } catch (_err) {
+          resolve(null);
+        }
+      });
+    });
+  }
+
+  function saveTerrainAssetsToIndexedDb(payload) {
+    return openTerrainAssetDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        if (!db) {
+          resolve(false);
+          return;
+        }
+        try {
+          var tx = db.transaction(TERRAIN_ASSET_DB_STORE, 'readwrite');
+          var store = tx.objectStore(TERRAIN_ASSET_DB_STORE);
+          var req = store.put({ payload: normalizeTerrainAssetPayload(payload || {}), updatedAt: Date.now() }, TERRAIN_ASSET_DB_RECORD_KEY);
+          req.onsuccess = function () { resolve(true); };
+          req.onerror = function () { reject(req.error || new Error('IndexedDB write failed')); };
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+  }
+
+  function rerenderTerrainAssetConsumers() {
+    try {
+      if (typeof renderHexMap === 'function') renderHexMap();
+      if (typeof renderHexInfo === 'function' && typeof selectedHex !== 'undefined' && selectedHex) renderHexInfo(selectedHex);
+      if (typeof renderLastSeaMap === 'function') renderLastSeaMap();
+      if (typeof renderLastSeaInfo === 'function') renderLastSeaInfo();
+      if (typeof renderStarSystemMap === 'function') renderStarSystemMap();
+      if (typeof renderPlanetExplorationPanel === 'function') renderPlanetExplorationPanel();
+      if (typeof renderWorldThatWasMap === 'function') renderWorldThatWasMap();
+    } catch (_err) {
+      // Rendering refresh is best-effort.
     }
   }
 

@@ -19,6 +19,7 @@
     "smoke:solo-library": "node smoke-tests/solo-library.smoke.mjs",
     "smoke:minigames-expedition": "node smoke-tests/minigames-expedition.smoke.mjs",
     "smoke:minigames-expedition-campaign": "node smoke-tests/minigames-expedition-campaign.smoke.mjs",
+    "smoke:arcboard": "node smoke-tests/arcboard.smoke.mjs",
     "smoke:bone-oracle": "node smoke-tests/bone-oracle.smoke.mjs",
     "smoke:newsun-scheduler": "node smoke-tests/new-sun-scheduler.smoke.mjs",
     "smoke:open-world": "node smoke-tests/open-world.smoke.mjs",

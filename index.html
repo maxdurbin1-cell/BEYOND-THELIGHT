@@ -16712,7 +16712,7 @@ function showCodexCat(cat,btn){
       <div style="margin-bottom:.65rem;"><button class="btn btn-primary" onclick="rollWayfarer()">⚄ Roll Random Wayfarer</button></div>
       <div id="wayfarerResult" style="margin-bottom:.6rem;"></div>
       <div class="wayfarer-grid">
-        ${TRAVELING_WAYFARERS.map((w,i)=>`<div class="wayfarer-card">${window.SharedIconSystem&&typeof window.SharedIconSystem.getWayfarerPortraitHtml==='function'?window.SharedIconSystem.getWayfarerPortraitHtml({name:w[1]+' '+w[2],career:w[0],background:w[3],omen:w[4]},{size:44,compact:true}):''}<div style="margin-top:.4rem;display:flex;justify-content:space-between;gap:.35rem;align-items:flex-start;"><div class="wf-name">${w[1]} ${w[2]}</div><div style="font-family:'Rajdhani',sans-serif;font-size:.72rem;color:var(--muted2);flex-shrink:0;">#${i+1}</div></div><div class="wf-bg">${w[0]}</div><div class="wf-story">${w[3]}</div><div class="wf-drive">Drive: ${w[4]}</div></div>`).join('')}
+        ${TRAVELING_WAYFARERS.map((w,i)=>`<div class="wayfarer-card"><div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:.45rem;align-items:start;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getWayfarerPortraitHtml==='function'?window.SharedIconSystem.getWayfarerPortraitHtml({name:w[1]+' '+w[2],career:w[0],background:w[3],omen:w[4]},{size:34,compact:true}):''}<div style="min-width:0;"><div style="display:flex;justify-content:space-between;gap:.35rem;align-items:flex-start;"><div class="wf-name">${w[1]} ${w[2]}</div><div style="font-family:'Rajdhani',sans-serif;font-size:.72rem;color:var(--muted2);flex-shrink:0;">#${i+1}</div></div><div class="wf-bg">${w[0]}</div><div class="wf-story">${w[3]}</div><div class="wf-drive">Drive: ${w[4]}</div></div></div></div>`).join('')}
       </div>
     </div>`;
   }else if(cat==='lore'){
@@ -17394,6 +17394,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '</div>';
     }
   }
+  window.renderCodexBestiaryForgeCard = renderCodexBestiaryForgeCard;
 
   function refreshCodexBestiaryForgeSlot(){
     var slot = document.getElementById('codexBestiaryForgeSlot');
@@ -17401,6 +17402,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     slot.innerHTML = renderCodexBestiaryForgeCard();
     return true;
   }
+  window.refreshCodexBestiaryForgeSlot = refreshCodexBestiaryForgeSlot;
 
   function generateCodexBestiaryMonster(){
     try {
@@ -17415,6 +17417,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
     return window._codexBestiaryForge;
   }
+  window.generateCodexBestiaryMonster = generateCodexBestiaryMonster;
 
   var CODEX_THEOS_LORE_TEXT = [
     '# The Known Realm of Theos: Codex Lore',
@@ -17528,6 +17531,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     c.innerHTML = '<div class="card"><div class="section-title">The Known Realm of Theos</div><div style="font-size:.82rem;color:var(--muted2);">Loading lore page…</div></div>';
     c.innerHTML = '<div class="card"><div class="section-title">The Known Realm of Theos</div><div style="font-size:.82rem;color:var(--muted2);margin-bottom:.65rem;">The living codex page for provinces, factions, myths, and the New Sun.</div>' + renderCodexMarkdown(CODEX_THEOS_LORE_TEXT) + '</div>';
   }
+  window.renderCodexTheosLorePage = renderCodexTheosLorePage;
+  window.showCodexCat = showCodexCat;
 
   window.qpMoveRange=function(newSpacing){
     var raidFlow = S && S.combat && S.combat.raidFlow && S.combat.raidFlow.active ? S.combat.raidFlow : null;

@@ -1388,6 +1388,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 <div class="tab-panel" id="tab-codex">
   <div class="codex-cats">
     <button class="scat on" onclick="showCodexCat('histories',this)">📜 Histories</button>
+    <button class="scat" onclick="showCodexCat('lore',this)">📖 Theos Lore</button>
     <button class="scat" onclick="showCodexCat('wayfarers',this)">🧭 Wayfarers</button>
     <button class="scat" onclick="showCodexCat('flavors',this)">✨ Flavors</button>
     <button class="scat" onclick="showCodexCat('trade',this)">🏛 Trade Routes</button>
@@ -16714,6 +16715,8 @@ function showCodexCat(cat,btn){
         ${TRAVELING_WAYFARERS.map((w,i)=>`<div class="wayfarer-card"><div class="wf-top">${window.SharedIconSystem&&typeof window.SharedIconSystem.getWayfarerPortraitHtml==='function'?window.SharedIconSystem.getWayfarerPortraitHtml({name:w[1]+' '+w[2],career:w[0],background:w[3],omen:w[4]},{size:56}):''}<div class="wf-meta"><div style="display:flex;justify-content:space-between;gap:.35rem;align-items:flex-start;"><div class="wf-name">${w[1]} ${w[2]}</div><div style="font-family:'Rajdhani',sans-serif;font-size:.72rem;color:var(--muted2);flex-shrink:0;">#${i+1}</div></div><div class="wf-bg">${w[0]}</div><div class="wf-story">${w[3]}</div><div class="wf-drive">Drive: ${w[4]}</div></div></div></div>`).join('')}
       </div>
     </div>`;
+  }else if(cat==='lore'){
+    renderCodexTheosLorePage();
   }else if(cat==='flavors'){
     var entries=getAllBespokeFlavorEntries();
     c.innerHTML=`<div class="card"><div class="section-title">Personal Flavor Codex (100)</div>
@@ -16771,7 +16774,7 @@ function showCodexCat(cat,btn){
         ${Object.keys(CODEX_BESTIARY).map(region=>`<div class="card"><div class="section-title" style="display:flex;align-items:center;gap:.45rem;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,{name:region==='wtw'?'World That Was':'Bestiary Region'},{size:26}):''}<span>${region==='wtw'?'World That Was':region.charAt(0).toUpperCase()+region.slice(1)}</span></div>
           ${CODEX_BESTIARY[region].map(entry=>`<div class="hist-entry" style="display:grid;grid-template-columns:auto auto 1fr;gap:.55rem;align-items:center;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,entry,{size:42}):''}<div class="hist-num">${Math.ceil(entry.hp/2)}</div><div class="hist-text"><strong>${entry.name}</strong><br>${entry.desc}<br><span style="color:var(--gold2);">Health ${entry.hp} · Death Number ${Math.ceil(entry.hp/2)}</span></div></div>`).join('')}
         </div>`).join('')}
-        ${renderCodexBestiaryForgeCard()}
+        ${typeof renderCodexBestiaryForgeCard==='function' ? renderCodexBestiaryForgeCard() : '<div class="card"><div class="section-title">Monster Forge</div><div style="font-size:.82rem;color:var(--muted2);">The monster forge is loading.</div></div>'}
       </div>
     </div>`;
   }else if(cat==='maplegend'){
@@ -17379,17 +17382,100 @@ document.addEventListener('DOMContentLoaded',()=>{
   }
 
   function renderCodexBestiaryForgeCard(){
-    if(!window._codexBestiaryForge){
-      window._codexBestiaryForge=buildCodexBestiaryMonster();
+    try {
+      if(!window._codexBestiaryForge){
+        window._codexBestiaryForge=buildCodexBestiaryMonster();
+      }
+      return renderCodexBestiaryMonsterCard(window._codexBestiaryForge);
+    } catch (err) {
+      return '<div class="card" style="border:1px dashed rgba(224,80,80,.45);background:rgba(224,80,80,.04);">'
+        + '<div class="section-title">Monster Forge</div>'
+        + '<div style="font-size:.82rem;color:var(--muted2);">Could not generate a monster right now. Bestiary entries are still available above.</div>'
+      + '</div>';
     }
-    return renderCodexBestiaryMonsterCard(window._codexBestiaryForge);
   }
 
   function generateCodexBestiaryMonster(){
-    window._codexBestiaryForge=buildCodexBestiaryMonster();
+    try {
+      window._codexBestiaryForge=buildCodexBestiaryMonster();
+    } catch (err) {
+      window._codexBestiaryForge=null;
+      if(typeof showNotif==='function') showNotif('Could not generate a new Bestiary monster.', 'warn');
+    }
     var currentBtn=document.querySelector('.codex-cats .scat.on');
     showCodexCat('bestiary',currentBtn);
     return window._codexBestiaryForge;
+  }
+
+  var CODEX_THEOS_LORE_CACHE = null;
+
+  function escapeCodexHtml(text){
+    return String(text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function renderCodexMarkdownInline(text){
+    return escapeCodexHtml(text)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/`(.+?)`/g, '<code style="color:var(--gold2);">$1</code>');
+  }
+
+  function renderCodexMarkdown(text){
+    var lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
+    var out = [];
+    var listType = '';
+    function closeList(){
+      if(listType === 'ul') out.push('</ul>');
+      if(listType === 'ol') out.push('</ol>');
+      listType = '';
+    }
+    lines.forEach(function(line){
+      var trimmed = String(line || '').trim();
+      if(!trimmed){ closeList(); return; }
+      if(trimmed === '---'){ closeList(); out.push('<hr style="border:none;border-top:1px solid var(--border2);margin:.8rem 0;">'); return; }
+      if(trimmed.indexOf('### ') === 0){ closeList(); out.push('<h3 style="font-family:Cinzel,serif;color:var(--gold2);font-size:1rem;margin:.7rem 0 .3rem;">' + renderCodexMarkdownInline(trimmed.slice(4)) + '</h3>'); return; }
+      if(trimmed.indexOf('## ') === 0){ closeList(); out.push('<h2 style="font-family:Cinzel,serif;color:var(--text2);font-size:1.12rem;margin:.9rem 0 .35rem;">' + renderCodexMarkdownInline(trimmed.slice(3)) + '</h2>'); return; }
+      if(trimmed.indexOf('# ') === 0){ closeList(); out.push('<h1 style="font-family:Cinzel,serif;color:var(--text);font-size:1.32rem;margin:0 0 .45rem;">' + renderCodexMarkdownInline(trimmed.slice(2)) + '</h1>'); return; }
+      if(/^[-*]\s+/.test(trimmed)){
+        if(listType !== 'ul'){ closeList(); listType = 'ul'; out.push('<ul style="margin:.2rem 0 .65rem 1.15rem;padding:0;color:var(--text2);line-height:1.6;">'); }
+        out.push('<li>' + renderCodexMarkdownInline(trimmed.replace(/^[-*]\s+/, '')) + '</li>');
+        return;
+      }
+      if(/^\d+\.\s+/.test(trimmed)){
+        if(listType !== 'ol'){ closeList(); listType = 'ol'; out.push('<ol style="margin:.2rem 0 .65rem 1.15rem;padding:0;color:var(--text2);line-height:1.6;">'); }
+        out.push('<li>' + renderCodexMarkdownInline(trimmed.replace(/^\d+\.\s+/, '')) + '</li>');
+        return;
+      }
+      closeList();
+      out.push('<p style="margin:.2rem 0 .65rem;color:var(--text2);line-height:1.65;">' + renderCodexMarkdownInline(trimmed) + '</p>');
+    });
+    closeList();
+    return out.join('');
+  }
+
+  function renderCodexTheosLorePage(){
+    var c = document.getElementById('codexContent');
+    if(!c) return;
+    c.innerHTML = '<div class="card"><div class="section-title">The Known Realm of Theos</div><div style="font-size:.82rem;color:var(--muted2);">Loading lore page…</div></div>';
+    if(CODEX_THEOS_LORE_CACHE){
+      c.innerHTML = '<div class="card"><div class="section-title">The Known Realm of Theos</div><div style="font-size:.82rem;color:var(--muted2);margin-bottom:.65rem;">The living codex page for provinces, factions, myths, and the New Sun.</div>' + renderCodexMarkdown(CODEX_THEOS_LORE_CACHE) + '</div>';
+      return;
+    }
+    fetch('./codex-theos-lore.md', { cache: 'no-store' })
+      .then(function(resp){ return resp.ok ? resp.text() : Promise.reject(new Error('Lore page missing')); })
+      .then(function(text){
+        CODEX_THEOS_LORE_CACHE = String(text || '');
+        if(!document.getElementById('codexContent')) return;
+        c.innerHTML = '<div class="card"><div class="section-title">The Known Realm of Theos</div><div style="font-size:.82rem;color:var(--muted2);margin-bottom:.65rem;">The living codex page for provinces, factions, myths, and the New Sun.</div>' + renderCodexMarkdown(CODEX_THEOS_LORE_CACHE) + '</div>';
+      })
+      .catch(function(){
+        c.innerHTML = '<div class="card"><div class="section-title">The Known Realm of Theos</div><div style="font-size:.82rem;color:var(--muted2);line-height:1.6;">The lore file could not be loaded, but the codex page is present. Check that <strong>codex-theos-lore.md</strong> is served from the same workspace.</div></div>';
+      });
   }
 
   window.qpMoveRange=function(newSpacing){

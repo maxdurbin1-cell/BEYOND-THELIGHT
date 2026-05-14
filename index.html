@@ -17662,25 +17662,87 @@ document.addEventListener('DOMContentLoaded',()=>{
     {name:'Dralen', rumors:['A bone oracle there can name your killer before sunrise.','Three rival houses share one throne and none will sit it.'], hazards:['Grave gas pockets trigger hallucinations and false enemy markers.','Night processions that become armed faction marches.'], hooks:['Prevent a funeral rite from becoming a civil war spark.','Track a relic-thief through catacomb districts before dawn.']}
   ];
 
-  function setTheosTimelineFocus(idx){
+
+  // Timeline pinning logic
+  var theosTimelinePinnedIdx = null;
+  function setTheosTimelineFocus(idx, force) {
+    // If pinned and not forced, ignore hover/focus
+    if (theosTimelinePinnedIdx !== null && !force) return;
     var item = CODEX_THEOS_TIMELINE[Math.max(0, Math.min(CODEX_THEOS_TIMELINE.length - 1, Number(idx || 0)))];
     var panel = document.getElementById('theosTimelinePanel');
-    if(!item || !panel) return;
+    if (!item || !panel) return;
     panel.innerHTML = ''
       + '<div style="font-size:.74rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">' + escapeCodexHtml(item.era) + ' · ' + escapeCodexHtml(item.year) + '</div>'
       + '<div style="font-size:.84rem;color:var(--text2);margin-top:.2rem;line-height:1.5;">' + escapeCodexHtml(item.summary) + '</div>'
       + '<div style="font-size:.78rem;color:var(--muted2);margin-top:.24rem;line-height:1.55;">' + escapeCodexHtml(item.detail) + '</div>';
   }
+  function pinTheosTimeline(idx) {
+    theosTimelinePinnedIdx = idx;
+    setTheosTimelineFocus(idx, true);
+    updateTimelinePinUI();
+  }
+  function unpinTheosTimeline() {
+    theosTimelinePinnedIdx = null;
+    setTheosTimelineFocus(0, true); // Reset to first entry
+    updateTimelinePinUI();
+  }
+  function updateTimelinePinUI() {
+    var btns = document.querySelectorAll('.theos-timeline-btn');
+    btns.forEach(function(btn, idx) {
+      if (theosTimelinePinnedIdx === idx) {
+        btn.classList.add('pinned');
+      } else {
+        btn.classList.remove('pinned');
+      }
+    });
+    var unpinBtn = document.getElementById('theosTimelineUnpinBtn');
+    if (unpinBtn) {
+      unpinBtn.style.display = theosTimelinePinnedIdx !== null ? '' : 'none';
+    }
+  }
   window.setTheosTimelineFocus = setTheosTimelineFocus;
+  window.pinTheosTimeline = pinTheosTimeline;
+  window.unpinTheosTimeline = unpinTheosTimeline;
 
-  function renderTheosProvinceCards(){
-    return CODEX_THEOS_PROVINCES.map(function(p, idx){
-      var rumors = (p.rumors || []).map(function(r){ return '<li>' + escapeCodexHtml(r) + '</li>'; }).join('');
-      var hazards = (p.hazards || []).map(function(h){ return '<li>' + escapeCodexHtml(h) + '</li>'; }).join('');
-      var hooks = (p.hooks || []).map(function(h){ return '<li>' + escapeCodexHtml(h) + '</li>'; }).join('');
-      return '<details ' + (idx===0?'open':'') + ' style="border:1px solid var(--border2);padding:.38rem .45rem;background:rgba(255,255,255,.02);">'
+
+  // Province filtering and roll buttons
+  var theosProvinceFilter = 'all';
+  function setTheosProvinceFilter(type) {
+    theosProvinceFilter = type;
+    renderCodexTheosLorePage();
+  }
+  function rollProvinceItem(type, idx) {
+    var p = CODEX_THEOS_PROVINCES[idx];
+    var arr = (p && p[type+'s']) || [];
+    if (!arr.length) return;
+    var result = arr[Math.floor(Math.random() * arr.length)];
+    var el = document.getElementById('provinceRollResult-'+type+'-'+idx);
+    if (el) {
+      el.innerHTML = '<span style="color:var(--gold2);">' + escapeCodexHtml(result) + '</span>';
+    }
+  }
+  function renderTheosProvinceCards() {
+    return CODEX_THEOS_PROVINCES.map(function(p, idx) {
+      // Filtering logic
+      if (theosProvinceFilter !== 'all') {
+        var arr = (p[theosProvinceFilter+'s']) || [];
+        if (!arr.length) return '';
+      }
+      var rumors = (p.rumors || []).map(function(r) { return '<li>' + escapeCodexHtml(r) + '</li>'; }).join('');
+      var hazards = (p.hazards || []).map(function(h) { return '<li>' + escapeCodexHtml(h) + '</li>'; }).join('');
+      var hooks = (p.hooks || []).map(function(h) { return '<li>' + escapeCodexHtml(h) + '</li>'; }).join('');
+      return '<details ' + (idx === 0 ? 'open' : '') + ' style="border:1px solid var(--border2);padding:.38rem .45rem;background:rgba(255,255,255,.02);">'
         + '<summary style="cursor:pointer;color:var(--gold2);font-family:Cinzel,serif;">' + escapeCodexHtml(p.name) + '</summary>'
         + '<div style="margin-top:.28rem;display:grid;gap:.28rem;">'
+          // Roll buttons
+          + '<div style="margin-bottom:.18rem;display:flex;gap:.5rem;align-items:center;">'
+            + '<button class="btn btn-xs btn-teal" onclick="rollProvinceItem(\'rumor\',' + idx + ')">Roll Rumor</button>'
+            + '<span id="provinceRollResult-rumor-' + idx + '" style="font-size:.8rem;color:var(--gold2);"></span>'
+            + '<button class="btn btn-xs btn-red" onclick="rollProvinceItem(\'hazard\',' + idx + ')">Roll Hazard</button>'
+            + '<span id="provinceRollResult-hazard-' + idx + '" style="font-size:.8rem;color:var(--red2);"></span>'
+            + '<button class="btn btn-xs btn-gold" onclick="rollProvinceItem(\'hook\',' + idx + ')">Roll Hook</button>'
+            + '<span id="provinceRollResult-hook-' + idx + '" style="font-size:.8rem;color:var(--gold2);"></span>'
+          + '</div>'
           + '<div><strong style="font-size:.74rem;color:var(--teal);text-transform:uppercase;letter-spacing:.08em;">Rumors</strong><ul style="margin:.18rem 0 .1rem 1.05rem;padding:0;color:var(--text2);line-height:1.5;font-size:.8rem;">' + rumors + '</ul></div>'
           + '<div><strong style="font-size:.74rem;color:var(--red2);text-transform:uppercase;letter-spacing:.08em;">Hazards</strong><ul style="margin:.18rem 0 .1rem 1.05rem;padding:0;color:var(--text2);line-height:1.5;font-size:.8rem;">' + hazards + '</ul></div>'
           + '<div><strong style="font-size:.74rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">Encounter Hooks</strong><ul style="margin:.18rem 0 .1rem 1.05rem;padding:0;color:var(--text2);line-height:1.5;font-size:.8rem;">' + hooks + '</ul></div>'
@@ -17688,16 +17750,35 @@ document.addEventListener('DOMContentLoaded',()=>{
       + '</details>';
     }).join('');
   }
+  window.setTheosProvinceFilter = setTheosProvinceFilter;
+  window.rollProvinceItem = rollProvinceItem;
 
-  function renderTheosLoreInteractivePanel(){
-    var timeline = CODEX_THEOS_TIMELINE.map(function(t, idx){
-      return '<button class="btn btn-xs" onmouseenter="setTheosTimelineFocus(' + idx + ')" onfocus="setTheosTimelineFocus(' + idx + ')" style="border-color:rgba(232,192,80,.4);">'
+
+  function renderTheosLoreInteractivePanel() {
+    // Timeline buttons with pin/unpin
+    var timeline = CODEX_THEOS_TIMELINE.map(function(t, idx) {
+      return '<button class="btn btn-xs theos-timeline-btn' + (theosTimelinePinnedIdx === idx ? ' pinned' : '') + '"'
+        + ' onmouseenter="setTheosTimelineFocus(' + idx + ')" onfocus="setTheosTimelineFocus(' + idx + ')"'
+        + ' onclick="pinTheosTimeline(' + idx + ')"'
+        + ' style="border-color:rgba(232,192,80,.4);">'
         + '<strong>' + escapeCodexHtml(t.era) + '</strong> · ' + escapeCodexHtml(t.year) + '</button>';
     }).join('');
+    var unpinBtn = '<button id="theosTimelineUnpinBtn" class="btn btn-xs btn-gold" onclick="unpinTheosTimeline()" style="margin-left:.5rem;display:' + (theosTimelinePinnedIdx !== null ? '' : 'none') + ';">Unpin</button>';
+
+    // Province filter buttons
+    var filterBtns = [
+      { type: 'all', label: 'All' },
+      { type: 'rumor', label: 'Rumors' },
+      { type: 'hazard', label: 'Hazards' },
+      { type: 'hook', label: 'Hooks' }
+    ].map(function(f) {
+      return '<button class="btn btn-xs' + (theosProvinceFilter === f.type ? ' btn-gold' : '') + '" onclick="setTheosProvinceFilter(\'' + f.type + '\')">' + f.label + '</button>';
+    }).join(' ');
+
     return '<div style="display:grid;gap:.45rem;margin-bottom:.7rem;">'
-      + '<div style="font-size:.78rem;color:var(--muted2);">Timeline (hover or focus an era to inspect the event panel):</div>'
+      + '<div style="font-size:.78rem;color:var(--muted2);">Timeline (hover, focus, or <strong>click to pin</strong> an era; <strong>Unpin</strong> to return to hover mode):</div>'
       + '<div style="display:grid;grid-template-columns:minmax(260px,1fr) minmax(220px,.9fr);gap:.38rem;align-items:start;">'
-        + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;">' + timeline + '</div>'
+        + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;">' + timeline + unpinBtn + '</div>'
         + '<div id="theosTimelinePanel" style="border:1px solid rgba(232,192,80,.35);background:rgba(232,192,80,.08);padding:.36rem .42rem;min-height:96px;">'
           + '<div style="font-size:.74rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;">' + escapeCodexHtml(CODEX_THEOS_TIMELINE[0].era) + ' · ' + escapeCodexHtml(CODEX_THEOS_TIMELINE[0].year) + '</div>'
           + '<div style="font-size:.84rem;color:var(--text2);margin-top:.2rem;line-height:1.5;">' + escapeCodexHtml(CODEX_THEOS_TIMELINE[0].summary) + '</div>'
@@ -17705,6 +17786,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         + '</div>'
       + '</div>'
       + '<div style="font-size:.78rem;color:var(--muted2);margin-top:.08rem;">Province dossiers (expand for rumors, hazards, and encounter hooks):</div>'
+      + '<div style="margin-bottom:.3rem;">' + filterBtns + '</div>'
       + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:.35rem;">' + renderTheosProvinceCards() + '</div>'
       + '<details open style="border:1px solid var(--border2);padding:.35rem .45rem;background:rgba(255,255,255,.02);">'
         + '<summary style="cursor:pointer;color:var(--gold2);font-family:Cinzel,serif;">Notable People</summary>'

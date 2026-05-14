@@ -13628,6 +13628,7 @@ function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
 
   const patternMap = {};
   const patternDefs = {};
+  const selectedFogKey = getPlanetFogCellKey(state, selected ? selected.id : state.selectedCellId);
 
   const cellsSvg = state.cells.map((cell) => {
         const linkedMarkers = missionMarkersByCell && missionMarkersByCell[cell.id] ? missionMarkersByCell[cell.id] : [];
@@ -13676,6 +13677,10 @@ function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
     const x = pos.x;
     const y = pos.y;
     const pts = hexPointsSVG(x, y, size - 1);
+    const fogKey = getPlanetFogCellKey(state, cell.id);
+    const fogHidden = (typeof window.isMapFogHexVisible === 'function')
+      ? !window.isMapFogHexVisible('planet', fogKey, selectedFogKey)
+      : false;
     const visual = getPlanetHexVisual(cell, isSelected, isLanding, isWayfarerContract, hasTask, isStoryObjective);
     const textureKey = getPlanetTextureCandidates(cell).join('|');
     if (typeof patternMap[textureKey] === 'undefined') {
@@ -13729,6 +13734,10 @@ function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
          <line x1="${sideX1}" y1="${sideY1}" x2="${sideX2}" y2="${sideY2}" stroke="rgba(0,0,0,.3)" stroke-width="1.1" pointer-events="none" />
          <text x="${x - size * 0.34}" y="${y - size * 0.22}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="8" fill="rgba(255,255,255,.25)" pointer-events="none">${terrainGlyph}</text>`
       : '';
+     const fogOverlay = fogHidden
+      ? `<polygon points="${pts}" fill="rgba(6,10,16,.84)" stroke="rgba(110,124,148,.35)" stroke-width="1" pointer-events="none"></polygon>
+        <text x="${x}" y="${y + 4}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="12" fill="rgba(201,214,240,.65)" pointer-events="none">?</text>`
+      : '';
 
     const missionGlyphOverlay = (function () {
       if (!raidMarker) return '';
@@ -13762,6 +13771,7 @@ function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
     return `<g class="planet-hex${isSelected ? ' sel' : ''}" onclick="explorePlanetCell(${cell.id})" style="cursor:pointer;transition:opacity .16s ease,filter .16s ease;${isSelected ? 'filter:brightness(1.12);' : ''}">
       <polygon points="${pts}" fill="${hexFill}" stroke="${visual.stroke}" stroke-width="${strokeWidth}" fill-opacity="${cell.explored ? 0.92 : 0.66}" />
       ${depthOverlay}
+      ${fogOverlay}
       ${factionOverlay}
       ${factionTaskOverlay}
       ${backstoryOverlay}
@@ -15459,8 +15469,23 @@ function ensurePlanetSurfaceState(hex) {
   const key = String(hex.id);
   if (!S.starSystem.planetExplorationByHex[key]) {
     S.starSystem.planetExplorationByHex[key] = createPlanetSurfaceState(hex);
+    if (typeof window.getMapFogConfig === 'function') {
+      window.getMapFogConfig('planet').enabled = true;
+    }
+    if (typeof window.revealMapFogHex === 'function') {
+      const seeded = S.starSystem.planetExplorationByHex[key];
+      const landedId = seeded && seeded.landedCellId != null ? Number(seeded.landedCellId) : null;
+      if (landedId != null) {
+        window.revealMapFogHex('planet', String(key) + ':' + String(landedId), { onlyKey: true });
+      }
+    }
   }
   return S.starSystem.planetExplorationByHex[key];
+}
+
+function getPlanetFogCellKey(state, cellId) {
+  if (!state || cellId == null) return '';
+  return String(state.hexId) + ':' + String(cellId);
 }
 
 function openActivePlanetMap() {
@@ -15572,6 +15597,9 @@ function explorePlanetCell(cellId) {
   if (!cell) return;
   registerPlanetSurfaceTravel(state);
   state.selectedCellId = cell.id;
+  if (typeof window.revealMapFogHex === 'function') {
+    window.revealMapFogHex('planet', getPlanetFogCellKey(state, cell.id), { onlyKey: true });
+  }
   const bypass = isPlanetHazardBypassed(state);
   const hazardCount = getPlanetHazardProfile(state.profile).length;
   const baseDd = bypass ? 6 : state.difficulty;
@@ -15676,6 +15704,9 @@ function renderPlanetExplorationPanel() {
   }
   const state = ensurePlanetSurfaceState(planetHex);
   if (!state) return;
+  if (typeof window.getMapFogConfig === 'function') {
+    window.getMapFogConfig('planet').enabled = true;
+  }
   if (window.factionSystem && typeof window.factionSystem.syncBaseMarkers === 'function') window.factionSystem.syncBaseMarkers();
   if (!state.currentWeather) state.currentWeather = rollPlanetSurfaceWeather(state.profile);
   if (!state.traversalMode) state.traversalMode = 'foot';
@@ -15894,26 +15925,32 @@ function renderPlanetExplorationPanel() {
   const planetSvg = target.querySelector('.planet-svg');
   if (planetSvg && typeof window.applyMapOverlayStyle === 'function') {
     window.applyMapOverlayStyle(planetSvg, 'planet');
-  @@  if (planetSvg) {
-  @@    // ── Render compass at bottom-right ──
-  @@    const compassGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-  @@    const svgW = Number(planetSvg.getAttribute('width')) || 900;
-  @@    const svgH = Number(planetSvg.getAttribute('height')) || 900;
-  @@    compassGroup.setAttribute('transform', 'translate(' + (svgW - 28) + ',' + (svgH - 28) + ')');
-  @@    const compassCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-  @@    compassCircle.setAttribute('cx', '0'); compassCircle.setAttribute('cy', '0');
-  @@    compassCircle.setAttribute('r', '12'); compassCircle.setAttribute('fill', 'rgba(255,160,100,.15)');
-  @@    compassCircle.setAttribute('stroke', '#ffa064'); compassCircle.setAttribute('stroke-width', '0.8');
-  @@    compassCircle.setAttribute('pointer-events', 'none');
-  @@    compassGroup.appendChild(compassCircle);
-  @@    const compassArrow = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-  @@    compassArrow.setAttribute('x', '0'); compassArrow.setAttribute('y', '-2');
-  @@    compassArrow.setAttribute('text-anchor', 'middle'); compassArrow.setAttribute('font-size', '10');
-  @@    compassArrow.setAttribute('fill', '#ffa064'); compassArrow.setAttribute('pointer-events', 'none');
-  @@    compassArrow.textContent = '↑'; compassGroup.appendChild(compassArrow);
-  @@    planetSvg.appendChild(compassGroup);
-  @@  }
-  @@}
+  }
+  if (planetSvg) {
+    // Render compass at bottom-right.
+    const compassGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    const svgW = Number(planetSvg.getAttribute('width')) || 900;
+    const svgH = Number(planetSvg.getAttribute('height')) || 900;
+    compassGroup.setAttribute('transform', 'translate(' + (svgW - 28) + ',' + (svgH - 28) + ')');
+    const compassCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    compassCircle.setAttribute('cx', '0');
+    compassCircle.setAttribute('cy', '0');
+    compassCircle.setAttribute('r', '12');
+    compassCircle.setAttribute('fill', 'rgba(255,160,100,.15)');
+    compassCircle.setAttribute('stroke', '#ffa064');
+    compassCircle.setAttribute('stroke-width', '0.8');
+    compassCircle.setAttribute('pointer-events', 'none');
+    compassGroup.appendChild(compassCircle);
+    const compassArrow = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    compassArrow.setAttribute('x', '0');
+    compassArrow.setAttribute('y', '-2');
+    compassArrow.setAttribute('text-anchor', 'middle');
+    compassArrow.setAttribute('font-size', '10');
+    compassArrow.setAttribute('fill', '#ffa064');
+    compassArrow.setAttribute('pointer-events', 'none');
+    compassArrow.textContent = '↑';
+    compassGroup.appendChild(compassArrow);
+    planetSvg.appendChild(compassGroup);
   }
 }
 
@@ -17006,7 +17043,7 @@ function selectStarSystemHex(hexId) {
   if (clickMode === 'fog') {
     S.starSystem.currentHexId = hexId;
     if (typeof window.revealMapFogHex === 'function') {
-      window.revealMapFogHex('galaxy', String(hexId));
+      window.revealMapFogHex('galaxy', String(hexId), { onlyKey: true });
     }
     renderStarSystemMap();
     updateStarSystemReadouts();
@@ -17050,7 +17087,7 @@ function selectStarSystemHex(hexId) {
   }
   S.starSystem.currentHexId = hexId;
   if (typeof window.revealMapFogHex === 'function') {
-    window.revealMapFogHex('galaxy', String(hexId));
+    window.revealMapFogHex('galaxy', String(hexId), { onlyKey: true });
   }
   const h = getCurrentStarHex();
   if (h && h.type === 'planet') {

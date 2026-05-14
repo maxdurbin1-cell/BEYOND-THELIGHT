@@ -12005,7 +12005,7 @@ function ensureMapClickMode(){
 function ensureMapFogState(){
   if(!S||typeof S!=='object')return {};
   if(!S.mapFog||typeof S.mapFog!=='object')S.mapFog={};
-  ['province','sea','galaxy'].forEach(function(region){
+  ['province','sea','galaxy','planet'].forEach(function(region){
     if(!S.mapFog[region]||typeof S.mapFog[region]!=='object')S.mapFog[region]={};
     const cfg=S.mapFog[region];
     cfg.enabled=!!cfg.enabled;
@@ -12061,7 +12061,7 @@ function toggleMapFogForRegion(region){
 }
 function setCampaignFogPlayerVision(currentOnly){
   const val=!!currentOnly;
-  ['province','sea','galaxy'].forEach(function(region){
+  ['province','sea','galaxy','planet'].forEach(function(region){
     const cfg=getMapFogConfig(region);
     cfg.playerCurrentOnlyInCampaign=val;
   });

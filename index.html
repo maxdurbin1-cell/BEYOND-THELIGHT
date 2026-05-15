@@ -11996,6 +11996,9 @@ function setContext(ctx,btn){
     if(typeof renderNaval==='function') setTimeout(renderNaval,0);
     if(typeof applySpaceNavalPresentation==='function') setTimeout(applySpaceNavalPresentation,0);
   }
+  // Always ensure World That Was tab is visible regardless of context.
+  var wtwBtn=document.getElementById('tabnav-worldthatwas');
+  if(wtwBtn&&wtwBtn.style.display==='none') wtwBtn.style.display='';
 }
 function ensureMapClickMode(){
   if(!S.mapClickMode)S.mapClickMode='travel';

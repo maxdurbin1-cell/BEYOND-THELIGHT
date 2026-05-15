@@ -1,3 +1,37 @@
+
+</body>
+<script>
+// --- Modal Stack for Go Back Navigation ---
+window._modalStack = [];
+setTimeout(function() {
+  try {
+    const _originalOpenModal = window.openModal || openModal;
+    window.openModal = function(title, html, restoreCallback) {
+      try {
+        const modalEl = document.querySelector('.modal, .modal-backdrop');
+        if (modalEl) {
+          const prevTitle = modalEl.querySelector('.modal-title')?.textContent || '';
+          const prevHtml = modalEl.querySelector('.modal-body')?.innerHTML || '';
+          window._modalStack.push({ title: prevTitle, html: prevHtml, restoreCallback });
+        }
+      } catch (err) {}
+      _originalOpenModal(title, html);
+    };
+    window.goBackModal = function() {
+      if (window._modalStack && window._modalStack.length > 0) {
+        const prev = window._modalStack.pop();
+        if (prev && typeof prev.restoreCallback === 'function') {
+          prev.restoreCallback();
+        } else if (prev && prev.title && prev.html) {
+          _originalOpenModal(prev.title, prev.html);
+        }
+      } else if (typeof closeModal === 'function') {
+        closeModal();
+      }
+    };
+  } catch (err) {}
+}, 0);
+</script>
 <!DOCTYPE html>
 <html lang="en">
 <head>

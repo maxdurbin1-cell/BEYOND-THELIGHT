@@ -12256,6 +12256,7 @@
       + '</div>'
       + '</div>'
       + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.6rem;">'
+      + '<button class="btn btn-sm" onclick="goBackModal()">Go Back</button>'
       + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
       + '<button class="btn btn-sm btn-primary" onclick="manualRollOutcomeFailure(' + actionDieNum + ',' + dreadDieNum + ',\'' + skillLabel.replace(/'/g, "\\'") + '\',true,false)">Success</button>'
       + '<button class="btn btn-sm btn-red" onclick="manualRollOutcomeFailure(' + actionDieNum + ',' + dreadDieNum + ',\'' + skillLabel.replace(/'/g, "\\'") + '\',false,false)">Failure</button>'

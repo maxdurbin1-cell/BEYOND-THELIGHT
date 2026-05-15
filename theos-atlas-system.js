@@ -282,13 +282,21 @@
     return THEOS_PROVINCES.find(function (p) { return p.id === id; }) || null;
   }
 
-  function getProvinceVisualPoint(province) {
+  function getNodeOffsetScale(st) {
+    var zoom = Number(st && st.zoom || 1);
+    if (!Number.isFinite(zoom) || zoom <= 1) return 1;
+    // Keep baseline fidelity at 100% zoom, then increase separation gently.
+    return Math.min(1.5, 1 + ((zoom - 1) * 0.6));
+  }
+
+  function getProvinceVisualPoint(province, st) {
     if (!province) return { x: 0, y: 0 };
     var baseX = Number(province.x || 0);
     var baseY = Number(province.y || 0);
     var tweak = THEOS_NODE_MICRO_OFFSETS[String(province.id || "")] || { x: 0, y: 0 };
-    var x = Math.max(0, Math.min(100, baseX + Number(tweak.x || 0)));
-    var y = Math.max(0, Math.min(100, baseY + Number(tweak.y || 0)));
+    var scale = getNodeOffsetScale(st);
+    var x = Math.max(0, Math.min(100, baseX + (Number(tweak.x || 0) * scale)));
+    var y = Math.max(0, Math.min(100, baseY + (Number(tweak.y || 0) * scale)));
     return { x: x, y: y };
   }
 
@@ -889,8 +897,8 @@
       var a = provinceById(edge[0]);
       var b = provinceById(edge[1]);
       if (!a || !b) return "";
-      var pa = getProvinceVisualPoint(a);
-      var pb = getProvinceVisualPoint(b);
+      var pa = getProvinceVisualPoint(a, st);
+      var pb = getProvinceVisualPoint(b, st);
       var aKnown = !!(st.unlocked[a.id] || st.discovered[a.id]);
       var bKnown = !!(st.unlocked[b.id] || st.discovered[b.id]);
       var alpha = (aKnown && bKnown) ? 0.9 : 0.35;
@@ -904,12 +912,12 @@
     return html;
   }
 
-  function drawBorders() {
+  function drawBorders(st) {
     var html = "";
     THEOS_PROVINCES.forEach(function (province) {
       var power = getProvincePower(province.id);
       var color = FACTION_COLORS[power] || "#bda57a";
-      var point = getProvinceVisualPoint(province);
+      var point = getProvinceVisualPoint(province, st);
       html += '<circle class="theos-border-ring" cx="' + point.x + '%" cy="' + point.y + '%" r="2.5%" style="stroke:' + color + ';" />';
     });
     return html;
@@ -918,7 +926,7 @@
   function drawNodes(st) {
     var html = "";
     THEOS_PROVINCES.forEach(function (province) {
-      var point = getProvinceVisualPoint(province);
+      var point = getProvinceVisualPoint(province, st);
       var isUnlocked = !!st.unlocked[province.id];
       var isKnown = !!st.discovered[province.id];
       var unlockable = isUnlockable(province.id, st);
@@ -1208,7 +1216,7 @@
         : '          <div class="theos-atlas-fallback">Attach your custom map by setting window.THEOS_ATLAS_IMAGE to a local asset path.</div>')
       + '          <svg class="theos-atlas-svg" viewBox="0 0 100 100" preserveAspectRatio="none">'
       + drawRoutes(st)
-      + drawBorders()
+      + drawBorders(st)
       + drawNodes(st)
       + '          </svg>'
       + '        </div>'

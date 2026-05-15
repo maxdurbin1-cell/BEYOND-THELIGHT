@@ -154,7 +154,7 @@
     var row = Number(parts[1]);
     if (!isFinite(col) || !isFinite(row)) return null;
     if (typeof window.setProvinceSelectedKey === 'function') {
-      try { window.setProvinceSelectedKey(col + ',' + row); } catch (_err) {}
+      try { window.setProvinceSelectedKey(col + ',' + row); } catch (_err) { console.error(_err); }
     }
     if (window.selectedHex && Number(window.selectedHex.col) === col && Number(window.selectedHex.row) === row) return window.selectedHex;
     return null;
@@ -628,7 +628,7 @@
       function () {
         var item = pick(LIBRARY_MERCHANT_STASH);
         if (typeof addToBackpack === 'function') {
-          try { addToBackpack(item); } catch (_err) {}
+          try { addToBackpack(item); } catch (_err) { console.error(_err); }
         }
         return 'Merchant stash found: ' + item;
       }

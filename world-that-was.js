@@ -646,7 +646,7 @@
   function applyWtwCondition(condKey) {
     if (!condKey) return;
     if (typeof toggleCond === 'function' && S && S.conditions && !S.conditions[condKey]) {
-      try { toggleCond(condKey); return; } catch (_err) {}
+      try { toggleCond(condKey); return; } catch (_err) { console.error(_err); }
     }
     if (WTW_CONDITION_KEYS.indexOf(condKey) >= 0) {
       applyNegativeCondition(condKey);
@@ -682,7 +682,7 @@
           summary.rivalHostile = Number(rival.rapport || 0) <= -2 || Number(rival.threatTier || 0) >= 6 || /hostile|nemesis/i.test(String(rival.status || ''));
           summary.rivalLabel = rival.name + ' · Threat ' + Number(rival.threatTier || 0) + ' · Rapport ' + Number(rival.rapport || 0) + (summary.rivalHostile ? ' (hostile)' : '');
         }
-      } catch (_err) {}
+      } catch (_err) { console.error(_err); }
     }
     return summary;
   }
@@ -781,12 +781,12 @@
     if (typeof addItemToBackpack === "function") {
       try {
         if (addItemToBackpack(item)) return true;
-      } catch (err) {}
+      } catch (err) { console.error(err); }
     }
     if (typeof addToBackpack === "function") {
       try {
         if (addToBackpack(item)) return true;
-      } catch (err) {}
+      } catch (err) { console.error(err); }
     }
     if (!Array.isArray(S.backpack)) S.backpack = ["", "", "", "", "", ""];
     const slot = S.backpack.indexOf("");
@@ -1025,7 +1025,7 @@
       S.factionRenown = S.factionRenown || {};
       S.factionRenown[factionKey] = Math.max(-10, Math.min(12, Number(S.factionRenown[factionKey] || 0) + delta));
       if (typeof updateFactionRenownUI === "function") {
-        try { updateFactionRenownUI(); } catch (err) {}
+        try { updateFactionRenownUI(); } catch (err) { console.error(err); }
       }
     }
     if (typeof showNotif === "function") {
@@ -1040,7 +1040,7 @@
       try {
         const loot = rollForLoot(tier || "medium");
         if (Array.isArray(loot) && loot.length) granted = loot.slice(0, 1);
-      } catch (err) {}
+      } catch (err) { console.error(err); }
     }
     if (!granted.length) {
       granted = [getWtwFallbackLoot()];
@@ -2179,7 +2179,7 @@
         try {
           var out = window.campaignSystem.syncSharedSilent('wtw-celebration-roll');
           if (out && typeof out.catch === 'function') out.catch(function () {});
-        } catch (_err) {}
+        } catch (_err) { console.error(_err); }
       }, 0);
     }
   }
@@ -2210,7 +2210,7 @@
         try {
           var out = window.campaignSystem.syncSharedSilent('wtw-celebration-resolve');
           if (out && typeof out.catch === 'function') out.catch(function () {});
-        } catch (_err) {}
+        } catch (_err) { console.error(_err); }
       }, 0);
     }
   }
@@ -2445,7 +2445,7 @@
       if (registerWorldAction("structure explore")) return;
       if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === "function") {
         setTimeout(function () {
-          try { window.campaignSystem.syncSharedSilent("wtw-structure-generated"); } catch (_err) {}
+          try { window.campaignSystem.syncSharedSilent("wtw-structure-generated"); } catch (_err) { console.error(_err); }
         }, 0);
       }
       if (typeof showNotif === "function") {
@@ -2712,7 +2712,7 @@
           try {
             var out = window.campaignSystem.syncSharedSilent('wtw-encounter-roll-none');
             if (out && typeof out.catch === 'function') out.catch(function () {});
-          } catch (_err) {}
+          } catch (_err) { console.error(_err); }
         }, 0);
       }
       return;
@@ -2725,7 +2725,7 @@
         try {
           var out = window.campaignSystem.syncSharedSilent('wtw-encounter-roll');
           if (out && typeof out.catch === 'function') out.catch(function () {});
-        } catch (_err) {}
+        } catch (_err) { console.error(_err); }
       }, 0);
     }
   }
@@ -2751,7 +2751,7 @@
           try {
             var out = window.campaignSystem.syncSharedSilent('wtw-encounter-resolve');
             if (out && typeof out.catch === 'function') out.catch(function () {});
-          } catch (_err) {}
+          } catch (_err) { console.error(_err); }
         }, 0);
       }
       return;
@@ -2830,7 +2830,7 @@
         try {
           var out = window.campaignSystem.syncSharedSilent('wtw-encounter-resolve');
           if (out && typeof out.catch === 'function') out.catch(function () {});
-        } catch (_err) {}
+        } catch (_err) { console.error(_err); }
       }, 0);
     }
   }

@@ -33,7 +33,7 @@
       localStorage.removeItem(KEY_STORAGE_MODE);
       sessionStorage.removeItem(KEY_STORAGE_KEY);
       sessionStorage.removeItem(KEY_STORAGE_MODE);
-    } catch (_err) {}
+    } catch (_err) { console.error(_err); }
 
     if (!key) return;
     try {
@@ -44,7 +44,7 @@
         sessionStorage.setItem(KEY_STORAGE_KEY, key);
         sessionStorage.setItem(KEY_STORAGE_MODE, mode);
       }
-    } catch (_err) {}
+    } catch (_err) { console.error(_err); }
   }
 
   function loadAdminKeyPreference() {
@@ -53,7 +53,7 @@
     try {
       key = localStorage.getItem(KEY_STORAGE_KEY) || sessionStorage.getItem(KEY_STORAGE_KEY) || "";
       mode = localStorage.getItem(KEY_STORAGE_MODE) || sessionStorage.getItem(KEY_STORAGE_MODE) || "session";
-    } catch (_err) {}
+    } catch (_err) { console.error(_err); }
 
     var input = byId("admin-key");
     var modeSelect = byId("remember-key");

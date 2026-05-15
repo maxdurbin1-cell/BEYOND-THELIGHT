@@ -2148,7 +2148,7 @@
       switchTab('shop', btn || null);
     }
     if (typeof showShopCat === 'function') {
-      try { showShopCat(cat, null); } catch (_err) {}
+      try { showShopCat(cat, null); } catch (_err) { console.error(_err); }
     }
     updateSeaNpcMemory(hex, 'positive', 'Opened trade lanes for ' + cat + '.');
     showNotif('Sea merchant opened (' + cat + ').', 'good');
@@ -3083,14 +3083,14 @@
           const dreadRoll = (typeof explodingRoll === 'function') ? explodingRoll(dreadDie) : { total: Math.floor(Math.random() * dreadDie) + 1 };
           if (Number(spiritRoll.total || 0) < Number(dreadRoll.total || 0)) {
             if (typeof ensureDarkAfflictionState === 'function') {
-              try { ensureDarkAfflictionState(); } catch (_err) {}
+              try { ensureDarkAfflictionState(); } catch (_err) { console.error(_err); }
             }
             S.darkAfflictions = S.darkAfflictions || {};
             S.darkAfflictions.vampirism = S.darkAfflictions.vampirism || { active: false, corruption: 0, lastFedStamp: '' };
             S.darkAfflictions.vampirism.active = true;
             S.darkAfflictions.vampirism.corruption = Math.min(10, Math.max(1, Number(S.darkAfflictions.vampirism.corruption || 0) + 1));
             if (typeof renderDarkAfflictionSheetPanel === 'function') {
-              try { renderDarkAfflictionSheetPanel(); } catch (_err) {}
+              try { renderDarkAfflictionSheetPanel(); } catch (_err) { console.error(_err); }
             }
             if (typeof showNotif === 'function') {
               showNotif('Vampire bite took hold (Spirit d' + spiritDie + ' ' + spiritRoll.total + ' vs Dread d' + dreadDie + ' ' + dreadRoll.total + '). Vampirism awakened.', 'warn');
@@ -3941,7 +3941,7 @@
       setTimeout(function() {
         try { 
           window.campaignSystem.syncSharedSilent(generatedRooms ? 'sea-dungeon-generated' : 'sea-dungeon-opened'); 
-        } catch (_err) {}
+        } catch (_err) { console.error(_err); }
       }, 0);
     }
     openModal(data.name, buildDungeonModal(data));
@@ -3954,7 +3954,7 @@
         if (Array.isArray(rolled) && rolled.length) {
           return pick(rolled);
         }
-      } catch (err) {}
+      } catch (err) { console.error(err); }
     }
     const fallbackPick = function(category, fallbackName) {
       const pool = (typeof SHOP_DATA === 'object' && SHOP_DATA && Array.isArray(SHOP_DATA[category])) ? SHOP_DATA[category] : [];
@@ -3991,7 +3991,7 @@
       setTimeout(function () {
         try {
           window.campaignSystem.syncSharedSilent(reason || 'sea-dungeon-update');
-        } catch (_err) {}
+        } catch (_err) { console.error(_err); }
       }, 0);
     }
   }
@@ -4104,7 +4104,7 @@
       else {
         rewardText = String(reward || 'Boss Cache');
         if (typeof addToBackpack === 'function' && reward) {
-          try { addToBackpack(reward); } catch (_err) {}
+          try { addToBackpack(reward); } catch (_err) { console.error(_err); }
         }
       }
       room.result = '✓ Boss defeated — ' + rewardText;
@@ -4165,7 +4165,7 @@
           room.result = (result === 'success' ? '🧩 Solved' : '🧩 Partial success') + ' — Loot recovered: ' + loot + (result === 'partial' ? ' · Take 1 Stress.' : '');
           data.unlockedRooms = Math.min(Number(data.rooms || data.generatedRooms.length || 1), Number(data.unlockedRooms || 1) + 2);
           if (typeof addToBackpack === 'function') {
-            try { addToBackpack(loot); } catch (_err) {}
+            try { addToBackpack(loot); } catch (_err) { console.error(_err); }
           }
           if (result === 'partial' && typeof changeStress === 'function') changeStress(1);
         } else {
@@ -4205,7 +4205,7 @@
       room.result = 'Puzzle solved. Loot recovered: ' + loot + '.';
       data.unlockedRooms = Math.min(Number(data.rooms || data.generatedRooms.length || 1), Number(data.unlockedRooms || 1) + 2);
       if (typeof addToBackpack === 'function') {
-        try { addToBackpack(loot); } catch (_err) {}
+        try { addToBackpack(loot); } catch (_err) { console.error(_err); }
       }
       if (typeof showNotif === 'function') showNotif('Puzzle solved. ' + loot + ' recovered.', 'good');
     } else {
@@ -4231,7 +4231,7 @@
       data.exploration = data.exploration || { clearedRooms: 0, discoveredLoot: [] };
       data.exploration.discoveredLoot.push(loot);
       if (typeof addToBackpack === 'function') {
-        try { addToBackpack(loot); } catch (_err) {}
+        try { addToBackpack(loot); } catch (_err) { console.error(_err); }
       }
       if (typeof showNotif === 'function') showNotif('Hidden room found: ' + loot + '.', 'good');
     } else {
@@ -4300,7 +4300,7 @@
     renderNaval();
     if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === "function") {
       setTimeout(function () {
-        try { window.campaignSystem.syncSharedSilent("naval-ship-identity"); } catch (_err) {}
+        try { window.campaignSystem.syncSharedSilent("naval-ship-identity"); } catch (_err) { console.error(_err); }
       }, 0);
     }
   }

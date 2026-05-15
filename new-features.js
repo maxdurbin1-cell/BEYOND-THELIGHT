@@ -349,7 +349,7 @@
     var state = getHoldingGovernanceState();
     S.holding.governance = Object.assign({}, state);
     if (typeof window !== 'undefined' && typeof window.setProvinceGovernancePolicyState === 'function') {
-      try { window.setProvinceGovernancePolicyState(state); } catch (_err) {}
+      try { window.setProvinceGovernancePolicyState(state); } catch (_err) { console.error(_err); }
     }
   }
 
@@ -399,15 +399,15 @@
     policy.updatedAt = Date.now();
     S.holding.governance = Object.assign({}, policy);
     if (typeof window !== 'undefined' && typeof window.setProvinceGovernancePolicyState === 'function') {
-      try { window.setProvinceGovernancePolicyState(policy); } catch (_err) {}
+      try { window.setProvinceGovernancePolicyState(policy); } catch (_err) { console.error(_err); }
     }
     if (typeof showNotif === 'function') {
       showNotif('Governance policy updated: ' + key + ' → ' + val + '.', 'good');
     }
     renderHoldingUI();
-    if (typeof renderHexMap === 'function') { try { renderHexMap(); } catch (_e0) {} }
+    if (typeof renderHexMap === 'function') { try { renderHexMap(); } catch (_e0) { console.error(_e0); } }
     if (typeof selectedHex !== 'undefined' && selectedHex && typeof renderHexInfo === 'function') {
-      try { renderHexInfo(selectedHex); } catch (_e1) {}
+      try { renderHexInfo(selectedHex); } catch (_e1) { console.error(_e1); }
     }
   }
 
@@ -1540,7 +1540,7 @@
     if (typeof getEffectiveDie === 'function') {
       try {
         return Math.max(4, Number(getEffectiveDie(String(key || '')) || fallback || 6));
-      } catch (_err) {}
+      } catch (_err) { console.error(_err); }
     }
     return Math.max(4, Number((S && S.stats && S.stats[key]) || fallback || 6));
   }
@@ -2661,13 +2661,13 @@
     if (typeof window !== 'undefined' && window.settingsSystem && typeof window.settingsSystem.isCampaignMode === 'function') {
       try {
         if (window.settingsSystem.isCampaignMode()) return true;
-      } catch (_err) {}
+      } catch (_err) { console.error(_err); }
     }
     if (typeof window !== 'undefined' && window.campaignSystem && typeof window.campaignSystem.getState === 'function') {
       try {
         var campaignState = window.campaignSystem.getState();
         if (campaignState && campaignState.code) return true;
-      } catch (_err) {}
+      } catch (_err) { console.error(_err); }
     }
     return false;
   }
@@ -3105,7 +3105,7 @@
       try {
         var eff = Number(getEffectiveDie(key));
         if (eff >= 4) return eff;
-      } catch (_err) {}
+      } catch (_err) { console.error(_err); }
     }
     if (S && S.stats && Object.prototype.hasOwnProperty.call(S.stats, key)) {
       var statDie = Number(S.stats[key]);
@@ -8485,7 +8485,7 @@
 
   function advanceHoldingOneDay() {
     if (typeof tickHoldingBankInvestments === 'function') {
-      try { tickHoldingBankInvestments(1); } catch (_bankErr) {}
+      try { tickHoldingBankInvestments(1); } catch (_bankErr) { console.error(_bankErr); }
     }
     if (typeof advanceDay === 'function') {
       advanceDay(1);
@@ -8574,7 +8574,7 @@
       switchTab('shop', btn || null);
     }
     if (typeof showShopCat === 'function') {
-      try { showShopCat(cat, null); } catch (_err) {}
+      try { showShopCat(cat, null); } catch (_err) { console.error(_err); }
     }
     if (typeof showNotif === 'function') showNotif('Merchants access opened in ' + node.label + ' (' + cat + ').', 'info');
   }
@@ -9338,7 +9338,7 @@
         );
       }
       if (!postedMission && typeof generateTask === 'function') {
-        try { generateTask(); } catch (_err) {}
+        try { generateTask(); } catch (_err) { console.error(_err); }
       }
       crawl.stats.security = Math.min(10, Number((crawl.stats && crawl.stats.security) || 0) + 1);
       if (typeof switchTab === 'function') {
@@ -10138,13 +10138,13 @@
   function applyHoldingQuestCondition(condKey) {
     if (!condKey || typeof S === 'undefined') return;
     if (typeof toggleCond === 'function' && S.conditions && !S.conditions[condKey]) {
-      try { toggleCond(condKey); return; } catch (_err) {}
+      try { toggleCond(condKey); return; } catch (_err) { console.error(_err); }
     }
     if (typeof applyNegativeCondition === 'function' && (condKey === 'weakened' || condKey === 'vulnerable' || condKey === 'shaken' || condKey === 'distracted')) {
-      try { applyNegativeCondition(condKey); return; } catch (_err2) {}
+      try { applyNegativeCondition(condKey); return; } catch (_err2) { console.error(_err2); }
     }
     if (typeof applyPositiveCondition === 'function') {
-      try { applyPositiveCondition(condKey); return; } catch (_err3) {}
+      try { applyPositiveCondition(condKey); return; } catch (_err3) { console.error(_err3); }
     }
     S.conditions = S.conditions || {};
     S.conditions[condKey] = true;
@@ -10293,7 +10293,7 @@
   }
 
   function resolveHoldingQuestOutcome(success) {
-    try { if (typeof closeModal === 'function') closeModal(); } catch (err) {}
+    try { if (typeof closeModal === 'function') closeModal(); } catch (err) { console.error(err); }
     resolveHoldingQuestStep3(success);
   }
 
@@ -10324,9 +10324,9 @@
     q.failed = false;
 
     S.renown = (S.renown || 0) + 1;
-    try { if (typeof updateRenown === 'function') { updateRenown(); } } catch (err) {}
+    try { if (typeof updateRenown === 'function') { updateRenown(); } } catch (err) { console.error(err); }
     S.credits = (S.credits || 0) + (q.rewardCredits || 250);
-    try { if (typeof updateCreditsUI === 'function') { updateCreditsUI(); } } catch (err) {}
+    try { if (typeof updateCreditsUI === 'function') { updateCreditsUI(); } } catch (err) { console.error(err); }
 
     var loot = [];
     try {
@@ -10339,7 +10339,7 @@
     q.rewardLoot = loot.slice();
     if (typeof addToBackpack === 'function') {
       for (var li = 0; li < loot.length; li++) {
-        try { addToBackpack(loot[li]); } catch (err) {}
+        try { addToBackpack(loot[li]); } catch (err) { console.error(err); }
       }
     }
 
@@ -10373,28 +10373,28 @@
     }
     S.holding.established = true;
     q.holdingHex = q.holdingHex || q.siteHex || q.infoHex || null;
-    try { placeHoldingQuestTokens(); } catch (err) {}
-    try { updateHoldingTabVisibility(); } catch (err) {}
-    try { renderHoldingUI(); } catch (err) {}
-    try { if (typeof renderMissionBoard === 'function') { renderMissionBoard(); } } catch (err) {}
-    try { if (typeof renderMissionTracker === 'function') { renderMissionTracker(); } } catch (err) {}
-    try { if (typeof renderCompletedMissions === 'function') { renderCompletedMissions(); } } catch (err) {}
-    try { if (typeof renderQP === 'function') { renderQP('missions'); } } catch (err) {}
+    try { placeHoldingQuestTokens(); } catch (err) { console.error(err); }
+    try { updateHoldingTabVisibility(); } catch (err) { console.error(err); }
+    try { renderHoldingUI(); } catch (err) { console.error(err); }
+    try { if (typeof renderMissionBoard === 'function') { renderMissionBoard(); } } catch (err) { console.error(err); }
+    try { if (typeof renderMissionTracker === 'function') { renderMissionTracker(); } } catch (err) { console.error(err); }
+    try { if (typeof renderCompletedMissions === 'function') { renderCompletedMissions(); } } catch (err) { console.error(err); }
+    try { if (typeof renderQP === 'function') { renderQP('missions'); } } catch (err) { console.error(err); }
 
-    try { showNotif('Holding established! +1 Renown · +' + (q.rewardCredits || 250) + '₵' + (loot.length ? ' · Loot: ' + loot.join(', ') : ''), 'good'); } catch (err) {}
+    try { showNotif('Holding established! +1 Renown · +' + (q.rewardCredits || 250) + '₵' + (loot.length ? ' · Loot: ' + loot.join(', ') : ''), 'good'); } catch (err) { console.error(err); }
 
     try {
       if (typeof setContext === 'function') {
         var holdingCtxBtn = document.querySelector('.ctx-btn[onclick*="setContext(\'holding\'"]');
         setContext('holding', holdingCtxBtn || null);
       }
-    } catch (err) {}
+    } catch (err) { console.error(err); }
     try {
       if (typeof switchTab === 'function') {
         var holdingTabBtn = document.querySelector("button.tab-btn[onclick*=\"switchTab('holding'\"]");
         switchTab('holding', holdingTabBtn || null);
       }
-    } catch (err) {}
+    } catch (err) { console.error(err); }
   }
 
   function advanceHoldingQuest() {

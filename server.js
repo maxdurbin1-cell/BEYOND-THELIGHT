@@ -2345,20 +2345,20 @@ io.on("connection", (socket) => {
 process.on("SIGINT", () => {
   try {
     persistLicenseStoreNow();
-  } catch (_err) {}
+  } catch (_err) { console.error(_err); }
   try {
     persistCampaignsNow();
-  } catch (_err) {}
+  } catch (_err) { console.error(_err); }
   process.exit(0);
 });
 
 process.on("SIGTERM", () => {
   try {
     persistLicenseStoreNow();
-  } catch (_err) {}
+  } catch (_err) { console.error(_err); }
   try {
     persistCampaignsNow();
-  } catch (_err) {}
+  } catch (_err) { console.error(_err); }
   process.exit(0);
 });
 

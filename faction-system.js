@@ -799,7 +799,7 @@
           const loot = rollForLoot("medium");
           if (Array.isArray(loot) && loot.length) lootName = String(loot[0]);
           else if (typeof loot === "string") lootName = loot;
-        } catch (err) {}
+        } catch (err) { console.error(err); }
       }
       if (String(lootName).toLowerCase() === 'trade good' && typeof SHOP_DATA === 'object' && SHOP_DATA && Array.isArray(SHOP_DATA.tradegoods) && SHOP_DATA.tradegoods.length) {
         lootName = String((pick(SHOP_DATA.tradegoods) || {}).name || lootName);
@@ -808,7 +808,7 @@
       }
       let stored = false;
       if (typeof addToBackpack === "function") {
-        try { stored = !!addToBackpack(lootName); } catch (err) {}
+        try { stored = !!addToBackpack(lootName); } catch (err) { console.error(err); }
       }
       if (typeof showNotif === "function") showNotif("Wayfarer task complete: +1 faction Renown · Loot: " + lootName + (stored ? " (backpack)" : ""), "good");
     } else {
@@ -1566,7 +1566,7 @@
 
   function recordFactionConsequence(entry) {
     if (typeof window === 'undefined' || typeof window.recordWorldConsequence !== 'function') return;
-    try { window.recordWorldConsequence(entry || {}); } catch (_err) {}
+    try { window.recordWorldConsequence(entry || {}); } catch (_err) { console.error(_err); }
   }
 
   function factionLocationKeyFromBase(base, mission) {

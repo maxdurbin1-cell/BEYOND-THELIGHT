@@ -3202,7 +3202,7 @@
         }
       }
       if (typeof window.wtwSyncMarkers === "function") {
-        try { window.wtwSyncMarkers(); } catch (_err) {}
+        try { window.wtwSyncMarkers(); } catch (_err) { console.error(_err); }
       }
     }
 
@@ -3344,7 +3344,7 @@
     }
 
     if (item && typeof addToBackpack === "function") {
-      try { addToBackpack(item); } catch (err) {}
+      try { addToBackpack(item); } catch (err) { console.error(err); }
     }
 
     if (reward.openShop && typeof switchTab === "function") {
@@ -4659,7 +4659,7 @@
             if (profile.luckyReroll && statKey === "adventure") flavorBonus += 1;
         }
       }
-    } catch (_err) {}
+    } catch (_err) { console.error(_err); }
     var theos = getTheosStorylineModifierSafe();
     var regionBonus = Math.max(0, Number(theos.rollBonus || 0));
     const effectiveTotal = Number(a.total || 0) + Math.max(0, bonus) + relicTotal + campaignBonus + Math.max(0, flavorBonus) + regionBonus;
@@ -5841,7 +5841,7 @@
       const resolver = p.externalResolve;
       if (typeof closeModal === "function") closeModal();
       resetPuzzleSession();
-      try { resolver(result); } catch (_err) {}
+      try { resolver(result); } catch (_err) { console.error(_err); }
       return;
     }
     const scene = SCENES[p.sceneId];

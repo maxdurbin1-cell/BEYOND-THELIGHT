@@ -125,7 +125,7 @@
       else S.renown = Math.max(0, Number(S.renown || 0) + renown);
     }
     if (item && typeof addToBackpack === "function") {
-      try { addToBackpack(item); } catch (err) {}
+      try { addToBackpack(item); } catch (err) { console.error(err); }
     }
 
     if (typeof showNotif === "function") {
@@ -157,7 +157,7 @@
       applyPuzzleReward(active.source, active.reward);
       const okFn = resolveCallback(active.onSuccess);
       if (okFn) {
-        try { okFn(); } catch (err) {}
+        try { okFn(); } catch (err) { console.error(err); }
       }
     } else {
       st.failed += 1;
@@ -166,7 +166,7 @@
       if (typeof showNotif === "function") showNotif("Puzzle failed (" + active.source + ").", "warn");
       const failFn = resolveCallback(active.onFail);
       if (failFn) {
-        try { failFn(); } catch (err) {}
+        try { failFn(); } catch (err) { console.error(err); }
       }
     }
 
@@ -891,7 +891,7 @@
     if (!state || !Array.isArray(state.timeoutIds)) return;
     while (state.timeoutIds.length) {
       var tid = state.timeoutIds.pop();
-      try { clearTimeout(tid); } catch (_err) {}
+      try { clearTimeout(tid); } catch (_err) { console.error(_err); }
     }
   }
 
@@ -1184,7 +1184,7 @@
     window[name] = function () {
       const args = Array.prototype.slice.call(arguments);
       const out = fn.apply(this, args);
-      try { wrapper(args, out); } catch (err) {}
+      try { wrapper(args, out); } catch (err) { console.error(err); }
       return out;
     };
   }

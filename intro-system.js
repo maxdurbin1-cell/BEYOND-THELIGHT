@@ -284,7 +284,7 @@ Enter the game.
 
   function isSoloModeEnabled() {
     if (window.settingsSystem && typeof window.settingsSystem.isSoloMode === 'function') {
-      try { return !!window.settingsSystem.isSoloMode(); } catch (_err) {}
+      try { return !!window.settingsSystem.isSoloMode(); } catch (_err) { console.error(_err); }
     }
     if (window.settingsSystem && window.settingsSystem.Settings) {
       var gm = String(window.settingsSystem.Settings.gameMode || 'solo');
@@ -325,7 +325,7 @@ Enter the game.
     var state = ensureRunState();
     if (state) state.realmEntryMode = 'known_realm';
     if (window.settingsSystem && typeof window.settingsSystem.setGameMode === 'function') {
-      try { window.settingsSystem.setGameMode('solo'); } catch (_err) {}
+      try { window.settingsSystem.setGameMode('solo'); } catch (_err) { console.error(_err); }
     }
     if (shouldBootstrapKnownRealmCharacter(state) && typeof window.generateCharacter === 'function') {
       try {
@@ -335,7 +335,7 @@ Enter the game.
       }
     }
     if (typeof window.theosPrimeStartingProvince === 'function') {
-      try { window.theosPrimeStartingProvince(); } catch (_err3) {}
+      try { window.theosPrimeStartingProvince(); } catch (_err3) { console.error(_err3); }
     }
     switchToTabSafe('theos');
     if (typeof showNotif === 'function') {

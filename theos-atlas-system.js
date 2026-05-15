@@ -387,7 +387,7 @@
     if (!targetProvince) return;
 
     if (typeof window.generateLastSea === "function" && (!window.S || !window.S.lastSea || !Array.isArray(window.S.lastSea.map) || !window.S.lastSea.map.length)) {
-      try { window.generateLastSea(); } catch (_genErr) {}
+      try { window.generateLastSea(); } catch (_genErr) { console.error(_genErr); }
     }
 
     var suggested = suggestSeaHexForProvince(targetProvinceId);
@@ -398,7 +398,7 @@
     if (suggested) {
       st.pendingSeaDestinationHexKey = String(suggested.key || "");
       if (typeof window.focusLastSeaHexByKey === "function") {
-        try { window.focusLastSeaHexByKey(st.pendingSeaDestinationHexKey); } catch (_focusErr) {}
+        try { window.focusLastSeaHexByKey(st.pendingSeaDestinationHexKey); } catch (_focusErr) { console.error(_focusErr); }
       }
     } else {
       st.pendingSeaDestinationHexKey = "";
@@ -1355,7 +1355,7 @@
     applyProvinceTopography(targetProvince.id);
     injectProvinceFlavorSites(targetProvince.id);
     if (typeof window.renderHexMap === "function") {
-      try { window.renderHexMap(); } catch (_rhErr) {}
+      try { window.renderHexMap(); } catch (_rhErr) { console.error(_rhErr); }
     }
 
     if (fromProvince && fromProvince.id !== targetProvince.id) {
@@ -1388,7 +1388,7 @@
     } else {
       window.S.credits = Math.max(0, credits - TRAIN_COST);
       if (typeof window.updateCreditsUI === "function") {
-        try { window.updateCreditsUI(); } catch (_creditErr) {}
+        try { window.updateCreditsUI(); } catch (_creditErr) { console.error(_creditErr); }
       }
     }
 

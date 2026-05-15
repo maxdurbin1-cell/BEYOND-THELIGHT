@@ -6973,6 +6973,9 @@
         'Wing 3 checkpoint: breach the chamber, play the cinematic, then defeat ' + mission.legacyRaidBoss + '.'
       ];
     }
+    mission.steps[1] = mission.steps[1] || {};
+    mission.steps[2] = mission.steps[2] || {};
+    mission.steps[3] = mission.steps[3] || {};
     mission.steps[1].name = 'Recover the Lore Fragment';
     mission.steps[2].name = 'Open the Dungeon Door';
     mission.steps[3].name = 'Reach and Defeat ' + mission.legacyRaidBoss;
@@ -15220,7 +15223,7 @@
 
     var successEncoded=encodeURIComponent(JSON.stringify(successFod));
     var failureEncoded=encodeURIComponent(JSON.stringify(failureFod));
-    var introLine = mission.step1Intro || ('<strong style="color:var(--gold2);">' + (mission.steps[1].name || 'Gather Information') + '</strong> - optional. Success grants <strong style="color:var(--teal);">+5 bonus</strong> and reveals a hidden feature. Failure introduces <strong style="color:var(--red2);">Additional Danger</strong>. You may also skip.');
+    var introLine = mission.step1Intro || ('<strong style="color:var(--gold2);">' + ((mission.steps[1] && mission.steps[1].name) || 'Gather Information') + '</strong> - optional. Success grants <strong style="color:var(--teal);">+5 bonus</strong> and reveals a hidden feature. Failure introduces <strong style="color:var(--red2);">Additional Danger</strong>. You may also skip.');
     var html=buildMissionStepDialogue(mission, 'informer')
       +'<div style="font-size:.84rem;color:var(--muted3);margin-bottom:.5rem;line-height:1.5;">'+introLine+'</div>'
       +rollBlock+resultBlock
@@ -15231,13 +15234,13 @@
             +'<button class="btn btn-sm btn-primary" onclick="completeMissionInfoStep('+missionId+',true,decodeURIComponent(\''+successEncoded+'\'));closeModal();">Success</button>'
           : '<button class="btn btn-sm btn-teal" onclick="completeMissionInfoStep('+missionId+','+success+',decodeURIComponent(\''+(success ? successEncoded : failureEncoded)+'\'));closeModal();">Confirm</button>')
       +'</div>';
-    openModal('Step 1 - ' + (mission.steps[1].name || 'Gather Information'),html);
+    openModal('Step 1 - ' + ((mission.steps[1] && mission.steps[1].name) || 'Gather Information'),html);
   }
 
   function completeMissionInfoStep(missionId, success, encodedResult) {
     var mission = getMission(missionId);
     if (!mission) return;
-    mission.steps[1].completed=true; mission.steps[1].skipped=false;
+    mission.steps[1] = mission.steps[1] || {}; mission.steps[1].completed=true; mission.steps[1].skipped=false;
     removeInformerToken(mission);
     if (success) {
       if (mission.missionType === 'legacy_raid') markLegacyRaidWingOutcome(mission, 1, true);
@@ -15275,7 +15278,7 @@
 
   function skipMissionStep1(missionId) {
     var mission=getMission(missionId); if (!mission) return;
-    mission.steps[1].completed=true; mission.steps[1].skipped=true;
+    mission.steps[1] = mission.steps[1] || {}; mission.steps[1].completed=true; mission.steps[1].skipped=true;
     removeInformerToken(mission);
     refreshMissionSurfaces();
   }
@@ -15284,7 +15287,7 @@
   function startMissionStep2(missionId) {
     ensureState();
     var mission=getMission(missionId); if (!mission) return;
-    if (!mission.steps[1].completed) { showNotif('Complete or skip Step 1 first.','warn'); return; }
+    if (!mission.steps || !mission.steps[1] || !mission.steps[1].completed) { showNotif('Complete or skip Step 1 first.','warn'); return; }
     if (mission.missionType === 'legacy_raid') {
       setLegacyRaidCurrentWing(mission, 2);
       if (typeof window.openRaidWingPopup === 'function') {
@@ -15619,7 +15622,7 @@
 
   function completeMissionSiteStep(missionId) {
     var mission=getMission(missionId); if (!mission) return;
-    mission.steps[2].completed=true;
+    mission.steps[2] = mission.steps[2] || {}; mission.steps[2].completed=true;
     if (mission.missionType === 'legacy_raid') {
       setLegacyRaidCurrentWing(mission, 3);
       var run = ensureLegacyRaidRunState(mission);
@@ -15666,7 +15669,7 @@
   function startMissionStep3(missionId) {
     ensureState();
     var mission=getMission(missionId); if (!mission) return;
-    if (!mission.steps[2].completed) { showNotif('Complete Step 2 first.','warn'); return; }
+    if (!mission.steps || !mission.steps[2] || !mission.steps[2].completed) { showNotif('Complete Step 2 first.','warn'); return; }
     if (mission.missionType === 'legacy_raid') {
       setLegacyRaidCurrentWing(mission, 3);
       if (typeof window.openRaidWingPopup === 'function') {

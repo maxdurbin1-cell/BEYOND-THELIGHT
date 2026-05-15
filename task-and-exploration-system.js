@@ -43,7 +43,7 @@ function promiseWildernessExploration(col,row){
 }
 
 function performWildernessObservation(col,row,directionKey){
-  const leadDie=typeof getEffectiveDie==='function'?getEffectiveDie('lead'):(S.stats.lead||4);
+  const leadDie=typeof getEffectiveDie==='function'?getEffectiveDie('lead'):((S&&S.stats&&S.stats.lead)||4);
   const target=getAdjacentHexByDirection(col,row,directionKey);
   
   // Check if manual roll mode is enabled
@@ -278,7 +278,7 @@ function getHexesInDirection(col,row,direction,range){
 }
 
 function haggleMerchantCaravan(col,row){
-  const spiritDie=typeof getEffectiveDie==='function'?getEffectiveDie('spirit'):(S.stats.spirit||4);
+  const spiritDie=typeof getEffectiveDie==='function'?getEffectiveDie('spirit'):((S&&S.stats&&S.stats.spirit)||4);
   const spiritRoll=explodingRoll(spiritDie);
   const dreadRoll=explodingRoll(8);
   const success=spiritRoll.total>=dreadRoll.total;

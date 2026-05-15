@@ -113,15 +113,15 @@
     },
     {
       "id": "music-suite-character-v9",
-      "title": "Velvet Memory · Cue 2",
+      "title": "Velvet Memory · Cue 2 (Drive)",
       "style": "Velvet Memory",
       "suiteLabel": "Character Suite",
-      "source": "Incompetech",
-      "artist": "Kevin MacLeod",
-      "license": "CC-BY 4.0",
-      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
-      "sourceUrl": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/The%20House%20of%20Leaves.mp3",
-      "src": "/api/audio-proxy?src=https%3A%2F%2Fincompetech.com%2Fmusic%2Froyalty-free%2Fmp3-royaltyfree%2FThe%2520House%2520of%2520Leaves.mp3"
+      "source": "Google Drive",
+      "artist": "Shared Music Folder",
+      "license": "User-provided shared track",
+      "licenseUrl": "https://drive.google.com/drive/folders/1D520VKXTVUGvITCBNL8_v_p9DnF6oiKW",
+      "sourceUrl": "https://drive.google.com/file/d/1oIgx8YdUps0i7vHJ4GBC1888BezBCYEK/view?usp=sharing",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Fdrive.google.com%2Ffile%2Fd%2F1oIgx8YdUps0i7vHJ4GBC1888BezBCYEK%2Fview%3Fusp%3Dsharing"
     },
     {
       "id": "music-suite-map",

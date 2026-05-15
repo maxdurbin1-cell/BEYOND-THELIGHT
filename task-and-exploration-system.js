@@ -128,6 +128,7 @@ function getAdjacentHexes(col,row){
     if(h)out.push(h);
   });
   return out;
+}
 
 function performWildernessObservationManualRoll(col,row,directionKey,target){
   const leadDie=window.selectedDice.action||4;
@@ -215,7 +216,6 @@ function finalizeWildernessManualRoll(col,row,directionKey,forcedSuccess){
   
   openModal('Observation — Adjacent Hexes',html);
   appendHexNote(col,row,`[Observation] Lead d${leadDie} vs DD${dreadDie} (${directionKey||'adjacent'}): ${actionValue} vs ${dreadValue} => ${success?'success':'failure'}${typeof forcedSuccess==='boolean'?' [manual override]':''}`);
-}
 }
 
 function formatObservedHexSummary(hex){

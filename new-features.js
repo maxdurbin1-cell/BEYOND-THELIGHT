@@ -12059,7 +12059,7 @@
       + '<div style="margin-top:.28rem;">'
       + buildNestedModalActionRow(
           '<button class="btn btn-sm btn-primary" onclick="resolveManualHackCast()">Resolve Manual Hack</button>',
-          { cancelLabel: 'Close' }
+          { cancelLabel: 'Go Back' }
         )
       + '</div>'
       + '</div>';

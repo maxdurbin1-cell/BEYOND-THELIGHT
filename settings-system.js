@@ -595,6 +595,7 @@ window.playCustomMusicFromSettings = function() {
                 <div id="customMusicPlayer" style="margin-top:.7rem;"></div>
               </div>
             </div>
+            <div class="setting-row">
               <label>Background Music</label>
               <div class="campaign-actions" style="margin:0;">
                 <button id="musicConsentBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleMusicConsent()">

@@ -15506,14 +15506,15 @@ function openActivePlanetMap() {
 
 const YESSOD_ROWS = 12;
 const YESSOD_COLS = 12;
+const YESSOD_VOICE_LENS = 'Bone Oracles';
 const YESSOD_WEATHER = [
-  { name: 'Sundering Dust Front', desc: 'Copper-red dust from old reactor basins turns the horizon into a bruise under the dying sun.', dd: 6, failure: 'Gain 1 Stress from sensory overload and static hallucinations.' },
-  { name: 'Mirror Rain', desc: 'Laminar rain forms reflective sheets that show false roads and false companions.', dd: 8, failure: 'Travel stalls and consumes an extra phase following phantom trails.' },
-  { name: 'Hollow Wind', desc: 'A low wind carries voices that sound like exiles calling from beyond the Barrier.', dd: 8, failure: 'Gain 1 Trauma from disorientation and memory bleed.' },
-  { name: 'Warden Interval', desc: 'Calm pressure and clear light. Old survey towers hum as if still receiving orders.', dd: 0, failure: '' },
-  { name: 'Lumen Squall', desc: 'Needle-thin arcs jump between iron mangroves and skyway braces.', dd: 10, failure: 'Take 2 Health damage from arc flash and scorched gear.' },
-  { name: 'Ash Bloom', desc: 'Bioluminescent spores rise from fungal gullies and drift like funeral lanterns.', dd: 6, failure: 'Suffer -1 on next scouting check from spore haze.' },
-  { name: 'Oracle Nightfall', desc: 'The sky goes star-black at midday and every footprint glows for a heartbeat.', dd: 9, failure: 'Lose route confidence; next travel also requires a check.' },
+  { name: 'Marrow Dust Front', desc: 'Copper dust from old killfields drifts in ribs of wind, and every breath tastes like old bone.', dd: 6, failure: 'Gain 1 Stress from sensory overload and static hallucinations.' },
+  { name: 'Mirror Rain', desc: 'Needle-thin rain turns to mirror film where Bone Oracles read false faces in the water.', dd: 8, failure: 'Travel stalls and consumes an extra phase following phantom trails.' },
+  { name: 'Hollow Wind', desc: 'The wind carries prayer fragments and dead names spoken from beyond the Barrier scars.', dd: 8, failure: 'Gain 1 Trauma from disorientation and memory bleed.' },
+  { name: 'Quiet Sepulcher', desc: 'A rare stillness settles over Yessod; marrow bells hang silent and the roads stay clear.', dd: 0, failure: '' },
+  { name: 'Lumen Squall', desc: 'White arcs stitch skyway braces to wet stone, tracing sigils no living hand wrote.', dd: 10, failure: 'Take 2 Health damage from arc flash and scorched gear.' },
+  { name: 'Ash Bloom', desc: 'Fungal ash rises like incense from the gullies and clings to skin like ritual chalk.', dd: 6, failure: 'Suffer -1 on next scouting check from spore haze.' },
+  { name: 'Oracle Nightfall', desc: 'Daylight dies without warning; every footprint glows, then fades like a forgotten omen.', dd: 9, failure: 'Lose route confidence; next travel also requires a check.' },
 ];
 const YESSOD_BIOMES = [
   'Shale Gardens',
@@ -15541,63 +15542,63 @@ const YESSOD_MARKERS = {
   lift: { label: 'Layer Lift', color: '#7bd7c0', glyph: '⇅' },
   barrier: { label: 'Barrier', color: '#8a5b5b', glyph: '⛝' },
 };
-const YESSOD_HOLDING_TITLES = ['March Warden Keep', 'Censer Bastion', 'Glass Relay Fort', 'Sable Gate Hold'];
-const YESSOD_DWELLING_FLAVOR = ['reed-plated stilt homes over blackwater', 'fused ceramic blocks stacked around heat vents', 'courtyard warrens lit by bone-oil lamps', 'hanging nests tied to old comm towers'];
-const YESSOD_TEMPLE_FLAVOR = ['Solar cult ossuary with brass prayer rings', 'Bone Oracle archive humming with marrow chimes', 'Barrier Warden shrine warded by burnt sigils', 'Gifted cloister where novices map omen-dreams'];
-const YESSOD_RUIN_FLAVOR = ['a collapsed transit vault from the World That Was', 'an irradiated data foundry sealed with guild marks', 'a drowned reactor cloister full of mirror algae', 'an exiles-era relay corridor threaded with rust vines'];
-const YESSOD_PERIL_FLAVOR = ['mutagen sinkhole where the ground breathes', 'raider gauntlet ruled by a scavenger covenant', 'electromagnetic gorge that erases nav marks', 'predator nursery of shard-jawed carrion hounds'];
-const YESSOD_GATE_FLAVOR = ['orbital transfer arch keyed to dead stars', 'Barrier transit ring with unstable harmonics', 'sunward aperture that opens only during stormfronts'];
-const YESSOD_LIFT_FLAVOR = ['counterweight shaft wrapped in chain and prayer cloth', 'grav-lift spine repaired by Crucible guild steel', 'ancient service elevator now run by warden tolls'];
-const YESSOD_BARRIER_FLAVOR = ['warden checkpoint with marrow-lit pylons', 'collapsed veil-wall where light behaves like water', 'sealed border trench patrolled by relic drones'];
+const YESSOD_HOLDING_TITLES = ['Skull-Lantern Keep', 'Censer Bastion', 'Femur Relay Fort', 'Sepulcher Gate Hold'];
+const YESSOD_DWELLING_FLAVOR = ['reed-plated stilt homes over blackwater', 'fused ceramic blocks stacked around marrow braziers', 'courtyard warrens lit by bone-oil lamps', 'hanging nests tied to omen poles and old comm towers'];
+const YESSOD_TEMPLE_FLAVOR = ['Bone Oracle archive humming with marrow chimes', 'ossuary cloister where acolytes score prophecies into ribs', 'sepulcher shrine warded by ash sigils', 'oracle nave where dream-readers map omen tides'];
+const YESSOD_RUIN_FLAVOR = ['a collapsed transit vault from the World That Was', 'an irradiated data foundry sealed with bone lacquer and guild marks', 'a drowned reactor cloister full of mirror algae', 'an exiles-era relay corridor threaded with rust vines and prayer knots'];
+const YESSOD_PERIL_FLAVOR = ['marrow sinkhole where the ground exhales warm spores', 'raider gauntlet where skull totems mark kill lines', 'electromagnetic gorge that erases nav marks and omen chalk', 'predator nursery of shard-jawed carrion hounds'];
+const YESSOD_GATE_FLAVOR = ['orbital transfer arch keyed to dead stars and oracle seals', 'Barrier transit ring with unstable harmonics and sepulcher wards', 'sunward aperture that opens only during stormfronts and bell-chants'];
+const YESSOD_LIFT_FLAVOR = ['counterweight shaft wrapped in chain and funerary cloth', 'grav-lift spine repaired with Crucible steel and marrow pins', 'ancient service elevator now tended by oracle toll-keepers'];
+const YESSOD_BARRIER_FLAVOR = ['oracle checkpoint with marrow-lit pylons', 'collapsed veil-wall where light behaves like water', 'sealed border trench patrolled by relic drones and ashwardens'];
 const YESSOD_BIOME_LAND = {
-  'Shale Gardens': ['layered black shale terraces', 'knife-leaf gardens rooted in mineral cracks'],
-  'Resin Flats': ['amber resin pans and sticky channels', 'hardened flats with fossilized reed forests'],
-  'Iron Mangroves': ['metal-barked mangrove thickets', 'oxide roots braided over shallow brine'],
-  'Pale Basin': ['chalk basins dusted in luminous pollen', 'salt-smooth depressions under thin fog'],
-  'Spire Barrens': ['needle spires of fused ceramic', 'wind-carved pylons from an older city'],
-  'Salt Ember Fields': ['ember-red salt crusts', 'smoking mineral furrows warmed from below'],
-  'Luminous Steppe Verge': ['radiant grasses around old survey stones', 'open plains lit by bioluminescent seed heads'],
-  'Barrier Scar Wetlands': ['acid marsh cut by barrier fissures', 'reed bogs that whisper in static'],
-  'Ashglass Terraces': ['volcanic glass shelves and cinder stairs', 'fractured terraces reflecting false skylines'],
+  'Shale Gardens': ['layered black shale terraces scored with divining grooves', 'knife-leaf gardens rooted in mineral cracks and ash circles'],
+  'Resin Flats': ['amber resin pans and sticky channels set with bone stakes', 'hardened flats with fossilized reed forests and votive cairns'],
+  'Iron Mangroves': ['metal-barked mangrove thickets tied with prayer cords', 'oxide roots braided over shallow brine and relic wire'],
+  'Pale Basin': ['chalk basins dusted in luminous pollen and marrow ash', 'salt-smooth depressions under thin fog and bell posts'],
+  'Spire Barrens': ['needle spires of fused ceramic etched with omen cuts', 'wind-carved pylons from an older city and skull pennants'],
+  'Salt Ember Fields': ['ember-red salt crusts around ritual fire pits', 'smoking mineral furrows warmed from below and ringed by cairns'],
+  'Luminous Steppe Verge': ['radiant grasses around old survey stones and oracle markers', 'open plains lit by bioluminescent seed heads and watch pyres'],
+  'Barrier Scar Wetlands': ['acid marsh cut by barrier fissures and warning ribs', 'reed bogs that whisper in static and broken litany'],
+  'Ashglass Terraces': ['volcanic glass shelves and cinder stairs blackened by rites', 'fractured terraces reflecting false skylines and funerary torches'],
 };
 const YESSOD_BIOME_WEATHER = {
-  'Shale Gardens': ['razor-edged grit gusts', 'low thunder rolling through terraces'],
-  'Resin Flats': ['heat shimmer and tar rain', 'sticky haze that traps sound'],
-  'Iron Mangroves': ['electrostatic drizzle', 'metallic fog with iron taste'],
-  'Pale Basin': ['chalk mist and white rain', 'echoing calm broken by distant sirens'],
+  'Shale Gardens': ['razor-edged grit gusts', 'low thunder rolling through terraces like drumbeats'],
+  'Resin Flats': ['heat shimmer and tar rain', 'sticky haze that traps sound and prayer chant'],
+  'Iron Mangroves': ['electrostatic drizzle', 'metallic fog with iron taste and whispering hum'],
+  'Pale Basin': ['chalk mist and white rain', 'echoing calm broken by distant marrow bells'],
   'Spire Barrens': ['spire howl crosswinds', 'needle rain from brittle crowns'],
-  'Salt Ember Fields': ['ember gusts and dry lightning', 'sulfur haze drifting near ground'],
-  'Luminous Steppe Verge': ['glow pollen squalls', 'clear wind with sudden pressure drops'],
-  'Barrier Scar Wetlands': ['veil-fog and static drizzle', 'bursts of warm rain over cold mud'],
-  'Ashglass Terraces': ['glass-dust shear winds', 'mirror rain over obsidian shelves'],
+  'Salt Ember Fields': ['ember gusts and dry lightning', 'sulfur haze drifting near ground like incense'],
+  'Luminous Steppe Verge': ['glow pollen squalls', 'clear wind with sudden pressure drops and omen chills'],
+  'Barrier Scar Wetlands': ['veil-fog and static drizzle', 'bursts of warm rain over cold mud and glassy chant'],
+  'Ashglass Terraces': ['glass-dust shear winds', 'mirror rain over obsidian shelves and cinder smoke'],
 };
 const YESSOD_BIOME_FEATURE = {
-  'Shale Gardens': ['spiral cairns left by pilgrim surveyors', 'half-buried wardstones with sun glyphs'],
-  'Resin Flats': ['resin harvest rigs run by masked crews', 'frozen footprints that do not match any known species'],
-  'Iron Mangroves': ['ward bell lines between metal roots', 'drowned skiffs used by ferrymen of Lethe'],
-  'Pale Basin': ['oracle mirrors mounted on bone frames', 'decommissioned weather pylons still blinking'],
-  'Spire Barrens': ['hanging bridges to nowhere', 'ruined signal crowns from exiles-era relays'],
-  'Salt Ember Fields': ['ember pits used for oath rituals', 'charred boundary stones of old province claims'],
-  'Luminous Steppe Verge': ['gift-marked standing stones', 'nomad wind tents circling at dusk'],
-  'Barrier Scar Wetlands': ['broken veil anchors humming underwater', 'warden masks hung as warning to trespassers'],
+  'Shale Gardens': ['spiral cairns left by oracle surveyors', 'half-buried wardstones with marrow glyphs'],
+  'Resin Flats': ['resin harvest rigs run by masked acolytes', 'frozen footprints that do not match any known species'],
+  'Iron Mangroves': ['marrow bell lines between metal roots', 'drowned skiffs used by ferrymen of Lethe'],
+  'Pale Basin': ['oracle mirrors mounted on bone frames', 'decommissioned weather pylons still blinking scripture'],
+  'Spire Barrens': ['hanging bridges to nowhere', 'ruined signal crowns wrapped in prayer cloth'],
+  'Salt Ember Fields': ['ember pits used for bone-oath rites', 'charred boundary stones of old province claims'],
+  'Luminous Steppe Verge': ['gift-marked standing stones', 'nomad wind tents circling at dusk with bell standards'],
+  'Barrier Scar Wetlands': ['broken veil anchors humming underwater', 'ashen masks hung as warning to trespassers'],
   'Ashglass Terraces': ['collapsed observatory stairs', 'melted statues from the Sundering years'],
 };
 const YESSOD_MARKER_DETAIL = {
-  seat: 'Seat district where Warden councils, oracle envoys, and guild stewards bargain for control of Yessod routes.',
-  holding: 'Holding garrison keeps tariffs, route law, and emergency shelter for caravans crossing storm months.',
-  dwelling: 'Dense dwelling quarter where ferrymen, scavengers, and shrine-keepers trade food, rumors, and relic maps.',
-  temple: 'Temple quarter devoted to New Sun liturgies, marrow divination, and Gift discipline rites.',
-  monument: 'Monument corridor marking old skyway and migration vows etched after the Exile.',
-  peril: 'Peril zone where weather fronts, predators, and unstable relic systems stack into lethal terrain.',
-  ruins: 'Ruin field from the World That Was, half-swallowed by ashglass and fungal growth.',
-  gate: 'Gate complex with intermittent star-linked transit behavior and strict Warden quarantine practice.',
-  lost_city: 'Submerged civic tier called the Drowned Ledger, rumored to hold pre-Sundering census cores.',
-  lift: 'Layer lift node linking strata by chain towers and grav engines older than current kingdoms.',
-  barrier: 'Barrier scar perimeter where veil fractures produce false echoes and temporal drift.',
+  seat: 'Seat district where Bone Oracle choirs read marrow signs and direct Yessod travel by omen law.',
+  holding: 'Holding garrison where oracle-captains levy tolls, issue weather rites, and shelter caravans.',
+  dwelling: 'Dense quarter of ferrymen, scavengers, and bone-scribes trading food, rumors, and relic maps.',
+  temple: 'Temple quarter devoted to marrow divination, death liturgy, and New Sun supplications.',
+  monument: 'Monument corridor of oath-steles cut after the Exile and re-read before each campaign season.',
+  peril: 'Peril zone where bad weather, predator runs, and cursed relic systems converge into kill terrain.',
+  ruins: 'Ruin field from the World That Was, half-swallowed by ashglass and catalogued by oracle archivists.',
+  gate: 'Gate complex where transit omens are read from bone lots before passage is granted.',
+  lost_city: 'Submerged civic tier called the Drowned Ledger, where oracle cells seek pre-Sundering death rolls.',
+  lift: 'Layer lift node managed by bell-keepers who time ascent by omen cadence.',
+  barrier: 'Barrier scar perimeter where veil fractures produce false echoes, grief visions, and temporal drift.',
 };
 const YESSOD_ENCOUNTER_WILDLIFE = ['Mirror Jackal pack', 'Shard Stag matriarch', 'Iron-wing Vulture swarm', 'Glass Eel bloom', 'Ashback Tortoise', 'Rift Lynx'];
-const YESSOD_ENCOUNTER_STRANGERS = ['Solar Cult procession', 'Barrier Warden patrol', 'Bone Oracle listeners', 'Crucible guild caravan', 'Exiles lineage scouts', 'Luminous steppe nomads'];
-const YESSOD_ENCOUNTER_OMENS = ['a null choir hum beneath the wind', 'a sun-glyph burning in puddled rain', 'dust moving against gravity', 'a star-map carved into fresh mud overnight', 'footsteps that stop at an empty wall', 'a child voice reciting old reactor serials'];
+const YESSOD_ENCOUNTER_STRANGERS = ['Bone Oracle choir procession', 'ashen bell-keeper patrol', 'marrow interpreters with votive carts', 'Crucible guild caravan under oracle escort', 'Exiles lineage scouts seeking death ledgers', 'Luminous steppe nomads bearing rib standards'];
+const YESSOD_ENCOUNTER_OMENS = ['a null choir hum beneath the wind', 'a marrow glyph burning in puddled rain', 'dust moving against gravity around a skull cairn', 'a star-map carved into fresh mud overnight', 'footsteps that stop at an empty wall', 'a child voice reciting old reactor serials like liturgy'];
 
 function yessodCellId(row, col) {
   return (row * YESSOD_COLS) + col + 1;
@@ -15854,7 +15855,7 @@ function rollYessodEncounter() {
   let subject = wildlife;
   if (encounterKind === 'strangers') subject = strangers;
   if (encounterKind === 'mixed') subject = `${strangers} negotiating with ${wildlife.toLowerCase()}`;
-  const markerText = YESSOD_MARKER_DETAIL[cell.marker] || 'Uncatalogued district near old route stone.';
+  const markerText = YESSOD_MARKER_DETAIL[cell.marker] || 'Uncatalogued district near an old oracle route stone.';
   const result = `${cell.biome} (${(YESSOD_MARKERS[cell.marker] || YESSOD_MARKERS.wilderness).label}): Encounter ${subject}. Omen: ${omen}. ${markerText}`;
   state.lastEncounter = result;
   const out = document.getElementById('yessodEncounterResult');
@@ -15875,7 +15876,7 @@ function getYessodCellTerrainText(cell) {
   const featurePool = YESSOD_BIOME_FEATURE[biome] || ['abandoned route markers'];
   const markerLore = YESSOD_MARKER_DETAIL[cell.marker] || '';
   if (cell.marker === 'wilderness') {
-    return `Wilderness hex in ${biome}. Land: ${pick(landPool)}. Weather sign: ${pick(weatherPool)}. Feature: ${pick(featurePool)}.`;
+    return `Wilderness hex in ${biome}. Oracle read: Land ${pick(landPool)}. Weather sign ${pick(weatherPool)}. Omen feature ${pick(featurePool)}.`;
   }
   return `${cell.feature || 'Mapped site with limited data.'} ${markerLore}`.trim();
 }
@@ -15925,7 +15926,7 @@ function renderYessodPanel() {
       <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;">
         <div>
           <h3 style="margin:0;">Yessod</h3>
-          <div style="font-size:.8rem;color:var(--muted2);">12x12 Province-style hex map with Yessod-exclusive strata travel and weather.</div>
+          <div style="font-size:.8rem;color:var(--muted2);">12x12 Province-style hex map with Yessod-exclusive strata travel and weather, voiced through ${YESSOD_VOICE_LENS} lore.</div>
         </div>
         <div style="display:flex;gap:.25rem;flex-wrap:wrap;">
           <button class="btn btn-xs" onclick="rollYessodWeatherNow()">Roll Weather</button>

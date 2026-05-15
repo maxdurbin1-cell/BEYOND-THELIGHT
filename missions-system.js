@@ -336,14 +336,8 @@
   }
 
   function canShowEndgameDebugControls() {
-    try {
-      if (typeof window === 'undefined' || !window.campaignSystem || typeof window.campaignSystem.getState !== 'function') return true;
-      var state = window.campaignSystem.getState() || {};
-      if (state && state.code && String(state.role || '') !== 'gm') return false;
-      return true;
-    } catch (_err) {
-      return true;
-    }
+    // Endgame debug shortcuts are intentionally disabled in production gameplay.
+    return false;
   }
 
   function removeActivePinnacleMissionsForDebug() {

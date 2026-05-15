@@ -471,15 +471,6 @@ window.playCustomMusicFromSettings = function() {
   }
   
   function createSettingsPanel() {
-        // Add Escape key support to close settings
-        function escCloseHandler(evt) {
-          if (evt.key === 'Escape') {
-            window.settingsSystem.closeSettings();
-          }
-        }
-        document.addEventListener('keydown', escCloseHandler);
-        // Store handler for removal
-        container._escCloseHandler = escCloseHandler;
     const container = document.getElementById(SETTINGS_ID);
     if (!container) return;
     
@@ -1244,6 +1235,12 @@ window.playCustomMusicFromSettings = function() {
   function openSettings() {
     const container = document.getElementById(SETTINGS_ID);
     if (container) {
+      if (!container._escCloseHandler) {
+        container._escCloseHandler = function (evt) {
+          if (evt.key === 'Escape') closeSettings();
+        };
+        document.addEventListener('keydown', container._escCloseHandler);
+      }
       Settings.activeTab = 'general';
       syncGameModeUI();
       applySettingsTabVisibility();

@@ -523,14 +523,14 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-storyline" id="tabnav-storyline" onclick="switchTab('storyline',this)">Storyline</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-factions" id="tabnav-factions" onclick="switchTab('factions',this)">Factions</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-trophies" id="tabnav-trophies" onclick="switchTab('trophies',this)">Trophies</button>
-    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-raidtree" id="tabnav-raidtree" onclick="switchTab('raidtree',this)">Raid (Endgame)</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-raidtree" id="tabnav-raidtree" onclick="switchTab('endgame',document.getElementById('tabnav-endgame'))" style="display:none;">Raid (Endgame)</button>
     <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-missions" id="tabnav-missions" onclick="switchTab('missions',this)">Missions</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-endgame" id="tabnav-endgame" onclick="switchTab('endgame',this)">Endgame</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-map" id="tabnav-map" onclick="switchTab('map',this)">Province</button>
     <button class="tab-btn ctx-sea" role="tab" aria-selected="false" aria-controls="tab-lastsea" id="tabnav-lastsea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-galaxy" id="tabnav-galaxy" style="display:none;" onclick="switchTab('galaxy',this)">Galaxy</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-theos" id="tabnav-theos" onclick="switchTab('theos',this)">Theos Atlas</button>
-    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-worldthatwas" id="tabnav-worldthatwas" onclick="switchTab('worldthatwas',this)">World That Was</button>
+    <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-worldthatwas" id="tabnav-worldthatwas" onclick="switchTab('worldthatwas',this)">World That Was</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-planet" id="tabnav-planet" style="display:none;" onclick="switchTab('planet',this)">Planet Exploration</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-exocrafts" id="tabnav-exocrafts" style="display:none;" onclick="switchTab('exocrafts',this)">Exocrafts</button>
     <button class="tab-btn ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-naval" id="tabnav-naval" style="display:none;" onclick="switchTab('naval',this)">Ship</button>
@@ -567,9 +567,13 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 
 <!-- CHARACTER TAB -->
 <div class="tab-panel active" id="tab-character" role="tabpanel" aria-labelledby="tabnav-character" tabindex="0">
-  <section class="homepage-hero" aria-label="Overview">
+  <section class="homepage-hero" id="homepageHero" aria-label="Overview">
     <div class="hero-kicker">Beyond The Light</div>
     <h1 class="hero-title">A Living Sci-Fi Campaign Command Center</h1>
+    <div style="display:flex;justify-content:flex-end;">
+      <button id="heroCollapseBtn" class="btn btn-sm" onclick="toggleHeroOverview()" aria-expanded="true">Collapse Overview</button>
+    </div>
+    <div id="heroOverviewBody">
     <p class="hero-subheading">Run solo sagas or full group arcs with synced combat flow, faction pressure, mission progression, and persistent world consequences. The suite connects character building, narrative engines, map exploration, economy tracking, and GM control into one seamless play surface.</p>
     <div class="hero-cta-row">
       <button class="btn btn-primary" onclick="generateCharacter()">Generate Wayfarer</button>
@@ -582,6 +586,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
       <div class="hero-meta-card"><strong>Campaign Sync</strong><span>Shared progression for GM and players with live updates.</span></div>
       <div class="hero-meta-card"><strong>Combat Flow</strong><span>Fast action resolution, turn pacing, and encounter control.</span></div>
       <div class="hero-meta-card"><strong>Story Systems</strong><span>Factions, rivals, missions, arcs, and long-term consequences.</span></div>
+    </div>
     </div>
   </section>
   <div class="char-top">
@@ -1592,7 +1597,12 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 
 <!-- RAID TREE TAB -->
 <div class="tab-panel" id="tab-raidtree">
-  <div id="raidTreePanel"></div>
+  <div style="padding:.7rem;color:var(--muted2);font-size:.82rem;">
+    Raid Skill Tree moved to the Endgame tab.
+    <div style="margin-top:.4rem;">
+      <button class="btn btn-sm" onclick="switchTab('endgame',document.getElementById('tabnav-endgame'))">Open Endgame</button>
+    </div>
+  </div>
 </div>
 
 <!-- MISSIONS TAB -->
@@ -1649,6 +1659,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 
 <!-- ENDGAME TAB -->
 <div class="tab-panel" id="tab-endgame">
+  <div id="raidTreePanel" style="padding:.5rem .5rem 0 .5rem;"></div>
   <div id="endgameTrackerTabContainer" style="padding:.5rem;"></div>
 </div>
 </main>
@@ -12128,10 +12139,20 @@ function setContext(ctx,btn){
     if(typeof renderNaval==='function') setTimeout(renderNaval,0);
     if(typeof applySpaceNavalPresentation==='function') setTimeout(applySpaceNavalPresentation,0);
   }
-  // Always ensure World That Was tab is visible regardless of context.
-  var wtwBtn=document.getElementById('tabnav-worldthatwas');
-  if(wtwBtn&&wtwBtn.style.display==='none') wtwBtn.style.display='';
 }
+function toggleHeroOverview(forceState){
+  var wrap=document.getElementById('heroOverviewBody');
+  var btn=document.getElementById('heroCollapseBtn');
+  if(!wrap||!btn)return;
+  var next=typeof forceState==='boolean'?!!forceState:(wrap.style.display==='none');
+  wrap.style.display=next?'':'none';
+  btn.textContent=next?'Collapse Overview':'Expand Overview';
+  btn.setAttribute('aria-expanded',next?'true':'false');
+  try{localStorage.setItem('beyond-hero-expanded',next?'1':'0');}catch(_err){}
+}
+try{
+  if(localStorage.getItem('beyond-hero-expanded')==='0')toggleHeroOverview(false);
+}catch(_err){}
 function ensureMapClickMode(){
   if(!S.mapClickMode)S.mapClickMode='travel';
   if(['travel','inspect','fog'].indexOf(String(S.mapClickMode))<0)S.mapClickMode='travel';

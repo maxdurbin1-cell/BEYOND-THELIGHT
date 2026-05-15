@@ -15507,14 +15507,25 @@ function openActivePlanetMap() {
 const YESSOD_ROWS = 12;
 const YESSOD_COLS = 12;
 const YESSOD_WEATHER = [
-  { name: 'Amber Dust Front', desc: 'Fine conductive dust coats optics and joints.', dd: 6, failure: 'Gain 1 Stress from sensory overload.' },
-  { name: 'Mirror Rain', desc: 'Glassy rain sheets distort depth and horizon.', dd: 8, failure: 'Travel stalls and consumes an extra phase.' },
-  { name: 'Hollow Wind', desc: 'Subsonic wind carries fragmented memory echoes.', dd: 8, failure: 'Gain 1 Trauma from disorientation.' },
-  { name: 'Silent Interval', desc: 'A still weather pocket with stable visibility.', dd: 0, failure: '' },
-  { name: 'Lumen Squall', desc: 'Charged streaks arc between exposed structures.', dd: 10, failure: 'Take 2 Health damage from arc flash.' },
-  { name: 'Ash Bloom', desc: 'Bioluminescent spores cloud the sky in drifting plumes.', dd: 6, failure: 'Suffer -1 on next scouting check.' },
+  { name: 'Sundering Dust Front', desc: 'Copper-red dust from old reactor basins turns the horizon into a bruise under the dying sun.', dd: 6, failure: 'Gain 1 Stress from sensory overload and static hallucinations.' },
+  { name: 'Mirror Rain', desc: 'Laminar rain forms reflective sheets that show false roads and false companions.', dd: 8, failure: 'Travel stalls and consumes an extra phase following phantom trails.' },
+  { name: 'Hollow Wind', desc: 'A low wind carries voices that sound like exiles calling from beyond the Barrier.', dd: 8, failure: 'Gain 1 Trauma from disorientation and memory bleed.' },
+  { name: 'Warden Interval', desc: 'Calm pressure and clear light. Old survey towers hum as if still receiving orders.', dd: 0, failure: '' },
+  { name: 'Lumen Squall', desc: 'Needle-thin arcs jump between iron mangroves and skyway braces.', dd: 10, failure: 'Take 2 Health damage from arc flash and scorched gear.' },
+  { name: 'Ash Bloom', desc: 'Bioluminescent spores rise from fungal gullies and drift like funeral lanterns.', dd: 6, failure: 'Suffer -1 on next scouting check from spore haze.' },
+  { name: 'Oracle Nightfall', desc: 'The sky goes star-black at midday and every footprint glows for a heartbeat.', dd: 9, failure: 'Lose route confidence; next travel also requires a check.' },
 ];
-const YESSOD_BIOMES = ['Shale Gardens', 'Resin Flats', 'Iron Mangroves', 'Pale Basin', 'Spire Barrens', 'Salt Ember Fields'];
+const YESSOD_BIOMES = [
+  'Shale Gardens',
+  'Resin Flats',
+  'Iron Mangroves',
+  'Pale Basin',
+  'Spire Barrens',
+  'Salt Ember Fields',
+  'Luminous Steppe Verge',
+  'Barrier Scar Wetlands',
+  'Ashglass Terraces',
+];
 const YESSOD_STRATA = ['Pale Verge', 'Ash Layer', 'Resonant Shelf', 'Vaulted Mist', 'Titan Span', 'Noctis Crown'];
 const YESSOD_MARKERS = {
   wilderness: { label: 'Wilderness', color: '#5d6d7f', glyph: '' },
@@ -15530,6 +15541,63 @@ const YESSOD_MARKERS = {
   lift: { label: 'Layer Lift', color: '#7bd7c0', glyph: '⇅' },
   barrier: { label: 'Barrier', color: '#8a5b5b', glyph: '⛝' },
 };
+const YESSOD_HOLDING_TITLES = ['March Warden Keep', 'Censer Bastion', 'Glass Relay Fort', 'Sable Gate Hold'];
+const YESSOD_DWELLING_FLAVOR = ['reed-plated stilt homes over blackwater', 'fused ceramic blocks stacked around heat vents', 'courtyard warrens lit by bone-oil lamps', 'hanging nests tied to old comm towers'];
+const YESSOD_TEMPLE_FLAVOR = ['Solar cult ossuary with brass prayer rings', 'Bone Oracle archive humming with marrow chimes', 'Barrier Warden shrine warded by burnt sigils', 'Gifted cloister where novices map omen-dreams'];
+const YESSOD_RUIN_FLAVOR = ['a collapsed transit vault from the World That Was', 'an irradiated data foundry sealed with guild marks', 'a drowned reactor cloister full of mirror algae', 'an exiles-era relay corridor threaded with rust vines'];
+const YESSOD_PERIL_FLAVOR = ['mutagen sinkhole where the ground breathes', 'raider gauntlet ruled by a scavenger covenant', 'electromagnetic gorge that erases nav marks', 'predator nursery of shard-jawed carrion hounds'];
+const YESSOD_GATE_FLAVOR = ['orbital transfer arch keyed to dead stars', 'Barrier transit ring with unstable harmonics', 'sunward aperture that opens only during stormfronts'];
+const YESSOD_LIFT_FLAVOR = ['counterweight shaft wrapped in chain and prayer cloth', 'grav-lift spine repaired by Crucible guild steel', 'ancient service elevator now run by warden tolls'];
+const YESSOD_BARRIER_FLAVOR = ['warden checkpoint with marrow-lit pylons', 'collapsed veil-wall where light behaves like water', 'sealed border trench patrolled by relic drones'];
+const YESSOD_BIOME_LAND = {
+  'Shale Gardens': ['layered black shale terraces', 'knife-leaf gardens rooted in mineral cracks'],
+  'Resin Flats': ['amber resin pans and sticky channels', 'hardened flats with fossilized reed forests'],
+  'Iron Mangroves': ['metal-barked mangrove thickets', 'oxide roots braided over shallow brine'],
+  'Pale Basin': ['chalk basins dusted in luminous pollen', 'salt-smooth depressions under thin fog'],
+  'Spire Barrens': ['needle spires of fused ceramic', 'wind-carved pylons from an older city'],
+  'Salt Ember Fields': ['ember-red salt crusts', 'smoking mineral furrows warmed from below'],
+  'Luminous Steppe Verge': ['radiant grasses around old survey stones', 'open plains lit by bioluminescent seed heads'],
+  'Barrier Scar Wetlands': ['acid marsh cut by barrier fissures', 'reed bogs that whisper in static'],
+  'Ashglass Terraces': ['volcanic glass shelves and cinder stairs', 'fractured terraces reflecting false skylines'],
+};
+const YESSOD_BIOME_WEATHER = {
+  'Shale Gardens': ['razor-edged grit gusts', 'low thunder rolling through terraces'],
+  'Resin Flats': ['heat shimmer and tar rain', 'sticky haze that traps sound'],
+  'Iron Mangroves': ['electrostatic drizzle', 'metallic fog with iron taste'],
+  'Pale Basin': ['chalk mist and white rain', 'echoing calm broken by distant sirens'],
+  'Spire Barrens': ['spire howl crosswinds', 'needle rain from brittle crowns'],
+  'Salt Ember Fields': ['ember gusts and dry lightning', 'sulfur haze drifting near ground'],
+  'Luminous Steppe Verge': ['glow pollen squalls', 'clear wind with sudden pressure drops'],
+  'Barrier Scar Wetlands': ['veil-fog and static drizzle', 'bursts of warm rain over cold mud'],
+  'Ashglass Terraces': ['glass-dust shear winds', 'mirror rain over obsidian shelves'],
+};
+const YESSOD_BIOME_FEATURE = {
+  'Shale Gardens': ['spiral cairns left by pilgrim surveyors', 'half-buried wardstones with sun glyphs'],
+  'Resin Flats': ['resin harvest rigs run by masked crews', 'frozen footprints that do not match any known species'],
+  'Iron Mangroves': ['ward bell lines between metal roots', 'drowned skiffs used by ferrymen of Lethe'],
+  'Pale Basin': ['oracle mirrors mounted on bone frames', 'decommissioned weather pylons still blinking'],
+  'Spire Barrens': ['hanging bridges to nowhere', 'ruined signal crowns from exiles-era relays'],
+  'Salt Ember Fields': ['ember pits used for oath rituals', 'charred boundary stones of old province claims'],
+  'Luminous Steppe Verge': ['gift-marked standing stones', 'nomad wind tents circling at dusk'],
+  'Barrier Scar Wetlands': ['broken veil anchors humming underwater', 'warden masks hung as warning to trespassers'],
+  'Ashglass Terraces': ['collapsed observatory stairs', 'melted statues from the Sundering years'],
+};
+const YESSOD_MARKER_DETAIL = {
+  seat: 'Seat district where Warden councils, oracle envoys, and guild stewards bargain for control of Yessod routes.',
+  holding: 'Holding garrison keeps tariffs, route law, and emergency shelter for caravans crossing storm months.',
+  dwelling: 'Dense dwelling quarter where ferrymen, scavengers, and shrine-keepers trade food, rumors, and relic maps.',
+  temple: 'Temple quarter devoted to New Sun liturgies, marrow divination, and Gift discipline rites.',
+  monument: 'Monument corridor marking old skyway and migration vows etched after the Exile.',
+  peril: 'Peril zone where weather fronts, predators, and unstable relic systems stack into lethal terrain.',
+  ruins: 'Ruin field from the World That Was, half-swallowed by ashglass and fungal growth.',
+  gate: 'Gate complex with intermittent star-linked transit behavior and strict Warden quarantine practice.',
+  lost_city: 'Submerged civic tier called the Drowned Ledger, rumored to hold pre-Sundering census cores.',
+  lift: 'Layer lift node linking strata by chain towers and grav engines older than current kingdoms.',
+  barrier: 'Barrier scar perimeter where veil fractures produce false echoes and temporal drift.',
+};
+const YESSOD_ENCOUNTER_WILDLIFE = ['Mirror Jackal pack', 'Shard Stag matriarch', 'Iron-wing Vulture swarm', 'Glass Eel bloom', 'Ashback Tortoise', 'Rift Lynx'];
+const YESSOD_ENCOUNTER_STRANGERS = ['Solar Cult procession', 'Barrier Warden patrol', 'Bone Oracle listeners', 'Crucible guild caravan', 'Exiles lineage scouts', 'Luminous steppe nomads'];
+const YESSOD_ENCOUNTER_OMENS = ['a null choir hum beneath the wind', 'a sun-glyph burning in puddled rain', 'dust moving against gravity', 'a star-map carved into fresh mud overnight', 'footsteps that stop at an empty wall', 'a child voice reciting old reactor serials'];
 
 function yessodCellId(row, col) {
   return (row * YESSOD_COLS) + col + 1;
@@ -15623,46 +15691,47 @@ function createYessodState() {
   if (center) {
     center.marker = 'seat';
     center.explored = true;
-    center.feature = 'Seat of Yessod governance and ritual observatories.';
+    center.feature = 'Seat of Yessod governance, marrow courts, and ritual observatories under the dying sun.';
   }
 
   const holdings = yessodTakeRandomCells(state, 3, (cell) => Math.abs(cell.row - 5) > 1 || Math.abs(cell.col - 5) > 1);
   holdings.forEach((cell, idx) => {
     cell.marker = 'holding';
-    cell.feature = `Holding ${idx + 1}: a fortified strata outpost.`;
+    const title = YESSOD_HOLDING_TITLES[idx % YESSOD_HOLDING_TITLES.length];
+    cell.feature = `${title}: fortified strata outpost commanding weather lanes and toll roads.`;
   });
 
   yessodTakeRandomCells(state, 9).forEach((cell) => {
     cell.marker = 'dwelling';
-    cell.feature = 'Clustered dwellings wrapped in plated reeds.';
+    cell.feature = `Dwelling cluster of ${pick(YESSOD_DWELLING_FLAVOR)}.`;
   });
   yessodTakeRandomCells(state, 6).forEach((cell) => {
     cell.marker = 'temple';
-    cell.feature = 'Temple archive etched with harmonic runes.';
+    cell.feature = `${pick(YESSOD_TEMPLE_FLAVOR)}.`;
   });
   yessodTakeRandomCells(state, 8).forEach((cell) => {
     cell.marker = 'ruins';
-    cell.feature = 'Ruined civil tier from an earlier age.';
+    cell.feature = `Ruins: ${pick(YESSOD_RUIN_FLAVOR)}.`;
   });
   yessodTakeRandomCells(state, 6).forEach((cell) => {
     cell.marker = 'peril';
-    cell.feature = 'Hostile zone where weather and fauna become lethal.';
+    cell.feature = `Peril: ${pick(YESSOD_PERIL_FLAVOR)}.`;
   });
   yessodTakeRandomCells(state, 3).forEach((cell) => {
     cell.marker = 'gate';
-    cell.feature = 'Gate node linked to far orbital corridors.';
+    cell.feature = `Gate node: ${pick(YESSOD_GATE_FLAVOR)}.`;
   });
   yessodTakeRandomCells(state, 3).forEach((cell) => {
     cell.marker = 'lift';
-    cell.feature = 'Vertical lift between Yessod strata.';
+    cell.feature = `Layer lift: ${pick(YESSOD_LIFT_FLAVOR)}.`;
   });
   yessodTakeRandomCells(state, 1).forEach((cell) => {
     cell.marker = 'lost_city';
-    cell.feature = 'A submerged lost city beneath mirrored stone.';
+    cell.feature = 'Lost city vault drowned beneath mirrored stone and sealed ward archives.';
   });
   yessodTakeRandomCells(state, 10).forEach((cell) => {
     cell.marker = 'barrier';
-    cell.feature = 'Barrier wall and controlled checkpoint.';
+    cell.feature = `Barrier scar: ${pick(YESSOD_BARRIER_FLAVOR)}.`;
   });
 
   if (holdings.length >= 2) {
@@ -15778,10 +15847,15 @@ function rollYessodEncounter() {
   const state = ensureYessodState();
   const cell = yessodGetCell(state, state.selectedCellId);
   if (!cell) return;
-  const wildlife = pick(['Mirror Jackals', 'Shard Stags', 'Iron-wing Vultures', 'Glass Eels']);
-  const strangers = pick(['Yessod pilgrims', 'Skyway couriers', 'Barrier wardens', 'Ruin salvagers']);
-  const omen = pick(['a null choir hum', 'a collapsing lumen halo', 'dust that moves against the wind', 'a star-map carved into wet stone']);
-  const result = `${cell.biome}: Encounter ${pick([wildlife, strangers])}; omen: ${omen}.`;
+  const encounterKind = pick(['wildlife', 'strangers', 'mixed']);
+  const wildlife = pick(YESSOD_ENCOUNTER_WILDLIFE);
+  const strangers = pick(YESSOD_ENCOUNTER_STRANGERS);
+  const omen = pick(YESSOD_ENCOUNTER_OMENS);
+  let subject = wildlife;
+  if (encounterKind === 'strangers') subject = strangers;
+  if (encounterKind === 'mixed') subject = `${strangers} negotiating with ${wildlife.toLowerCase()}`;
+  const markerText = YESSOD_MARKER_DETAIL[cell.marker] || 'Uncatalogued district near old route stone.';
+  const result = `${cell.biome} (${(YESSOD_MARKERS[cell.marker] || YESSOD_MARKERS.wilderness).label}): Encounter ${subject}. Omen: ${omen}. ${markerText}`;
   state.lastEncounter = result;
   const out = document.getElementById('yessodEncounterResult');
   if (out) out.textContent = result;
@@ -15795,10 +15869,15 @@ function rollYessodWeatherNow() {
 
 function getYessodCellTerrainText(cell) {
   if (!cell) return 'No cell selected.';
+  const biome = String(cell.biome || 'Shale Gardens');
+  const landPool = YESSOD_BIOME_LAND[biome] || ['fractured shelf terrain'];
+  const weatherPool = YESSOD_BIOME_WEATHER[biome] || ['dust-laced crosswinds'];
+  const featurePool = YESSOD_BIOME_FEATURE[biome] || ['abandoned route markers'];
+  const markerLore = YESSOD_MARKER_DETAIL[cell.marker] || '';
   if (cell.marker === 'wilderness') {
-    return `Wilderness hex. Land: ${pick(['fractured shale shelves', 'resin marsh corridors', 'obsidian ridges'])}. Weather: ${pick(['crosswind dust', 'silent rain bands', 'hollow thunder'])}. Feature: ${pick(['nomad cairns', 'broken scan pylons', 'drifting fungal lanterns'])}.`;
+    return `Wilderness hex in ${biome}. Land: ${pick(landPool)}. Weather sign: ${pick(weatherPool)}. Feature: ${pick(featurePool)}.`;
   }
-  return cell.feature || 'Mapped site with limited data.';
+  return `${cell.feature || 'Mapped site with limited data.'} ${markerLore}`.trim();
 }
 
 function renderYessodPanel() {

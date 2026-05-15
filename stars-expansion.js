@@ -15583,6 +15583,42 @@ const YESSOD_BIOME_FEATURE = {
   'Barrier Scar Wetlands': ['broken veil anchors humming underwater', 'ashen masks hung as warning to trespassers'],
   'Ashglass Terraces': ['collapsed observatory stairs', 'melted statues from the Sundering years'],
 };
+const YESSOD_REACH_NAMES = [
+  'Rosegrove Reach',
+  'Cinderwake Reach',
+  'Lantern Mire',
+  'Bellwater Span',
+  'Ashward Verge',
+  'Ossuary Steps',
+  'Glasswake Crown',
+  'Marrow Fen',
+  'Warden Reeds',
+  'Sunless Causeway',
+  'Shale Choir',
+  'Noctis Drift',
+];
+const YESSOD_BIOME_FLORA_FAUNA = {
+  'Shale Gardens': 'Green reclamation is sparse among knife-leaf terraces; feral pack beasts stalk old irrigation cuts.',
+  'Resin Flats': 'Resin-eel nests and carrion moths cluster around amber pools and cracked thermal vents.',
+  'Iron Mangroves': 'Metal-root mangroves host iron gulls, marsh jackals, and eel swarms in conductive tides.',
+  'Pale Basin': 'Pollen reeds and chalk fungi spread slowly while blind basin deer move in silent herds.',
+  'Spire Barrens': 'Spire lichen clings to ceramic needles; vulture swarms and shard lynx rule the updrafts.',
+  'Salt Ember Fields': 'Ash grass and ember moss survive in salt furrows while carrion hounds trail heat seams.',
+  'Luminous Steppe Verge': 'Radiant grasses attract nomad herds and glow-wings that pulse at dusk.',
+  'Barrier Scar Wetlands': 'Static reeds and veil-moss choke marsh lanes where ferrymen breed mud skiffs.',
+  'Ashglass Terraces': 'Glass fern and soot bloom hold to cinder steps; mirror eels drift through runoff channels.',
+};
+const YESSOD_BIOME_WONDERS = {
+  'Shale Gardens': 'A tower of interlocked bone ribs that hums when storm fronts approach.',
+  'Resin Flats': 'A suspended road of fossilized resin, unbroken despite centuries of quake and war.',
+  'Iron Mangroves': 'A shrine grown into a mangrove crown, lit by bells that ring without wind.',
+  'Pale Basin': 'An observatory mirror that reflects starfields unseen from the Yessod sky.',
+  'Spire Barrens': 'A vertical city-face carved into fused ceramic, every window sealed from inside.',
+  'Salt Ember Fields': 'A black monolith warm to the touch, etched with names of the Exile dead.',
+  'Luminous Steppe Verge': 'Standing stones that glow in sequence, mapping routes no chart remembers.',
+  'Barrier Scar Wetlands': 'A half-sunken gate frame where rain falls upward for a single breath each dusk.',
+  'Ashglass Terraces': 'A mirrored amphitheater that repeats spoken words as prophecy at nightfall.',
+};
 const YESSOD_MARKER_DETAIL = {
   seat: 'Seat district where Bone Oracle choirs read marrow signs and direct Yessod travel by omen law.',
   holding: 'Holding garrison where oracle-captains levy tolls, issue weather rites, and shelter caravans.',
@@ -15602,6 +15638,38 @@ const YESSOD_ENCOUNTER_OMENS = ['a null choir hum beneath the wind', 'a marrow g
 
 function yessodCellId(row, col) {
   return (row * YESSOD_COLS) + col + 1;
+}
+
+function yessodStablePick(list, cell, salt) {
+  const arr = Array.isArray(list) ? list : [];
+  if (!arr.length) return '';
+  const s = Number(salt || 0);
+  const id = Number(cell && cell.id || 1);
+  const idx = Math.abs((id * 131) + (s * 17) + (id % 7)) % arr.length;
+  return arr[idx];
+}
+
+function yessodGetSeason() {
+  const season = String((S && S.currentSeason) || 'spring').toLowerCase();
+  if (season === 'harvest' || season === 'winter' || season === 'spring') return season;
+  return 'spring';
+}
+
+function yessodWeatherResultLabel(weather) {
+  if (!weather || Number(weather.dd || 0) <= 0) return 'CLEAR AND WARM';
+  if (Number(weather.dd || 0) <= 6) return 'WIND-LASHED';
+  if (Number(weather.dd || 0) <= 8) return 'ROUGH FRONT';
+  return 'SEVERE STORM';
+}
+
+function yessodTerrainLabel(cell) {
+  if (!cell) return 'Wilderness';
+  if (cell.marker === 'seat' || cell.marker === 'holding' || cell.marker === 'dwelling') return 'City';
+  if (cell.marker === 'temple') return 'Temple District';
+  if (cell.marker === 'ruins') return 'Ruin District';
+  if (cell.marker === 'gate') return 'Gate District';
+  if (cell.marker === 'peril' || cell.marker === 'barrier') return 'Hazard Zone';
+  return (YESSOD_MARKERS[cell.marker] || YESSOD_MARKERS.wilderness).label;
 }
 
 function yessodGetCell(state, id) {
@@ -15665,6 +15733,7 @@ function createYessodState() {
         row,
         col,
         marker: 'wilderness',
+        reachName: pick(YESSOD_REACH_NAMES),
         biome: pick(YESSOD_BIOMES),
         skyway: false,
         titanpath: false,
@@ -15858,8 +15927,31 @@ function rollYessodEncounter() {
   const markerText = YESSOD_MARKER_DETAIL[cell.marker] || 'Uncatalogued district near an old oracle route stone.';
   const result = `${cell.biome} (${(YESSOD_MARKERS[cell.marker] || YESSOD_MARKERS.wilderness).label}): Encounter ${subject}. Omen: ${omen}. ${markerText}`;
   state.lastEncounter = result;
-  const out = document.getElementById('yessodEncounterResult');
-  if (out) out.textContent = result;
+  const out = document.getElementById('yessodEncResult');
+  if (out) out.innerHTML = `<div class="venture-result"><div class="vr-type">Encounter</div>${result}</div>`;
+}
+
+function rollYessodObserveAdjacent() {
+  const state = ensureYessodState();
+  const cell = yessodGetCell(state, state.selectedCellId);
+  if (!cell) return;
+  const signs = pick([
+    'you spot lantern smoke one hex away',
+    'fresh marrow sigils mark a nearby crossing',
+    'predator spoor tracks toward a hidden lane',
+    'an old skyway span is visible through the haze',
+  ]);
+  state.lastEncounter = `Observation success: ${signs}.`;
+  const out = document.getElementById('yessodEncResult');
+  if (out) out.innerHTML = `<div class="venture-result"><div class="vr-type">Observation</div>${state.lastEncounter}</div>`;
+}
+
+function setYessodHexNote(cellId, value) {
+  const state = ensureYessodState();
+  const cell = yessodGetCell(state, cellId);
+  if (!cell) return;
+  cell.note = String(value || '');
+  renderYessodMap();
 }
 
 function rollYessodWeatherNow() {
@@ -15881,37 +15973,89 @@ function getYessodCellTerrainText(cell) {
   return `${cell.feature || 'Mapped site with limited data.'} ${markerLore}`.trim();
 }
 
+function renderYessodMap() {
+  const state = ensureYessodState();
+  const svg = document.getElementById('yessodMapSvg');
+  if (!svg) return;
+  const width = 760;
+  const height = 660;
+  svg.setAttribute('width', String(width));
+  svg.setAttribute('height', String(height));
+  const size = 29;
+  const xStep = size * 1.74;
+  const yStep = size * 1.5;
+  const baseX = 45;
+  const baseY = 42;
+  const hexes = state.cells.map((cell) => {
+    const x = baseX + (cell.col * xStep) + ((cell.row % 2) * (xStep * 0.5));
+    const y = baseY + (cell.row * yStep);
+    const pts = hexPointsSVG(x, y, size - 1.2);
+    const marker = YESSOD_MARKERS[cell.marker] || YESSOD_MARKERS.wilderness;
+    const border = cell.id === state.selectedCellId ? '#ffffff' : '#2f4156';
+    const noteDot = cell.note
+      ? `<circle cx="${x + (size * .56)}" cy="${y - (size * .54)}" r="4" fill="var(--teal)" pointer-events="none"></circle>`
+      : '';
+    return `<g onclick="selectYessodCell(${cell.id})" style="cursor:pointer;">
+      <polygon points="${pts}" fill="${marker.color}" fill-opacity="${cell.explored ? '0.9' : '0.58'}" stroke="${border}" stroke-width="${cell.id === state.selectedCellId ? '2' : '1'}"></polygon>
+      ${cell.skyway ? `<circle cx="${x - 10}" cy="${y - 10}" r="3" fill="#f1d17a" pointer-events="none"></circle>` : ''}
+      ${cell.titanpath ? `<circle cx="${x + 10}" cy="${y - 10}" r="3" fill="#d78be7" pointer-events="none"></circle>` : ''}
+      ${noteDot}
+      <text x="${x}" y="${y + 4}" text-anchor="middle" font-size="10" fill="#101625" pointer-events="none">${marker.glyph || ''}</text>
+    </g>`;
+  }).join('');
+  svg.innerHTML = hexes;
+}
+
+function renderYessodHexInfo(cell) {
+  const state = ensureYessodState();
+  const host = document.getElementById('yessodHexInfo');
+  if (!host || !cell) return;
+  const season = yessodGetSeason();
+  const weather = state.currentWeather || rollYessodWeather(state);
+  const seasonLabel = season.charAt(0).toUpperCase() + season.slice(1);
+  const terrainLabel = yessodTerrainLabel(cell);
+  const biome = String(cell.biome || 'Shale Gardens');
+  const landPool = YESSOD_BIOME_LAND[biome] || ['fractured shelf terrain'];
+  const floraFauna = YESSOD_BIOME_FLORA_FAUNA[biome] || 'Wildlife signatures remain unstable and difficult to classify.';
+  const wonder = YESSOD_BIOME_WONDERS[biome] || 'A relic skyline that does not match any surviving chart.';
+  const encounterHtml = state.lastEncounter
+    ? `<div class="venture-result"><div class="vr-type">Encounter</div>${state.lastEncounter}</div>`
+    : '';
+
+  host.innerHTML = `<div class="hex-info-inner">
+    <div class="hex-type-tag ${cell.marker}">${(YESSOD_MARKERS[cell.marker] || YESSOD_MARKERS.wilderness).label.toUpperCase()}</div>
+    <div class="hex-name">${terrainLabel}</div>
+    <div class="hex-desc" style="margin-bottom:.4rem;">${terrainLabel} terrain · ${cell.reachName || 'Yessod Reach'}</div>
+
+    <div class="weather-block ${Number(weather.dd || 0) > 0 ? 'rough' : 'clear'}">
+      <div class="weather-label" style="color:${Number(weather.dd || 0) > 0 ? 'var(--red2)' : 'var(--teal)'};">🌦 ${seasonLabel} Weather: ${yessodWeatherResultLabel(weather)}</div>
+      <div style="font-size:.8rem;color:var(--text2);">${weather.desc}</div>
+      ${Number(weather.dd || 0) > 0 ? `<div style="font-size:.78rem;color:var(--red);margin-top:.2rem;">⚠ Mind or Survival vs DD${weather.dd}. Failure: ${weather.failure}</div>` : ''}
+    </div>
+
+    <div class="wild-panel"><div class="wp-label">🌍 Land</div><div class="wp-text">${yessodStablePick(landPool, cell, 1)}</div></div>
+    <div class="wild-panel"><div class="wp-label">🌿 Flora & Fauna</div><div class="wp-text">${floraFauna}</div></div>
+    <div class="wild-panel"><div class="wp-label">✦ Wonder</div><div class="wp-text">${wonder}</div></div>
+
+    <div class="hex-primary-actions">
+      <button class="btn btn-sm btn-gold" onclick="rollYessodObserveAdjacent()">🔍 Observe Adjacent (Lead vs DD6)</button>
+      <button class="btn btn-sm btn-teal" onclick="rollYessodEncounter()">⚄ Roll Encounter</button>
+    </div>
+    <div id="yessodEncResult">${encounterHtml}</div>
+
+    <div style="margin-top:.5rem;border-top:1px solid var(--border);padding-top:.5rem;">
+      <div class="sub-label">📝 Hex Notes</div>
+      <textarea class="notes-area" placeholder="Add notes for this hex…" onchange="setYessodHexNote(${cell.id},this.value)">${cell.note || ''}</textarea>
+    </div>
+  </div>`;
+}
+
 function renderYessodPanel() {
   const host = document.getElementById('tab-yessod');
   if (!host) return;
   const state = ensureYessodState();
   syncYessodTabVisibility();
   const selected = yessodGetCell(state, state.selectedCellId) || state.cells[0];
-  const size = 18;
-  const xStep = size * 1.72;
-  const yStep = size * 1.45;
-  const baseX = 56;
-  const baseY = 56;
-  const width = Math.ceil(baseX * 2 + (YESSOD_COLS * xStep) + 30);
-  const height = Math.ceil(baseY * 2 + (YESSOD_ROWS * yStep) + 30);
-
-  const hexes = state.cells.map((cell) => {
-    const x = baseX + (cell.col * xStep) + ((cell.row % 2) * (xStep * 0.5));
-    const y = baseY + (cell.row * yStep);
-    const pts = hexPointsSVG(x, y, size - 1.5);
-    const marker = YESSOD_MARKERS[cell.marker] || YESSOD_MARKERS.wilderness;
-    const border = cell.id === state.selectedCellId ? '#ffffff' : (cell.explored ? '#2f4156' : '#1e2633');
-    const glyph = marker.glyph || '';
-    const label = cell.id;
-    return `<g onclick="selectYessodCell(${cell.id})" style="cursor:pointer;">
-      <polygon points="${pts}" fill="${marker.color}" fill-opacity="${cell.explored ? '0.86' : '0.56'}" stroke="${border}" stroke-width="${cell.id === state.selectedCellId ? '2' : '1'}"></polygon>
-      ${cell.skyway ? `<circle cx="${x - 9}" cy="${y - 10}" r="3" fill="#f1d17a"></circle>` : ''}
-      ${cell.titanpath ? `<circle cx="${x + 10}" cy="${y - 10}" r="3" fill="#d78be7"></circle>` : ''}
-      ${glyph ? `<text x="${x}" y="${y + 4}" text-anchor="middle" font-size="11" fill="#111622">${glyph}</text>` : ''}
-      <text x="${x}" y="${y + 15}" text-anchor="middle" font-size="8" fill="#dfe7f4">${label}</text>
-    </g>`;
-  }).join('');
-
   const weather = state.currentWeather || rollYessodWeather(state);
   const strataName = YESSOD_STRATA[Math.max(0, Math.min(YESSOD_STRATA.length - 1, Number(state.currentStrata || 1) - 1))];
   const travelOptions = [
@@ -15922,40 +16066,41 @@ function renderYessodPanel() {
   ];
 
   host.innerHTML = `
-    <div class="card" style="display:grid;gap:.5rem;">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;">
-        <div>
-          <h3 style="margin:0;">Yessod</h3>
-          <div style="font-size:.8rem;color:var(--muted2);">12x12 Province-style hex map with Yessod-exclusive strata travel and weather, voiced through ${YESSOD_VOICE_LENS} lore.</div>
-        </div>
-        <div style="display:flex;gap:.25rem;flex-wrap:wrap;">
-          <button class="btn btn-xs" onclick="rollYessodWeatherNow()">Roll Weather</button>
-          <button class="btn btn-xs btn-teal" onclick="rollYessodEncounter()">Roll Encounter</button>
-          <button class="btn btn-xs" onclick="shiftYessodStrata(-1)">Strata -</button>
-          <button class="btn btn-xs" onclick="shiftYessodStrata(1)">Strata +</button>
-        </div>
+    <div class="map-controls">
+      <button class="btn btn-sm" onclick="rollYessodWeatherNow()">Roll Weather</button>
+      <button class="btn btn-sm" onclick="shiftYessodStrata(-1)">Strata -</button>
+      <button class="btn btn-sm" onclick="shiftYessodStrata(1)">Strata +</button>
+      <span style="color:var(--muted);font-size:.6rem;margin:0 .3rem;">|</span>
+      <label style="font-size:.75rem;color:var(--muted2);">Travel Method
+        <select onchange="setYessodTravelMethod(this.value)" style="margin-left:.3rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
+          ${travelOptions.map((opt) => `<option value="${opt.value}" ${state.travelMethod === opt.value ? 'selected' : ''}>${opt.label}</option>`).join('')}
+        </select>
+      </label>
+      <span style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--gold2);margin-left:.4rem;">Yessod · ${YESSOD_VOICE_LENS}</span>
+      <span style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--teal);margin-left:.4rem;">Strata ${state.currentStrata} · ${strataName}</span>
+      <span style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--muted2);margin-left:.4rem;">Weather: ${weather.name}</span>
+    </div>
+    <div class="map-legend">
+      <div class="leg-item"><div class="leg-dot" style="background:#f3cc78;border:1px solid #e8c050;"></div>Seat</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#6fb6a0;"></div>Holding</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#86a7d9;"></div>Dwelling</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#d58fe2;"></div>Temple</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#c7a07a;"></div>Monument</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#d96b6b;"></div>Peril</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#a1846e;"></div>Ruins</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#7ed2e6;"></div>Gate</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#9d9dc8;"></div>Lost City</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#8a5b5b;"></div>Barrier</div>
+    </div>
+    <div class="map-layout">
+      <div class="map-scroll">
+        <svg id="yessodMapSvg" width="760" height="660" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>
-
-      <div style="display:grid;grid-template-columns:1fr;gap:.45rem;">
-        <div style="font-size:.8rem;color:var(--text2);">Current Strata: <strong>${state.currentStrata}</strong> (${strataName}) | Weather: <strong>${weather.name}</strong></div>
-        <div style="font-size:.76rem;color:var(--muted2);">${weather.desc} ${weather.dd > 0 ? `Travel check: Mind or Survival vs DD${weather.dd}. Failure: ${weather.failure}` : 'No travel check required.'}</div>
-        <label style="font-size:.75rem;color:var(--muted2);">Travel Method
-          <select onchange="setYessodTravelMethod(this.value)" style="margin-left:.3rem;">
-            ${travelOptions.map((opt) => `<option value="${opt.value}" ${state.travelMethod === opt.value ? 'selected' : ''}>${opt.label}</option>`).join('')}
-          </select>
-        </label>
-      </div>
-
-      <div style="overflow:auto;border:1px solid var(--border);background:linear-gradient(180deg,rgba(8,14,26,.92),rgba(10,16,30,.72));">
-        <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${hexes}</svg>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr;gap:.35rem;">
-        <div style="font-size:.82rem;color:var(--text2);">Selected Hex: <strong>${selected ? selected.id : '-'}</strong> · ${selected ? (YESSOD_MARKERS[selected.marker] || YESSOD_MARKERS.wilderness).label : ''} · Biome: ${selected ? selected.biome : '-'}</div>
-        <div style="font-size:.78rem;color:var(--muted2);line-height:1.55;">${getYessodCellTerrainText(selected)}</div>
-        <div id="yessodEncounterResult" style="font-size:.78rem;color:var(--teal);">${state.lastEncounter || 'No encounter rolled yet.'}</div>
-      </div>
+      <div class="hex-info" id="yessodHexInfo"></div>
     </div>`;
+
+  renderYessodMap();
+  renderYessodHexInfo(selected);
 }
 
 function createPlanetTask(options) {
@@ -21314,6 +21459,8 @@ window.setYessodTravelMethod = setYessodTravelMethod;
 window.shiftYessodStrata = shiftYessodStrata;
 window.rollYessodWeatherNow = rollYessodWeatherNow;
 window.rollYessodEncounter = rollYessodEncounter;
+window.rollYessodObserveAdjacent = rollYessodObserveAdjacent;
+window.setYessodHexNote = setYessodHexNote;
 window.explorePlanetCell = explorePlanetCell;
 window.createPlanetTask = createPlanetTask;
 window.resolvePlanetTask = resolvePlanetTask;

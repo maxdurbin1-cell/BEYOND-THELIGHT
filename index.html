@@ -10368,6 +10368,124 @@ function parseImportedCustomCodexLibrary(raw){
   return {affixes:affixes,items:items};
 }
 
+function codexForgeMergeLibraryByMode(currentSet,incomingSet,mode){
+  var current=Array.isArray(currentSet)?currentSet.slice():[];
+  var incoming=Array.isArray(incomingSet)?incomingSet.slice():[];
+  var useMode=String(mode||'replace').toLowerCase();
+  if(useMode==='replace')return incoming;
+
+  var keyOf=function(entry){return String(entry&&entry.name||'').trim().toLowerCase();};
+  if(useMode==='merge'){
+    var seen={};
+    current.forEach(function(entry){seen[keyOf(entry)]=true;});
+    incoming.forEach(function(entry){
+      var key=keyOf(entry);
+      if(!key||seen[key])return;
+      current.push(entry);
+      seen[key]=true;
+    });
+    return current;
+  }
+
+  // merge-and-overwrite: preserve existing IDs where possible for runtime stability.
+  incoming.forEach(function(entry){
+    var key=keyOf(entry);
+    if(!key)return;
+    var idx=current.findIndex(function(existing){return keyOf(existing)===key;});
+    if(idx<0){
+      current.push(entry);
+      return;
+    }
+    var replacement=Object.assign({},entry);
+    if(current[idx]&&current[idx].id)replacement.id=current[idx].id;
+    current[idx]=replacement;
+  });
+  return current;
+}
+
+function codexForgeOpenImportModeModal(incoming, sourceName){
+  var incomingSet=incoming&&typeof incoming==='object'?incoming:{affixes:[],items:[]};
+  var current={affixes:getCustomCodexAffixes(),items:getCustomCodexItems()};
+
+  window._codexForgePendingImport={
+    source:String(sourceName||'library.json'),
+    incoming:incomingSet
+  };
+
+  var replaceAff=codexForgeMergeLibraryByMode(current.affixes,incomingSet.affixes,'replace').length;
+  var replaceItems=codexForgeMergeLibraryByMode(current.items,incomingSet.items,'replace').length;
+  var mergeAff=codexForgeMergeLibraryByMode(current.affixes,incomingSet.affixes,'merge').length;
+  var mergeItems=codexForgeMergeLibraryByMode(current.items,incomingSet.items,'merge').length;
+  var overwriteAff=codexForgeMergeLibraryByMode(current.affixes,incomingSet.affixes,'merge-and-overwrite').length;
+  var overwriteItems=codexForgeMergeLibraryByMode(current.items,incomingSet.items,'merge-and-overwrite').length;
+
+  var html=''
+    +'<div style="font-size:.84rem;color:var(--text2);line-height:1.55;">'
+    +'<div style="margin-bottom:.35rem;">Import source: <strong style="color:var(--gold2);">'+escapeCustomForgeHtml(sourceName||'library.json')+'</strong></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-bottom:.4rem;">'
+      +'<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);">'
+      +'<div style="font-size:.72rem;color:var(--muted2);">Current Library</div>'
+      +'<div style="font-size:.8rem;color:var(--teal);">Affixes: '+current.affixes.length+' · Items: '+current.items.length+'</div>'
+      +'</div>'
+      +'<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);">'
+      +'<div style="font-size:.72rem;color:var(--muted2);">Incoming File</div>'
+      +'<div style="font-size:.8rem;color:var(--teal);">Affixes: '+incomingSet.affixes.length+' · Items: '+incomingSet.items.length+'</div>'
+      +'</div>'
+    +'</div>'
+    +'<div style="display:grid;gap:.32rem;">'
+      +'<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);">'
+      +'<div style="font-size:.76rem;color:var(--gold2);"><strong>Replace</strong></div>'
+      +'<div style="font-size:.72rem;color:var(--muted2);margin:.08rem 0 .22rem;">Replace your current library completely with the imported file.</div>'
+      +'<button class="btn btn-xs btn-red" onclick="codexForgeApplyImportMode(\'replace\')">Use Replace</button>'
+      +'<span style="font-size:.7rem;color:var(--muted2);margin-left:.35rem;">Result: '+replaceAff+' affix(es), '+replaceItems+' item(s)</span>'
+      +'</div>'
+      +'<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);">'
+      +'<div style="font-size:.76rem;color:var(--gold2);"><strong>Merge</strong></div>'
+      +'<div style="font-size:.72rem;color:var(--muted2);margin:.08rem 0 .22rem;">Add only new names from import; keep existing matching names unchanged.</div>'
+      +'<button class="btn btn-xs btn-primary" onclick="codexForgeApplyImportMode(\'merge\')">Use Merge</button>'
+      +'<span style="font-size:.7rem;color:var(--muted2);margin-left:.35rem;">Result: '+mergeAff+' affix(es), '+mergeItems+' item(s)</span>'
+      +'</div>'
+      +'<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);">'
+      +'<div style="font-size:.76rem;color:var(--gold2);"><strong>Merge-and-Overwrite</strong></div>'
+      +'<div style="font-size:.72rem;color:var(--muted2);margin:.08rem 0 .22rem;">Add new names and overwrite matching names from the import file.</div>'
+      +'<button class="btn btn-xs btn-teal" onclick="codexForgeApplyImportMode(\'merge-and-overwrite\')">Use Merge-and-Overwrite</button>'
+      +'<span style="font-size:.7rem;color:var(--muted2);margin-left:.35rem;">Result: '+overwriteAff+' affix(es), '+overwriteItems+' item(s)</span>'
+      +'</div>'
+    +'</div>'
+    +'<div style="display:flex;justify-content:flex-end;margin-top:.5rem;"><button class="btn btn-xs" onclick="codexForgeCancelPendingImport()">Cancel</button></div>'
+    +'</div>';
+  openModal('Import Custom Library',html);
+}
+
+function codexForgeCancelPendingImport(){
+  window._codexForgePendingImport=null;
+  if(typeof closeModal==='function')closeModal();
+}
+
+function codexForgeApplyImportMode(mode){
+  var pending=window._codexForgePendingImport;
+  if(!pending||!pending.incoming){
+    showNotif('No import payload is pending.','warn');
+    if(typeof closeModal==='function')closeModal();
+    return;
+  }
+  ensureCustomCodexState();
+  var currentAffixes=getCustomCodexAffixes();
+  var currentItems=getCustomCodexItems();
+  var incomingAffixes=Array.isArray(pending.incoming.affixes)?pending.incoming.affixes:[];
+  var incomingItems=Array.isArray(pending.incoming.items)?pending.incoming.items:[];
+  var selectedMode=String(mode||'replace').toLowerCase();
+  if(['replace','merge','merge-and-overwrite'].indexOf(selectedMode)<0)selectedMode='replace';
+
+  S.customContent.affixes=codexForgeMergeLibraryByMode(currentAffixes,incomingAffixes,selectedMode);
+  S.customContent.items=codexForgeMergeLibraryByMode(currentItems,incomingItems,selectedMode);
+  S.customContent.builderAffixes=[];
+  window._codexForgePendingImport=null;
+  if(typeof closeModal==='function')closeModal();
+  showNotif('Library import complete ('+selectedMode+'): '+S.customContent.affixes.length+' affix(es), '+S.customContent.items.length+' item(s).','good');
+  rerenderCodexCustomForge();
+}
+
 function codexForgeSetAffixFormMode(editing){
   var saveBtn=document.getElementById('ccAffixSaveBtn');
   var cancelBtn=document.getElementById('ccAffixCancelEdit');
@@ -10525,12 +10643,7 @@ function codexForgeImportLibraryFile(evt){
     try{
       var parsed=JSON.parse(String(reader.result||'{}'));
       var normalized=parseImportedCustomCodexLibrary(parsed);
-      ensureCustomCodexState();
-      S.customContent.affixes=normalized.affixes;
-      S.customContent.items=normalized.items;
-      S.customContent.builderAffixes=[];
-      showNotif('Imported '+normalized.affixes.length+' affix(es) and '+normalized.items.length+' item(s).','good');
-      rerenderCodexCustomForge();
+      codexForgeOpenImportModeModal(normalized,file&&file.name?file.name:'library.json');
     }catch(err){
       showNotif('Import failed: invalid JSON library file.','warn');
       console.error('Custom content import failed:',err);

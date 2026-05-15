@@ -1437,6 +1437,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
   <div class="codex-cats">
     <button class="scat on" onclick="showCodexCat('histories',this)">📜 Histories</button>
     <button class="scat" onclick="showCodexCat('lore',this)">📖 Theos Lore</button>
+    <button class="scat" onclick="showCodexCat('customforge',this)">🛠 Custom Forge</button>
     <button class="scat" onclick="showCodexCat('wayfarers',this)">🧭 Wayfarers</button>
     <button class="scat" onclick="showCodexCat('flavors',this)">✨ Flavors</button>
     <button class="scat" onclick="showCodexCat('trade',this)">🏛 Trade Routes</button>
@@ -2627,7 +2628,7 @@ if(typeof SHOP_DATA==='object'&&SHOP_DATA&&Array.isArray(SHOP_DATA.remedies)){
 }
 const STAT_NAMES=['Body','Strike','Shoot','Mind','Spirit','Defend','Control','Lead'];
 const STAT_SUBS=['Power / Athletics','Melee Attack','Ranged Attack','Lore / Notice','Convince / Heal','Block / Evade','Stealth / Finesse','Tactics / Inspire'];
-let S={name:'',career:'',background:'',age:'',characterYears:25,omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},equipmentLayers:{under:'',over:'',suit:''},gearState:{oxygenHours:0,radAbsorbUsed:0,radAbsorbCap:0},environmentContext:{temperature:'',vacuum:false,irradiated:false},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0},nightMode:false,fullPhaseClock:false,darkAfflictions:{vampirism:{active:false,corruption:0,lastFedStamp:''},wolfism:{active:false,corruption:0,lastFedStamp:''}},backstory:{origin:'',upbringing:'',hometown:'',faction:'',rival:'',connection:'',earlyCareer:'',earlyBackground:'',lifeEvent:'',notes:'',provinceMarkers:{}}};
+let S={name:'',career:'',background:'',age:'',characterYears:25,omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},equipmentLayers:{under:'',over:'',suit:''},gearState:{oxygenHours:0,radAbsorbUsed:0,radAbsorbCap:0},environmentContext:{temperature:'',vacuum:false,irradiated:false},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0},nightMode:false,fullPhaseClock:false,darkAfflictions:{vampirism:{active:false,corruption:0,lastFedStamp:''},wolfism:{active:false,corruption:0,lastFedStamp:''}},customContent:{affixes:[],items:[],builderAffixes:[]},backstory:{origin:'',upbringing:'',hometown:'',faction:'',rival:'',connection:'',earlyCareer:'',earlyBackground:'',lifeEvent:'',notes:'',provinceMarkers:{}}};
 let hexNotes={};
 
 const BACKSTORY_TABLES={
@@ -5959,12 +5960,72 @@ function ensureAdvancedGearState() {
   if (!S.soulForge || typeof S.soulForge !== 'object') S.soulForge = { unlocked:false, inventory:[] };
   if (!Array.isArray(S.soulForge.inventory)) S.soulForge.inventory = [];
   if (typeof S.soulForge.unlocked !== 'boolean') S.soulForge.unlocked = false;
+  ensureCustomCodexState();
   ensureNightModeState();
   ensureFullPhaseClockState();
   ensureDarkAfflictionState();
   ensureBackpackCapacity();
   refreshPersonalFlavorInteractionUI();
   renderDarkAfflictionSheetPanel();
+}
+
+function ensureCustomCodexState(){
+  if(!S.customContent||typeof S.customContent!=='object')S.customContent={affixes:[],items:[],builderAffixes:[]};
+  if(!Array.isArray(S.customContent.affixes))S.customContent.affixes=[];
+  if(!Array.isArray(S.customContent.items))S.customContent.items=[];
+  if(!Array.isArray(S.customContent.builderAffixes))S.customContent.builderAffixes=[];
+}
+
+function normalizeCustomCodexAffix(entry){
+  if(!entry||typeof entry!=='object')return null;
+  var out={
+    id:String(entry.id||('affix_'+Date.now()+'_'+Math.random().toString(36).slice(2,7))),
+    name:String(entry.name||'').trim(),
+    description:String(entry.description||'Special effect active while this item is equipped.').trim(),
+    scope:String(entry.scope||'any').toLowerCase(),
+    strikeFlat:Number(entry.strikeFlat||0),
+    shootFlat:Number(entry.shootFlat||0),
+    defendFlat:Number(entry.defendFlat||0),
+    controlFlat:Number(entry.controlFlat||0),
+    actionBonus:Number(entry.actionBonus||0),
+    strikeDieSteps:Number(entry.strikeDieSteps||0),
+    critShift:Number(entry.critShift||0),
+    shootCloseBonus:Number(entry.shootCloseBonus||0),
+    shootFarEnabled:!!entry.shootFarEnabled,
+    strikeCloseEnabled:!!entry.strikeCloseEnabled
+  };
+  if(!out.name)return null;
+  if(['weapon','armor','item','any'].indexOf(out.scope)<0)out.scope='any';
+  return out;
+}
+
+function normalizeCustomCodexItem(entry){
+  if(!entry||typeof entry!=='object')return null;
+  var kind=String(entry.kind||'item').toLowerCase();
+  if(['weapon','armor','spell','item'].indexOf(kind)<0)kind='item';
+  var merchantCategory=String(entry.merchantCategory||'').toLowerCase();
+  if(!merchantCategory){
+    merchantCategory=kind==='weapon'?'weapons':kind==='armor'?'armor':kind==='spell'?'scrolls':'items';
+  }
+  var out={
+    id:String(entry.id||('item_'+Date.now()+'_'+Math.random().toString(36).slice(2,7))),
+    name:String(entry.name||'').trim(),
+    kind:kind,
+    rollType:String(entry.rollType|| (kind==='armor'?'defend':kind==='weapon'?'strike':'mind')).toLowerCase(),
+    die:Number(entry.die||0),
+    flat:Number(entry.flat||0),
+    range:String(entry.range|| (kind==='weapon'?'Engaged':'')).trim(),
+    actions:Number(entry.actions|| (kind==='armor'?2:0)),
+    description:String(entry.description||'Custom codex-authored content.').trim(),
+    cost:Math.max(0,Number(entry.cost||0)),
+    merchantEnabled:entry.merchantEnabled!==false,
+    merchantCategory:merchantCategory,
+    useEffect:String(entry.useEffect||'none').toLowerCase(),
+    useValue:Number(entry.useValue||0),
+    affixes:Array.isArray(entry.affixes)?entry.affixes.map(function(v){return String(v||'').trim();}).filter(Boolean):[]
+  };
+  if(!out.name)return null;
+  return out;
 }
 
 function normalizeItemName(text) {
@@ -7707,7 +7768,7 @@ function buildAffixEffectsHtml(text){
     body += '<div style="font-size:.72rem;color:var(--gold2);margin:'+(slotSummary?'.28rem 0 .18rem':'.18rem 0 .18rem')+';"><strong>Affix Effects</strong></div>'
       + affixes.map(function(name){
         var key=normalizeAffixLabel(name);
-        var effect=AFFIX_EFFECT_DESCRIPTIONS[key]||'Special effect active while this item is equipped.';
+        var effect=AFFIX_EFFECT_DESCRIPTIONS[key]||getCustomCodexAffixEffectText(name)||'Special effect active while this item is equipped.';
         return '<div style="font-size:.76rem;color:var(--text2);line-height:1.46;"><strong style="color:var(--teal);">'+name+'</strong> — '+effect+'</div>';
       }).join('');
   }
@@ -7788,6 +7849,32 @@ function getEquippedAffixCombatBonuses(){
   if(hasEquippedAffix('soul eater'))out.soulEaterOnKillHeal=3;
   if(hasEquippedAffix("golem's fist"))out.knockbackZones=Math.max(out.knockbackZones,2);
   if(hasEquippedAffix("basilisk's stare"))out.enemySkipTurnsOnHit=Math.max(out.enemySkipTurnsOnHit,1);
+
+  // Extend built-in affix bonuses with GM-authored custom affix definitions.
+  var equippedAffixes=[];
+  if(S&&S.equipment&&typeof S.equipment==='object'){
+    ['weapon1','weapon2','armor','readied'].forEach(function(slot){
+      equippedAffixes=equippedAffixes.concat(getItemAffixList(String(S.equipment[slot]||'')));
+    });
+  }
+  var seen={};
+  equippedAffixes.forEach(function(name){
+    var key=normalizeAffixLabel(name);
+    if(!key||seen[key])return;
+    seen[key]=true;
+    var affix=getCustomCodexAffixByName(name);
+    if(!affix)return;
+    out.strikeFlat+=Number(affix.strikeFlat||0);
+    out.shootFlat+=Number(affix.shootFlat||0);
+    out.defendFlat+=Number(affix.defendFlat||0);
+    out.controlFlat+=Number(affix.controlFlat||0);
+    out.actionBonus+=Number(affix.actionBonus||0);
+    out.strikeDieSteps+=Number(affix.strikeDieSteps||0);
+    out.critShift+=Number(affix.critShift||0);
+    out.shootCloseBonus+=Number(affix.shootCloseBonus||0);
+    if(affix.shootFarEnabled)out.shootFarEnabled=true;
+    if(affix.strikeCloseEnabled)out.strikeCloseEnabled=true;
+  });
 
   return out;
 }
@@ -10018,7 +10105,9 @@ function showShopCat(cat,btn){
         + '<div style="margin-top:.14rem;">Endgame Soul Forge world events drop soul enemies. Defeat one and consume the soul to unlock this merchant vendor.</div>'
       + '</div>');
   }
-  const items=SHOP_DATA[cat]||[];
+  const baseItems=SHOP_DATA[cat]||[];
+  const customItems=getCustomCodexShopItems(cat);
+  const items=baseItems.concat(customItems);
   const c=document.getElementById('shopGrid');
   if(!c)return;
   let rule=SHOP_RULES[cat]?`<div class="shop-rule-box">${SHOP_RULES[cat]}</div>`:'';
@@ -10118,6 +10207,334 @@ function showShopCat(cat,btn){
   }
 
   c.innerHTML=rule+cardsHtml;
+}
+
+function parseCustomCodexMarkerFromText(text){
+  var match=String(text||'').match(/\[CC:([A-Za-z0-9_-]+)\]/i);
+  return match?String(match[1]||'').trim():'';
+}
+
+function getCustomCodexAffixes(){
+  ensureCustomCodexState();
+  S.customContent.affixes=S.customContent.affixes.map(normalizeCustomCodexAffix).filter(Boolean);
+  return S.customContent.affixes;
+}
+
+function getCustomCodexItems(){
+  ensureCustomCodexState();
+  S.customContent.items=S.customContent.items.map(normalizeCustomCodexItem).filter(Boolean);
+  return S.customContent.items;
+}
+
+function getCustomCodexAffixByName(name){
+  var key=normalizeAffixLabel(name);
+  var list=getCustomCodexAffixes();
+  for(var i=0;i<list.length;i++){
+    if(normalizeAffixLabel(list[i].name)===key)return list[i];
+  }
+  return null;
+}
+
+function getCustomCodexAffixEffectText(name){
+  var found=getCustomCodexAffixByName(name);
+  return found?String(found.description||'Special effect active while this item is equipped.'):'';
+}
+
+function getCustomCodexItemById(id){
+  var key=String(id||'').trim();
+  if(!key)return null;
+  var items=getCustomCodexItems();
+  for(var i=0;i<items.length;i++)if(String(items[i].id||'')===key)return items[i];
+  return null;
+}
+
+function getCustomCodexItemFromBackpackText(text){
+  var marker=parseCustomCodexMarkerFromText(text);
+  if(marker)return getCustomCodexItemById(marker);
+  var clean=cleanInventoryItemName(text);
+  var items=getCustomCodexItems();
+  for(var i=0;i<items.length;i++){
+    if(String(items[i].name||'')===clean)return items[i];
+  }
+  return null;
+}
+
+function titleCaseCustomCodexRollType(text){
+  var v=String(text||'strike').toLowerCase();
+  return v.charAt(0).toUpperCase()+v.slice(1);
+}
+
+function buildCustomCodexItemStat(item){
+  var def=normalizeCustomCodexItem(item);
+  if(!def)return '';
+  if(def.kind==='armor'){
+    var armorDie=def.die>0?('Ad'+def.die):'Ad6';
+    var armorStat=armorDie+' | '+Math.max(1,def.actions||2)+' Actions';
+    if(def.flat!==0)armorStat+=' | '+(def.flat>0?'+':'')+def.flat+' Defend';
+    return armorStat;
+  }
+  if(def.kind==='weapon'){
+    var weaponType=String(def.rollType||'strike').toLowerCase()==='shoot'?'Shoot':'Strike';
+    var weaponMain=def.die>0?('Ad'+def.die+' '+weaponType):((def.flat>=0?'+':'')+def.flat+' '+weaponType);
+    var parts=[weaponMain];
+    if(def.range)parts.push(def.range);
+    return parts.join(' | ');
+  }
+  if(def.kind==='spell'){
+    var spellMain=def.die>0?('Ad'+def.die+' '+titleCaseCustomCodexRollType(def.rollType)):((def.flat>=0?'+':'')+def.flat+' '+titleCaseCustomCodexRollType(def.rollType));
+    return def.range?(spellMain+' | '+def.range):spellMain;
+  }
+  if(def.die>0)return 'Ad'+def.die+' '+titleCaseCustomCodexRollType(def.rollType);
+  if(def.flat!==0)return (def.flat>=0?'+':'')+def.flat+' '+titleCaseCustomCodexRollType(def.rollType);
+  return 'Custom Utility Item';
+}
+
+function getCustomCodexShopItems(cat){
+  var category=String(cat||'').toLowerCase();
+  return getCustomCodexItems().filter(function(item){
+    return item.merchantEnabled&&String(item.merchantCategory||'').toLowerCase()===category;
+  }).map(function(item){
+    return {
+      name:item.name,
+      stat:buildCustomCodexItemStat(item),
+      desc:item.description,
+      cost:item.cost,
+      __customCodex:true,
+      __customCodexData:item,
+      __customCodexId:item.id
+    };
+  });
+}
+
+function isCustomCodexItemCompatibleWithAffix(item,affix){
+  var itemDef=normalizeCustomCodexItem(item);
+  var affixDef=normalizeCustomCodexAffix(affix);
+  if(!itemDef||!affixDef)return false;
+  if(affixDef.scope==='any')return true;
+  if(affixDef.scope==='weapon')return itemDef.kind==='weapon';
+  if(affixDef.scope==='armor')return itemDef.kind==='armor';
+  if(affixDef.scope==='item')return itemDef.kind==='item'||itemDef.kind==='spell';
+  return true;
+}
+
+function getAllCodexAffixNames(){
+  var base=Object.keys(AFFIX_EFFECT_DESCRIPTIONS||{});
+  var custom=getCustomCodexAffixes().map(function(a){return a.name;});
+  return Array.from(new Set(base.concat(custom))).sort(function(a,b){return String(a).localeCompare(String(b));});
+}
+
+function escapeCustomForgeHtml(text){
+  return String(text||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function buildCodexCustomForgeHtml(){
+  ensureCustomCodexState();
+  var affixes=getCustomCodexAffixes();
+  var items=getCustomCodexItems();
+  var availableAffixes=getAllCodexAffixNames();
+  var pending=S.customContent.builderAffixes||[];
+  var pendingHtml=pending.length?pending.map(function(name,idx){
+    return '<span style="display:inline-flex;align-items:center;gap:.25rem;padding:.14rem .34rem;border:1px solid var(--border2);border-radius:999px;background:rgba(255,255,255,.04);font-size:.72rem;color:var(--teal);">'
+      +escapeCustomForgeHtml(name)
+      +' <button class="btn-icon" style="width:1rem;height:1rem;line-height:1;" onclick="codexForgeRemoveBuilderAffix('+idx+')">×</button></span>';
+  }).join(''):('<span style="font-size:.74rem;color:var(--muted2);">No affixes selected.</span>');
+
+  var customAffixHtml=affixes.length?affixes.map(function(affix){
+    return '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);">'
+      +'<div style="display:flex;justify-content:space-between;gap:.35rem;align-items:flex-start;">'
+      +'<div><strong style="color:var(--teal);">'+escapeCustomForgeHtml(affix.name)+'</strong><div style="font-size:.7rem;color:var(--muted2);">scope: '+escapeCustomForgeHtml(affix.scope)+'</div></div>'
+      +'<button class="btn btn-xs btn-red" onclick="codexForgeDeleteAffix('+JSON.stringify(affix.id)+')">Delete</button>'
+      +'</div>'
+      +'<div style="font-size:.74rem;color:var(--text2);margin-top:.18rem;line-height:1.4;">'+escapeCustomForgeHtml(affix.description)+'</div>'
+    +'</div>';
+  }).join(''):'<div style="font-size:.74rem;color:var(--muted2);">No custom affixes yet.</div>';
+
+  var itemRows=items.length?items.map(function(item){
+    var stat=buildCustomCodexItemStat(item);
+    return '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);margin-bottom:.28rem;">'
+      +'<div style="display:flex;justify-content:space-between;gap:.35rem;align-items:flex-start;">'
+      +'<div><strong style="color:var(--gold2);">'+escapeCustomForgeHtml(item.name)+'</strong> '
+      +'<span style="font-size:.68rem;color:var(--muted2);text-transform:uppercase;">'+escapeCustomForgeHtml(item.kind)+'</span>'
+      +'<div style="font-size:.72rem;color:var(--teal);margin-top:.1rem;">'+escapeCustomForgeHtml(stat)+' · '+Number(item.cost||0)+'₵</div></div>'
+      +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'
+      +'<button class="btn btn-xs" onclick="codexForgeToggleMerchantItem('+JSON.stringify(item.id)+')">'+(item.merchantEnabled?'Hide':'Show')+' Merchant</button>'
+      +'<button class="btn btn-xs btn-red" onclick="codexForgeDeleteItem('+JSON.stringify(item.id)+')">Delete</button>'
+      +'</div>'
+      +'</div>'
+      +'<div style="font-size:.73rem;color:var(--text2);margin-top:.2rem;line-height:1.42;">'+escapeCustomForgeHtml(item.description)+'</div>'
+      +'<div style="font-size:.7rem;color:var(--muted2);margin-top:.2rem;">Merchant category: '+escapeCustomForgeHtml(item.merchantCategory)+(item.merchantEnabled?' (enabled)':' (disabled)')+'</div>'
+      +(item.affixes&&item.affixes.length?('<div style="font-size:.72rem;color:var(--teal);margin-top:.16rem;">Affixes: '+item.affixes.map(escapeCustomForgeHtml).join(', ')+'</div>'):'')
+    +'</div>';
+  }).join(''):'<div style="font-size:.74rem;color:var(--muted2);">No custom items yet.</div>';
+
+  return '<div class="card">'
+    +'<div class="section-title">Codex Custom Content Forge</div>'
+    +'<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.5rem;">Author custom weapons, armor, spells, and utility items here. Merchant integration and affix mapping are managed in this Codex page.</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:.5rem;align-items:start;">'
+      +'<div style="border:1px solid var(--border2);padding:.45rem;background:rgba(255,255,255,.02);">'
+        +'<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.28rem;">Create Custom Affix</div>'
+        +'<input id="ccAffixName" type="text" placeholder="Affix Name" style="width:100%;margin-bottom:.25rem;" />'
+        +'<textarea id="ccAffixDesc" rows="2" placeholder="What this affix does" style="width:100%;margin-bottom:.25rem;"></textarea>'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:.25rem;margin-bottom:.25rem;">'
+          +'<select id="ccAffixScope"><option value="any">Scope: Any</option><option value="weapon">Weapon</option><option value="armor">Armor</option><option value="item">Item/Spell</option></select>'
+          +'<input id="ccAffixActionBonus" type="number" placeholder="Action +/-" />'
+          +'<input id="ccAffixStrikeFlat" type="number" placeholder="Strike +/-" />'
+          +'<input id="ccAffixShootFlat" type="number" placeholder="Shoot +/-" />'
+          +'<input id="ccAffixDefendFlat" type="number" placeholder="Defend +/-" />'
+          +'<input id="ccAffixControlFlat" type="number" placeholder="Control +/-" />'
+          +'<input id="ccAffixStrikeSteps" type="number" placeholder="Strike die steps" />'
+          +'<input id="ccAffixCritShift" type="number" placeholder="Crit shift" />'
+          +'<input id="ccAffixShootClose" type="number" placeholder="Shoot close bonus" />'
+          +'<label style="display:flex;align-items:center;gap:.3rem;font-size:.72rem;color:var(--muted2);padding:.15rem .2rem;border:1px solid var(--border2);"><input id="ccAffixFar" type="checkbox"/> Enable far shoot</label>'
+        +'</div>'
+        +'<button class="btn btn-xs btn-primary" onclick="codexForgeCreateAffix()">Save Affix</button>'
+        +'<div style="margin-top:.35rem;display:grid;gap:.28rem;max-height:230px;overflow:auto;">'+customAffixHtml+'</div>'
+      +'</div>'
+      +'<div style="border:1px solid var(--border2);padding:.45rem;background:rgba(255,255,255,.02);">'
+        +'<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.28rem;">Create Custom Item</div>'
+        +'<input id="ccItemName" type="text" placeholder="Item Name" style="width:100%;margin-bottom:.25rem;" />'
+        +'<textarea id="ccItemDesc" rows="2" placeholder="Item description" style="width:100%;margin-bottom:.25rem;"></textarea>'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:.25rem;margin-bottom:.25rem;">'
+          +'<select id="ccItemKind"><option value="weapon">Weapon</option><option value="armor">Armor</option><option value="spell">Spell</option><option value="item">Item</option></select>'
+          +'<select id="ccItemRollType"><option value="strike">Strike</option><option value="shoot">Shoot</option><option value="defend">Defend</option><option value="control">Control</option><option value="lead">Lead</option><option value="mind">Mind</option><option value="spirit">Spirit</option><option value="body">Body</option></select>'
+          +'<input id="ccItemDie" type="number" placeholder="Ad die (e.g. 8)" />'
+          +'<input id="ccItemFlat" type="number" placeholder="Flat mod" />'
+          +'<input id="ccItemRange" type="text" placeholder="Range (Engaged/Nearby/Far)" />'
+          +'<input id="ccItemActions" type="number" placeholder="Armor actions" />'
+          +'<input id="ccItemCost" type="number" placeholder="Price (credits)" />'
+          +'<select id="ccItemMerchantCategory"><option value="weapons">Merchant: Weapons</option><option value="armor">Merchant: Armor</option><option value="scrolls">Merchant: Scrolls</option><option value="items">Merchant: Items</option><option value="toolkits">Merchant: Toolkits</option><option value="remedies">Merchant: Remedies</option><option value="essentials">Merchant: Essentials</option></select>'
+          +'<select id="ccItemUseEffect"><option value="none">Use Effect: None</option><option value="heal_health_d4">Heal Health (d4)</option><option value="heal_health_flat">Heal Health (flat)</option><option value="heal_stress_d4">Heal Mental Stress (d4)</option><option value="heal_stress_flat">Heal Mental Stress (flat)</option><option value="path_tokens">Gain Path Tokens</option><option value="credits">Gain Credits</option><option value="adv_die">Queue Adventure Die bonus</option></select>'
+          +'<input id="ccItemUseValue" type="number" placeholder="Use value" />'
+        +'</div>'
+        +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;margin-bottom:.25rem;">'
+          +'<select id="ccItemAffixImport">'+availableAffixes.map(function(name){return '<option value="'+escapeCustomForgeHtml(name)+'">'+escapeCustomForgeHtml(name)+'</option>';}).join('')+'</select>'
+          +'<button class="btn btn-xs" onclick="codexForgeImportAffixToBuilder()">Import Affix</button>'
+        +'</div>'
+        +'<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.3rem;">'+pendingHtml+'</div>'
+        +'<button class="btn btn-xs btn-primary" onclick="codexForgeCreateItem()">Save Item</button>'
+        +'<button class="btn btn-xs" style="margin-left:.25rem;" onclick="codexForgeClearBuilderAffixes()">Clear Affixes</button>'
+        +'<div style="margin-top:.35rem;max-height:260px;overflow:auto;">'+itemRows+'</div>'
+      +'</div>'
+    +'</div>'
+  +'</div>';
+}
+
+function rerenderCodexCustomForge(){
+  var btn=document.querySelector('.codex-cats .scat.on');
+  showCodexCat('customforge',btn||null);
+}
+
+function codexForgeCreateAffix(){
+  ensureCustomCodexState();
+  var name=((document.getElementById('ccAffixName')||{}).value||'').trim();
+  if(!name){showNotif('Custom Affix needs a name.','warn');return;}
+  var affix=normalizeCustomCodexAffix({
+    name:name,
+    description:((document.getElementById('ccAffixDesc')||{}).value||'').trim(),
+    scope:((document.getElementById('ccAffixScope')||{}).value||'any').trim(),
+    strikeFlat:Number((document.getElementById('ccAffixStrikeFlat')||{}).value||0),
+    shootFlat:Number((document.getElementById('ccAffixShootFlat')||{}).value||0),
+    defendFlat:Number((document.getElementById('ccAffixDefendFlat')||{}).value||0),
+    controlFlat:Number((document.getElementById('ccAffixControlFlat')||{}).value||0),
+    actionBonus:Number((document.getElementById('ccAffixActionBonus')||{}).value||0),
+    strikeDieSteps:Number((document.getElementById('ccAffixStrikeSteps')||{}).value||0),
+    critShift:Number((document.getElementById('ccAffixCritShift')||{}).value||0),
+    shootCloseBonus:Number((document.getElementById('ccAffixShootClose')||{}).value||0),
+    shootFarEnabled:!!((document.getElementById('ccAffixFar')||{}).checked)
+  });
+  if(!affix){showNotif('Could not build custom affix definition.','warn');return;}
+  var existing=getCustomCodexAffixByName(affix.name);
+  if(existing){showNotif('An affix with that name already exists.','warn');return;}
+  S.customContent.affixes.push(affix);
+  showNotif('Custom affix saved: '+affix.name+'.','good');
+  rerenderCodexCustomForge();
+}
+
+function codexForgeDeleteAffix(id){
+  ensureCustomCodexState();
+  var key=String(id||'');
+  S.customContent.affixes=getCustomCodexAffixes().filter(function(entry){return String(entry.id||'')!==key;});
+  S.customContent.items=getCustomCodexItems().map(function(item){
+    item.affixes=(item.affixes||[]).filter(function(name){
+      var aff=getCustomCodexAffixByName(name);
+      return !!aff||Object.prototype.hasOwnProperty.call(AFFIX_EFFECT_DESCRIPTIONS,normalizeAffixLabel(name));
+    });
+    return item;
+  });
+  showNotif('Custom affix removed.','good');
+  rerenderCodexCustomForge();
+}
+
+function codexForgeImportAffixToBuilder(){
+  ensureCustomCodexState();
+  var pickEl=document.getElementById('ccItemAffixImport');
+  var name=pickEl?String(pickEl.value||'').trim():'';
+  if(!name)return;
+  if(S.customContent.builderAffixes.indexOf(name)>=0)return;
+  S.customContent.builderAffixes.push(name);
+  rerenderCodexCustomForge();
+}
+
+function codexForgeRemoveBuilderAffix(index){
+  ensureCustomCodexState();
+  var idx=Math.max(0,Number(index||0));
+  S.customContent.builderAffixes.splice(idx,1);
+  rerenderCodexCustomForge();
+}
+
+function codexForgeClearBuilderAffixes(){
+  ensureCustomCodexState();
+  S.customContent.builderAffixes=[];
+  rerenderCodexCustomForge();
+}
+
+function codexForgeCreateItem(){
+  ensureCustomCodexState();
+  var item=normalizeCustomCodexItem({
+    name:((document.getElementById('ccItemName')||{}).value||'').trim(),
+    description:((document.getElementById('ccItemDesc')||{}).value||'').trim(),
+    kind:((document.getElementById('ccItemKind')||{}).value||'item').trim(),
+    rollType:((document.getElementById('ccItemRollType')||{}).value||'mind').trim(),
+    die:Number((document.getElementById('ccItemDie')||{}).value||0),
+    flat:Number((document.getElementById('ccItemFlat')||{}).value||0),
+    range:((document.getElementById('ccItemRange')||{}).value||'').trim(),
+    actions:Number((document.getElementById('ccItemActions')||{}).value||0),
+    cost:Number((document.getElementById('ccItemCost')||{}).value||0),
+    merchantCategory:((document.getElementById('ccItemMerchantCategory')||{}).value||'items').trim(),
+    useEffect:((document.getElementById('ccItemUseEffect')||{}).value||'none').trim(),
+    useValue:Number((document.getElementById('ccItemUseValue')||{}).value||0),
+    affixes:(S.customContent.builderAffixes||[]).slice()
+  });
+  if(!item||!item.name){showNotif('Custom item needs a name.','warn');return;}
+  if(getCustomCodexItems().some(function(existing){return String(existing.name||'').toLowerCase()===String(item.name||'').toLowerCase();})){
+    showNotif('A custom item with that name already exists.','warn');
+    return;
+  }
+  item.affixes=item.affixes.filter(function(name){
+    var affix=getCustomCodexAffixByName(name);
+    if(!affix)return true;
+    return isCustomCodexItemCompatibleWithAffix(item,affix);
+  });
+  S.customContent.items.push(item);
+  S.customContent.builderAffixes=[];
+  showNotif('Custom item saved: '+item.name+'.','good');
+  rerenderCodexCustomForge();
+}
+
+function codexForgeDeleteItem(id){
+  ensureCustomCodexState();
+  var key=String(id||'');
+  S.customContent.items=getCustomCodexItems().filter(function(entry){return String(entry.id||'')!==key;});
+  showNotif('Custom item removed.','good');
+  rerenderCodexCustomForge();
+}
+
+function codexForgeToggleMerchantItem(id){
+  var item=getCustomCodexItemById(id);
+  if(!item)return;
+  item.merchantEnabled=!item.merchantEnabled;
+  showNotif(item.name+': merchant '+(item.merchantEnabled?'enabled':'disabled')+'.','good');
+  rerenderCodexCustomForge();
 }
 
 // Format stat string into equipment-slot format: "Ad6 Strike | Engaged" → "(Ad6 Strike)"
@@ -10340,6 +10757,24 @@ function addToBackpack(text) {
 // Find a shop item by display name (matches exactly or by prefix before " (")
 function findShopItem(nameText) {
   if (!nameText) return null;
+  var marker=parseCustomCodexMarkerFromText(nameText);
+  if(marker){
+    var markerItem=getCustomCodexItemById(marker);
+    if(markerItem){
+      return {
+        item:{
+          name:markerItem.name,
+          stat:buildCustomCodexItemStat(markerItem),
+          desc:markerItem.description,
+          cost:markerItem.cost,
+          __customCodex:true,
+          __customCodexData:markerItem,
+          __customCodexId:markerItem.id
+        },
+        cat:markerItem.merchantCategory
+      };
+    }
+  }
   var stackParts = parseBackpackStack(nameText);
   var cleanName = normalizeLegacyLootAlias(cleanInventoryItemName(stackParts.name).replace(/\s+[-–]\s+.*/, '').trim());
   var allCats = Object.keys(SHOP_DATA);
@@ -10350,6 +10785,24 @@ function findShopItem(nameText) {
       if (items[ii].name === cleanName || items[ii].name === nameText) {
         return {item: items[ii], cat: allCats[ci]};
       }
+    }
+  }
+  var customItems=getCustomCodexItems();
+  for(var ci2=0;ci2<customItems.length;ci2++){
+    var customItem=customItems[ci2];
+    if(String(customItem.name||'')===cleanName||String(customItem.name||'')===nameText){
+      return {
+        item:{
+          name:customItem.name,
+          stat:buildCustomCodexItemStat(customItem),
+          desc:customItem.description,
+          cost:customItem.cost,
+          __customCodex:true,
+          __customCodexData:customItem,
+          __customCodexId:customItem.id
+        },
+        cat:customItem.merchantCategory
+      };
     }
   }
   return null;
@@ -10470,6 +10923,14 @@ function buyItem(cost, name, cat, baseCost) {
   var statStr = formatStatForSlot(stat);
   var slotText = statStr ? name + ' ' + statStr : name;
   var category = normalizeShopCategoryName(cat || (found ? found.cat : 'items'));
+  var customMeta = found && found.item && found.item.__customCodexData ? found.item.__customCodexData : null;
+  if(customMeta){
+    var customRoot=name+' [CC:'+String(customMeta.id||'')+']';
+    if(stat)customRoot+=' ('+stat+')';
+    slotText=(customMeta.affixes&&customMeta.affixes.length)
+      ? setItemAffixList(customRoot,customMeta.affixes)
+      : customRoot;
+  }
   var listedCost = Number(baseCost);
   if (!isFinite(listedCost) || listedCost <= 0) {
     listedCost = found && found.item && typeof found.item.cost === 'number' ? Number(found.item.cost) : Number(cost || 0);
@@ -10727,9 +11188,11 @@ function showBackpackItem(index) {
   }
   var item = found.item;
   var cat = found.cat;
+  var customDef = item && item.__customCodexData ? item.__customCodexData : null;
   var isLoreBook = isLoreBookItemName(text);
   var hasUseCfg = !!ITEM_USE_CFG[item.name];
   var isConsumable = ['essentials','items','remedies','toolkits','cosmic'].indexOf(cat) >= 0;
+  if(customDef && String(customDef.useEffect||'none')!=='none') isConsumable = true;
   var usesRemaining = getItemUsesRemaining(index);
   var usesHtml = usesRemaining !== null ? '<div style="font-size:.72rem;color:var(--gold);margin-top:.2rem;">Uses remaining: '+usesRemaining+'</div>' : '';
   var btnHtml = '';
@@ -11217,6 +11680,66 @@ function moveEquippedToStorage(slot, storageType) {
 }
 
 // Execute item use effect from backpack slot
+function handleCustomCodexItemUse(index, customDef){
+  if(!customDef||String(customDef.useEffect||'none')==='none')return false;
+  var effect=String(customDef.useEffect||'none');
+  var value=Number(customDef.useValue||0);
+  removeBackpackItem(index);
+  if(effect==='heal_health_d4'){
+    var heal=explodingRoll(4).total;
+    if(typeof changeHealth==='function')changeHealth(-heal);
+    else if(typeof changeStress==='function')changeStress(-heal);
+    showNotif(customDef.name+': restored '+heal+' Health.','good');
+    return true;
+  }
+  if(effect==='heal_health_flat'){
+    var healFlat=Math.max(1,value||1);
+    if(typeof changeHealth==='function')changeHealth(-healFlat);
+    else if(typeof changeStress==='function')changeStress(-healFlat);
+    showNotif(customDef.name+': restored '+healFlat+' Health.','good');
+    return true;
+  }
+  if(effect==='heal_stress_d4'){
+    var stress=explodingRoll(4).total;
+    if(typeof changeMentalStress==='function')changeMentalStress(-stress);
+    else if(typeof changeStress==='function')changeStress(-stress);
+    showNotif(customDef.name+': reduced Mental Stress by '+stress+'.','good');
+    return true;
+  }
+  if(effect==='heal_stress_flat'){
+    var stressFlat=Math.max(1,value||1);
+    if(typeof changeMentalStress==='function')changeMentalStress(-stressFlat);
+    else if(typeof changeStress==='function')changeStress(-stressFlat);
+    showNotif(customDef.name+': reduced Mental Stress by '+stressFlat+'.','good');
+    return true;
+  }
+  if(effect==='path_tokens'){
+    var tokens=Math.max(1,value||1);
+    if(typeof changeCounter==='function')changeCounter('pathTokens',tokens);
+    else S.pathTokens=(Number(S.pathTokens)||0)+tokens;
+    showNotif(customDef.name+': +'+tokens+' Path Tokens.','good');
+    return true;
+  }
+  if(effect==='credits'){
+    var credits=Math.max(1,value||50);
+    if(typeof changeCredits==='function')changeCredits(credits);
+    else S.credits=(Number(S.credits)||0)+credits;
+    if(typeof updateCreditsUI==='function')updateCreditsUI();
+    showNotif(customDef.name+': +'+credits+'₵.','good');
+    return true;
+  }
+  if(effect==='adv_die'){
+    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
+    var ad=(S.stats&&S.stats.adventure)?S.stats.adventure:4;
+    S.rollMod.advDice.push(ad);
+    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
+    showNotif(customDef.name+': Adventure Die bonus queued.','good');
+    return true;
+  }
+  return false;
+}
+
 function useBackpackItem(index) {
   var text = S.backpack[index];
   if (!text) return;
@@ -11246,6 +11769,9 @@ function useBackpackItem(index) {
   var item = found.item;
   var name = item.name;
   var cat = found.cat;
+  var customDef = item && item.__customCodexData ? item.__customCodexData : null;
+
+  if(customDef && handleCustomCodexItemUse(index, customDef)) return;
 
   // Helper: decrement use count, remove if exhausted; returns false if no uses remain
   function spendUse(){
@@ -17113,6 +17639,8 @@ function showCodexCat(cat,btn){
     </div>`;
   }else if(cat==='lore'){
     renderCodexTheosLorePage();
+  }else if(cat==='customforge'){
+    c.innerHTML=buildCodexCustomForgeHtml();
   }else if(cat==='flavors'){
     var entries=getAllBespokeFlavorEntries();
     c.innerHTML=`<div class="card"><div class="section-title">Personal Flavor Codex (100)</div>

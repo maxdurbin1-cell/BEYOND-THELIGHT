@@ -13599,10 +13599,10 @@ function renderHexMap(){
         }
         selectedHex=hex;
         if(clickMode==='fog'){
-          revealMapFogHex('province',markerKey,{onlyKey:true});
+          revealMapFogHex('province',markerKey);
           if(typeof showNotif==='function')showNotif('Fog lifted. Hex ['+(hex.col+1)+','+(hex.row+1)+'] revealed.','good');
         }else if(moved){
-          revealMapFogHex('province',markerKey,{onlyKey:true});
+          revealMapFogHex('province',markerKey);
         }
         // ⚡ Check for active bounties/threat interceptors BEFORE rendering
         if(typeof triggerWorldEventThreatOnHex==='function'){

@@ -1416,10 +1416,10 @@
         }
         S.lastSea.selectedKey = hex.key;
         if (S.lastSea.clickMode === "fog" && typeof window.revealMapFogHex === "function") {
-          window.revealMapFogHex("sea", String(hex.key || ""), { onlyKey: true });
+          window.revealMapFogHex("sea", String(hex.key || ""));
           showNotif('Sea fog lifted. Hex [' + (hex.col + 1) + ',' + (hex.row + 1) + '] revealed.', 'good');
         } else if (moved && typeof window.revealMapFogHex === "function") {
-          window.revealMapFogHex("sea", String(hex.key || ""), { onlyKey: true });
+          window.revealMapFogHex("sea", String(hex.key || ""));
         }
         renderLastSeaMap();
         renderLastSeaInfo(hex);

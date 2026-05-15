@@ -15476,7 +15476,7 @@ function ensurePlanetSurfaceState(hex) {
       const seeded = S.starSystem.planetExplorationByHex[key];
       const landedId = seeded && seeded.landedCellId != null ? Number(seeded.landedCellId) : null;
       if (landedId != null) {
-        window.revealMapFogHex('planet', String(key) + ':' + String(landedId), { onlyKey: true });
+        window.revealMapFogHex('planet', String(key) + ':' + String(landedId));
       }
     }
   }
@@ -15598,7 +15598,7 @@ function explorePlanetCell(cellId) {
   registerPlanetSurfaceTravel(state);
   state.selectedCellId = cell.id;
   if (typeof window.revealMapFogHex === 'function') {
-    window.revealMapFogHex('planet', getPlanetFogCellKey(state, cell.id), { onlyKey: true });
+    window.revealMapFogHex('planet', getPlanetFogCellKey(state, cell.id));
   }
   const bypass = isPlanetHazardBypassed(state);
   const hazardCount = getPlanetHazardProfile(state.profile).length;
@@ -17043,7 +17043,7 @@ function selectStarSystemHex(hexId) {
   if (clickMode === 'fog') {
     S.starSystem.currentHexId = hexId;
     if (typeof window.revealMapFogHex === 'function') {
-      window.revealMapFogHex('galaxy', String(hexId), { onlyKey: true });
+      window.revealMapFogHex('galaxy', String(hexId));
     }
     renderStarSystemMap();
     updateStarSystemReadouts();
@@ -17087,7 +17087,7 @@ function selectStarSystemHex(hexId) {
   }
   S.starSystem.currentHexId = hexId;
   if (typeof window.revealMapFogHex === 'function') {
-    window.revealMapFogHex('galaxy', String(hexId), { onlyKey: true });
+    window.revealMapFogHex('galaxy', String(hexId));
   }
   const h = getCurrentStarHex();
   if (h && h.type === 'planet') {

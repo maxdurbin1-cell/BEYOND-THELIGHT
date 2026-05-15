@@ -15508,39 +15508,104 @@ const YESSOD_ROWS = 12;
 const YESSOD_COLS = 12;
 const YESSOD_VOICE_LENS = 'Bone Oracles';
 const YESSOD_WEATHER = [
-  { name: 'Marrow Dust Front', desc: 'Copper dust from old killfields drifts in ribs of wind, and every breath tastes like old bone.', dd: 6, failure: 'Gain 1 Stress from sensory overload and static hallucinations.' },
-  { name: 'Mirror Rain', desc: 'Needle-thin rain turns to mirror film where Bone Oracles read false faces in the water.', dd: 8, failure: 'Travel stalls and consumes an extra phase following phantom trails.' },
-  { name: 'Hollow Wind', desc: 'The wind carries prayer fragments and dead names spoken from beyond the Barrier scars.', dd: 8, failure: 'Gain 1 Trauma from disorientation and memory bleed.' },
-  { name: 'Quiet Sepulcher', desc: 'A rare stillness settles over Yessod; marrow bells hang silent and the roads stay clear.', dd: 0, failure: '' },
-  { name: 'Lumen Squall', desc: 'White arcs stitch skyway braces to wet stone, tracing sigils no living hand wrote.', dd: 10, failure: 'Take 2 Health damage from arc flash and scorched gear.' },
-  { name: 'Ash Bloom', desc: 'Fungal ash rises like incense from the gullies and clings to skin like ritual chalk.', dd: 6, failure: 'Suffer -1 on next scouting check from spore haze.' },
-  { name: 'Oracle Nightfall', desc: 'Daylight dies without warning; every footprint glows, then fades like a forgotten omen.', dd: 9, failure: 'Lose route confidence; next travel also requires a check.' },
+  { name: 'Oil Rain', desc: 'Dark petroleum falls from fractured reservoirs above. Open flames ignite catastrophically. Every surface slicks.', dd: 8, rough: true, failure: '+2 Health damage if carrying fire. Lose 1 Phase to route rerouting.', check: 'body' },
+  { name: 'Ash Blizzard', desc: 'Grinding cinder-snow from the Furnace Deeps swirls blind white and scouring. Visibility drops to arms-reach.', dd: 8, rough: true, failure: 'Gain 1 Trauma from disorientation. Travel costs an extra Phase.', check: 'lead' },
+  { name: 'Lightning Storm', desc: 'Chains of static arc across skyway braces and iron mangroves. Conductive paths become death corridors.', dd: 10, rough: true, failure: 'Take 2 Health damage from arc flash or scorched gear.', check: 'body' },
+  { name: 'Black Fog', desc: 'Oil-soaked fog rolls in from the Blackwater Sea, absorbing light and sound. All nav marks vanish.', dd: 8, rough: true, failure: 'Travel stalls. Gain 1d4 Mental Stress following ghost-trails.', check: 'mind' },
+  { name: 'Blood Snow', desc: 'Iron-oxide particles freeze into crimson flakes. Eerily beautiful and profoundly disorienting.', dd: 6, rough: true, failure: 'Gain 1 Stress from dread-visions of the fallen.', check: 'spirit' },
+  { name: 'Emberwind', desc: 'Superheated gusts fling live cinders from Furnace Canyon vents. Clothing smolders. Lungs ache.', dd: 6, rough: true, failure: 'Take 1 Health damage and -1 on next social roll from coughing fits.', check: 'body' },
+  { name: 'Machine Hail', desc: 'Shrapnel showers from an ancient ordinance loop still cycling overhead. Impacts are irregular but lethal.', dd: 9, rough: true, failure: 'Take 2 Health damage from impacts. Seek cover or lose another Phase.', check: 'body' },
+  { name: 'Bone Dust Storm', desc: 'Atomized ossuary material drifts from the Titan Graveyard. Every breath tastes of ancient dead.', dd: 6, rough: true, failure: 'Suffer -1 on next scouting check from spore-bone haze.', check: 'body' },
+  { name: 'Gravity Flux', desc: 'Movement becomes vertical or sideways. Fluids float. The horizon tilts. Nothing stays where it lands.', dd: 10, rough: true, failure: 'Gain 1 Trauma from disorientation. Movement becomes erratic for one Phase.', check: 'mind', special: 'gravity_flux' },
+  { name: 'Eclipse Dark', desc: 'An artificial eclipse blacks out all solar input. Monsters become aggressive and move toward heat.', dd: 9, rough: true, failure: 'Encounter roll forced immediately. Creatures have +2 to their checks.', check: 'lead', special: 'eclipse_dark' },
+  { name: 'Choir Static', desc: 'Divine whisper-frequencies resonate from the deep strata. Madness blooms in unprotected minds.', dd: 10, rough: true, failure: 'Gain 2 Mental Stress. Hear false orders for one Phase.', check: 'spirit', special: 'choir_static' },
+  { name: 'Clear Skies (Rare)', desc: 'A moment of impossible calm. The sky above Yessod shows stars that should not exist. Travel is safe.', dd: 0, rough: false, failure: '' },
 ];
 const YESSOD_BIOMES = [
-  'Shale Gardens',
-  'Resin Flats',
-  'Iron Mangroves',
-  'Pale Basin',
-  'Spire Barrens',
-  'Salt Ember Fields',
-  'Luminous Steppe Verge',
-  'Barrier Scar Wetlands',
-  'Ashglass Terraces',
+  'Iron Forest',
+  'Drowned Necropolis',
+  'Ash Desert',
+  'Blackwater Sea',
+  'Furnace Canyon',
+  'Lightning Moor',
+  'Hanging Gardens',
+  'Titan Graveyard',
+  'Rust Jungle',
+  'Bone Glacier',
+  'Cathedral Swamp',
+  'Obsidian Coast',
+  'Chain Mountains',
+  'Steam Marsh',
+  'Hollow Megacity',
+  'Crimson Heath',
+  'Flooded Library',
+  'The Eternal Rail',
+  'Glass Wastes',
+  'Corpse Orchard',
 ];
-const YESSOD_STRATA = ['Pale Verge', 'Ash Layer', 'Resonant Shelf', 'Vaulted Mist', 'Titan Span', 'Noctis Crown'];
+const YESSOD_STRATA = ['The Ash Surface', 'Hanging Cities', 'Furnace Deeps', 'Drowned Vaults', 'Storm Canopy', 'The Root Below'];
+const YESSOD_STRATA_FLAVOR = [
+  {
+    name: 'The Ash Surface',
+    desc: 'The lowest accessible plane. A scorched wasteland of cooling lava shelves, collapsed civilizations, and the footprints of gods too large to count. The dead walk here in literal smoke. The Furnace vents have not closed in centuries.',
+    tone: 'Underworld entrance. Brutal, ancient, inescapable.',
+    threat: 4,
+    boss: { id: 'mephisto_tower', name: 'Tower of Mephisto', label: 'MEPHISTO', color: '#e05050', desc: 'An iron citadel fused from ten thousand screaming furnaces. Mephisto, the Pinnacle of Consuming Fire, broods within. He is a Raid boss. His tower can be entered. Killing him completes a Gate Endgame Mission.', glyph: '☽', questGate: 'endgame_mephisto' },
+  },
+  {
+    name: 'Hanging Cities',
+    desc: 'Chain-suspended metropolises that creak with each step. Streets hang inverted above and upright below. The gravity here is negotiated, not guaranteed. Factions war over chain-anchor rights. Refugees sleep in scaffolding between worlds.',
+    tone: 'Vertical urban horror. Political. Dangerous.',
+    threat: 3,
+    boss: null,
+  },
+  {
+    name: 'Furnace Deeps',
+    desc: 'Industrial purgatory. Colossal machines that no one built run processes no one understands for purposes no one remembers. Every furnace exhales the soul-residue of a previous age. Factions mine it for fuel.',
+    tone: 'Steampunk inferno. Labor, entropy, and machine-divinity.',
+    threat: 3,
+    boss: null,
+  },
+  {
+    name: 'Drowned Vaults',
+    desc: 'Submerged kingdoms sealed during the Sundering. The water here is black and warm. Enormous structures rise from the depths like sleeping leviathans. Bone Oracles dive with lanterns to read the archives of the drowned.',
+    tone: 'Flooded cathedral. Mystery and treasure and danger.',
+    threat: 3,
+    boss: null,
+  },
+  {
+    name: 'Storm Canopy',
+    desc: 'The highest navigable layer before the void claims you. Permanent electrical storms cycle like weather systems. Skyships navigate by lightning patterns. The dead here do not lie down — they are suspended, frozen in storms, waiting.',
+    tone: 'Heaven-corpse. Beautiful, lethal, transcendent.',
+    threat: 4,
+    boss: null,
+  },
+  {
+    name: 'The Root Below',
+    desc: 'The uppermost stratum — or the deepest, depending on which direction you fell. The bones of divine things fused into mountain ranges here. Angels fused into stone. Azrael, the Pinnacle of Final Passage, commands from his crystalline tower at the apex. Entering The Root Below requires surviving everything beneath it.',
+    tone: 'Heaven\'s corpse. Final confrontation. Transcendence or annihilation.',
+    threat: 5,
+    boss: { id: 'azrael_tower', name: 'Tower of Azrael', label: 'AZRAEL', color: '#b060d0', desc: 'A crystalline spire of fused angel bone and divine signal. Azrael, the Pinnacle of Final Passage, holds the Gate to what comes after. He is a Raid boss. His tower can be entered. Killing him completes a Gate Endgame Mission.', glyph: '✶', questGate: 'endgame_azrael' },
+  },
+];
 const YESSOD_MARKERS = {
   wilderness: { label: 'Wilderness', color: '#5d6d7f', glyph: '' },
-  seat: { label: 'Seat of Authority', color: '#f3cc78', glyph: '♜' },
-  holding: { label: 'Holding', color: '#6fb6a0', glyph: '⬢' },
-  dwelling: { label: 'Dwelling', color: '#86a7d9', glyph: '⌂' },
-  temple: { label: 'Temple', color: '#d58fe2', glyph: '⛩' },
-  monument: { label: 'Monument', color: '#c7a07a', glyph: '🜂' },
-  peril: { label: 'Peril', color: '#d96b6b', glyph: '⚠' },
-  ruins: { label: 'Ruins', color: '#a1846e', glyph: '⌁' },
-  gate: { label: 'Gate', color: '#7ed2e6', glyph: '⟐' },
-  lost_city: { label: 'Lost City', color: '#9d9dc8', glyph: '⛬' },
-  lift: { label: 'Layer Lift', color: '#7bd7c0', glyph: '⇅' },
-  barrier: { label: 'Barrier', color: '#8a5b5b', glyph: '⛝' },
+  seat: { label: 'Seat of Authority', color: '#f3cc78', glyph: '\u265c' },
+  holding: { label: 'Holding', color: '#6fb6a0', glyph: '\u2b22' },
+  dwelling: { label: 'Dwelling', color: '#86a7d9', glyph: '\u2302' },
+  temple: { label: 'Temple', color: '#d58fe2', glyph: '\u26e9' },
+  monument: { label: 'Monument', color: '#c7a07a', glyph: '\u26a7' },
+  peril: { label: 'Peril', color: '#d96b6b', glyph: '\u26a0' },
+  ruins: { label: 'Ruins', color: '#a1846e', glyph: 'R' },
+  gate: { label: 'Gate', color: '#7ed2e6', glyph: '\u25c6' },
+  lost_city: { label: 'Lost City', color: '#e080c0', glyph: '\u26ec' },
+  lift: { label: 'Layer Lift', color: '#f0a840', glyph: '\u21c5' },
+  barrier: { label: 'Barrier', color: '#8a5b5b', glyph: '\u26dd' },
+  ironway: { label: 'Ironway Route', color: '#f0a840', glyph: '\u2550' },
+  boss_mephisto: { label: 'Tower of Mephisto', color: '#e05050', glyph: '\u263d' },
+  boss_azrael: { label: 'Tower of Azrael', color: '#b060d0', glyph: '\u2736' },
+  task: { label: 'Task', color: '#3f88c5', glyph: 'T' },
+  mission: { label: 'Mission', color: '#e05050', glyph: '\u2694' },
 };
 const YESSOD_HOLDING_TITLES = ['Skull-Lantern Keep', 'Censer Bastion', 'Femur Relay Fort', 'Sepulcher Gate Hold'];
 const YESSOD_DWELLING_FLAVOR = ['reed-plated stilt homes over blackwater', 'fused ceramic blocks stacked around marrow braziers', 'courtyard warrens lit by bone-oil lamps', 'hanging nests tied to omen poles and old comm towers'];
@@ -15551,15 +15616,26 @@ const YESSOD_GATE_FLAVOR = ['orbital transfer arch keyed to dead stars and oracl
 const YESSOD_LIFT_FLAVOR = ['counterweight shaft wrapped in chain and funerary cloth', 'grav-lift spine repaired with Crucible steel and marrow pins', 'ancient service elevator now tended by oracle toll-keepers'];
 const YESSOD_BARRIER_FLAVOR = ['oracle checkpoint with marrow-lit pylons', 'collapsed veil-wall where light behaves like water', 'sealed border trench patrolled by relic drones and ashwardens'];
 const YESSOD_BIOME_LAND = {
-  'Shale Gardens': ['layered black shale terraces scored with divining grooves', 'knife-leaf gardens rooted in mineral cracks and ash circles'],
-  'Resin Flats': ['amber resin pans and sticky channels set with bone stakes', 'hardened flats with fossilized reed forests and votive cairns'],
-  'Iron Mangroves': ['metal-barked mangrove thickets tied with prayer cords', 'oxide roots braided over shallow brine and relic wire'],
-  'Pale Basin': ['chalk basins dusted in luminous pollen and marrow ash', 'salt-smooth depressions under thin fog and bell posts'],
-  'Spire Barrens': ['needle spires of fused ceramic etched with omen cuts', 'wind-carved pylons from an older city and skull pennants'],
-  'Salt Ember Fields': ['ember-red salt crusts around ritual fire pits', 'smoking mineral furrows warmed from below and ringed by cairns'],
-  'Luminous Steppe Verge': ['radiant grasses around old survey stones and oracle markers', 'open plains lit by bioluminescent seed heads and watch pyres'],
-  'Barrier Scar Wetlands': ['acid marsh cut by barrier fissures and warning ribs', 'reed bogs that whisper in static and broken litany'],
-  'Ashglass Terraces': ['volcanic glass shelves and cinder stairs blackened by rites', 'fractured terraces reflecting false skylines and funerary torches'],
+  'Iron Forest': ['metal-barked trees interlocked in prayer formations whispering in the wind', 'iron canopy so dense it filters light into rusted cathedral rays'],
+  'Drowned Necropolis': ['flooded streets beneath black water where tombs glow with residual rites', 'marble spires rising from still water like the fingers of the dead'],
+  'Ash Desert': ['grey dune sea swept by burning winds off Furnace vents', 'ash crust terrain that hides sinkholes and half-buried machinery'],
+  'Blackwater Sea': ['obsidian waves over oil-thick water reflecting no stars', 'black shoreline of fused bone and volcanic glass'],
+  'Furnace Canyon': ['superheated canyon walls venting plasma and prayer-steam', 'industrial shelf roads carved into furnace stone by the original builders'],
+  'Lightning Moor': ['crackling heathland where static pools form in depressions', 'scorched peat studded with glass fulgurites from ancient strikes'],
+  'Hanging Gardens': ['suspended platforms of impossible soil where vines wrap chain links', 'layered terrace gardens hanging above bottomless shafts'],
+  'Titan Graveyard': ['the fused skeleton ridges of colossal divine beings', 'ribcage valleys large enough to build cities inside'],
+  'Rust Jungle': ['corrosion-red canopy over a maze of oxidised struts and cable roots', 'dense undergrowth of rust-eating lichen and collapsed scaffolding'],
+  'Bone Glacier': ['pale bone-ice flowing down ancient divine remains', 'cracked glacier face exposing layered centuries of the fallen'],
+  'Cathedral Swamp': ['flooded cathedral naves where prayer-moss carpets the pews', 'black water between stained spire columns still catching false light'],
+  'Obsidian Coast': ['razor shoreline of volcanic glass running to a lightless sea', 'black pillars of cooled divine fire standing in the shallows'],
+  'Chain Mountains': ['peaks held together by enormous ancient chains between summits', 'bridge-roads linking chain-anchor fortresses across the range'],
+  'Steam Marsh': ['boiling mud vents between iron reed beds and fog banks', 'hot spring paths through mineral deposits and collapsed tunnels'],
+  'Hollow Megacity': ['gutted megastructures housing entire biomes in their ruins', 'kilometre-wide corridors serving as roads through the corpse-city'],
+  'Crimson Heath': ['blood-red grass and iron-oxide heather carpeting old battlefield plains', 'memorial cairns and weapon-stacks marking the named dead'],
+  'Flooded Library': ['archive towers rising from black water with sealed reading rooms', 'waterlogged scripture scrolls that glow faintly below the surface'],
+  'The Eternal Rail': ['an infernal rail system still running automated trains through ruin', 'platform ruins and signal towers still blinking ancient route codes'],
+  'Glass Wastes': ['mirror-flat glass plains reflecting distorted versions of the sky', 'cracked glass terrain hiding hollow chambers from a previous world'],
+  'Corpse Orchard': ['divine-scale bodies in states of crystallisation used as landmarks', 'fossilised giants whose outstretched hands have become bridge arches'],
 };
 const YESSOD_BIOME_WEATHER = {
   'Shale Gardens': ['razor-edged grit gusts', 'low thunder rolling through terraces like drumbeats'],
@@ -15598,26 +15674,48 @@ const YESSOD_REACH_NAMES = [
   'Noctis Drift',
 ];
 const YESSOD_BIOME_FLORA_FAUNA = {
-  'Shale Gardens': 'Green reclamation is sparse among knife-leaf terraces; feral pack beasts stalk old irrigation cuts.',
-  'Resin Flats': 'Resin-eel nests and carrion moths cluster around amber pools and cracked thermal vents.',
-  'Iron Mangroves': 'Metal-root mangroves host iron gulls, marsh jackals, and eel swarms in conductive tides.',
-  'Pale Basin': 'Pollen reeds and chalk fungi spread slowly while blind basin deer move in silent herds.',
-  'Spire Barrens': 'Spire lichen clings to ceramic needles; vulture swarms and shard lynx rule the updrafts.',
-  'Salt Ember Fields': 'Ash grass and ember moss survive in salt furrows while carrion hounds trail heat seams.',
-  'Luminous Steppe Verge': 'Radiant grasses attract nomad herds and glow-wings that pulse at dusk.',
-  'Barrier Scar Wetlands': 'Static reeds and veil-moss choke marsh lanes where ferrymen breed mud skiffs.',
-  'Ashglass Terraces': 'Glass fern and soot bloom hold to cinder steps; mirror eels drift through runoff channels.',
+  'Iron Forest': 'Iron-prayer birds nest in the highest metal branches. Rust wolves patrol the understory.',
+  'Drowned Necropolis': 'Bone eels coil through flooded archways. Pale crabs with script-carved shells feed on the drowned offerings.',
+  'Ash Desert': 'Nothing living survives on the surface. Below the crust, fire worms and tomb beetles thrive in the heat.',
+  'Blackwater Sea': 'Oil leviathans surface at intervals. Bone-sailed skiffs are the only visible life on the water.',
+  'Furnace Canyon': 'Flame salamanders cling to vent edges. Heatborn vultures ride thermal columns to impossible heights.',
+  'Lightning Moor': 'Charge-eels rest in static pools. Scorched elk move in single-file across the burn lines.',
+  'Hanging Gardens': 'Silk moths the size of children drift between garden tiers. Feral domestic animals from pre-collapse households run wild.',
+  'Titan Graveyard': 'Marrow beetles harvest divine remains. Titan-jackals nest in the ribcage valleys out of reach of smaller predators.',
+  'Rust Jungle': 'Iron-eating fungus spreads in waves. Rust leopards ambush from collapsed overhead walkways.',
+  'Bone Glacier': 'Pale carrion birds wheel overhead. Nothing else moves on the glacier face except the ice itself.',
+  'Cathedral Swamp': 'Luminous prayer-fish drift through flooded naves. Marsh seraphs — deformed divine remnants — guard the deep altars.',
+  'Obsidian Coast': 'Glass crabs and mirror-fin sharks patrol the shallows. Black herons stand motionless on the pillars.',
+  'Chain Mountains': 'Chain-bears nest in the anchor housings. Eagle-sized mechanical raptors patrol the bridge-roads.',
+  'Steam Marsh': 'Mud-breathing amphibians crowd the hot springs. Steam serpents follow the vent lines through the fog.',
+  'Hollow Megacity': 'Feral domestic animals from a thousand lost households have become apex predators inside the megastructure.',
+  'Crimson Heath': 'Red deer with memorial brand-marks graze the crimson plains. Carrion flock overhead in lazy spirals.',
+  'Flooded Library': 'Scripture eels swim between the archive towers. Pale archivists sometimes emerge for air and vanish again.',
+  'The Eternal Rail': 'Rail-jackals follow the train routes. Automated maintenance drones still patrol sections of the line.',
+  'Glass Wastes': 'Nothing visibly lives on the surface. Below the glass, enormous slow things move in the hollow chambers.',
+  'Corpse Orchard': 'Crystallisation beetles farm the divine remains. Carrion saints — part human, part fused divine flesh — are territorial.',
 };
 const YESSOD_BIOME_WONDERS = {
-  'Shale Gardens': 'A tower of interlocked bone ribs that hums when storm fronts approach.',
-  'Resin Flats': 'A suspended road of fossilized resin, unbroken despite centuries of quake and war.',
-  'Iron Mangroves': 'A shrine grown into a mangrove crown, lit by bells that ring without wind.',
-  'Pale Basin': 'An observatory mirror that reflects starfields unseen from the Yessod sky.',
-  'Spire Barrens': 'A vertical city-face carved into fused ceramic, every window sealed from inside.',
-  'Salt Ember Fields': 'A black monolith warm to the touch, etched with names of the Exile dead.',
-  'Luminous Steppe Verge': 'Standing stones that glow in sequence, mapping routes no chart remembers.',
-  'Barrier Scar Wetlands': 'A half-sunken gate frame where rain falls upward for a single breath each dusk.',
-  'Ashglass Terraces': 'A mirrored amphitheater that repeats spoken words as prophecy at nightfall.',
+  'Iron Forest': 'A prayer tower woven entirely from iron branches, still broadcasting a signal on frequencies no living device receives.',
+  'Drowned Necropolis': 'A sealed crypt at the deepest point where all the water drains to — but nothing has ever come back up.',
+  'Ash Desert': 'A colossal furnace exhaust still running, wide enough to walk inside, pumping ash that was once something alive.',
+  'Blackwater Sea': 'A lighthouse that predates the Sundering, still running on unknown fuel, pointing at something beneath the water.',
+  'Furnace Canyon': 'A canyon within the canyon where the rock is entirely transparent and something enormous moves inside it.',
+  'Lightning Moor': 'A glass tower struck so many times it has become a permanent conductor — lightning enters and does not leave.',
+  'Hanging Gardens': 'A garden tier that has never stopped growing, managed by constructs that have been running for centuries without instruction.',
+  'Titan Graveyard': 'The skull of a god, large enough to house a city, with a door that was installed after the god died.',
+  'Rust Jungle': 'A corroded archive whose data is still intact, stored in the rust patterns across its entire exterior surface.',
+  'Bone Glacier': 'A frozen figure at the glacier heart larger than anything that should have existed, slowly melting toward the surface.',
+  'Cathedral Swamp': 'A submerged altar that broadcasts a single divine note continuously. To hear it clearly is to lose a memory.',
+  'Obsidian Coast': 'A structure made entirely of black glass on the shoreline that reflects the world as it was before the Sundering.',
+  'Chain Mountains': 'The original anchor point for all chains in the range — a single mountain-sized mechanism of unknown purpose still ticking.',
+  'Steam Marsh': 'A vent that exhales structured language in steam. The same phrase, every hour, in a dead tongue.',
+  'Hollow Megacity': 'A room in the megastructure core that contains a perfect scale model of Yessod as it existed before any of this happened.',
+  'Crimson Heath': 'A battlefield monument that moves — one inch per decade — always pointing toward the next site of mass death.',
+  'Flooded Library': 'A sealed archive room with air inside, books still dry, and one empty chair at a desk with a book open to a blank page.',
+  'The Eternal Rail': 'A train that has never stopped, never been boarded, and passes on a schedule that predates any known calendar.',
+  'Glass Wastes': 'A perfect circle of unbroken glass, a kilometre across, with something preserved in the center that is not dead.',
+  'Corpse Orchard': 'A divine hand that is still warm to the touch, still slightly twitching, and has been for as long as anyone has recorded.',
 };
 const YESSOD_MARKER_DETAIL = {
   seat: 'Seat district where Bone Oracle choirs read marrow signs and direct Yessod travel by omen law.',
@@ -15804,6 +15902,32 @@ function createYessodState() {
     cell.feature = `Barrier scar: ${pick(YESSOD_BARRIER_FLAVOR)}.`;
   });
 
+  // Ironway route cells (Trade Route equivalent)
+  yessodTakeRandomCells(state, 8).forEach((cell) => {
+    cell.ironway = true;
+    cell.feature = cell.feature || 'Ironway infernal rail crossing. A locomotive thunders through on a schedule only the dead remember.';
+  });
+
+  // Boss towers — placed at corners (strata 1 = bottom-left, strata 6 = top-right)
+  const mephistoCell = yessodGetCell(state, yessodCellId(YESSOD_ROWS - 1, 0));
+  if (mephistoCell) {
+    mephistoCell.marker = 'boss_mephisto';
+    mephistoCell.explored = false;
+    mephistoCell.feature = YESSOD_STRATA_FLAVOR[0].boss.desc;
+    mephistoCell.bossTowerId = 'mephisto_tower';
+    mephistoCell.bossQuestGate = 'endgame_mephisto';
+    mephistoCell.reachName = 'The Ash Surface';
+  }
+  const azraelCell = yessodGetCell(state, yessodCellId(0, YESSOD_COLS - 1));
+  if (azraelCell) {
+    azraelCell.marker = 'boss_azrael';
+    azraelCell.explored = false;
+    azraelCell.feature = YESSOD_STRATA_FLAVOR[5].boss.desc;
+    azraelCell.bossTowerId = 'azrael_tower';
+    azraelCell.bossQuestGate = 'endgame_azrael';
+    azraelCell.reachName = 'The Root Below';
+  }
+
   if (holdings.length >= 2) {
     yessodMarkPath(state, holdings[0], holdings[1], 'skyway');
     if (holdings[2]) {
@@ -15814,6 +15938,10 @@ function createYessodState() {
   const temples = state.cells.filter((cell) => cell.marker === 'temple');
   if (temples.length >= 2) yessodMarkPath(state, temples[0], temples[1], 'titanpath');
   if (temples.length >= 4) yessodMarkPath(state, temples[2], temples[3], 'titanpath');
+
+  state.tasks = [];
+  state.missions = [];
+  state.pendingMonster = null;
 
   rollYessodWeather(state);
   return state;
@@ -15960,6 +16088,393 @@ function rollYessodWeatherNow() {
   renderYessodPanel();
 }
 
+// ── YESSOD REST BOONS ─────────────────────────────────────────────────────────
+function yessodRestAtHolding(cellId) {
+  const state = ensureYessodState();
+  const cell = yessodGetCell(state, cellId);
+  if (!cell) return;
+  const heal = roll(4);
+  if (typeof changeHealth === 'function') changeHealth(-heal);
+  showNotif(`Rested at Holding ${cell.feature ? cell.feature.split(':')[0] : ''}. Restored ${heal} Health.`, 'good');
+  renderYessodPanel();
+}
+
+function yessodEnterHolding(cellId) {
+  const state = ensureYessodState();
+  const cell = yessodGetCell(state, cellId);
+  if (!cell) return;
+  const title = cell.feature ? cell.feature.split(':')[0] : 'Holding';
+  openModal(`Enter ${title}`, `<div class="hex-info-inner">
+    <div class="hex-type-tag holding">${title.toUpperCase()}</div>
+    <div class="hex-desc">${cell.feature || 'A fortified strata outpost.'}</div>
+    <div style="margin-top:.5rem;">${YESSOD_MARKER_DETAIL.holding}</div>
+    <div style="margin-top:.5rem;display:flex;gap:.28rem;flex-wrap:wrap;">
+      <button class="btn btn-sm btn-teal" onclick="yessodBookSkyship(${cellId});closeModal();">🚀 Book Skyship to Holding (10 Cr)</button>
+      <button class="btn btn-sm" onclick="yessodRestAtHolding(${cellId});closeModal();">🛏 Rest Here (+1d4 Health)</button>
+      <button class="btn btn-sm" onclick="closeModal()">Leave</button>
+    </div>
+  </div>`);
+}
+
+function yessodBookSkyship(fromCellId) {
+  const state = ensureYessodState();
+  const holdings = state.cells.filter((c) => (c.marker === 'holding' || c.marker === 'seat') && c.id !== fromCellId);
+  if (!holdings.length) return showNotif('No other Holdings available for Skyship travel.', 'warn');
+  const dest = pick(holdings);
+  if (typeof changeCredits === 'function') changeCredits(-10);
+  state.selectedCellId = dest.id;
+  dest.explored = true;
+  showNotif(`Skyship booked to ${dest.feature ? dest.feature.split(':')[0] : 'Holding'}. (-10 Cr)`, 'good');
+  renderYessodPanel();
+}
+
+function yessodRestAtDwelling(cellId) {
+  if (typeof changeStress === 'function') changeStress(-1);
+  showNotif('Rested at Dwelling. Restored 1 Mental Stress.', 'good');
+  renderYessodPanel();
+}
+
+function yessodRestAtTemple(cellId) {
+  if (typeof removeTrauma === 'function') removeTrauma(1);
+  else if (typeof addTrauma === 'function') addTrauma(-1);
+  showNotif('Rested at Temple. Removed 1 Trauma.', 'good');
+  renderYessodPanel();
+}
+
+function yessodRideTitanwalker(fromCellId) {
+  const state = ensureYessodState();
+  const temples = state.cells.filter((c) => c.marker === 'temple' && c.titanpath && c.id !== fromCellId);
+  if (!temples.length) return showNotif('No connected Temple on Titanpath from here.', 'warn');
+  const dest = pick(temples);
+  if (typeof changeStress === 'function') changeStress(5);
+  state.selectedCellId = dest.id;
+  dest.explored = true;
+  showNotif(`Titanwalker carried you to ${dest.feature ? dest.feature.split('.')[0] : 'Temple'}. (+5 Mental Stress)`, 'warn');
+  renderYessodPanel();
+}
+
+function yessodRestAtRuins(cellId) {
+  if (typeof changeHealth === 'function') changeHealth(-1);
+  showNotif('Sheltered in Ruins. Restored 1 Health.', 'good');
+  rollYessodEncounter();
+  renderYessodPanel();
+}
+
+function yessodExploreRuins(cellId) {
+  const state = ensureYessodState();
+  const strataIdx = Math.max(0, Math.min(5, Number(state.currentStrata || 1) - 1));
+  const dd = YESSOD_STRATA_FLAVOR[strataIdx].threat + 4;
+  const result = roll(12);
+  const success = result >= dd;
+  const outcomes = success ? [
+    'Sealed data cache cracked. Relic schematics recovered.',
+    'Pre-Sundering arms cache — weapons and a coded map.',
+    'Oracle archive fragment with death-toll records and old transit codes.',
+    'Medicinal stash from the last occupants. Restore 1d4 Health.',
+  ] : [
+    'Structural collapse during descent. Take 1 Health damage.',
+    'Ancient security drone activates. Roll Monster Encounter.',
+    'Spore trap from fungal colonists. Gain 1 Stress.',
+    'Nothing recoverable. The ruins are thoroughly scoured.',
+  ];
+  const outcome = pick(outcomes);
+  if (success && outcome.includes('Restore')) { if (typeof changeHealth === 'function') changeHealth(-roll(4)); }
+  if (!success && outcome.includes('Health damage')) { if (typeof changeHealth === 'function') changeHealth(1); }
+  if (!success && outcome.includes('Gain 1 Stress')) { if (typeof changeStress === 'function') changeStress(1); }
+  if (!success && outcome.includes('drone')) rollYessodMonsterEncounter(cellId);
+  state.lastEncounter = `Ruin Exploration (d12: ${result} vs DD${dd}): ${success ? 'SUCCESS' : 'FAILURE'} — ${outcome}`;
+  const out = document.getElementById('yessodEncResult');
+  if (out) out.innerHTML = `<div class="venture-result"><div class="vr-type">Ruin Exploration</div>${state.lastEncounter}</div>`;
+}
+
+function yessodExploreLostCity(cellId) {
+  const state = ensureYessodState();
+  const result = roll(6) >= 4;
+  const outcomes = result ? [
+    'Sealed archive room found — air intact, books dry, chair empty. A new hex is revealed.',
+    'Pre-Sundering civic records recovered. All adjacent hexes are marked explored.',
+    'A hidden Ironway station discovered beneath the water. New travel route opened.',
+  ] : [
+    'Flooded corridor collapsed. Take 2 Health damage.',
+    'Encountered a marsh seraph guardian. Roll Monster Encounter.',
+    'Disoriented in the submerged ruins. Gain 1 Trauma.',
+  ];
+  const outcome = pick(outcomes);
+  if (!result && outcome.includes('Health')) { if (typeof changeHealth === 'function') changeHealth(2); }
+  if (!result && outcome.includes('Trauma')) { if (typeof addTrauma === 'function') addTrauma(1); }
+  if (!result && outcome.includes('seraph')) rollYessodMonsterEncounter(cellId);
+  state.lastEncounter = `Lost City Exploration: ${result ? 'SUCCESS' : 'FAILURE'} — ${outcome}`;
+  const out = document.getElementById('yessodEncResult');
+  if (out) out.innerHTML = `<div class="venture-result"><div class="vr-type">Lost City</div>${state.lastEncounter}</div>`;
+}
+
+function yessodTravelThroughGate(cellId) {
+  const state = ensureYessodState();
+  const dd = 12;
+  const result = roll(12);
+  if (result >= 6) {
+    showNotif(`Gate transit success (d12: ${result}). You emerge in a new region.`, 'good');
+    const wilderness = state.cells.filter((c) => c.marker === 'wilderness' && !c.explored);
+    if (wilderness.length) {
+      const dest = pick(wilderness);
+      dest.explored = true;
+      state.selectedCellId = dest.id;
+    }
+  } else {
+    if (typeof changeStress === 'function') changeStress(roll(4));
+    showNotif(`Gate transit failed (d12: ${result} vs Spirit DD6). Temporal backlash. +1d4 Stress.`, 'warn');
+  }
+  renderYessodPanel();
+}
+
+function yessodUseLift(delta) {
+  const state = ensureYessodState();
+  const cell = yessodGetCell(state, state.selectedCellId);
+  if (!cell || cell.marker !== 'lift') {
+    showNotif('You must be at a Layer Lift to use it.', 'warn');
+    return;
+  }
+  if (typeof addTrauma === 'function') addTrauma(1);
+  const next = Math.max(1, Math.min(6, Number(state.currentStrata || 1) + Number(delta)));
+  state.currentStrata = next;
+  const strataName = YESSOD_STRATA[next - 1] || 'Unknown Strata';
+  showNotif(`Lift traversal complete. Arrived at Strata ${next}: ${strataName}. (+1 Trauma)`, 'warn');
+  renderYessodPanel();
+}
+
+function yessodTraverseBarrier(cellId) {
+  const state = ensureYessodState();
+  const strataIdx = Math.max(0, Math.min(5, Number(state.currentStrata || 1) - 1));
+  const dd = YESSOD_STRATA_FLAVOR[strataIdx].threat + 3;
+  const result = roll(12);
+  if (result >= dd) {
+    showNotif(`Barrier crossed (d12: ${result} vs DD${dd}). Path is clear.`, 'good');
+  } else {
+    if (typeof addTrauma === 'function') addTrauma(1);
+    showNotif(`Barrier crossing failed (d12: ${result} vs DD${dd}). Veil fracture. +1 Trauma.`, 'warn');
+  }
+  renderYessodPanel();
+}
+
+function yessodTraversePeril(cellId) {
+  const state = ensureYessodState();
+  const strataIdx = Math.max(0, Math.min(5, Number(state.currentStrata || 1) - 1));
+  const dd = YESSOD_STRATA_FLAVOR[strataIdx].threat + 4;
+  const result = roll(12);
+  if (result >= dd) {
+    showNotif(`Peril traversed (d12: ${result} vs DD${dd}). You are through.`, 'good');
+  } else {
+    if (typeof changeHealth === 'function') changeHealth(1);
+    showNotif(`Peril check failed (d12: ${result} vs DD${dd}). -1 Health from hazard exposure.`, 'warn');
+    rollYessodMonsterEncounter(cellId);
+  }
+  renderYessodPanel();
+}
+
+function yessodRollIronwayEncounter(cellId) {
+  const state = ensureYessodState();
+  const outcomes = [
+    'A locomotive passes through without stopping. Cargo spills onto the platform — salvageable.',
+    'Infernal rail gang has seized the station. Pay toll (5 Cr) or fight.',
+    'Automated maintenance drones conduct inspections. Neutral — if you are not hiding anything.',
+    'A faction officer requests to share your route for intel. Mutual benefit.',
+    'Derailed cargo from a previous run. 1d6 Credits in recoverable goods.',
+    'The train that never stops passes. It is slower this time. Someone is looking out.',
+  ];
+  state.lastEncounter = `Ironway Encounter: ${pick(outcomes)}`;
+  const out = document.getElementById('yessodEncResult');
+  if (out) out.innerHTML = `<div class="venture-result"><div class="vr-type">Ironway</div>${state.lastEncounter}</div>`;
+}
+
+function yessodShowIronwayGoods() {
+  const goods = ['Processed Bone Fuel (50 Cr)', 'Pre-Sundering Circuit Schematics (80 Cr)', 'Divine Residue Flask (40 Cr)', 'Furnace-Forged Blades (30 Cr)', 'Encrypted Oracle Archive Chip (100 Cr)', 'Machine Parts (20 Cr)'];
+  openModal('Ironway Trade Goods', `<div class="hex-info-inner"><div class="hex-type-tag trade">IRONWAY GOODS</div><ul style="margin:.5rem 0;padding-left:1rem;">${goods.map((g) => `<li style="margin-bottom:.35rem;font-size:.82rem;color:var(--text2);">${g}</li>`).join('')}</ul><button class="btn btn-sm" onclick="closeModal()">Close</button></div>`);
+}
+
+function yessodRollWeatherCheck() {
+  const state = ensureYessodState();
+  const weather = state.currentWeather;
+  if (!weather || !weather.dd) return showNotif('No dangerous weather active.', 'info');
+  const result = roll(12);
+  if (result >= weather.dd) {
+    showNotif(`Weather check passed (d12: ${result} vs DD${weather.dd}). Safe passage.`, 'good');
+  } else {
+    const diff = weather.dd - result;
+    if (typeof changeStress === 'function') changeStress(diff);
+    showNotif(`Weather check failed (d12: ${result} vs DD${weather.dd}). ${weather.failure || `+${diff} Stress`}`, 'warn');
+  }
+}
+
+// ── YESSOD MONSTER ENCOUNTER ──────────────────────────────────────────────────
+function rollYessodMonsterEncounter(cellId) {
+  const state = ensureYessodState();
+  const strataIdx = Math.max(0, Math.min(5, Number(state.currentStrata || 1) - 1));
+  const threat = YESSOD_STRATA_FLAVOR[strataIdx].threat;
+  const monsters = [
+    { name: 'Iron-wing Vulture Swarm', desc: 'A shrieking cloud of razor-feathered predators descending from the superstructure.', dread: threat + 2, dd: threat + 3 },
+    { name: 'Rust Leopard', desc: 'A corrosion-camouflaged ambush predator from the Rust Jungle.', dread: threat + 3, dd: threat + 4 },
+    { name: 'Marsh Seraph', desc: 'A deformed divine remnant, half-fused with cathedral stone, still carrying its original weapon.', dread: threat + 4, dd: threat + 5 },
+    { name: 'Titan-Jackal', desc: 'A divine-scale predator that nests in ribcage valleys. Larger than anything should be.', dread: threat + 5, dd: threat + 4 },
+    { name: 'Crystallisation Beetle Colony', desc: 'Thousands of beetles that farm and consume divine remains — and anything that resembles them.', dread: threat + 2, dd: threat + 2 },
+    { name: 'Bone Glacier Shade', desc: 'A frozen echo from the glacier, now mobile, carrying the memories and wounds of its death.', dread: threat + 3, dd: threat + 5 },
+  ];
+  const monster = pick(monsters);
+  if (!state.pendingMonster) {
+    state.pendingMonster = Object.assign({ cellId: Number(cellId) }, monster);
+  }
+  state.lastEncounter = `Monster spotted: ${monster.name}. ${monster.desc} — Avoid (Lead vs DD${monster.dd}) or Engage.`;
+  const out = document.getElementById('yessodEncResult');
+  if (out) out.innerHTML = `<div class="venture-result"><div class="vr-type">Monster</div>${state.lastEncounter}</div>`;
+  renderYessodHexInfo(yessodGetCell(state, state.selectedCellId));
+}
+
+function yessodEngageMonster() {
+  const state = ensureYessodState();
+  const monster = state.pendingMonster;
+  if (!monster) return showNotif('No active monster encounter.', 'warn');
+  const dread = monster.dread || 6;
+  const count = Math.max(1, Math.min(4, Math.round(dread / 3)));
+  const now = Date.now();
+  S.enemies = [];
+  for (let i = 0; i < count; i += 1) {
+    S.enemies.push({ id: now + i, name: `${monster.name} ${i + 1}`, dread, stress: 0, maxStress: dread * 2, health: dread * 2, conditions: [] });
+  }
+  S.combat = S.combat || {};
+  if (typeof setEnemyDread === 'function') setEnemyDread(dread);
+  else S.combat.enemyDread = dread;
+  if (typeof startCombat === 'function') startCombat();
+  if (typeof renderEnemies === 'function') renderEnemies();
+  state.pendingMonster.combatStarted = true;
+  state.pendingMonster.resolving = true;
+  showNotif(`Combat started: ${count} × ${monster.name}. Check Combat tab or Quick Panel.`, 'warn');
+  const combatBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('combat'\"]");
+  if (typeof switchTab === 'function' && combatBtn) switchTab('combat', combatBtn);
+}
+
+function yessodAvoidMonster() {
+  const state = ensureYessodState();
+  const monster = state.pendingMonster;
+  if (!monster) return showNotif('No active monster encounter.', 'warn');
+  const dd = monster.dd || 8;
+  const result = roll(12);
+  if (result >= dd) {
+    state.pendingMonster = null;
+    showNotif(`Monster avoided (d12: ${result} vs DD${dd}). You slip past unseen.`, 'good');
+  } else {
+    if (typeof changeStress === 'function') changeStress(roll(4));
+    showNotif(`Failed to avoid (d12: ${result} vs DD${dd}). +1d4 Stress from close encounter. Monster is still here.`, 'warn');
+  }
+  renderYessodHexInfo(yessodGetCell(state, state.selectedCellId));
+}
+
+function yessodResolveMonsterCombat(success) {
+  const state = ensureYessodState();
+  if (!state.pendingMonster) return;
+  const monster = state.pendingMonster;
+  state.pendingMonster = null;
+  if (success) {
+    const reward = roll(6) * 10;
+    if (typeof changeCredits === 'function') changeCredits(reward);
+    showNotif(`${monster.name} defeated. +${reward} Cr salvage recovered.`, 'good');
+  } else {
+    if (typeof changeHealth === 'function') changeHealth(roll(4));
+    showNotif(`Retreated from ${monster.name}. -1d4 Health from injuries.`, 'warn');
+  }
+  renderYessodPanel();
+}
+
+// ── YESSOD BOSS TOWERS ────────────────────────────────────────────────────────
+function enterYessodBossTower(towerId) {
+  const bossData = towerId === 'mephisto_tower' ? YESSOD_STRATA_FLAVOR[0].boss : YESSOD_STRATA_FLAVOR[5].boss;
+  const dread = towerId === 'mephisto_tower' ? 16 : 18;
+  const count = 6;
+  const now = Date.now();
+  S.enemies = [];
+  for (let i = 0; i < count; i += 1) {
+    S.enemies.push({ id: now + i, name: `${bossData.label} Guard ${i + 1}`, dread: Math.round(dread / 2), stress: 0, maxStress: dread, health: dread, conditions: [] });
+  }
+  S.enemies.push({ id: now + count, name: bossData.label, dread, stress: 0, maxStress: dread * 3, health: dread * 3, conditions: [], isPinnacle: true });
+  S.combat = S.combat || {};
+  if (typeof setEnemyDread === 'function') setEnemyDread(dread);
+  else S.combat.enemyDread = dread;
+  S.combat.bossRaid = { towerId, questGate: bossData.questGate, label: bossData.label };
+  if (typeof startCombat === 'function') startCombat();
+  if (typeof renderEnemies === 'function') renderEnemies();
+  showNotif(`Entering ${bossData.name}. ${bossData.label} Raid encounter started. This is a Gate Endgame Mission.`, 'warn');
+  const combatBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('combat'\"]");
+  if (typeof switchTab === 'function' && combatBtn) switchTab('combat', combatBtn);
+}
+
+// ── YESSOD TASKS & MISSIONS ───────────────────────────────────────────────────
+function createYessodTask(cellId) {
+  const state = ensureYessodState();
+  const cell = yessodGetCell(state, cellId);
+  if (!cell) return;
+  if (!state.tasks) state.tasks = [];
+  const strataIdx = Math.max(0, Math.min(5, Number(state.currentStrata || 1) - 1));
+  const strataName = YESSOD_STRATA[strataIdx];
+  const taskId = `yessod-task-${Date.now()}`;
+  const titles = ['Recover the Relic', 'Secure the Route', 'Escort the Archivist', 'Clear the Barrier', 'Map the Submerged Tier', 'Retrieve the Death Ledger'];
+  const texts = [
+    `A pre-Sundering relic must be recovered from the ${cell.biome || 'ruin'} before rival factions claim it.`,
+    `The Ironway route through ${cell.reachName || 'this reach'} is contested. Secure it for one full Phase.`,
+    `An oracle archivist needs escort through the ${cell.biome || 'hazard zone'} to the nearest Holding.`,
+    `A barrier scar in ${cell.reachName || 'this reach'} has destabilised transit. Clear it.`,
+    `Survey the submerged section of ${cell.reachName || 'this reach'} and return with structural data.`,
+    `The death ledger from the Drowned Necropolis tier is overdue. Retrieve it before the water claims it.`,
+  ];
+  const task = {
+    id: taskId,
+    cellId: cell.id,
+    title: pick(titles),
+    text: pick(texts),
+    strata: strataName,
+    reward: { credits: roll(6) * 15 },
+    resolved: false,
+  };
+  state.tasks.push(task);
+  cell.taskId = taskId;
+  if (cell.marker === 'wilderness') cell.marker = 'task';
+  showNotif(`Task generated at hex ${cell.id}: ${task.title}`, 'good');
+  renderYessodPanel();
+  return task;
+}
+
+function resolveYessodTask(taskId, success) {
+  const state = ensureYessodState();
+  if (!state.tasks) return;
+  const task = state.tasks.find((t) => t.id === taskId);
+  if (!task) return;
+  task.resolved = true;
+  const cell = yessodGetCell(state, task.cellId);
+  if (cell) { cell.taskId = null; if (cell.marker === 'task') cell.marker = 'wilderness'; }
+  if (success) {
+    if (typeof changeCredits === 'function') changeCredits(task.reward.credits || 0);
+    showNotif(`Task complete: ${task.title}. +${task.reward.credits || 0} Cr.`, 'good');
+  } else {
+    showNotif(`Task abandoned: ${task.title}.`, 'info');
+  }
+  renderYessodPanel();
+}
+
+function resolveYessodMission(missionId, success) {
+  const state = ensureYessodState();
+  if (!state.missions) return;
+  const mission = state.missions.find((m) => m.id === missionId);
+  if (!mission) return;
+  mission.resolved = true;
+  const cell = yessodGetCell(state, mission.cellId);
+  if (cell) { cell.missionId = null; if (cell.marker === 'mission') cell.marker = 'wilderness'; }
+  if (success) {
+    if (typeof changeCredits === 'function') changeCredits(mission.reward || 0);
+    showNotif(`Mission complete: ${mission.title}. +${mission.reward || 0} Cr.`, 'good');
+  } else {
+    if (typeof changeStress === 'function') changeStress(2);
+    showNotif(`Mission failed: ${mission.title}. +2 Stress from failure fallout.`, 'warn');
+  }
+  renderYessodPanel();
+}
+
 function getYessodCellTerrainText(cell) {
   if (!cell) return 'No cell selected.';
   const biome = String(cell.biome || 'Shale Gardens');
@@ -16014,7 +16529,7 @@ function renderYessodHexInfo(cell) {
   const weather = state.currentWeather || rollYessodWeather(state);
   const seasonLabel = season.charAt(0).toUpperCase() + season.slice(1);
   const terrainLabel = yessodTerrainLabel(cell);
-  const biome = String(cell.biome || 'Shale Gardens');
+  const biome = String(cell.biome || 'Iron Forest');
   const landPool = YESSOD_BIOME_LAND[biome] || ['fractured shelf terrain'];
   const floraFauna = YESSOD_BIOME_FLORA_FAUNA[biome] || 'Wildlife signatures remain unstable and difficult to classify.';
   const wonder = YESSOD_BIOME_WONDERS[biome] || 'A relic skyline that does not match any surviving chart.';
@@ -16022,32 +16537,235 @@ function renderYessodHexInfo(cell) {
     ? `<div class="venture-result"><div class="vr-type">Encounter</div>${state.lastEncounter}</div>`
     : '';
 
-  // Province-style marker class logic
+  // Province-style marker class mapping
+  const MARKER_CLASS_MAP = {
+    seat: 'seat', holding: 'holding', dwelling: 'dwelling', temple: 'temple',
+    monument: 'monument', peril: 'peril', ruins: 'ruins', gate: 'gate',
+    lost_city: 'lostcity', barrier: 'barrier', ironway: 'trade',
+    lift: 'gate', boss_mephisto: 'peril', boss_azrael: 'temple',
+    task: 'holding', mission: 'peril',
+  };
   let markerClass = 'wilderness';
-  let markerLabel = 'WILDERNESS';
-  if (cell.explored) {
-    if (cell.marker === 'holding' || cell.marker === 'seat' || cell.marker === 'dwelling' || cell.marker === 'temple' || cell.marker === 'trade' || cell.marker === 'gate') {
-      markerClass = cell.marker;
-      markerLabel = (YESSOD_MARKERS[cell.marker] || {label: cell.marker}).label.toUpperCase();
-    } else if (cell.marker && YESSOD_MARKERS[cell.marker]) {
-      markerClass = cell.marker;
-      markerLabel = YESSOD_MARKERS[cell.marker].label.toUpperCase();
-    } else {
-      markerClass = 'wilderness';
-      markerLabel = 'WILDERNESS';
-    }
-  } else {
+  let markerLabel = cell.explored ? 'WILDERNESS' : 'UNEXPLORED';
+  if (cell.marker && cell.marker !== 'wilderness') {
+    markerClass = MARKER_CLASS_MAP[cell.marker] || cell.marker;
+    markerLabel = (YESSOD_MARKERS[cell.marker] || { label: cell.marker }).label.toUpperCase();
+  } else if (!cell.explored) {
     markerClass = 'wilderness';
     markerLabel = 'UNEXPLORED';
   }
 
-  // Province-style weather phrasing
-  const isRough = weather.rough || Number(weather.dd || 0) > 0;
+  // Province-style weather
+  const isRough = !!(weather.rough || Number(weather.dd || 0) > 0);
   const weatherClass = isRough ? 'rough' : 'clear';
   const weatherColor = isRough ? 'var(--red2)' : 'var(--teal)';
   const weatherLabel = isRough
-    ? `ROUGH WEATHER: ${yessodWeatherResultLabel(weather).toUpperCase()}`
-    : `CLEAR AND WARM: ${yessodWeatherResultLabel(weather).toUpperCase()}`;
+    ? `${weather.name.toUpperCase()}`
+    : 'CLEAR AND CALM';
+
+  // Strata info
+  const strataIdx = Math.max(0, Math.min(5, Number(state.currentStrata || 1) - 1));
+  const strataFlavor = YESSOD_STRATA_FLAVOR[strataIdx] || YESSOD_STRATA_FLAVOR[0];
+  const bossFlavor = strataFlavor.boss;
+
+  // Task/mission for this cell
+  const cellTask = (state.tasks || []).find((t) => t.cellId === cell.id && !t.resolved);
+  const cellMission = (state.missions || []).find((m) => m.cellId === cell.id && !m.resolved);
+
+  // Pending monster combat
+  const pendingMonster = state.pendingMonster && state.pendingMonster.cellId === cell.id ? state.pendingMonster : null;
+
+  // Feature-specific info HTML
+  let featureHtml = '';
+
+  // ── BOSS TOWERS ──────────────────────────────────────────────────────────────
+  if (cell.marker === 'boss_mephisto' || cell.marker === 'boss_azrael') {
+    const bossInfo = cell.marker === 'boss_mephisto' ? YESSOD_STRATA_FLAVOR[0].boss : YESSOD_STRATA_FLAVOR[5].boss;
+    featureHtml += `<div class="sea-site" style="margin-bottom:.4rem;border-color:${bossInfo.color};background:rgba(0,0,0,.15);">
+      <div class="ss-title" style="color:${bossInfo.color};">${bossInfo.glyph} ${bossInfo.name} — PINNACLE BOSS</div>
+      <div class="ss-text">${bossInfo.desc}</div>
+      <div style="margin-top:.35rem;display:flex;gap:.28rem;flex-wrap:wrap;">
+        <button class="btn btn-sm btn-warn" onclick="enterYessodBossTower('${bossInfo.id}')">⚔ Enter Tower — Begin Raid</button>
+        <button class="btn btn-sm" onclick="rollYessodEncounter()">⚄ Approach Encounter</button>
+      </div>
+    </div>`;
+  }
+
+  // ── STRATA FLAVOR ────────────────────────────────────────────────────────────
+  featureHtml += `<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(201,162,39,.3);background:rgba(201,162,39,.05);">
+    <div class="nb-label" style="color:var(--gold2);">⚙ Strata: ${strataFlavor.name} · Threat ${strataFlavor.threat}</div>
+    <div style="font-size:.78rem;color:var(--text2);line-height:1.5;">${strataFlavor.desc}</div>
+    <div style="font-size:.72rem;color:var(--muted2);margin-top:.2rem;font-style:italic;">${strataFlavor.tone}</div>
+  </div>`;
+
+  // ── HOLDING ──────────────────────────────────────────────────────────────────
+  if (cell.marker === 'holding' || cell.marker === 'seat') {
+    featureHtml += `<div class="rest-boon" style="border-color:var(--teal);background:rgba(46,196,182,.07);margin-bottom:.35rem;">
+      <div style="font-size:.8rem;font-weight:700;color:var(--teal);">⬢ ${cell.feature || 'Holding garrison of Yessod.'}</div>
+      <div style="font-size:.77rem;color:var(--text2);margin-top:.2rem;">Resting here restores 1d4 Health. Skyships dock here and can carry you to other Holdings (costs 10 Credits).</div>
+      <div style="display:flex;gap:.28rem;flex-wrap:wrap;margin-top:.32rem;">
+        <button class="btn btn-sm btn-teal" onclick="yessodRestAtHolding(${cell.id})">🛏 Rest at Holding (+1d4 Health)</button>
+        <button class="btn btn-sm" onclick="yessodEnterHolding(${cell.id})">🏰 Enter Holding</button>
+        <button class="btn btn-sm" onclick="yessodBookSkyship(${cell.id})">🚀 Book Skyship to Holding (10 Cr)</button>
+      </div>
+    </div>`;
+  }
+
+  // ── DWELLING ─────────────────────────────────────────────────────────────────
+  if (cell.marker === 'dwelling') {
+    featureHtml += `<div class="rest-boon" style="border-color:#a0c040;background:rgba(160,192,64,.06);margin-bottom:.35rem;">
+      <div style="font-size:.8rem;font-weight:700;color:#a0c040;">⌂ ${cell.feature || 'Dwelling cluster in Yessod.'}</div>
+      <div style="font-size:.77rem;color:var(--text2);margin-top:.2rem;">Rest here restores 1 Stress. Locals trade rumors, relic maps, and ferrymen routes.</div>
+      <div style="display:flex;gap:.28rem;flex-wrap:wrap;margin-top:.32rem;">
+        <button class="btn btn-sm" style="border-color:#a0c040;color:#a0c040;" onclick="yessodRestAtDwelling(${cell.id})">🛏 Rest at Dwelling (-1 Stress)</button>
+        <button class="btn btn-sm" onclick="rollYessodEncounter()">🗺 Ask Locals (Reveal Random Hex)</button>
+      </div>
+    </div>`;
+  }
+
+  // ── TEMPLE ───────────────────────────────────────────────────────────────────
+  if (cell.marker === 'temple') {
+    featureHtml += `<div class="rest-boon" style="border-color:#b060d0;background:rgba(176,96,208,.07);margin-bottom:.35rem;">
+      <div style="font-size:.8rem;font-weight:700;color:#b060d0;">⛩ ${cell.feature || 'Temple of the Bone Oracles.'}</div>
+      <div style="font-size:.77rem;color:var(--text2);margin-top:.2rem;">Resting here restores 1 Trauma. Titanwalkers can be ridden between Temples for 5 Mental Stress.</div>
+      <div style="display:flex;gap:.28rem;flex-wrap:wrap;margin-top:.32rem;">
+        <button class="btn btn-sm" style="border-color:#b060d0;color:#b060d0;" onclick="yessodRestAtTemple(${cell.id})">🛏 Rest at Temple (-1 Trauma)</button>
+        <button class="btn btn-sm" onclick="yessodRideTitanwalker(${cell.id})">🐉 Ride Titanwalker to Temple (+5 Stress)</button>
+      </div>
+    </div>`;
+  }
+
+  // ── RUINS ────────────────────────────────────────────────────────────────────
+  if (cell.marker === 'ruins') {
+    featureHtml += `<div class="rest-boon" style="border-color:#a09870;background:rgba(160,152,112,.07);margin-bottom:.35rem;">
+      <div style="font-size:.8rem;font-weight:700;color:#a09870;">⌁ ${cell.feature || 'Ruins from the World That Was.'}</div>
+      <div style="font-size:.77rem;color:var(--text2);margin-top:.2rem;">Sheltering in ruins provides rough rest: restore 1 Health but risk a random encounter (Roll Encounter).</div>
+      <div style="display:flex;gap:.28rem;flex-wrap:wrap;margin-top:.32rem;">
+        <button class="btn btn-sm" style="border-color:#a09870;color:#a09870;" onclick="yessodRestAtRuins(${cell.id})">🛏 Rest in Ruins (+1 Health, Roll Encounter)</button>
+        <button class="btn btn-sm btn-gold" onclick="yessodExploreRuins(${cell.id})">🏛 Explore Ruins (AD vs DD${strataFlavor.threat + 4})</button>
+      </div>
+    </div>`;
+  }
+
+  // ── LOST CITY ────────────────────────────────────────────────────────────────
+  if (cell.marker === 'lost_city') {
+    featureHtml += `<div class="sea-site" style="margin-bottom:.35rem;border-color:#e080c0;background:rgba(224,128,192,.07);">
+      <div class="ss-title" style="color:#e080c0;">⛬ Lost City — The Drowned Ledger</div>
+      <div class="ss-text">${cell.feature || 'A submerged civic tier sealed during the Sundering. Bone Oracles seek pre-Sundering death rolls here.'}</div>
+      <div style="margin-top:.32rem;display:flex;gap:.28rem;flex-wrap:wrap;">
+        <button class="btn btn-sm" style="border-color:#e080c0;color:#e080c0;" onclick="yessodExploreLostCity(${cell.id})">🌊 Enter Lost City (Body vs DD8)</button>
+        <button class="btn btn-sm" onclick="rollYessodEncounter()">⚄ Roll Encounter</button>
+      </div>
+    </div>`;
+  }
+
+  // ── GATE ─────────────────────────────────────────────────────────────────────
+  if (cell.marker === 'gate') {
+    featureHtml += `<div class="sea-site" style="margin-bottom:.35rem;border-color:var(--teal);background:rgba(46,196,182,.06);">
+      <div class="ss-title" style="color:var(--teal);">◆ ${cell.feature || 'Gate complex — transit omens read before passage.'}</div>
+      <div style="margin-top:.32rem;">
+        <button class="btn btn-sm btn-teal" onclick="yessodTravelThroughGate(${cell.id})">◆ Travel Through Gate (Spirit vs Dread d12)</button>
+      </div>
+    </div>`;
+  }
+
+  // ── LIFT ─────────────────────────────────────────────────────────────────────
+  if (cell.marker === 'lift') {
+    featureHtml += `<div class="sea-site" style="margin-bottom:.35rem;border-color:var(--gold2);background:rgba(240,168,64,.07);">
+      <div class="ss-title" style="color:var(--gold2);">⇅ ${cell.feature || 'Layer Lift — chain elevator between Strata.'}</div>
+      <div class="ss-text">Using a Lift shifts you one Strata up or down. Cost: +1 Trauma from the transit resonance.</div>
+      <div style="margin-top:.32rem;display:flex;gap:.28rem;flex-wrap:wrap;">
+        <button class="btn btn-sm btn-gold" onclick="yessodUseLift(1)">⇑ Ascend Strata (+1 Trauma)</button>
+        <button class="btn btn-sm" onclick="yessodUseLift(-1)">⇓ Descend Strata (+1 Trauma)</button>
+      </div>
+    </div>`;
+  }
+
+  // ── BARRIER ──────────────────────────────────────────────────────────────────
+  if (cell.marker === 'barrier') {
+    featureHtml += `<div class="barrier-block" style="margin-bottom:.35rem;">
+      <div style="font-size:.8rem;font-weight:700;color:var(--muted2);">⛝ ${cell.feature || 'Barrier scar perimeter — veil fractures and temporal drift.'}</div>
+      <div style="font-size:.77rem;color:var(--text2);margin-top:.2rem;">Barriers are at hex edges. Crossing requires a check. Failure inflicts Trauma or blocks passage.</div>
+      <div style="margin-top:.32rem;">
+        <button class="btn btn-sm btn-primary" onclick="yessodTraverseBarrier(${cell.id})">⚄ Cross Barrier (AD vs DD${strataFlavor.threat + 3})</button>
+      </div>
+    </div>`;
+  }
+
+  // ── IRONWAY (Trade Route) ────────────────────────────────────────────────────
+  if (cell.ironway) {
+    featureHtml += `<div class="sea-site" style="margin-bottom:.35rem;border-color:#f0a840;background:rgba(240,168,64,.07);">
+      <div class="ss-title" style="color:#f0a840;">═ Ironway — Infernal Rail Route</div>
+      <div class="ss-text">An active rail route. Trains run on a schedule only the dead remember. You can board for rapid transit or roll a Route Encounter.</div>
+      <div style="margin-top:.32rem;display:flex;gap:.28rem;flex-wrap:wrap;">
+        <button class="btn btn-sm" style="border-color:#f0a840;color:#f0a840;" onclick="yessodRollIronwayEncounter(${cell.id})">⚄ Ironway Encounter</button>
+        <button class="btn btn-sm" onclick="yessodShowIronwayGoods()">📦 Rail Trade Goods</button>
+      </div>
+    </div>`;
+  }
+
+  // ── PERIL ────────────────────────────────────────────────────────────────────
+  if (cell.marker === 'peril') {
+    featureHtml += `<div class="sea-site" style="margin-bottom:.35rem;border-color:var(--red2);background:rgba(201,64,64,.08);">
+      <div class="ss-title" style="color:var(--red2);">⚠ ${cell.feature || 'Peril zone — converging hazards.'}</div>
+      <div class="ss-text">Dangerous terrain. Roll to traverse or prepare for a fight.</div>
+      <div style="margin-top:.32rem;">
+        <button class="btn btn-sm btn-primary" onclick="yessodTraversePeril(${cell.id})">⚄ Traverse Peril (AD vs DD${strataFlavor.threat + 4})</button>
+      </div>
+    </div>`;
+  }
+
+  // ── PENDING MONSTER ──────────────────────────────────────────────────────────
+  if (pendingMonster) {
+    featureHtml += `<div class="sea-site" style="margin-bottom:.35rem;border-color:var(--red2);background:rgba(201,64,64,.08);">
+      <div class="ss-title" style="color:var(--red2);">⚔ Monster Encounter — ${pendingMonster.name}</div>
+      <div class="ss-text">${pendingMonster.desc || 'A creature of Yessod blocks your path.'}</div>
+      <div style="margin-top:.32rem;display:flex;gap:.28rem;flex-wrap:wrap;">
+        <button class="btn btn-sm btn-warn" onclick="yessodEngageMonster()">⚔ Engage — Combat Tab</button>
+        <button class="btn btn-sm btn-primary" onclick="yessodAvoidMonster()">🚫 Attempt to Avoid (Lead vs DD${pendingMonster.dd || 8})</button>
+      </div>
+    </div>`;
+  }
+
+  // ── TASK ─────────────────────────────────────────────────────────────────────
+  if (cellTask) {
+    featureHtml += `<div class="sea-site" style="margin-bottom:.35rem;border-color:rgba(63,136,197,.55);background:rgba(63,136,197,.07);">
+      <div class="ss-title">✦ Task — ${cellTask.title}</div>
+      <div class="ss-text">${cellTask.text || 'Active task awaiting resolution.'}</div>
+      <div style="margin-top:.3rem;display:flex;gap:.28rem;flex-wrap:wrap;">
+        <button class="btn btn-xs btn-primary" onclick="resolveYessodTask('${cellTask.id}',true)">✔ Complete Task</button>
+        <button class="btn btn-xs btn-red" onclick="resolveYessodTask('${cellTask.id}',false)">✘ Abandon Task</button>
+      </div>
+    </div>`;
+  }
+
+  // ── MISSION ──────────────────────────────────────────────────────────────────
+  if (cellMission) {
+    featureHtml += `<div class="sea-site" style="margin-bottom:.35rem;border-color:rgba(224,80,80,.55);background:rgba(224,80,80,.08);">
+      <div class="ss-title" style="color:var(--red2);">⚔ Mission — ${cellMission.title}</div>
+      <div class="ss-text">${cellMission.text || 'Mission objective at this location.'}</div>
+      <div style="margin-top:.3rem;display:flex;gap:.28rem;flex-wrap:wrap;">
+        <button class="btn btn-xs btn-warn" onclick="resolveYessodMission('${cellMission.id}',true)">✔ Mission Complete</button>
+        <button class="btn btn-xs btn-red" onclick="resolveYessodMission('${cellMission.id}',false)">✘ Mission Failed</button>
+      </div>
+    </div>`;
+  }
+
+  // ── LETHE FERRY NOTICE ───────────────────────────────────────────────────────
+  const isLethe = cell.row >= 5 && cell.row <= 6;
+  if (isLethe && state.travelMethod !== 'lethe_ferry') {
+    featureHtml += `<div class="barrier-block" style="margin-bottom:.35rem;border-color:rgba(126,210,230,.5);">
+      <div style="font-size:.78rem;color:var(--teal);">🌊 The Lethe River cuts through this zone. <strong>Crossing requires the Ferry</strong> (costs 2 Health). Select "Ferries" as your travel method.</div>
+    </div>`;
+  }
+
+  // ── WILDERNESS CARDS ─────────────────────────────────────────────────────────
+  const isWilderness = !cell.marker || cell.marker === 'wilderness' || cell.marker === 'monument';
+  const showWonderCards = isWilderness || !['holding','seat','dwelling','temple','ruins','gate','lost_city','lift','barrier','ironway','peril','boss_mephisto','boss_azrael'].includes(cell.marker);
+  const wonderCards = showWonderCards ? `
+    <div class="wild-panel"><div class="wp-label">🌍 Land</div><div class="wp-text">${yessodStablePick(landPool, cell, 1)}</div></div>
+    <div class="wild-panel"><div class="wp-label">🌿 Flora &amp; Fauna</div><div class="wp-text">${floraFauna}</div></div>
+    <div class="wild-panel"><div class="wp-label">✦ Wonder</div><div class="wp-text">${wonder}</div></div>` : '';
 
   host.innerHTML = `<div class="hex-info-inner">
     <div class="hex-type-tag ${markerClass}">${markerLabel}</div>
@@ -16057,18 +16775,24 @@ function renderYessodHexInfo(cell) {
     <div class="weather-block ${weatherClass}" style="margin-bottom:.35rem;">
       <div class="weather-label" style="color:${weatherColor};">🌦 ${seasonLabel} Weather: ${weatherLabel}</div>
       <div style="font-size:.8rem;color:var(--text2);">${weather.desc}</div>
-      ${isRough ? `<div style="font-size:.78rem;color:var(--red2);margin-top:.2rem;">Dangerous weather: Mind or Survival vs DD${weather.dd || 6}. Failure: ${weather.failure || '+1 Stress'}</div>` : ''}
+      ${isRough ? `<div style="font-size:.78rem;color:var(--red2);margin-top:.2rem;">Dangerous weather: ${weather.check || 'lead'} vs DD${weather.dd || 6}. Failure: ${weather.failure || '+1 Stress'}</div>${weather.special ? `<div style="font-size:.72rem;color:var(--gold2);margin-top:.15rem;">⚠ Special: ${weather.special === 'gravity_flux' ? 'Movement becomes vertical or sideways for one Phase.' : weather.special === 'eclipse_dark' ? 'Monsters are aggressive. Forced encounter check.' : 'Divine whispers cause Stress. Hear false orders.'}</div>` : ''}<div style="margin-top:.25rem;"><button class="btn btn-xs btn-warn" onclick="yessodRollWeatherCheck()">⚄ Weather Check</button></div>` : ''}
     </div>
 
-    <div class="wild-panel"><div class="wp-label">🌍 Land</div><div class="wp-text">${yessodStablePick(landPool, cell, 1)}</div></div>
-    <div class="wild-panel"><div class="wp-label">🌿 Flora & Fauna</div><div class="wp-text">${floraFauna}</div></div>
-    <div class="wild-panel"><div class="wp-label">✦ Wonder</div><div class="wp-text">${wonder}</div></div>
+    ${featureHtml}
+    ${wonderCards}
 
     <div class="hex-primary-actions" style="margin-top:.45rem;">
       <button class="btn btn-sm btn-gold" onclick="rollYessodObserveAdjacent()">🔍 Observe Adjacent (Lead vs DD6)</button>
       <button class="btn btn-sm btn-teal" onclick="rollYessodEncounter()">⚄ Roll Encounter</button>
     </div>
+    <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
+      <button class="btn btn-sm" onclick="createYessodTask(${cell.id})">⚄ Generate Task</button>
+      <button class="btn btn-sm btn-warn" onclick="rollYessodMonsterEncounter(${cell.id})">🐉 Roll Monster</button>
+    </div>
     <div id="yessodEncResult">${encounterHtml}</div>
+
+    <div class="info-cell" style="margin-bottom:.3rem;margin-top:.4rem;"><span class="ic-label">Status</span>${cell.explored ? 'Explored' : 'Unexplored'}</div>
+    <div class="info-cell" style="margin-bottom:.3rem;"><span class="ic-label">Feature</span>${cell.feature || 'No notable feature recorded.'}</div>
 
     <div style="margin-top:.5rem;border-top:1px solid var(--border);padding-top:.5rem;">
       <div class="sub-label">📝 Hex Notes</div>
@@ -16127,6 +16851,13 @@ function renderYessodPanel() {
       <div class="leg-item"><div class="leg-dot" style="background:#7ed2e6;"></div>Gate</div>
       <div class="leg-item"><div class="leg-dot" style="background:#9d9dc8;"></div>Lost City</div>
       <div class="leg-item"><div class="leg-dot" style="background:#8a5b5b;"></div>Barrier</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#f0a840;"></div>Ironway</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#b0a0d0;border:1px solid #705090;"></div>Lift</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#e060a0;border:1px solid #c040a0;"></div>Lost City</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#ff4040;border:2px solid #ff0000;"></div>Mephisto Tower</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#4080ff;border:2px solid #2060ff;"></div>Azrael Tower</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#3f88c5;"></div>Task</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#c04040;"></div>Mission</div>
     </div>
     <div class="map-layout">
       <div class="map-scroll">
@@ -21497,6 +22228,30 @@ window.rollYessodWeatherNow = rollYessodWeatherNow;
 window.rollYessodEncounter = rollYessodEncounter;
 window.rollYessodObserveAdjacent = rollYessodObserveAdjacent;
 window.setYessodHexNote = setYessodHexNote;
+window.yessodRestAtHolding = yessodRestAtHolding;
+window.yessodEnterHolding = yessodEnterHolding;
+window.yessodBookSkyship = yessodBookSkyship;
+window.yessodRestAtDwelling = yessodRestAtDwelling;
+window.yessodRestAtTemple = yessodRestAtTemple;
+window.yessodRideTitanwalker = yessodRideTitanwalker;
+window.yessodRestAtRuins = yessodRestAtRuins;
+window.yessodExploreRuins = yessodExploreRuins;
+window.yessodExploreLostCity = yessodExploreLostCity;
+window.yessodTravelThroughGate = yessodTravelThroughGate;
+window.yessodUseLift = yessodUseLift;
+window.yessodTraverseBarrier = yessodTraverseBarrier;
+window.yessodTraversePeril = yessodTraversePeril;
+window.yessodRollIronwayEncounter = yessodRollIronwayEncounter;
+window.yessodShowIronwayGoods = yessodShowIronwayGoods;
+window.yessodRollWeatherCheck = yessodRollWeatherCheck;
+window.rollYessodMonsterEncounter = rollYessodMonsterEncounter;
+window.yessodEngageMonster = yessodEngageMonster;
+window.yessodAvoidMonster = yessodAvoidMonster;
+window.yessodResolveMonsterCombat = yessodResolveMonsterCombat;
+window.enterYessodBossTower = enterYessodBossTower;
+window.createYessodTask = createYessodTask;
+window.resolveYessodTask = resolveYessodTask;
+window.resolveYessodMission = resolveYessodMission;
 window.explorePlanetCell = explorePlanetCell;
 window.createPlanetTask = createPlanetTask;
 window.resolvePlanetTask = resolvePlanetTask;

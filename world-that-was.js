@@ -2215,6 +2215,115 @@
     }
   }
 
+  function isWtwManualRollModeEnabled() {
+    return !!(window.settingsSystem && typeof window.settingsSystem.isManualRollMode === 'function' && window.settingsSystem.isManualRollMode());
+  }
+
+  function stepWtwManualDreadDie(current) {
+    const chain = [4, 6, 8, 10, 12, 20];
+    const die = Math.max(4, Number(current || 6));
+    let idx = chain.indexOf(die);
+    if (idx < 0) idx = 1;
+    return chain[Math.min(chain.length - 1, idx + 1)];
+  }
+
+  function openWtwManualActionDreadPrompt(config) {
+    if (typeof openModal !== 'function') return false;
+    const cfg = config || {};
+    const title = String(cfg.title || 'Manual Roll');
+    const context = String(cfg.context || title);
+    const statKey = String(cfg.statKey || 'adventure').toLowerCase();
+    const statLabel = String(cfg.statLabel || statLabel(statKey));
+    const actionDie = Math.max(4, Number(cfg.actionDie || ((typeof getEffectiveDie === 'function') ? getEffectiveDie(statKey) : 6) || 6));
+    const dreadDie = Math.max(4, Number(cfg.dreadDie || 6));
+    const tmw = Math.max(0, Number((S && S.tmw) || 0));
+    const pushDread = stepWtwManualDreadDie(dreadDie);
+
+    window._pendingWtwManualActionCheck = {
+      statKey: statKey,
+      statLabel: statLabel,
+      actionDie: actionDie,
+      dreadDie: dreadDie,
+      resolver: (typeof cfg.onResolve === 'function') ? cfg.onResolve : null
+    };
+
+    const html = ""
+      + "<div style='font-size:.84rem;color:var(--text2);line-height:1.6;'>"
+      + "<div style='font-family:Cinzel,serif;font-size:.78rem;letter-spacing:.08em;color:var(--gold2);margin-bottom:.28rem;'>" + context + "</div>"
+      + "<div><strong>" + statLabel + " d" + actionDie + "</strong> vs <strong style='color:var(--red2);'>Dread d" + dreadDie + "</strong></div>"
+      + "<div style='font-size:.72rem;color:var(--muted2);margin-top:.12rem;'>Enter your rolled values, then compare or choose outcome.</div>"
+      + "<div style='display:grid;grid-template-columns:1fr 1fr;gap:.32rem;margin-top:.4rem;'>"
+      + "<div><div style='font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;'>" + statLabel + " d" + actionDie + "</div><input type='number' id='wtwManualActionValue' min='1' max='" + actionDie + "' placeholder='1-" + actionDie + "' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
+      + "<div><div style='font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;'>Dread d" + dreadDie + "</div><input type='number' id='wtwManualDreadValue' min='1' max='" + dreadDie + "' placeholder='1-" + dreadDie + "' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
+      + "</div>"
+      + "<div style='margin-top:.34rem;padding:.28rem .36rem;border:1px solid rgba(232,192,80,.35);background:rgba(232,192,80,.08);'>"
+      + "<div style='font-size:.74rem;color:var(--gold2);'><strong>Teamwork:</strong> " + tmw + " TMW</div>"
+      + "<div style='font-size:.7rem;color:var(--muted2);margin-top:.1rem;'>Push Luck costs 2 TMW and raises Dread to d" + pushDread + ".</div>"
+      + "</div>"
+      + "<div style='display:flex;gap:.26rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.45rem;'>"
+      + "<button class='btn btn-sm' onclick='closeModal()'>Cancel</button>"
+      + "<button class='btn btn-sm' onclick='wtwResolveManualActionPrompt(\"compare\",false)'>Compare</button>"
+      + "<button class='btn btn-sm btn-primary' onclick='wtwResolveManualActionPrompt(\"success\",false)'>Success</button>"
+      + "<button class='btn btn-sm btn-red' onclick='wtwResolveManualActionPrompt(\"failure\",false)'>Failure</button>"
+      + "<button class='btn btn-sm btn-teal' " + (tmw >= 2 ? '' : "disabled title='Need 2 Teamwork'") + " onclick='wtwResolveManualActionPrompt(\"success\",true)'>Push Luck + Success</button>"
+      + "<button class='btn btn-sm btn-warn' " + (tmw >= 2 ? '' : "disabled title='Need 2 Teamwork'") + " onclick='wtwResolveManualActionPrompt(\"failure\",true)'>Push Luck + Failure</button>"
+      + "</div>"
+      + "</div>";
+    openModal(title, html);
+    return true;
+  }
+
+  function resolveWtwManualActionPrompt(mode, pushLuck) {
+    const pending = window._pendingWtwManualActionCheck || null;
+    if (!pending) return;
+    const actionInput = document.getElementById('wtwManualActionValue');
+    const dreadInput = document.getElementById('wtwManualDreadValue');
+    const actionValue = parseInt(actionInput && actionInput.value, 10);
+    const dreadValue = parseInt(dreadInput && dreadInput.value, 10);
+    const actionDie = Math.max(4, Number(pending.actionDie || 4));
+    const baseDreadDie = Math.max(4, Number(pending.dreadDie || 6));
+    if (!Number.isFinite(actionValue) || !Number.isFinite(dreadValue)) {
+      if (typeof showNotif === 'function') showNotif('Enter both manual dice values first.', 'warn');
+      return;
+    }
+    if (actionValue < 1 || actionValue > actionDie || dreadValue < 1 || dreadValue > baseDreadDie) {
+      if (typeof showNotif === 'function') showNotif('Manual dice values are out of range.', 'warn');
+      return;
+    }
+    let usedPush = false;
+    let finalDreadDie = baseDreadDie;
+    if (pushLuck) {
+      const tmw = Math.max(0, Number((S && S.tmw) || 0));
+      if (tmw < 2) {
+        if (typeof showNotif === 'function') showNotif('Need 2 Teamwork to Push Luck.', 'warn');
+        return;
+      }
+      if (typeof changeCounter === 'function') changeCounter('tmw', -2);
+      else if (typeof S !== 'undefined') S.tmw = Math.max(0, tmw - 2);
+      usedPush = true;
+      finalDreadDie = stepWtwManualDreadDie(baseDreadDie);
+    }
+    const modeKey = String(mode || 'compare').toLowerCase();
+    const success = modeKey === 'success' ? true : (modeKey === 'failure' ? false : (actionValue >= dreadValue));
+    window._pendingWtwManualActionCheck = null;
+    if (typeof closeModal === 'function') closeModal();
+    if (typeof pending.resolver === 'function') {
+      pending.resolver({
+        success: success,
+        manual: true,
+        pushLuck: usedPush,
+        statKey: pending.statKey,
+        statLabel: pending.statLabel,
+        actionDie: actionDie,
+        dreadDie: finalDreadDie,
+        actionTotal: actionValue,
+        dreadTotal: dreadValue,
+        mode: modeKey
+      });
+    }
+  }
+  window.wtwResolveManualActionPrompt = resolveWtwManualActionPrompt;
+
   function resolveWtwBarrierCrossing(hexId) {
     const w = ensureWorldState();
     const hex = hexById(hexId);
@@ -2246,9 +2355,9 @@
       renderWorldThatWas();
     };
 
-    if (typeof isGlobalManualRollMode === "function" && isGlobalManualRollMode() && typeof openGlobalManualActionDreadPrompt === "function") {
+    if (isWtwManualRollModeEnabled()) {
       const bodyDie = (typeof getEffectiveDie === "function") ? getEffectiveDie("body") : ((S.stats && S.stats.body) || 4);
-      openGlobalManualActionDreadPrompt({
+      openWtwManualActionDreadPrompt({
         title: "Manual Roll - Barrier Crossing",
         context: "World That Was barrier",
         statKey: "body",
@@ -2256,11 +2365,11 @@
         actionDie: bodyDie,
         dreadDie: 6,
         onResolve: function (outcome) {
-          const success = !!(outcome && outcome.success);
           finalizeBarrier({
-            success: success,
+            success: !!(outcome && outcome.success),
             manual: true,
-            dreadTotal: Number((outcome && outcome.dreadDie) || 6)
+            actionTotal: Number((outcome && outcome.actionTotal) || 0),
+            dreadTotal: Number((outcome && outcome.dreadTotal) || 0)
           });
         }
       });
@@ -2449,31 +2558,58 @@
     }
 
     const stat = "adventure";
-    const check = rollAgainstDread(stat, evt.dread || 8);
-
-    if (check.success) {
-      const zone = zoneForHex(hex);
-      addPowerRenown(zone ? zone.leader : MAJOR_POWERS[0], 1);
-      addZoneReputation(hex.zone, 1);
-      addWorldItem("dataDrives", 1);
-      setCredits(getCredits() + 50);
-      grantRandomLoot("medium");
-      putLootInBackpack(drawServiceMerchantItem(["items", "toolkits", "tradegoods"]));
-      if (typeof showNotif === "function") {
-        showNotif("Event success: " + statLabel(stat) + " d" + check.ad + " " + check.actionTotal + " vs DD" + check.dd + " " + check.dreadTotal + ". Rewards: +50 Credits, loot, and backpack supplies.", "good");
+    const completeEvent = function (check) {
+      if (check.success) {
+        const zone = zoneForHex(hex);
+        addPowerRenown(zone ? zone.leader : MAJOR_POWERS[0], 1);
+        addZoneReputation(hex.zone, 1);
+        addWorldItem("dataDrives", 1);
+        setCredits(getCredits() + 50);
+        grantRandomLoot("medium");
+        putLootInBackpack(drawServiceMerchantItem(["items", "toolkits", "tradegoods"]));
+        if (typeof showNotif === "function") {
+          showNotif("Event success: " + statLabel(stat) + " d" + check.ad + " " + check.actionTotal + " vs DD" + check.dd + " " + check.dreadTotal + (check.manual ? " [manual]" : "") + ". Rewards: +50 Credits, loot, and backpack supplies.", "good");
+        }
+      } else if (typeof showNotif === "function") {
+        showNotif("Event failed: " + statLabel(stat) + " d" + check.ad + " " + check.actionTotal + " vs DD" + check.dd + " " + check.dreadTotal + (check.manual ? " [manual]" : "") + ".", "warn");
+        hex.skirmish = true;
       }
-    } else if (typeof showNotif === "function") {
-      showNotif("Event failed: " + statLabel(stat) + " d" + check.ad + " " + check.actionTotal + " vs DD" + check.dd + " " + check.dreadTotal + ".", "warn");
-      hex.skirmish = true;
+
+      hex.narrative.event = buildWorldEvent(hex.zone, safePick((ZONE_FLAVOR[hex.zone] || ZONE_FLAVOR["Cyber Hub"]).events, hex.narrative.event));
+
+      advanceWorldTime("event resolution");
+      updateZoneControl();
+      syncWorldMarkers();
+      if (registerWorldAction("event")) return;
+      renderWorldThatWas();
+    };
+
+    const eventDreadDie = normalizeDreadDie(evt.dread || 8, 8);
+    if (isWtwManualRollModeEnabled()) {
+      const adventureDie = getActionDie("adventure");
+      openWtwManualActionDreadPrompt({
+        title: "Manual Roll - World Event",
+        context: "World That Was random event",
+        statKey: stat,
+        statLabel: statLabel(stat),
+        actionDie: adventureDie,
+        dreadDie: eventDreadDie,
+        onResolve: function (outcome) {
+          completeEvent({
+            success: !!(outcome && outcome.success),
+            ad: adventureDie,
+            dd: Number((outcome && outcome.dreadDie) || eventDreadDie),
+            actionTotal: Number((outcome && outcome.actionTotal) || 0),
+            dreadTotal: Number((outcome && outcome.dreadTotal) || 0),
+            manual: true,
+            pushLuck: !!(outcome && outcome.pushLuck)
+          });
+        }
+      });
+      return;
     }
 
-    hex.narrative.event = buildWorldEvent(hex.zone, safePick((ZONE_FLAVOR[hex.zone] || ZONE_FLAVOR["Cyber Hub"]).events, hex.narrative.event));
-
-    advanceWorldTime("event resolution");
-    updateZoneControl();
-    syncWorldMarkers();
-    if (registerWorldAction("event")) return;
-    renderWorldThatWas();
+    completeEvent(rollAgainstDread(stat, eventDreadDie));
   }
 
   function completeCombatEventVictory(hexId) {
@@ -3088,56 +3224,82 @@
 
     const dreadDie = t.dread || taskDreadForZone(selected.zone);
     const adventureDie = getActionDie("adventure");
-    const check = rollAgainstDread("adventure", dreadDie);
 
-    const rollSummary = "Adventure d" + adventureDie + " [" + check.actionTotal + "] vs Dread " + dreadLabel(dreadDie) + " [" + check.dreadTotal + "]";
+    const processTaskCheck = function (check) {
+      const rollSummary = "Adventure d" + adventureDie + " [" + check.actionTotal + "] vs Dread " + dreadLabel(dreadDie) + " [" + check.dreadTotal + "]";
 
-    if (!check.success) {
-      // Deferred: store state, show modal with player options — task stays active until resolved
-      window._pendingWtwTaskRoll = {
-        taskId: taskId,
-        task: t,
-        check: check,
-        adventureDie: adventureDie,
+      if (!check.success) {
+        // Deferred: store state, show modal with player options — task stays active until resolved
+        window._pendingWtwTaskRoll = {
+          taskId: taskId,
+          task: t,
+          check: check,
+          adventureDie: adventureDie,
+          dreadDie: dreadDie,
+          rollSummary: rollSummary,
+          hexId: selected.id,
+          zone: selected.zone
+        };
+        openTaskResultModal(t, check, rollSummary, false, adventureDie, dreadDie);
+        return;
+      }
+
+      // SUCCESS
+      t.status = "done";
+      addPowerRenown(t.power, 1);
+      addZoneReputation(selected.zone, 2);
+      addWorldItem("dataDrives", 1);
+      addWorldItem("fuelCells", 1);
+      grantRandomLoot(t.rewardTier || "medium");
+      const credits = t.rewardCredits || 150;
+      setCredits(getCredits() + credits);
+
+      // Success streak → Path Token at milestone
+      recordWtwSuccessRoll();
+
+      // Renown bump on challenging tasks
+      if (dreadDie >= 10) {
+        if (typeof changeCounter === "function") changeCounter("renown", 1);
+      }
+
+      if (typeof showNotif === "function") {
+        showNotif("Task complete: " + rollSummary + (check.manual ? " [manual]" : "") + ". +" + credits + "₵ · Streak +1 · +1 " + t.power + " renown.", "good");
+      }
+
+      openTaskResultModal(t, check, rollSummary, true, adventureDie, dreadDie);
+
+      w.activeTasks = w.activeTasks.filter(function (x) { return x.id !== taskId; });
+      if (t.hexId) delete w.markers[t.hexId];
+      syncWorldMarkers();
+      advanceWorldTime("holding task");
+      if (registerWorldAction("task complete")) return;
+      renderWorldThatWas();
+    };
+
+    if (isWtwManualRollModeEnabled()) {
+      openWtwManualActionDreadPrompt({
+        title: "Manual Roll - Complete Task",
+        context: "World That Was holding task",
+        statKey: "adventure",
+        statLabel: "Adventure",
+        actionDie: adventureDie,
         dreadDie: dreadDie,
-        rollSummary: rollSummary,
-        hexId: selected.id,
-        zone: selected.zone
-      };
-      openTaskResultModal(t, check, rollSummary, false, adventureDie, dreadDie);
+        onResolve: function (outcome) {
+          processTaskCheck({
+            success: !!(outcome && outcome.success),
+            ad: adventureDie,
+            dd: dreadDie,
+            actionTotal: Number((outcome && outcome.actionTotal) || 0),
+            dreadTotal: Number((outcome && outcome.dreadTotal) || 0),
+            manual: true,
+            pushLuck: !!(outcome && outcome.pushLuck)
+          });
+        }
+      });
       return;
     }
 
-    // SUCCESS
-    t.status = "done";
-    addPowerRenown(t.power, 1);
-    addZoneReputation(selected.zone, 2);
-    addWorldItem("dataDrives", 1);
-    addWorldItem("fuelCells", 1);
-    grantRandomLoot(t.rewardTier || "medium");
-    const credits = t.rewardCredits || 150;
-    setCredits(getCredits() + credits);
-
-    // Success streak → Path Token at milestone
-    recordWtwSuccessRoll();
-
-    // Renown bump on challenging tasks
-    if (dreadDie >= 10) {
-      if (typeof changeCounter === "function") changeCounter("renown", 1);
-    }
-
-    if (typeof showNotif === "function") {
-      showNotif("Task complete: " + rollSummary + ". +" + credits + "₵ · Streak +1 · +1 " + t.power + " renown.", "good");
-    }
-
-    openTaskResultModal(t, check, rollSummary, true, adventureDie, dreadDie);
-
-    w.activeTasks = w.activeTasks.filter(function (x) { return x.id !== taskId; });
-    if (t.hexId) delete w.markers[t.hexId];
-    syncWorldMarkers();
-    advanceWorldTime("holding task");
-    if (registerWorldAction("task complete")) return;
-    renderWorldThatWas();
+    processTaskCheck(rollAgainstDread("adventure", dreadDie));
   }
 
   function openTaskResultModal(task, check, rollSummary, success, adventureDie, dreadDie) {

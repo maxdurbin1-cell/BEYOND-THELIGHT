@@ -146,15 +146,17 @@ function performWildernessObservationManualRoll(col,row,directionKey,target){
     +'<div><label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Dread d'+dreadDie+'</label><input type="number" id="wildcardDreadValue" min="1" max="'+dreadDie+'" placeholder="1-'+dreadDie+'" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;"></div>'
     +'</div>'
     +'</div>'
-    +'<div style="display:flex;gap:.35rem;justify-content:flex-end;">'
+    +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
     +'<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
-    +'<button class="btn btn-sm btn-gold" onclick="finalizeWildernessManualRoll('+col+','+row+',' + "'" + directionKey + "'" + ')">✓ Compare Results</button>'
+    +'<button class="btn btn-sm btn-gold" onclick="finalizeWildernessManualRoll('+col+','+row+',' + "'" + directionKey + "'" + ',null)">✓ Compare Results</button>'
+    +'<button class="btn btn-sm btn-primary" onclick="finalizeWildernessManualRoll('+col+','+row+',' + "'" + directionKey + "'" + ',true)">Success</button>'
+    +'<button class="btn btn-sm btn-red" onclick="finalizeWildernessManualRoll('+col+','+row+',' + "'" + directionKey + "'" + ',false)">Failure</button>'
     +'</div>';
   
   openModal('Observation — Manual Roll',html);
 }
 
-function finalizeWildernessManualRoll(col,row,directionKey){
+function finalizeWildernessManualRoll(col,row,directionKey,forcedSuccess){
   const actionInput=document.getElementById('wildcardActionValue');
   const dreadInput=document.getElementById('wildcardDreadValue');
   if(!actionInput||!dreadInput){
@@ -178,7 +180,7 @@ function finalizeWildernessManualRoll(col,row,directionKey){
   
   // Process the result
   const target=getAdjacentHexByDirection(col,row,directionKey);
-  const success=actionValue>=dreadValue;
+  const success=(typeof forcedSuccess==='boolean')?!!forcedSuccess:(actionValue>=dreadValue);
   
   let html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;">'
     +'<div style="text-align:center;"><div style="font-family:\'Cinzel\',serif;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);">Lead Die</div>'
@@ -212,7 +214,7 @@ function finalizeWildernessManualRoll(col,row,directionKey){
   if(typeof renderHexMap==='function')renderHexMap();
   
   openModal('Observation — Adjacent Hexes',html);
-  appendHexNote(col,row,`[Observation] Lead d${leadDie} vs DD${dreadDie} (${directionKey||'adjacent'}): ${actionValue} vs ${dreadValue} => ${success?'success':'failure'}`);
+  appendHexNote(col,row,`[Observation] Lead d${leadDie} vs DD${dreadDie} (${directionKey||'adjacent'}): ${actionValue} vs ${dreadValue} => ${success?'success':'failure'}${typeof forcedSuccess==='boolean'?' [manual override]':''}`);
 }
 }
 

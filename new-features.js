@@ -4042,6 +4042,7 @@
       + '<label style="font-size:.7rem;color:var(--muted2);">Dread d' + dreadDie + '<input id="crucibleManualDread" type="number" min="1" max="99" style="width:100%;margin-top:.08rem;"></label>'
       + '</div>'
       + '<div style="display:flex;justify-content:flex-end;gap:.3rem;margin-top:.26rem;">'
+      + '<button class="btn btn-sm" onclick="goBackCrucibleManualActionRoll()">Go Back</button>'
       + '<button class="btn btn-sm" onclick="cancelCrucibleManualActionRoll()">Cancel</button>'
       + '<button class="btn btn-sm btn-primary" onclick="resolveCrucibleManualActionRoll()">Resolve</button>'
       + '</div>'
@@ -4050,10 +4051,20 @@
     return true;
   }
 
+  window.goBackCrucibleManualActionRoll = function () {
+    if (typeof goBackModal === 'function') {
+      goBackModal();
+    } else if (typeof closeModal === 'function') {
+      closeModal();
+    }
+    return true;
+  };
+
   window.cancelCrucibleManualActionRoll = function () {
     ensureNewFeatureState();
     if (S && S.holding && S.holding.crucible) S.holding.crucible.manualActionPending = null;
-    if (typeof closeModal === 'function') closeModal();
+    if (typeof goBackModal === 'function') goBackModal();
+    else if (typeof closeModal === 'function') closeModal();
     return true;
   };
 
@@ -4090,7 +4101,8 @@
     });
     match.log = (match.log || []).concat(logs).slice(-120);
     S.holding.crucible.manualActionPending = null;
-    if (typeof closeModal === 'function') closeModal();
+    if (typeof goBackModal === 'function') goBackModal();
+    else if (typeof closeModal === 'function') closeModal();
     maybeSyncCrucibleSelection(match);
     finalizeHoldingCrucibleMatch(match);
     renderHoldingCruciblePopup();
@@ -12517,6 +12529,18 @@
   window.awardPathToken = awardPathToken;
   
   // ── COMBAT MANUAL ROLL HANDLER ──────────────────────────────────────────────
+  function returnToPreviousManualRollModal() {
+    if (typeof goBackModal === 'function') {
+      goBackModal();
+      return true;
+    }
+    if (typeof closeModal === 'function') {
+      closeModal();
+      return true;
+    }
+    return false;
+  }
+
   window.performCombatActionManualRoll = function(type) {
     if (!type || ['strike', 'shoot', 'spell', 'hack', 'defend', 'control', 'body', 'spirit', 'mind'].indexOf(type) < 0) return;
 
@@ -12546,7 +12570,8 @@
       + '</div>'
       + '</div>'
       + '<div style="display:flex;gap:.35rem;justify-content:flex-end;">'
-      + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
+      + '<button class="btn btn-sm" onclick="returnToPreviousManualRollModal()">Go Back</button>'
+      + '<button class="btn btn-sm" onclick="returnToPreviousManualRollModal()">Cancel</button>'
       + '<button class="btn btn-sm btn-teal" onclick="finalizeCombatManualRoll(\'' + type + '\')">⚄ Resolve</button>'
       + '</div>';
 
@@ -12574,7 +12599,7 @@
       return;
     }
 
-    if (typeof closeModal === 'function') closeModal();
+    returnToPreviousManualRollModal();
 
     var mode = 'standard';
     if (window.heavyAttackData && window.heavyAttackData.type === type) mode = 'heavy';
@@ -12689,6 +12714,7 @@
     window.heavyAttackData = null;
     window.fastAttackData = null;
   };
+  window.returnToPreviousManualRollModal = returnToPreviousManualRollModal;
   window.manualRollOutcomeFailure = manualRollOutcomeFailure;
   window.handleManualRollFailure = handleManualRollFailure;
   window.awardFailureTeamwork = awardFailureTeamwork;

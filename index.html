@@ -2,17 +2,21 @@
 </body>
 <script>
 // --- Modal Stack for Go Back Navigation ---
-window._modalStack = [];
+window._modalStack = Array.isArray(window._modalStack) ? window._modalStack : [];
 setTimeout(function() {
   try {
     const _originalOpenModal = window.openModal || openModal;
     window.openModal = function(title, html, restoreCallback) {
       try {
-        const modalEl = document.querySelector('.modal, .modal-backdrop');
-        if (modalEl) {
-          const prevTitle = modalEl.querySelector('.modal-title')?.textContent || '';
-          const prevHtml = modalEl.querySelector('.modal-body')?.innerHTML || '';
-          window._modalStack.push({ title: prevTitle, html: prevHtml, restoreCallback });
+        const overlay = document.getElementById('rollModal');
+        const titleEl = document.getElementById('modalTitle');
+        const contentEl = document.getElementById('modalContent');
+        if (overlay && overlay.classList.contains('open') && contentEl) {
+          const prevTitle = titleEl ? String(titleEl.textContent || '') : '';
+          const prevHtml = String(contentEl.innerHTML || '');
+          if (prevTitle || prevHtml) {
+            window._modalStack.push({ title: prevTitle, html: prevHtml, restoreCallback: restoreCallback });
+          }
         }
       } catch (err) {}
       _originalOpenModal(title, html);
@@ -22,12 +26,17 @@ setTimeout(function() {
         const prev = window._modalStack.pop();
         if (prev && typeof prev.restoreCallback === 'function') {
           prev.restoreCallback();
-        } else if (prev && prev.title && prev.html) {
+        } else if (prev && (prev.title || prev.html)) {
           _originalOpenModal(prev.title, prev.html);
+        } else if (typeof closeModal === 'function') {
+          closeModal();
         }
       } else if (typeof closeModal === 'function') {
         closeModal();
       }
+    };
+    window.clearModalStack = function() {
+      window._modalStack = [];
     };
   } catch (err) {}
 }, 0);
@@ -17294,6 +17303,10 @@ function openModal(title, content) {
   });
 }
 function closeModal() {
+  if (window._modalStack && window._modalStack.length > 0 && typeof window.goBackModal === 'function') {
+    window.goBackModal();
+    return;
+  }
   if (typeof window !== 'undefined') window._arenaCombatPopupOpen = false;
   document.getElementById('rollModal').classList.remove('open');
   if (_modalPrevFocus) { _modalPrevFocus.focus(); _modalPrevFocus = null; }
@@ -18965,6 +18978,7 @@ window.addEventListener('DOMContentLoaded', function() {
 
   function buildQPCombat() {
     if (typeof S === 'undefined') return '<div style="color:var(--muted2);">State not loaded.</div>';
+    var teamworkPoints = Math.max(0, Number(S.tmw || 0));
     var qpDefendDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('defend') : ((S.stats && S.stats.defend) ? S.stats.defend : 4);
     var qpPlayerHealth = Math.max(0, Number((typeof S.health === 'number') ? S.health : (S.stress || 0)));
     var qpPlayerMaxHealth = Math.max(1, Number(qpDefendDie || 4) * 2);
@@ -19046,6 +19060,7 @@ window.addEventListener('DOMContentLoaded', function() {
         + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Round: <strong style="color:var(--gold2);">'+Math.max(1, Number(raidFlow.turn || 1))+'</strong></div>'
         + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Your Actions: <strong style="color:var(--gold2);">'+playerRaidActions+'/'+playerMaxRaidActions+'</strong></div>'
         + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Health: <strong style="color:var(--teal);">'+qpPlayerHealth+'/'+qpPlayerMaxHealth+'</strong></div>'
+        + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">TMW: <strong style="color:var(--muted3);">'+teamworkPoints+'</strong></div>'
         + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Ally Budget: <strong style="color:var(--teal);">'+allyBudget+'</strong></div>'
         + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Enemy Budget: <strong style="color:var(--red2);">'+enemyBudget+'/'+enemyBudgetMax+'</strong></div>'
         + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Turn: <strong style="color:var(--teal);">'+turnOwner+'</strong></div>'
@@ -19177,6 +19192,7 @@ window.addEventListener('DOMContentLoaded', function() {
       + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.4rem;">'
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Your Actions: <strong style="color:var(--gold2);">'+playerActions+'/'+playerMaxActions+'</strong></div>'
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Health: <strong style="color:var(--teal);">'+qpPlayerHealth+'/'+qpPlayerMaxHealth+'</strong></div>'
+      + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">TMW: <strong style="color:var(--muted3);">'+teamworkPoints+'</strong></div>'
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Ally Actions: <strong style="color:var(--teal);">'+allyActions+'</strong></div>'
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Enemy Actions: <strong style="color:var(--red2);">'+enemyActions+'/'+enemyActionsMax+'</strong></div>'
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Dread: <strong style="color:var(--red2);">d'+dread+'</strong></div>'

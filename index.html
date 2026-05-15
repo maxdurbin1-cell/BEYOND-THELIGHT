@@ -487,7 +487,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="tab-btn ctx-sea" role="tab" aria-selected="false" aria-controls="tab-lastsea" id="tabnav-lastsea" style="display:none;" onclick="switchTab('lastsea',this)">Sea Region</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-galaxy" id="tabnav-galaxy" style="display:none;" onclick="switchTab('galaxy',this)">Galaxy</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-theos" id="tabnav-theos" onclick="switchTab('theos',this)">Theos Atlas</button>
-    <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-worldthatwas" id="tabnav-worldthatwas" onclick="switchTab('worldthatwas',this)">World That Was</button>
+    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-worldthatwas" id="tabnav-worldthatwas" onclick="switchTab('worldthatwas',this)">World That Was</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-planet" id="tabnav-planet" style="display:none;" onclick="switchTab('planet',this)">Planet Exploration</button>
     <button class="tab-btn ctx-space" role="tab" aria-selected="false" aria-controls="tab-exocrafts" id="tabnav-exocrafts" style="display:none;" onclick="switchTab('exocrafts',this)">Exocrafts</button>
     <button class="tab-btn ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-naval" id="tabnav-naval" style="display:none;" onclick="switchTab('naval',this)">Ship</button>
@@ -12545,7 +12545,36 @@ function revealProvinceRumorHex(col,row){
   const key=String(target.col)+','+String(target.row);
   revealMapFogHex('province',key);
   if(typeof renderHexMap==='function')renderHexMap();
-  if(typeof showNotif==='function')showNotif('Local rumors reveal distant activity near ['+(target.col+1)+','+(target.row+1)+'].','good');
+
+  // Build a flavor rumor from the revealed hex's wonder, type, and name
+  const hexLabel=target.name||(target.terrain&&target.terrain.name)||'the wilds';
+  const locLabel='['+String(target.col+1)+','+String(target.row+1)+'] — '+hexLabel;
+  const td=TERRAIN_DESC[resolveTerrainDescriptorKey(target&&target.terrain&&target.terrain.name)]||{};
+  const wonderPool=Array.isArray(td.wonder)&&td.wonder.length?td.wonder:null;
+
+  // Type-specific fallback rumors when no wonder pool available
+  const typeRumors={
+    temple:['A temple rises out there — they say the old rites are still performed at midnight.','Pilgrims have been taking that road east. Something sacred is out that way.','Smoke from a temple altar. The priests there won\'t turn strangers away.'],
+    dwelling:['A settlement out that direction — someone said the gates have been shut for days.','There\'s a community out that way. They had trouble with something coming from the dark.','Farmers from that settlement brought stories of lights moving at night — none of their own making.'],
+    holding:['A fortified position out that way. Word is they\'re under pressure.','That holding controls the eastern approach. Whoever holds it, holds the road.','Soldiers were seen heading that direction three days ago. Nobody\'s come back with news.'],
+    seat:['A lord\'s seat is out there. They say the banner has changed.','There\'s a seat of power to the east — rival factions have been sending envoys.','The seat out that way has been quiet. Too quiet, according to the merchants.'],
+    ruins:['Those ruins out there — someone went looking for what\'s inside. They came back with more questions than answers.','The old structure out that way still stands. Locals say you can hear it at night.','There\'s something still alive in those ruins. Or something that used to be alive.'],
+    monument:['A monument out that direction — the carvings don\'t match any script the scholars know.','Travelers leave offerings at a monument out there. Old habit. Nobody remembers why it started.','The monument out that way points to something. Follow the shadow at dawn.'],
+    gate:['A gate out that way into the next territory. The toll is steep — or so they say.','The gate out there has been sealed. Someone doesn\'t want traffic moving through.','Two roads meet at a gate out east. Good place to hear things if you can get through.'],
+    trade:['A trade post that direction — merchants from three regions pass through it.','The trade route out that way has been disrupted. Nobody will say by what.','A market out there where things change hands that shouldn\'t. Worth investigating.'],
+    wilderness:['Strange lights in the wilderness out that way. Not fires.','Something is moving through the wilds out there — tracks, but nothing anyone recognizes.','Word from a scout: the land out east looks different than it did last season.'],
+    lostcity:['A lost city — they found it, and now some of them wish they hadn\'t.','Expedition maps show a lost city out that way. None of the expeditions came back complete.','The ruins out there are older than anyone can date. The writing on the walls is still legible — barely.']
+  };
+
+  let rumorText;
+  if(wonderPool){
+    rumorText=pick(wonderPool);
+  } else {
+    const fallbackPool=typeRumors[target.type]||typeRumors.wilderness;
+    rumorText=pick(fallbackPool);
+  }
+
+  if(typeof showNotif==='function')showNotif('📍 Local Rumor · '+locLabel+' — "'+rumorText+'"','good');
 }
 
 function getProvinceMapState(){
@@ -13689,7 +13718,7 @@ function renderHexInfo(hex){
   html+=`<div class="hex-type-tag ${hex.type}">${hex.type.toUpperCase()}</div>`;
   html+=`<div class="hex-name">${hex.name||hex.terrain.name}</div>`;
   html+=`<div class="hex-desc" style="margin-bottom:.4rem;">${hex.terrain.name} terrain${activeProvinceCtx&&activeProvinceCtx.name?` · ${activeProvinceCtx.name}`:''}</div>`;
-  if(hex.type==='dwelling'||hex.type==='temple'||hex.type==='holding'||hex.type==='seat'){
+  if(hex.type==='dwelling'||hex.type==='temple'||hex.type==='holding'||hex.type==='seat'||hex.type==='trade'||hex.type==='gate'){
     html+=`<div style="margin-bottom:.35rem;"><button class="btn btn-xs btn-teal" onclick="revealProvinceRumorHex(${hex.col},${hex.row})">🗺 Ask Locals (Reveal Random Hex)</button></div>`;
   }
 

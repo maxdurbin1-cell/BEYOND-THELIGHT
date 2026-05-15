@@ -119,6 +119,25 @@
     }
   ];
 
+  var THEOS_GUIDE_ENTRIES = [
+    {
+      title: "Atlas Loop",
+      summary: "Hover nodes to identify provinces. Click a node to open its region card. Enter only when your party is ready for that threat tier."
+    },
+    {
+      title: "Raid Endgame Routing",
+      summary: "Use the region card to check routes and travel rules before committing. Rail travel requires neighboring links, and cross-continent runs use Last Sea."
+    },
+    {
+      title: "Roll Primer",
+      summary: "Scene rolls represent pressure. Threat, fracture lines, and dominant factions telegraph what checks and consequences are likely in that region."
+    },
+    {
+      title: "Scene Intent",
+      summary: "Each province highlights what to do there: power struggles, quest hooks, and dungeon themes. Use this to frame objectives before entering."
+    }
+  ];
+
   // x/y are % of atlas image (width/height). Calibrated to city-text anchors on the
   // "Known Realms of Theos" cartography image (Fida Wildheart, c.2578 P.A.).
   var THEOS_PROVINCES = [
@@ -881,13 +900,14 @@
       if (unlockable) cls += " unlockable";
       if (!isUnlocked && !isKnown) cls += " fogged";
       if ((st.selectedProvinceId || st.activeProvinceId) === province.id) cls += " active";
+      if (st.hoverProvinceId === province.id) cls += " hovered";
 
       html += ''
         + '<g class="' + cls + '" data-province="' + esc(province.id) + '" tabindex="0" role="button" aria-label="' + esc(province.name) + '">'
+        + '<title>' + esc(province.name) + '</title>'
         + '<circle class="theos-node-backdrop" cx="' + province.x + '%" cy="' + province.y + '%" r="2.55%" />'
         + '<circle class="theos-node-core" cx="' + province.x + '%" cy="' + province.y + '%" r="1.35%" />'
         + '<circle class="theos-node-aura" cx="' + province.x + '%" cy="' + province.y + '%" r="2.65%" />'
-        + '<text class="theos-node-label" x="' + province.x + '%" y="' + (province.y - 2.5) + '%">' + esc(province.name) + '</text>'
         + '</g>';
     });
     return html;
@@ -908,16 +928,9 @@
     };
   }
 
-  function renderProvinceDetail() {
-    var st = ensureState();
-    var root = byId("theosProvinceDetail");
-    if (!root) return;
-
-    var targetId = st.hoverProvinceId || st.selectedProvinceId || st.activeProvinceId;
-    var summary = summarizeProvince(targetId);
+  function buildProvinceDetailHtml(summary) {
     if (!summary) {
-      root.innerHTML = '<div class="theos-empty">Hover a province node to read its archive entry.</div>';
-      return;
+      return '<div class="theos-empty">Hover a province node to read its archive entry.</div>';
     }
 
     var p = summary.province;
@@ -941,6 +954,7 @@
       : (crossContinent
         ? 'Cross-continent travel requires Last Sea routing.'
         : (canRailHop ? 'Connected by rail corridor.' : 'Train movement follows neighboring land links only.'));
+
     var travelAction = '';
     if (!stTrain.trainOwned && !isFreeEntryProvince) {
       travelAction = '<button class="btn btn-sm ' + (canBuyTrain ? 'btn-teal' : '') + '" onclick="window.theosBuyTrain()"' + (canBuyTrain ? '' : ' disabled title="Need more credits"') + '>Purchase Train Ticket (' + TRAIN_COST + ' \u20B5)</button>';
@@ -952,8 +966,8 @@
       travelAction = '<button class="btn btn-sm btn-primary" ' + (canRailHop ? '' : 'disabled title="Rail only reaches connected neighboring provinces"') + ' onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">Enter Region</button>';
     }
 
-    root.innerHTML = ''
-      + '<div class="theos-region-kicker">' + esc(p.name) + ' · Threat ' + esc(p.threat) + '</div>'
+    return ''
+      + '<div class="theos-region-kicker">' + esc(p.name) + ' \u00b7 Threat ' + esc(p.threat) + '</div>'
       + '<p class="theos-region-copy">' + esc(lore.chronicle) + '</p>'
       + '<div class="theos-chip-row">'
       + '<span class="theos-chip">Terrain: ' + esc(d.terrain) + '</span>'
@@ -972,11 +986,50 @@
       + '<div><strong>Dungeon Themes</strong><span>' + esc(d.dungeonThemes.join(', ')) + '</span></div>'
       + '<div><strong>Resources</strong><span>' + esc(d.resources.join(', ')) + '</span></div>'
       + '<div><strong>Settlements / Dungeons / Quests</strong><span>' + esc(tables.settlements.length) + ' / ' + esc(tables.dungeons.length) + ' / ' + esc(tables.quests.length) + '</span></div>'
-        + '<div><strong>Exploration</strong><span>Open node browsing is enabled. You can inspect any province first, then choose when to enter.</span></div>'
+      + '<div><strong>Scene Goal</strong><span>Identify local pressure, pick a quest hook, and enter once your team agrees on objective and risk.</span></div>'
       + '</div>'
       + '<div class="theos-region-actions">'
       + travelAction
+      + '<button class="btn btn-sm" onclick="window.theosOpenCodexGuide()">Open System Codex</button>'
       + '</div>';
+  }
+
+  function renderProvinceDetail() {
+    var st = ensureState();
+    var root = byId("theosProvinceDetail");
+    if (!root) return;
+
+    var targetId = st.hoverProvinceId || st.selectedProvinceId || st.activeProvinceId;
+    var summary = summarizeProvince(targetId);
+    if (!summary) {
+      root.innerHTML = '<div class="theos-empty">Hover a province node to read its archive entry.</div>';
+      return;
+    }
+    root.innerHTML = buildProvinceDetailHtml(summary);
+  }
+
+  function openProvinceCard(provinceId) {
+    var st = ensureState();
+    var id = String(provinceId || st.selectedProvinceId || st.activeProvinceId || "");
+    var summary = summarizeProvince(id);
+    if (!summary) return;
+
+    if (typeof window.openModal === "function") {
+      window.openModal("Province Archive", '<div class="theos-modal-detail">' + buildProvinceDetailHtml(summary) + '</div>');
+      return;
+    }
+
+    notify(summary.province.name + ": " + getProvinceLore(summary.province.id).chronicle, "info");
+  }
+
+  function openCodexGuide() {
+    if (typeof window.showCodexCat === "function") {
+      window.showCodexCat('lore');
+    }
+    if (typeof window.renderCodexTheosLorePage === "function") {
+      try { window.renderCodexTheosLorePage(); } catch (_err) {}
+    }
+    switchToTab('codex');
   }
 
   function renderCodexPanel() {
@@ -1015,7 +1068,35 @@
       + '<div class="theos-codex-card">'
       + '<div class="theos-codex-title">Recent Timeline</div>'
       + '<ul>' + (timeline || '<li><span>No timeline events</span><span>Enter a province first</span></li>') + '</ul>'
+      + '</div>'
+      + '<div class="theos-codex-card">'
+      + '<div class="theos-codex-title">Player Codex</div>'
+      + '<ul>' + THEOS_GUIDE_ENTRIES.map(function (entry) {
+          return '<li><span>' + esc(entry.title) + '</span><span>' + esc(entry.summary) + '</span></li>';
+        }).join('') + '</ul>'
+      + '<div style="margin-top:.42rem;"><button class="btn btn-xs" onclick="window.theosOpenCodexGuide()">Open Full Codex</button></div>'
       + '</div>';
+  }
+
+  function setNodeHoverLabel(label, evt) {
+    var tip = byId("theosNodeHover");
+    if (!tip) return;
+    tip.textContent = String(label || "");
+    tip.classList.add("show");
+    if (evt && Number.isFinite(evt.clientX) && Number.isFinite(evt.clientY)) {
+      var tab = byId("tab-theos");
+      var rect = tab ? tab.getBoundingClientRect() : null;
+      if (rect) {
+        tip.style.left = Math.max(8, Math.round(evt.clientX - rect.left + 14)) + "px";
+        tip.style.top = Math.max(8, Math.round(evt.clientY - rect.top + 14)) + "px";
+      }
+    }
+  }
+
+  function clearNodeHoverLabel() {
+    var tip = byId("theosNodeHover");
+    if (!tip) return;
+    tip.classList.remove("show");
   }
 
   function bindNodeEvents() {
@@ -1025,21 +1106,28 @@
       var provinceId = String(node.getAttribute("data-province") || "");
       if (!provinceId) return;
 
-      node.addEventListener("mouseenter", function () {
+      node.addEventListener("mouseenter", function (evt) {
         st.hoverProvinceId = provinceId;
-        renderProvinceDetail();
+        var province = provinceById(provinceId);
+        setNodeHoverLabel(province ? province.name : provinceId, evt);
+      });
+      node.addEventListener("mousemove", function (evt) {
+        var province = provinceById(provinceId);
+        setNodeHoverLabel(province ? province.name : provinceId, evt);
       });
       node.addEventListener("mouseleave", function () {
         st.hoverProvinceId = null;
-        renderProvinceDetail();
+        clearNodeHoverLabel();
       });
       node.addEventListener("click", function () {
         window.theosSelectProvince(provinceId, false);
+        if (typeof window.theosOpenProvinceCard === "function") window.theosOpenProvinceCard(provinceId);
       });
       node.addEventListener("keydown", function (evt) {
         if (evt.key === "Enter" || evt.key === " ") {
           evt.preventDefault();
           window.theosSelectProvince(provinceId, false);
+          if (typeof window.theosOpenProvinceCard === "function") window.theosOpenProvinceCard(provinceId);
         }
       });
     });
@@ -1067,6 +1155,7 @@
       + '      <button class="btn btn-sm" onclick="window.theosUnlockConnected()">Unlock Frontier</button>'
       + '      <button class="btn btn-sm btn-teal" onclick="window.theosAdvancePolitics()">Advance Politics</button>'
       + '      <button class="btn btn-sm" onclick="window.theosTravelTo(\'lastsea\')">Sail Last Sea</button>'
+      + '      <button class="btn btn-sm" onclick="window.theosOpenCodexGuide()">System Codex</button>'
       + '      <button class="btn btn-sm" onclick="window.theosTravelTo(\'galaxy\')">Open Galaxy</button>'
       + '      <button class="btn btn-sm" onclick="window.theosTravelTo(\'worldthatwas\')">World That Was</button>'
       + '    </div>'
@@ -1095,29 +1184,14 @@
       + drawNodes(st)
       + '          </svg>'
       + '        </div>'
+      + '        <div id="theosNodeHover" class="theos-node-hover" aria-hidden="true"></div>'
       + '      </div>'
       + '    </section>'
-      + '    <aside class="theos-sidebar">'
-      + '      <div class="theos-sidebar-card">'
-      + '        <div class="theos-sidebar-title">Region Overview</div>'
-      + '        <div id="theosProvinceDetail"></div>'
-      + '      </div>'
-      + '      <div class="theos-sidebar-card">'
-      + '        <div class="theos-sidebar-title">Continent Registry</div>'
-      + '        <ul class="theos-continent-list">'
-      + THEOS_CONTINENTS.map(function (c) {
-          var discovered = c.provinces.filter(function (id) { return !!st.discovered[id]; }).length;
-          return '<li><strong>' + esc(c.name) + '</strong><span>' + esc(c.subtitle) + ' · ' + esc(discovered) + '/' + esc(c.provinces.length) + ' charted</span></li>';
-        }).join("")
-      + '        </ul>'
-      + '      </div>'
-      + '    </aside>'
       + '  </div>'
       + '  <div id="theosCodexPanel" class="theos-codex-grid"></div>'
       + '</div>';
 
     bindNodeEvents();
-    renderProvinceDetail();
     renderCodexPanel();
   }
 
@@ -1541,6 +1615,8 @@
   window.getTheosProvinceSummary = getProvinceSummary;
   window.getTheosProvinceList = getProvinceList;
   window.theosPrimeStartingProvince = primeStartingProvinceIfNeeded;
+  window.theosOpenProvinceCard = openProvinceCard;
+  window.theosOpenCodexGuide = openCodexGuide;
 
   document.addEventListener("DOMContentLoaded", bootstrap);
 })();

@@ -158,6 +158,20 @@
     { id: "cityofbliss",  name: "City of Bliss",       continent: "cyphyyr",   x: 91.0, y: 88.5, threat: 7, climateBand: "coastal"   }
   ];
 
+  // Micro offsets keep dense clusters readable while preserving map fidelity.
+  // Values are expressed in atlas percentage points and intentionally small.
+  var THEOS_NODE_MICRO_OFFSETS = {
+    dewt: { x: -0.4, y: 0.25 },
+    lynridge: { x: 0.2, y: 0.45 },
+    vosshollow: { x: 0.48, y: -0.12 },
+    wrathwatch: { x: 0.3, y: -0.28 },
+    krovan: { x: -0.24, y: -0.2 },
+    thousandpeaks: { x: 0.34, y: 0.24 },
+    cityofbliss: { x: 0.22, y: 0.1 },
+    rosegrove: { x: -0.14, y: -0.18 },
+    sunsgrave: { x: 0.22, y: 0.2 }
+  };
+
   var LAND_CONNECTIONS = [
     ["dyn", "rosegrove"], ["rosegrove", "raenor"], ["raenor", "sunsgrave"],
     ["dyn", "freyreign"], ["freyreign", "lordteak"], ["lordteak", "watchcairn"],
@@ -266,6 +280,16 @@
 
   function provinceById(id) {
     return THEOS_PROVINCES.find(function (p) { return p.id === id; }) || null;
+  }
+
+  function getProvinceVisualPoint(province) {
+    if (!province) return { x: 0, y: 0 };
+    var baseX = Number(province.x || 0);
+    var baseY = Number(province.y || 0);
+    var tweak = THEOS_NODE_MICRO_OFFSETS[String(province.id || "")] || { x: 0, y: 0 };
+    var x = Math.max(0, Math.min(100, baseX + Number(tweak.x || 0)));
+    var y = Math.max(0, Math.min(100, baseY + Number(tweak.y || 0)));
+    return { x: x, y: y };
   }
 
   function ensureState() {
@@ -865,10 +889,12 @@
       var a = provinceById(edge[0]);
       var b = provinceById(edge[1]);
       if (!a || !b) return "";
+      var pa = getProvinceVisualPoint(a);
+      var pb = getProvinceVisualPoint(b);
       var aKnown = !!(st.unlocked[a.id] || st.discovered[a.id]);
       var bKnown = !!(st.unlocked[b.id] || st.discovered[b.id]);
       var alpha = (aKnown && bKnown) ? 0.9 : 0.35;
-      return '<line class="' + className + '" x1="' + a.x + '%" y1="' + a.y + '%" x2="' + b.x + '%" y2="' + b.y + '%" style="opacity:' + alpha + ';" />';
+      return '<line class="' + className + '" x1="' + pa.x + '%" y1="' + pa.y + '%" x2="' + pb.x + '%" y2="' + pb.y + '%" style="opacity:' + alpha + ';" />';
     }
 
     var html = "";
@@ -883,7 +909,8 @@
     THEOS_PROVINCES.forEach(function (province) {
       var power = getProvincePower(province.id);
       var color = FACTION_COLORS[power] || "#bda57a";
-      html += '<circle class="theos-border-ring" cx="' + province.x + '%" cy="' + province.y + '%" r="2.5%" style="stroke:' + color + ';" />';
+      var point = getProvinceVisualPoint(province);
+      html += '<circle class="theos-border-ring" cx="' + point.x + '%" cy="' + point.y + '%" r="2.5%" style="stroke:' + color + ';" />';
     });
     return html;
   }
@@ -891,6 +918,7 @@
   function drawNodes(st) {
     var html = "";
     THEOS_PROVINCES.forEach(function (province) {
+      var point = getProvinceVisualPoint(province);
       var isUnlocked = !!st.unlocked[province.id];
       var isKnown = !!st.discovered[province.id];
       var unlockable = isUnlockable(province.id, st);
@@ -905,9 +933,9 @@
       html += ''
         + '<g class="' + cls + '" data-province="' + esc(province.id) + '" tabindex="0" role="button" aria-label="' + esc(province.name) + '">'
         + '<title>' + esc(province.name) + '</title>'
-        + '<circle class="theos-node-backdrop" cx="' + province.x + '%" cy="' + province.y + '%" r="2.55%" />'
-        + '<circle class="theos-node-core" cx="' + province.x + '%" cy="' + province.y + '%" r="1.35%" />'
-        + '<circle class="theos-node-aura" cx="' + province.x + '%" cy="' + province.y + '%" r="2.65%" />'
+        + '<circle class="theos-node-backdrop" cx="' + point.x + '%" cy="' + point.y + '%" r="2.55%" />'
+        + '<circle class="theos-node-core" cx="' + point.x + '%" cy="' + point.y + '%" r="1.35%" />'
+        + '<circle class="theos-node-aura" cx="' + point.x + '%" cy="' + point.y + '%" r="2.65%" />'
         + '</g>';
     });
     return html;

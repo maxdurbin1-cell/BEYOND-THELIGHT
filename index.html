@@ -19133,6 +19133,52 @@ window.addEventListener('DOMContentLoaded', function() {
     ]
   };
 
+  var CODEX_THEOS_SYSTEMS_ENCYCLOPEDIA = [
+    {
+      title: 'How Rolls Work (Player Language)',
+      tone: 'Read the scene first, then roll for intent. You are not rolling random numbers; you are testing pressure against preparation.',
+      bullets: [
+        'Threat is your pressure meter. Higher threat means complications are more likely even when you succeed.',
+        'Fracture lines tell you what conflicts are live in that province. Build plans around those tensions.',
+        'Faction power hints who benefits or resists your move. Expect political cost when you push against dominant power.',
+        'Use scene goal first: state what success looks like before rolling so outcomes stay clear.'
+      ]
+    },
+    {
+      title: 'Raid Flow, Step by Step',
+      tone: 'Raids feel cleaner when the squad treats each wing like a loop: brief, push, recover, decide, then commit.',
+      bullets: [
+        '1) Brief the wing objective in one sentence: clear, extract, survive, or disable.',
+        '2) Set formation and spacing before opening pressure actions.',
+        '3) Spend your strongest actions where the objective is blocked, not where damage numbers look flashy.',
+        '4) After each exchange, check ammo/health/risk and choose whether to continue or reset.',
+        '5) Bank progress and update codex notes so the next pull starts with context.'
+      ]
+    },
+    {
+      title: 'Area Purpose Cheat Sheet',
+      tone: 'Every area should answer one question for the player: what am I here to do right now?',
+      bullets: [
+        'Atlas Province: pick your pressure profile and objective lane before entering.',
+        'Hex Map: route, scout, and locate leverage points (quests, hazards, trade, or ruins).',
+        'Site/Encounter: execute a focused objective with the current risk budget.',
+        'Last Sea: reposition between continents and set up future campaign fronts.',
+        'Codex: convert discoveries into shared understanding for the next decision.'
+      ]
+    },
+    {
+      title: 'Lore by Scene (What to Look For)',
+      tone: 'Lore is most useful when it predicts play. Read each scene for clues that change your next move.',
+      bullets: [
+        'Chronicle text: tells you historical wounds and likely local biases.',
+        'Notable places: suggest where leverage and consequences concentrate.',
+        'Fracture lines: reveal who is in conflict and what bargains are unstable.',
+        'Dungeon themes and scars: foreshadow hazard style and likely encounter rhythm.',
+        'Tensions and myths: signal social risk, rumor hooks, and hidden objective angles.'
+      ]
+    }
+  ];
+
   var theosDocTemplateType = 'chronicle';
   var theosDocProvince = 'Dyn\'s Well';
   var theosGeneratedDocText = '';
@@ -19401,6 +19447,23 @@ window.addEventListener('DOMContentLoaded', function() {
     + '</div>';
   }
 
+  function renderTheosSystemsEncyclopediaPanel() {
+    var cards = CODEX_THEOS_SYSTEMS_ENCYCLOPEDIA.map(function(section) {
+      return '<details open style="border:1px solid rgba(232,192,80,.28);padding:.42rem .5rem;background:rgba(232,192,80,.06);">'
+        + '<summary style="cursor:pointer;color:var(--gold2);font-family:Cinzel,serif;font-size:.9rem;">' + escapeCodexHtml(section.title) + '</summary>'
+        + '<div style="margin-top:.28rem;font-size:.82rem;line-height:1.6;color:var(--text2);">' + escapeCodexHtml(section.tone) + '</div>'
+        + '<ul style="margin:.28rem 0 .08rem 1.05rem;padding:0;font-size:.8rem;line-height:1.58;color:var(--text2);">'
+        + (section.bullets || []).map(function(item) { return '<li>' + escapeCodexHtml(item) + '</li>'; }).join('')
+        + '</ul>'
+      + '</details>';
+    }).join('');
+
+    return '<div style="display:grid;gap:.42rem;margin-bottom:.72rem;">'
+      + '<div style="font-size:.78rem;color:var(--muted2);">Systems Encyclopedia (player-facing): practical reading for rolls, raid flow, area purpose, and scene interpretation.</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:.38rem;">' + cards + '</div>'
+    + '</div>';
+  }
+
   function escapeCodexHtml(text){
     return String(text || '')
       .replace(/&/g, '&amp;')
@@ -19454,7 +19517,7 @@ window.addEventListener('DOMContentLoaded', function() {
     var c = document.getElementById('codexContent');
     if(!c) return;
     c.innerHTML = '<div class="card"><div class="section-title">The Known Realm of Theos</div><div style="font-size:.82rem;color:var(--muted2);">Loading lore page…</div></div>';
-    c.innerHTML = '<div class="card"><div class="section-title">The Known Realm of Theos</div><div style="font-size:.82rem;color:var(--muted2);margin-bottom:.65rem;">The living codex page for provinces, factions, myths, and the New Sun.</div>' + renderTheosLoreInteractivePanel() + renderCodexMarkdown(CODEX_THEOS_LORE_TEXT) + '</div>';
+    c.innerHTML = '<div class="card"><div class="section-title">The Known Realm of Theos</div><div style="font-size:.82rem;color:var(--muted2);margin-bottom:.65rem;">The living codex page for provinces, factions, myths, and the New Sun.</div>' + renderTheosSystemsEncyclopediaPanel() + renderTheosLoreInteractivePanel() + renderCodexMarkdown(CODEX_THEOS_LORE_TEXT) + '</div>';
   }
   window.renderCodexTheosLorePage = renderCodexTheosLorePage;
   window.showCodexCat = showCodexCat;

@@ -4060,7 +4060,6 @@
 
   function initWorldThatWas() {
     ensureWorldState();
-    ensureWorldThatWasTabVisible();
     patchTabSwitch();
     patchStarSelection();
   }

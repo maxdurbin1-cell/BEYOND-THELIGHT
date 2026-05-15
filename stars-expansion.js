@@ -16092,8 +16092,17 @@ function renderYessodPanel() {
     { value: 'lifts', label: 'Lifts (strata shift)' },
   ];
 
+
+  // Province-style time and province/strata name
+  const gameTime = (typeof getGameDatePhaseText === 'function') ? getGameDatePhaseText() : 'Month 1, Day 1, Year 1 — Morning';
+  const provinceName = selected && selected.reachName ? selected.reachName : strataName;
+  const threatLevel = selected && selected.threat ? ` (Threat ${selected.threat})` : '';
+  const biome = selected && selected.biome ? selected.biome : 'unknown biome';
+
   host.innerHTML = `
     <div class="map-controls">
+      <span style="font-family:'Rajdhani',sans-serif;font-size:.9rem;color:var(--gold2);margin-right:.7rem;">${gameTime}</span>
+      <span style="font-family:'Rajdhani',sans-serif;font-size:.9rem;color:var(--teal);margin-right:.7rem;">Province: ${provinceName}${threatLevel} · ${biome}</span>
       <button class="btn btn-sm" onclick="rollYessodWeatherNow()">Roll Weather</button>
       <button class="btn btn-sm" onclick="shiftYessodStrata(-1)">Strata -</button>
       <button class="btn btn-sm" onclick="shiftYessodStrata(1)">Strata +</button>

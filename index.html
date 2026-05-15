@@ -1734,28 +1734,34 @@ function applyDiceVisualMeta(meta){
   return Object.assign({},ctx,own);
 }
 function queueDiceRollVisual(sides,value,meta){
-  if(!DICE_VISUAL.enabled)return;
-  const merged=applyDiceVisualMeta(meta);
-  if(DICE_VISUAL.mode==='major' && !merged.major)return;
-  const layer=document.getElementById('diceRollLayer');
-  const cineLayer=document.getElementById('diceRollCinematicLayer');
-  if(!layer)return;
-  const die=Math.max(1,parseInt(sides,10)||1);
-  const val=Math.max(1,parseInt(value,10)||1);
-  const tag=merged.label?String(merged.label):'Roll';
-  const exploding=!!merged.exploded;
-  const type=merged.type==='dread'?'dread':merged.type==='action'?'action':'neutral';
-  const useCinematic=!!(merged.major && DICE_VISUAL.cinematicMajor && cineLayer);
-  const card=document.createElement('div');
-  card.className=(useCinematic?'dice-roll-cine':'dice-roll-pop')+' '+type+(exploding?' exploded':'');
-  card.innerHTML='<div class="dr-left"><div class="dr-die"><span>d'+die+'</span></div><div class="dr-label">'+tag+'</div></div><div class="dr-value">'+val+'</div>';
-  (useCinematic?cineLayer:layer).appendChild(card);
-  if(!useCinematic){
-    while(layer.children.length>DICE_VISUAL.maxVisible){
-      layer.removeChild(layer.firstChild);
+  try{
+    if(!DICE_VISUAL.enabled)return;
+    const merged=applyDiceVisualMeta(meta);
+    if(DICE_VISUAL.mode==='major' && !merged.major)return;
+    const layer=document.getElementById('diceRollLayer');
+    const cineLayer=document.getElementById('diceRollCinematicLayer');
+    if(!layer)return;
+    const die=Math.max(1,parseInt(sides,10)||1);
+    const val=Math.max(1,parseInt(value,10)||1);
+    const tag=merged.label?String(merged.label):'Roll';
+    const exploding=!!merged.exploded;
+    const type=merged.type==='dread'?'dread':merged.type==='action'?'action':'neutral';
+    const firstVisual=!window.__btlDiceVisualWarm;
+    window.__btlDiceVisualWarm=true;
+    const useCinematic=!!(!firstVisual && merged.major && DICE_VISUAL.cinematicMajor && cineLayer);
+    const card=document.createElement('div');
+    card.className=(useCinematic?'dice-roll-cine':'dice-roll-pop')+' '+type+(exploding?' exploded':'');
+    card.innerHTML='<div class="dr-left"><div class="dr-die"><span>d'+die+'</span></div><div class="dr-label">'+tag+'</div></div><div class="dr-value">'+val+'</div>';
+    (useCinematic?cineLayer:layer).appendChild(card);
+    if(!useCinematic){
+      while(layer.children.length>DICE_VISUAL.maxVisible){
+        layer.removeChild(layer.firstChild);
+      }
     }
+    setTimeout(function(){ if(card&&card.parentNode) card.parentNode.removeChild(card); }, useCinematic?1540:1420);
+  }catch(_err){
+    DICE_VISUAL.enabled=false;
   }
-  setTimeout(function(){ if(card&&card.parentNode) card.parentNode.removeChild(card); }, useCinematic?1540:1420);
 }
 function withDiceRollContext(ctx,fn){
   const prev=window._diceRollContext;
@@ -17559,26 +17565,34 @@ window.addEventListener('DOMContentLoaded', function() {
   }
 
   window.qpRollStat = function(statKey, label) {
-    var die = (typeof getEffectiveDie==='function') ? getEffectiveDie(statKey) : ((S.stats && S.stats[statKey]) ? S.stats[statKey] : 4);
-    var rr = qpRollWithAdvMode(die);
-    var relicRolls = getPermanentAdventureBonusRolls(statKey, label + ' Relic');
-    var relicTotal = sumAdventureBonusRolls(relicRolls);
-    var radPenalty = (typeof getRadPenaltyForStat==='function') ? getRadPenaltyForStat(statKey) : 0;
-    var finalTotal = Math.max(0, rr.total + relicTotal - radPenalty);
-    var detail = rr.r2===null ? ('d'+die+'='+rr.r1) : ('d'+die+' vs d'+rr.advDie+' ['+rr.r1+', '+rr.r2+'] '+(rr.mode==='adv'?'adv':'dis'));
-    var detail2 = rr.flat ? (' <span style="color:var(--gold2);">'+(rr.flat>0?'+':'')+rr.flat+'</span>') : '';
-    var detail3 = radPenalty ? (' <span style="color:var(--red2);">- '+radPenalty+' rad</span>') : '';
-    document.getElementById('qpRollResult').innerHTML =
-      '<span style="color:var(--muted2);">' + label + '</span> <span style="font-size:.76rem;color:var(--muted2);">(' + detail + ')' + detail2 + detail3 + '</span>' + formatAdventureBonusRolls(relicRolls) + ' = <strong style="color:var(--teal);font-size:1.2rem;">' + finalTotal + '</strong>';
-    qpPushDiceResult(label+' d'+die,finalTotal,'var(--teal)');
-    if(typeof clearConditionOnUse==='function')clearConditionOnUse(statKey);
-    var condEl=document.getElementById('qpCondState');
-    if(condEl){
-      var activeConds=[];
-      ['empowered','protected','focused','bolstered','weakened','vulnerable','distracted','shaken'].forEach(function(k){if(S.conditions&&S.conditions[k])activeConds.push(k);});
-      condEl.textContent=activeConds.length?('Active conditions: '+activeConds.join(', ')):'No active conditions.';
+    try{
+      var die = (typeof getEffectiveDie==='function') ? getEffectiveDie(statKey) : ((S.stats && S.stats[statKey]) ? S.stats[statKey] : 4);
+      var rr = qpRollWithAdvMode(die);
+      var relicRolls = (typeof getPermanentAdventureBonusRolls==='function') ? getPermanentAdventureBonusRolls(statKey, label + ' Relic') : [];
+      var relicTotal = (typeof sumAdventureBonusRolls==='function') ? sumAdventureBonusRolls(relicRolls) : 0;
+      var radPenalty = (typeof getRadPenaltyForStat==='function') ? getRadPenaltyForStat(statKey) : 0;
+      var finalTotal = Math.max(0, rr.total + relicTotal - radPenalty);
+      var detail = rr.r2===null ? ('d'+die+'='+rr.r1) : ('d'+die+' vs d'+rr.advDie+' ['+rr.r1+', '+rr.r2+'] '+(rr.mode==='adv'?'adv':'dis'));
+      var detail2 = rr.flat ? (' <span style="color:var(--gold2);">'+(rr.flat>0?'+':'')+rr.flat+'</span>') : '';
+      var detail3 = radPenalty ? (' <span style="color:var(--red2);">- '+radPenalty+' rad</span>') : '';
+      var relicHtml = (typeof formatAdventureBonusRolls==='function') ? formatAdventureBonusRolls(relicRolls) : '';
+      var resultEl=document.getElementById('qpRollResult');
+      if(resultEl){
+        resultEl.innerHTML =
+          '<span style="color:var(--muted2);">' + label + '</span> <span style="font-size:.76rem;color:var(--muted2);">(' + detail + ')' + detail2 + detail3 + '</span>' + relicHtml + ' = <strong style="color:var(--teal);font-size:1.2rem;">' + finalTotal + '</strong>';
+      }
+      qpPushDiceResult(label+' d'+die,finalTotal,'var(--teal)');
+      if(typeof clearConditionOnUse==='function')clearConditionOnUse(statKey);
+      var condEl=document.getElementById('qpCondState');
+      if(condEl){
+        var activeConds=[];
+        ['empowered','protected','focused','bolstered','weakened','vulnerable','distracted','shaken'].forEach(function(k){if(S.conditions&&S.conditions[k])activeConds.push(k);});
+        condEl.textContent=activeConds.length?('Active conditions: '+activeConds.join(', ')):'No active conditions.';
+      }
+      var box=document.getElementById('qpDiceResults');if(box)box.innerHTML=qpRenderDiceResults();
+    }catch(err){
+      if(typeof showNotif==='function')showNotif('Quick roll failed safely. Try again.', 'warn');
     }
-    var box=document.getElementById('qpDiceResults');if(box)box.innerHTML=qpRenderDiceResults();
   };
 
   window.qpRollDie = function(sides) {
@@ -17590,6 +17604,47 @@ window.addEventListener('DOMContentLoaded', function() {
   };
 
   window.qpClearDiceResults=function(){ensureQPState();S.quickPanel.diceResults=[];var box=document.getElementById('qpDiceResults');if(box)box.innerHTML=qpRenderDiceResults();};
+
+  window.qpSpendTmwForDice=function(){
+    ensureQPState();
+    var tmwPool=Math.max(0,Number(S.tmw||0));
+    var inp=document.getElementById('qpTmwSpend');
+    var spend=Math.max(1,parseInt((inp&&inp.value)||'1',10)||1);
+    if(tmwPool<spend){
+      if(typeof showNotif==='function')showNotif('Not enough Teamwork Points.', 'warn');
+      return;
+    }
+    S.tmw=Math.max(0,tmwPool-spend);
+    S.quickPanel.flatMod=Number(S.quickPanel.flatMod||0)+spend;
+    var flatEl=document.getElementById('qpFlatMod');
+    if(flatEl)flatEl.value=String(S.quickPanel.flatMod);
+    if(typeof updateTMWPool==='function')updateTMWPool();
+    if(typeof showNotif==='function')showNotif('Spent '+spend+' TMW. Added +'+spend+' to Flat Mod.', 'good');
+    var tmwValEl=document.getElementById('qpDiceTmwVal');
+    if(tmwValEl)tmwValEl.textContent=String(S.tmw||0);
+    if(inp){
+      inp.max=String(Math.max(1,Number(S.tmw||0)));
+      if(Number(inp.value||1)>Number(inp.max||1))inp.value=inp.max;
+    }
+  };
+
+  window.qpChangeTmwPool=function(delta){
+    var d=parseInt(delta,10)||0;
+    if(!d)return;
+    if(typeof changeCounter==='function'){
+      changeCounter('tmw',d);
+    }else{
+      S.tmw=Math.max(0,Number(S.tmw||0)+d);
+      if(typeof updateTMWPool==='function')updateTMWPool();
+    }
+    var tmwValEl=document.getElementById('qpDiceTmwVal');
+    if(tmwValEl)tmwValEl.textContent=String(S.tmw||0);
+    var inp=document.getElementById('qpTmwSpend');
+    if(inp){
+      inp.max=String(Math.max(1,Number(S.tmw||0)));
+      if(Number(inp.value||1)>Number(inp.max||1))inp.value=inp.max;
+    }
+  };
 
   window.qpToggleCond = function(key) {
     if (typeof toggleCond === 'function') { toggleCond(key); }
@@ -18740,6 +18795,7 @@ window.addEventListener('DOMContentLoaded', function() {
       return '<button class="btn btn-xs" onclick="qpRollDie('+d+')" style="font-size:.62rem;padding:.2rem .4rem;">d'+d+'</button>';
     });
     var dreadDie = (S.combat && S.combat.enemyDread) ? S.combat.enemyDread : 8;
+    var tmwPool=Math.max(0,Number(S.tmw||0));
     var dreadOptions = [4,6,8,10,12,20].map(function(d){
       return '<button class="btn btn-xs'+(d===dreadDie?' btn-primary':'')+'" onclick="qpSetDreadDie('+d+')" style="font-size:.6rem;padding:.15rem .35rem;">d'+d+'</button>';
     }).join('');
@@ -18753,6 +18809,19 @@ window.addEventListener('DOMContentLoaded', function() {
       + '<select id="qpAdvDie" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.2rem .3rem;font-size:.72rem;">'+[4,6,8,10,12,20].map(function(d){return '<option value="'+d+'"'+(d===S.quickPanel.advDie?' selected':'')+'>d'+d+'</option>';}).join('')+'</select>'
       + '<input id="qpFlatMod" type="number" value="'+(S.quickPanel.flatMod||0)+'" min="-20" max="20" style="width:4rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.72rem;"/>'
       + '<span style="font-size:.68rem;color:var(--muted2);">Adv/Dis Die + Flat Mod</span>'
+      + '</div>'
+      + '<div style="margin-bottom:.42rem;padding:.32rem .36rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;">'
+      + '<span style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;">Teamwork Points</span>'
+      + '<strong id="qpDiceTmwVal" style="font-family:Rajdhani,sans-serif;color:var(--teal);">'+tmwPool+'</strong>'
+      + '</div>'
+      + '<div style="display:flex;gap:.24rem;align-items:center;flex-wrap:wrap;margin-top:.24rem;">'
+      + '<button class="btn btn-xs" onclick="qpChangeTmwPool(-1)">−1 TMW</button>'
+      + '<button class="btn btn-xs" onclick="qpChangeTmwPool(1)">+1 TMW</button>'
+      + '<input id="qpTmwSpend" type="number" min="1" max="'+Math.max(1,tmwPool)+'" value="1" style="width:3.4rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .26rem;font-size:.72rem;"/>'
+      + '<button class="btn btn-xs btn-teal" onclick="qpSpendTmwForDice()">Spend Into Flat Mod</button>'
+      + '<button class="btn btn-xs" onclick="if(typeof openTMWActions===\'function\')openTMWActions()">Open TMW Actions</button>'
+      + '</div>'
       + '</div>'
       + '<div style="margin-bottom:.4rem;"><div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--muted2);text-transform:uppercase;margin-bottom:.3rem;">Free Roll</div>'
       + '<div style="display:flex;gap:.25rem;">' + freeRolls.join('') + '</div></div>'
@@ -18840,10 +18909,12 @@ window.addEventListener('DOMContentLoaded', function() {
         + '<button class="btn btn-xs btn-red" onclick="if(typeof changeTrauma===\'function\')changeTrauma(1);renderQP(\'char\')">+ Trauma</button>'
         + '<button class="btn btn-xs btn-green" onclick="if(typeof changeTrauma===\'function\')changeTrauma(-1);renderQP(\'char\')">− Trauma</button>'
       + '</div>'
-      + '<div style="display:flex;align-items:center;gap:.3rem;margin-bottom:.35rem;padding:.3rem .35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">'
+      + '<div style="display:flex;align-items:center;gap:.3rem;flex-wrap:wrap;margin-bottom:.35rem;padding:.3rem .35rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">'
         + '<span style="font-size:.68rem;color:var(--muted2);flex:1;">Radiation:</span>'
         + '<strong style="font-family:Rajdhani,sans-serif;color:'+radColor+';">☢ '+rads+'</strong>'
         + '<span style="font-size:.66rem;color:'+radColor+';">'+radTierLabel+'</span>'
+        + '<button class="btn btn-xs btn-red" onclick="if(typeof changeRads===\'function\')changeRads(10);else S.rads=Math.max(0,Number(S.rads||0)+10);renderQP(\'char\')">+10</button>'
+        + '<button class="btn btn-xs btn-green" onclick="if(typeof changeRads===\'function\')changeRads(-10);else S.rads=Math.max(0,Number(S.rads||0)-10);renderQP(\'char\')">−10</button>'
       + '</div>'
       + '<div style="margin-bottom:.35rem;padding:.32rem .38rem;border:1px solid var(--border2);background:rgba(201,64,64,.05);">'
         + '<div style="display:flex;justify-content:space-between;gap:.3rem;align-items:center;margin-bottom:.12rem;">'
@@ -19110,11 +19181,11 @@ window.addEventListener('DOMContentLoaded', function() {
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Enemy Actions: <strong style="color:var(--red2);">'+enemyActions+'/'+enemyActionsMax+'</strong></div>'
       + '<div style="background:var(--surface);border:1px solid var(--border);padding:.3rem .45rem;font-size:.74rem;color:var(--text2);">Dread: <strong style="color:var(--red2);">d'+dread+'</strong></div>'
       + '</div>'
-      + '<div style="display:grid;grid-template-columns:minmax(140px,1.2fr) minmax(85px,0.9fr) minmax(130px,1fr) auto;gap:.24rem;align-items:end;margin-bottom:.32rem;">'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.24rem;align-items:end;margin-bottom:.32rem;">'
       + '<label style="font-size:.69rem;color:var(--muted2);">Combatant Name<input id="qpEnemyName" type="text" placeholder="Combatant name" style="width:100%;margin-top:.09rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.34rem .48rem;font-size:.84rem;line-height:1.2;"/></label>'
       + '<label style="font-size:.69rem;color:var(--muted2);">Dread Die<select id="qpEnemyDreadSel" style="width:100%;margin-top:.09rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.34rem .48rem;font-size:.82rem;">'+[4,6,8,10,12,20].map(function(d){return '<option value="'+d+'"'+(d===dread?' selected':'')+'>d'+d+'</option>';}).join('')+'</select></label>'
       + '<label style="font-size:.69rem;color:var(--muted2);">Roster Action<select id="qpRosterActionSel" style="width:100%;margin-top:.09rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.34rem .48rem;font-size:.82rem;"><option value="add-enemy">Add Enemy</option><option value="add-ally">Add Ally</option><option value="clear-combat">Clear Combatants</option></select></label>'
-      + '<button class="btn btn-xs btn-teal" onclick="qpApplyRosterAction()">Apply</button>'
+      + '<button class="btn btn-xs btn-teal" style="grid-column:2;justify-self:end;min-width:5.4rem;" onclick="qpApplyRosterAction()">Apply</button>'
       + '<input id="qpAllyName" type="text" placeholder="Ally name" style="display:none;grid-column:1/-1;"/>'
       + '</div>'
       + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;margin-bottom:.3rem;">'

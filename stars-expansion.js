@@ -16022,22 +16022,49 @@ function renderYessodHexInfo(cell) {
     ? `<div class="venture-result"><div class="vr-type">Encounter</div>${state.lastEncounter}</div>`
     : '';
 
+  // Province-style marker class logic
+  let markerClass = 'wilderness';
+  let markerLabel = 'WILDERNESS';
+  if (cell.explored) {
+    if (cell.marker === 'holding' || cell.marker === 'seat' || cell.marker === 'dwelling' || cell.marker === 'temple' || cell.marker === 'trade' || cell.marker === 'gate') {
+      markerClass = cell.marker;
+      markerLabel = (YESSOD_MARKERS[cell.marker] || {label: cell.marker}).label.toUpperCase();
+    } else if (cell.marker && YESSOD_MARKERS[cell.marker]) {
+      markerClass = cell.marker;
+      markerLabel = YESSOD_MARKERS[cell.marker].label.toUpperCase();
+    } else {
+      markerClass = 'wilderness';
+      markerLabel = 'WILDERNESS';
+    }
+  } else {
+    markerClass = 'wilderness';
+    markerLabel = 'UNEXPLORED';
+  }
+
+  // Province-style weather phrasing
+  const isRough = weather.rough || Number(weather.dd || 0) > 0;
+  const weatherClass = isRough ? 'rough' : 'clear';
+  const weatherColor = isRough ? 'var(--red2)' : 'var(--teal)';
+  const weatherLabel = isRough
+    ? `ROUGH WEATHER: ${yessodWeatherResultLabel(weather).toUpperCase()}`
+    : `CLEAR AND WARM: ${yessodWeatherResultLabel(weather).toUpperCase()}`;
+
   host.innerHTML = `<div class="hex-info-inner">
-    <div class="hex-type-tag ${cell.marker}">${(YESSOD_MARKERS[cell.marker] || YESSOD_MARKERS.wilderness).label.toUpperCase()}</div>
+    <div class="hex-type-tag ${markerClass}">${markerLabel}</div>
     <div class="hex-name">${terrainLabel}</div>
     <div class="hex-desc" style="margin-bottom:.4rem;">${terrainLabel} terrain · ${cell.reachName || 'Yessod Reach'}</div>
 
-    <div class="weather-block ${Number(weather.dd || 0) > 0 ? 'rough' : 'clear'}">
-      <div class="weather-label" style="color:${Number(weather.dd || 0) > 0 ? 'var(--red2)' : 'var(--teal)'};">🌦 ${seasonLabel} Weather: ${yessodWeatherResultLabel(weather)}</div>
+    <div class="weather-block ${weatherClass}" style="margin-bottom:.35rem;">
+      <div class="weather-label" style="color:${weatherColor};">🌦 ${seasonLabel} Weather: ${weatherLabel}</div>
       <div style="font-size:.8rem;color:var(--text2);">${weather.desc}</div>
-      ${Number(weather.dd || 0) > 0 ? `<div style="font-size:.78rem;color:var(--red);margin-top:.2rem;">⚠ Mind or Survival vs DD${weather.dd}. Failure: ${weather.failure}</div>` : ''}
+      ${isRough ? `<div style="font-size:.78rem;color:var(--red2);margin-top:.2rem;">Dangerous weather: Mind or Survival vs DD${weather.dd || 6}. Failure: ${weather.failure || '+1 Stress'}</div>` : ''}
     </div>
 
     <div class="wild-panel"><div class="wp-label">🌍 Land</div><div class="wp-text">${yessodStablePick(landPool, cell, 1)}</div></div>
     <div class="wild-panel"><div class="wp-label">🌿 Flora & Fauna</div><div class="wp-text">${floraFauna}</div></div>
     <div class="wild-panel"><div class="wp-label">✦ Wonder</div><div class="wp-text">${wonder}</div></div>
 
-    <div class="hex-primary-actions">
+    <div class="hex-primary-actions" style="margin-top:.45rem;">
       <button class="btn btn-sm btn-gold" onclick="rollYessodObserveAdjacent()">🔍 Observe Adjacent (Lead vs DD6)</button>
       <button class="btn btn-sm btn-teal" onclick="rollYessodEncounter()">⚄ Roll Encounter</button>
     </div>

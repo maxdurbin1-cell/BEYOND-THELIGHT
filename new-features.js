@@ -353,6 +353,35 @@
     }
   }
 
+  function goBackOrCloseModal() {
+    if (typeof goBackModal === 'function') {
+      goBackModal();
+      return true;
+    }
+    if (typeof closeModal === 'function') {
+      closeModal();
+      return true;
+    }
+    return false;
+  }
+
+  function buildNestedModalActionRow(actionsHtml, opts) {
+    var options = opts || {};
+    var gap = options.gap || '.35rem';
+    var justify = options.justify || 'flex-end';
+    var wrap = options.wrap || 'wrap';
+    var includeCancel = options.includeCancel !== false;
+    var goBackLabel = options.goBackLabel || 'Go Back';
+    var cancelLabel = options.cancelLabel || 'Cancel';
+    var goBackBtn = '<button class="btn btn-sm" onclick="goBackOrCloseModal()">' + goBackLabel + '</button>';
+    var cancelBtn = includeCancel ? ('<button class="btn btn-sm" onclick="goBackOrCloseModal()">' + cancelLabel + '</button>') : '';
+    return '<div style="display:flex;gap:' + gap + ';flex-wrap:' + wrap + ';justify-content:' + justify + ';">'
+      + goBackBtn + cancelBtn + String(actionsHtml || '')
+      + '</div>';
+  }
+
+  window.goBackOrCloseModal = goBackOrCloseModal;
+
   function setHoldingGovernancePolicy(field, value) {
     ensureNewFeatureState();
     var policy = getHoldingGovernanceState();
@@ -8397,10 +8426,10 @@
       + '<button class="btn btn-sm btn-primary" onclick="commitHoldingBankInvestmentFromModal(\'medium\');">Medium Risk</button>'
       + '<button class="btn btn-sm btn-red" onclick="commitHoldingBankInvestmentFromModal(\'high\');">High Risk</button>'
       + '</div>'
-      + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;">'
-      + '<button class="btn btn-sm" onclick="withdrawHoldingBankInvestment();">Withdraw All</button>'
-      + '<button class="btn btn-sm" onclick="closeModal();">Close</button>'
-      + '</div>'
+      + buildNestedModalActionRow(
+        '<button class="btn btn-sm" onclick="withdrawHoldingBankInvestment();">Withdraw All</button>',
+        { cancelLabel: 'Close' }
+      )
       + '<div style="margin-top:.35rem;font-size:.68rem;color:var(--muted2);">Recent ledger</div>'
       + ((Array.isArray(bank.history) && bank.history.length) ? bank.history.slice(0, 5).map(function (entry) {
           return '<div style="font-size:.7rem;color:var(--text2);margin-top:.12rem;">• ' + String(entry) + '</div>';
@@ -9872,10 +9901,11 @@
       + (success ? '\u2713 Information gathered — +5 bonus secured' : '\u2717 Contacts run dry — Additional Danger incoming')
       + '</div></div>'
       + resultHtml
-      + '<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
-      + '<button class="btn btn-sm" onclick="skipHoldingQuestStep1();closeModal();">Skip This Step</button>'
-      + '<button class="btn btn-sm btn-teal" onclick="completeHoldingQuestStep1(' + success + ',decodeURIComponent(\'' + encoded + '\'));closeModal();">Confirm</button>'
-      + '</div>';
+      + buildNestedModalActionRow(
+        '<button class="btn btn-sm" onclick="skipHoldingQuestStep1();goBackOrCloseModal();">Skip This Step</button>'
+        + '<button class="btn btn-sm btn-teal" onclick="completeHoldingQuestStep1(' + success + ',decodeURIComponent(\'' + encoded + '\'));goBackOrCloseModal();">Confirm</button>',
+        { cancelLabel: 'Close' }
+      );
     openModal('Step 1 — Gather Information', html);
   }
 
@@ -9981,17 +10011,20 @@
 
     var allExplored = q.siteRooms.every(function(r){ return !!r.explored; });
     var hasActive = q.siteRooms.some(function(r){ return !!(r.confrontTriggered && !r.confrontResolved); });
-    var proceedBtn = '';
+    var actionButtons = '';
     if (!hasActive) {
-      proceedBtn = '<div style="display:flex;justify-content:flex-end;margin-top:.45rem;">'
-        + '<button class="btn btn-sm ' + (allExplored ? 'btn-teal' : '') + '" onclick="completeHoldingQuestStep2();closeModal();">' + (allExplored ? 'Proceed to Confrontation' : 'Skip Remaining Rooms → Confrontation') + '</button>'
-        + '</div>';
+      actionButtons = buildNestedModalActionRow(
+        '<button class="btn btn-sm ' + (allExplored ? 'btn-teal' : '') + '" onclick="completeHoldingQuestStep2();goBackOrCloseModal();">' + (allExplored ? 'Proceed to Confrontation' : 'Skip Remaining Rooms → Confrontation') + '</button>',
+        { cancelLabel: 'Close' }
+      );
+    } else {
+      actionButtons = buildNestedModalActionRow('', { includeCancel: false, goBackLabel: 'Go Back' });
     }
 
     var html = dangerHtml
       + '<div style="font-size:.84rem;color:var(--muted3);margin-bottom:.45rem;">Step 2 — Site Layout — 2-6 Rooms</div>'
       + roomsHtml
-      + proceedBtn;
+      + '<div style="margin-top:.45rem;">' + actionButtons + '</div>';
     openModal('Step 2 — Go to Site', html);
   }
 
@@ -10069,10 +10102,11 @@
     var rollInstr = '<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .55rem;margin-bottom:.45rem;"><div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Confrontation: 2 Security + Roll Adventure d8 + 5 vs Dread d8 — then click your outcome Success or Failure.</div><div style="font-size:.7rem;color:var(--muted);">Use the Dice tab or physical dice, then choose Success/Failure below.</div></div>';
 
     var html = dangerBanner + featureBadge + securitySection + rollInstr
-      + '<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
-      + '<button class="btn btn-sm btn-red" onclick="openHoldingQuestFailureOutcomeModal()">\u2717 Failure — Roll Failed</button>'
-      + '<button class="btn btn-sm btn-primary" onclick="resolveHoldingQuestOutcome(true)">\u2713 Success — Roll Succeeded</button>'
-      + '</div>';
+      + buildNestedModalActionRow(
+        '<button class="btn btn-sm btn-red" onclick="openHoldingQuestFailureOutcomeModal()">\u2717 Failure — Roll Failed</button>'
+        + '<button class="btn btn-sm btn-primary" onclick="resolveHoldingQuestOutcome(true)">\u2713 Success — Roll Succeeded</button>',
+        { cancelLabel: 'Close' }
+      );
     openModal('Step 3 — Confrontation', html);
   }
 
@@ -10195,10 +10229,11 @@
       + (check.inferred ? 'No manual dice values detected; difference defaults to at least 1.' : ('Manual roll seen: Action ' + check.action + ' vs Dread ' + check.dread + '.'))
       + '</div>'
       + '<div style="font-size:.77rem;color:var(--text2);margin-bottom:.4rem;"><strong>Push Luck:</strong> spend <strong>2 Teamwork</strong>, reroll at higher dread <strong>d' + pushDread + '</strong>. Success grants a positive condition; failure applies the consequence line above.</div>'
-      + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;justify-content:flex-end;">'
-      + '<button class="btn btn-sm btn-warn" onclick="acceptHoldingQuestFailureOutcome()">Accept Failure</button>'
-      + '<button class="btn btn-sm btn-teal" ' + (tmw >= 2 ? '' : "disabled title='Need 2 Teamwork'") + ' onclick="pushHoldingQuestLuckOutcome()">Push Luck (2 Teamwork)</button>'
-      + '</div>'
+      + buildNestedModalActionRow(
+        '<button class="btn btn-sm btn-warn" onclick="acceptHoldingQuestFailureOutcome()">Accept Failure</button>'
+        + '<button class="btn btn-sm btn-teal" ' + (tmw >= 2 ? '' : "disabled title='Need 2 Teamwork'") + ' onclick="pushHoldingQuestLuckOutcome()">Push Luck (2 Teamwork)</button>',
+        { cancelLabel: 'Close' }
+      )
       + '</div>';
     openModal('Holding Confrontation Failure', html);
     return true;
@@ -10231,10 +10266,11 @@
         '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
           + '<div style="margin-bottom:.28rem;"><strong>Reroll now:</strong> Adventure vs <strong>Dread d' + pushDread + '</strong>.</div>'
           + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.4rem;">Use your reroll result, then choose the matching outcome below.</div>'
-          + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;justify-content:flex-end;">'
-            + '<button class="btn btn-sm btn-red" onclick="resolveHoldingQuestPushLuck(false)">Push Luck Failed</button>'
-            + '<button class="btn btn-sm btn-primary" onclick="resolveHoldingQuestPushLuck(true)">Push Luck Succeeded</button>'
-          + '</div>'
+          + buildNestedModalActionRow(
+              '<button class="btn btn-sm btn-red" onclick="resolveHoldingQuestPushLuck(false)">Push Luck Failed</button>'
+              + '<button class="btn btn-sm btn-primary" onclick="resolveHoldingQuestPushLuck(true)">Push Luck Succeeded</button>',
+              { cancelLabel: 'Close' }
+            )
         + '</div>'
       );
     }
@@ -12020,9 +12056,11 @@
       + '<label style="font-size:.7rem;color:var(--muted2);">Control Total<input id="manualHackControl" type="number" min="1" max="999" style="width:100%;margin-top:.08rem;"></label>'
       + '</div>'
       + '<div style="font-size:.7rem;color:var(--muted2);margin-top:.2rem;">Cost on resolve: ' + Number(data.tmwCost || 0) + ' TMW.</div>'
-      + '<div style="display:flex;justify-content:flex-end;gap:.3rem;margin-top:.28rem;">'
-      + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
-      + '<button class="btn btn-sm btn-primary" onclick="resolveManualHackCast()">Resolve Manual Hack</button>'
+      + '<div style="margin-top:.28rem;">'
+      + buildNestedModalActionRow(
+          '<button class="btn btn-sm btn-primary" onclick="resolveManualHackCast()">Resolve Manual Hack</button>',
+          { cancelLabel: 'Close' }
+        )
       + '</div>'
       + '</div>';
     if (typeof openModal === 'function') openModal('Manual Hack Cast', html);
@@ -12068,7 +12106,7 @@
       manual: true
     });
     S.hackRoller.pendingManual = null;
-    if (typeof closeModal === 'function') closeModal();
+    goBackOrCloseModal();
     return true;
   }
 

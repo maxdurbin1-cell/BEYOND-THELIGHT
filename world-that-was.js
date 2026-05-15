@@ -1946,27 +1946,6 @@
   }
 
   function toggleWorldMapMode() {
-    @@      svg.appendChild(g);
-    @@    });
-    @@  }
-    @@  // ── Render compass at bottom-right ──
-    @@  const compassGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    @@  const svgW = Number(svg.getAttribute("width")) || 1000;
-    @@  const svgH = Number(svg.getAttribute("height")) || 800;
-    @@  compassGroup.setAttribute("transform", "translate(" + (svgW - 28) + "," + (svgH - 28) + ")");
-    @@  const compassCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    @@  compassCircle.setAttribute("cx", "0"); compassCircle.setAttribute("cy", "0");
-    @@  compassCircle.setAttribute("r", "12"); compassCircle.setAttribute("fill", "rgba(200,150,100,.15)");
-    @@  compassCircle.setAttribute("stroke", "#c89650"); compassCircle.setAttribute("stroke-width", "0.8");
-    @@  compassCircle.setAttribute("pointer-events", "none");
-    @@  compassGroup.appendChild(compassCircle);
-    @@  const compassArrow = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    @@  compassArrow.setAttribute("x", "0"); compassArrow.setAttribute("y", "-2");
-    @@  compassArrow.setAttribute("text-anchor", "middle"); compassArrow.setAttribute("font-size", "10");
-    @@  compassArrow.setAttribute("fill", "#c89650"); compassArrow.setAttribute("pointer-events", "none");
-    @@  compassArrow.textContent = "↑"; compassGroup.appendChild(compassArrow);
-    @@  svg.appendChild(compassGroup);
-    @@
     const w = ensureWorldState();
     if (!w) return;
     w.minimalMapMode = !w.minimalMapMode;
@@ -3924,6 +3903,9 @@
     patchStarSelection();
   }
 
+  window.initWorldThatWas = initWorldThatWas;
+  window.mountWorldThatWasPanel = mountWorldThatWasPanel;
+  window.renderWorldThatWas = renderWorldThatWas;
   window.generateWorldThatWasMap = generateWorldThatWasMap;
   window.advanceWorldThatWas = advanceWorldThatWas;
   window.resolveWorldSkirmish = quickResolveWorldSkirmish;

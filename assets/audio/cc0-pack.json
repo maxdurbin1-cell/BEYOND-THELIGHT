@@ -1586,6 +1586,204 @@
       "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
       "sourceUrl": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Anguish.mp3",
       "src": "/api/audio-proxy?src=https%3A%2F%2Fincompetech.com%2Fmusic%2Froyalty-free%2Fmp3-royaltyfree%2FAnguish.mp3"
+    },
+    {
+      "id": "music-suite-exploration",
+      "title": "Your Track · Google Drive",
+      "style": "Exploration",
+      "suiteLabel": "Personal Pack",
+      "source": "Google Drive (personal upload)",
+      "artist": "Personal",
+      "license": "Personal use",
+      "sourceUrl": "https://drive.google.com/open?id=11iy7po-Z3lg1-J57ArBSMC1cO8ciCslL",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Fdrive.google.com%2Fuc%3Fexport%3Ddownload%26id%3D11iy7po-Z3lg1-J57ArBSMC1cO8ciCslL"
+    },
+    {
+      "id": "music-minecraft-key",
+      "title": "Minecraft Alpha · Key",
+      "style": "Exploration",
+      "suiteLabel": "Minecraft Suite",
+      "source": "Internet Archive",
+      "artist": "C418",
+      "license": "Personal use",
+      "sourceUrl": "https://archive.org/details/minecraft-soundtrack-volume-alpha-flacf",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Farchive.org%2Fdownload%2Fminecraft-soundtrack-volume-alpha-flacf%2F01%2520Key.mp3"
+    },
+    {
+      "id": "music-minecraft-door",
+      "title": "Minecraft Alpha · Door",
+      "style": "Exploration",
+      "suiteLabel": "Minecraft Suite",
+      "source": "Internet Archive",
+      "artist": "C418",
+      "license": "Personal use",
+      "sourceUrl": "https://archive.org/details/minecraft-soundtrack-volume-alpha-flacf",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Farchive.org%2Fdownload%2Fminecraft-soundtrack-volume-alpha-flacf%2F02%2520Door.mp3"
+    },
+    {
+      "id": "music-minecraft-subwoofer-lullaby",
+      "title": "Minecraft Alpha · Subwoofer Lullaby",
+      "style": "Exploration",
+      "suiteLabel": "Minecraft Suite",
+      "source": "Internet Archive",
+      "artist": "C418",
+      "license": "Personal use",
+      "sourceUrl": "https://archive.org/details/minecraft-soundtrack-volume-alpha-flacf",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Farchive.org%2Fdownload%2Fminecraft-soundtrack-volume-alpha-flacf%2F03%2520Subwoofer%2520Lullaby.mp3"
+    },
+    {
+      "id": "music-minecraft-living-mice",
+      "title": "Minecraft Alpha · Living Mice",
+      "style": "Exploration",
+      "suiteLabel": "Minecraft Suite",
+      "source": "Internet Archive",
+      "artist": "C418",
+      "license": "Personal use",
+      "sourceUrl": "https://archive.org/details/minecraft-soundtrack-volume-alpha-flacf",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Farchive.org%2Fdownload%2Fminecraft-soundtrack-volume-alpha-flacf%2F04%2520Living%2520Mice.mp3"
+    },
+    {
+      "id": "music-minecraft-haggstrom",
+      "title": "Minecraft Alpha · Haggstrom",
+      "style": "Town",
+      "suiteLabel": "Minecraft Suite",
+      "source": "Internet Archive",
+      "artist": "C418",
+      "license": "Personal use",
+      "sourceUrl": "https://archive.org/details/minecraft-soundtrack-volume-alpha-flacf",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Farchive.org%2Fdownload%2Fminecraft-soundtrack-volume-alpha-flacf%2F05%2520Haggstrom.mp3"
+    },
+    {
+      "id": "music-minecraft-minecraft",
+      "title": "Minecraft Alpha · Minecraft",
+      "style": "Exploration",
+      "suiteLabel": "Minecraft Suite",
+      "source": "Internet Archive",
+      "artist": "C418",
+      "license": "Personal use",
+      "sourceUrl": "https://archive.org/details/minecraft-soundtrack-volume-alpha-flacf",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Farchive.org%2Fdownload%2Fminecraft-soundtrack-volume-alpha-flacf%2F06%2520Minecraft.mp3"
+    },
+    {
+      "id": "music-minecraft-oxygene",
+      "title": "Minecraft Alpha · Oxygène",
+      "style": "Space",
+      "suiteLabel": "Minecraft Suite",
+      "source": "Internet Archive",
+      "artist": "C418",
+      "license": "Personal use",
+      "sourceUrl": "https://archive.org/details/minecraft-soundtrack-volume-alpha-flacf",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Farchive.org%2Fdownload%2Fminecraft-soundtrack-volume-alpha-flacf%2F07%2520Oxygene.mp3"
+    },
+    {
+      "id": "music-minecraft-equinoxe",
+      "title": "Minecraft Alpha · Équinoxe",
+      "style": "Space",
+      "suiteLabel": "Minecraft Suite",
+      "source": "Internet Archive",
+      "artist": "C418",
+      "license": "Personal use",
+      "sourceUrl": "https://archive.org/details/minecraft-soundtrack-volume-alpha-flacf",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Farchive.org%2Fdownload%2Fminecraft-soundtrack-volume-alpha-flacf%2F08%2520Equinoxe.mp3"
+    },
+    {
+      "id": "music-minecraft-mice-on-venus",
+      "title": "Minecraft Alpha · Mice on Venus",
+      "style": "Space",
+      "suiteLabel": "Minecraft Suite",
+      "source": "Internet Archive",
+      "artist": "C418",
+      "license": "Personal use",
+      "sourceUrl": "https://archive.org/details/minecraft-soundtrack-volume-alpha-flacf",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Farchive.org%2Fdownload%2Fminecraft-soundtrack-volume-alpha-flacf%2F09%2520Mice%2520on%2520Venus.mp3"
+    },
+    {
+      "id": "music-minecraft-dry-hands",
+      "title": "Minecraft Alpha · Dry Hands",
+      "style": "Exploration",
+      "suiteLabel": "Minecraft Suite",
+      "source": "Internet Archive",
+      "artist": "C418",
+      "license": "Personal use",
+      "sourceUrl": "https://archive.org/details/minecraft-soundtrack-volume-alpha-flacf",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Farchive.org%2Fdownload%2Fminecraft-soundtrack-volume-alpha-flacf%2F10%2520Dry%2520Hands.mp3"
+    },
+    {
+      "id": "music-minecraft-wet-hands",
+      "title": "Minecraft Alpha · Wet Hands",
+      "style": "Town",
+      "suiteLabel": "Minecraft Suite",
+      "source": "Internet Archive",
+      "artist": "C418",
+      "license": "Personal use",
+      "sourceUrl": "https://archive.org/details/minecraft-soundtrack-volume-alpha-flacf",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Farchive.org%2Fdownload%2Fminecraft-soundtrack-volume-alpha-flacf%2F11%2520Wet%2520Hands.mp3"
+    },
+    {
+      "id": "music-minecraft-clark",
+      "title": "Minecraft Alpha · Clark",
+      "style": "Combat",
+      "suiteLabel": "Minecraft Suite",
+      "source": "Internet Archive",
+      "artist": "C418",
+      "license": "Personal use",
+      "sourceUrl": "https://archive.org/details/minecraft-soundtrack-volume-alpha-flacf",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Farchive.org%2Fdownload%2Fminecraft-soundtrack-volume-alpha-flacf%2F12%2520Clark.mp3"
+    },
+    {
+      "id": "music-minecraft-sweden",
+      "title": "Minecraft Alpha · Sweden",
+      "style": "Exploration",
+      "suiteLabel": "Minecraft Suite",
+      "source": "Internet Archive",
+      "artist": "C418",
+      "license": "Personal use",
+      "sourceUrl": "https://archive.org/details/minecraft-soundtrack-volume-alpha-flacf",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Farchive.org%2Fdownload%2Fminecraft-soundtrack-volume-alpha-flacf%2F13%2520Sweden.mp3"
+    },
+    {
+      "id": "music-minecraft-cat",
+      "title": "Minecraft Alpha · Cat",
+      "style": "Town",
+      "suiteLabel": "Minecraft Suite",
+      "source": "Internet Archive",
+      "artist": "C418",
+      "license": "Personal use",
+      "sourceUrl": "https://archive.org/details/minecraft-soundtrack-volume-alpha-flacf",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Farchive.org%2Fdownload%2Fminecraft-soundtrack-volume-alpha-flacf%2F14%2520Cat.mp3"
+    },
+    {
+      "id": "music-minecraft-dog",
+      "title": "Minecraft Alpha · Dog",
+      "style": "Town",
+      "suiteLabel": "Minecraft Suite",
+      "source": "Internet Archive",
+      "artist": "C418",
+      "license": "Personal use",
+      "sourceUrl": "https://archive.org/details/minecraft-soundtrack-volume-alpha-flacf",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Farchive.org%2Fdownload%2Fminecraft-soundtrack-volume-alpha-flacf%2F15%2520Dog.mp3"
+    },
+    {
+      "id": "music-minecraft-beginning",
+      "title": "Minecraft Alpha · Beginning",
+      "style": "Combat",
+      "suiteLabel": "Minecraft Suite",
+      "source": "Internet Archive",
+      "artist": "C418",
+      "license": "Personal use",
+      "sourceUrl": "https://archive.org/details/minecraft-soundtrack-volume-alpha-flacf",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Farchive.org%2Fdownload%2Fminecraft-soundtrack-volume-alpha-flacf%2F16%2520Beginning.mp3"
+    },
+    {
+      "id": "music-minecraft-biome-fest",
+      "title": "Minecraft Alpha · Biome Fest",
+      "style": "Exploration",
+      "suiteLabel": "Minecraft Suite",
+      "source": "Internet Archive",
+      "artist": "C418",
+      "license": "Personal use",
+      "sourceUrl": "https://archive.org/details/minecraft-soundtrack-volume-alpha-flacf",
+      "src": "/api/audio-proxy?src=https%3A%2F%2Farchive.org%2Fdownload%2Fminecraft-soundtrack-volume-alpha-flacf%2F17%2520Biome%2520Fest.mp3"
     }
   ]
 }

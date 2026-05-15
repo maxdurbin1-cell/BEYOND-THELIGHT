@@ -96,7 +96,15 @@ const AUDIO_PROXY_ALLOWED_HOSTS = new Set([
   "www.opengameart.org",
   "freesound.org",
   "www.freesound.org",
-  "cdn.freesound.org"
+  "cdn.freesound.org",
+  "drive.google.com",
+  "archive.org",
+  "ia800000.us.archive.org",
+  "ia600000.us.archive.org",
+  "ia500000.us.archive.org",
+  "ia400000.us.archive.org",
+  "ia200000.us.archive.org",
+  "ia100000.us.archive.org"
 ]);
 
 const campaigns = new Map();
@@ -1411,12 +1419,31 @@ function isAllowedAudioProxyHost(hostname) {
   if (host.endsWith(".incompetech.com")) return true;
   if (host.endsWith(".opengameart.org")) return true;
   if (host.endsWith(".freesound.org")) return true;
+  if (host.endsWith(".archive.org")) return true;
   return false;
 }
 
 function hasSupportedAudioExtension(pathname) {
   const pathOnly = String(pathname || "").toLowerCase();
   return pathOnly.endsWith(".mp3") || pathOnly.endsWith(".ogg") || pathOnly.endsWith(".wav");
+}
+
+// Converts Google Drive shareable/open links to a direct download URL.
+// Supports: /open?id=ID, /file/d/ID/view, /uc?id=ID
+function normalizeGoogleDriveUrl(url) {
+  const host = url.hostname.toLowerCase();
+  if (host !== "drive.google.com") return url;
+  let fileId = null;
+  // /file/d/FILE_ID/... format
+  const fileMatch = url.pathname.match(/\/file\/d\/([^/]+)/);
+  if (fileMatch) fileId = fileMatch[1];
+  // /open?id=FILE_ID or /uc?id=FILE_ID
+  if (!fileId) fileId = url.searchParams.get("id");
+  if (!fileId) return url; // can't resolve, pass through
+  const direct = new URL("https://drive.google.com/uc");
+  direct.searchParams.set("export", "download");
+  direct.searchParams.set("id", fileId);
+  return direct;
 }
 
 app.get("/api/audio-proxy", async (req, res) => {
@@ -1444,7 +1471,12 @@ app.get("/api/audio-proxy", async (req, res) => {
     return;
   }
 
-  if (!hasSupportedAudioExtension(target.pathname)) {
+  // Normalize Google Drive shareable links to direct download URL
+  target = normalizeGoogleDriveUrl(target);
+
+  const isGoogleDrive = target.hostname === "drive.google.com";
+  const isArchiveOrg = target.hostname === "archive.org" || target.hostname.endsWith(".archive.org");
+  if (!isGoogleDrive && !isArchiveOrg && !hasSupportedAudioExtension(target.pathname)) {
     res.status(400).json({ ok: false, error: "Only .mp3, .ogg, and .wav files are allowed." });
     return;
   }

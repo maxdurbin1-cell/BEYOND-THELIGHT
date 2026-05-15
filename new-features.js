@@ -6486,7 +6486,7 @@
       'Iron Lungs: Ignore smoke and ash penalties, including Coolant Layer requirements from scorched hazards',
       'Runesmith: Your weapon carries the rune — +Adventure Die bonus damage on next Strike or Shoot this scene',
       'Scavenger Memory: First loot roll each day may be rerolled — keep the better result',
-      'Hex Cartographer: Reveal one adjacent hex detail for free',
+      'Hex Cartographer: Reveal two adjacent hex details for free',
       'Solar Needle: One ranged attack per scene gains +Adventure Die bonus to Shoot',
       'Grave Whisper: Commune with the recent dead for a clue, lore shard, or grave omen',
       'Storm Veins: Glimpse one possible future and negate the first forced Trauma this scene',

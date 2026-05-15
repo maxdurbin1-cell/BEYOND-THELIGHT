@@ -471,6 +471,15 @@ window.playCustomMusicFromSettings = function() {
   }
   
   function createSettingsPanel() {
+        // Add Escape key support to close settings
+        function escCloseHandler(evt) {
+          if (evt.key === 'Escape') {
+            window.settingsSystem.closeSettings();
+          }
+        }
+        document.addEventListener('keydown', escCloseHandler);
+        // Store handler for removal
+        container._escCloseHandler = escCloseHandler;
     const container = document.getElementById(SETTINGS_ID);
     if (!container) return;
     
@@ -1247,6 +1256,11 @@ window.playCustomMusicFromSettings = function() {
     const container = document.getElementById(SETTINGS_ID);
     if (container) {
       container.classList.remove('open');
+      // Remove Escape key handler if present
+      if (container._escCloseHandler) {
+        document.removeEventListener('keydown', container._escCloseHandler);
+        delete container._escCloseHandler;
+      }
     }
   }
   

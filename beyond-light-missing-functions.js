@@ -269,6 +269,12 @@ function switchTab(tabId, btn) {
     }
   }
 
+  if (tabId === "yessod") {
+    if (typeof window.renderYessodPanel === "function") {
+      window.renderYessodPanel();
+    }
+  }
+
   if (tabId === "exocrafts") {
     if (typeof window.renderExocraftPanel === "function") {
       window.renderExocraftPanel();

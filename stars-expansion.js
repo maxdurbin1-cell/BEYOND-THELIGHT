@@ -8463,6 +8463,8 @@ function ensureStarsState() {
     royalShipLog: [],
     activePlanetHexId: null,
     planetExplorationByHex: {},
+    yessodUnlocked: false,
+    yessod: null,
     clickMode: 'travel',
   };
   S.spaceNaval = S.spaceNaval || null;
@@ -8512,6 +8514,8 @@ function ensureStarsState() {
   if (!Array.isArray(S.starSystem.royalShipLog)) S.starSystem.royalShipLog = [];
   if (typeof S.starSystem.activePlanetHexId !== 'number') S.starSystem.activePlanetHexId = null;
   if (!S.starSystem.planetExplorationByHex || typeof S.starSystem.planetExplorationByHex !== 'object') S.starSystem.planetExplorationByHex = {};
+  if (typeof S.starSystem.yessodUnlocked !== 'boolean') S.starSystem.yessodUnlocked = false;
+  if (!S.starSystem.yessod || typeof S.starSystem.yessod !== 'object') S.starSystem.yessod = null;
   if (typeof S.starSystem.galaxyGenerated !== 'boolean') S.starSystem.galaxyGenerated = false;
   if (!S.starSystem.currentWeather || typeof S.starSystem.currentWeather !== 'object') S.starSystem.currentWeather = null;
   if (!Array.isArray(S.starSystem.radioTaskMarkers)) S.starSystem.radioTaskMarkers = [];
@@ -15500,6 +15504,380 @@ function openActivePlanetMap() {
   if (typeof switchTab === 'function' && b) switchTab('planet', b);
 }
 
+const YESSOD_ROWS = 12;
+const YESSOD_COLS = 12;
+const YESSOD_WEATHER = [
+  { name: 'Amber Dust Front', desc: 'Fine conductive dust coats optics and joints.', dd: 6, failure: 'Gain 1 Stress from sensory overload.' },
+  { name: 'Mirror Rain', desc: 'Glassy rain sheets distort depth and horizon.', dd: 8, failure: 'Travel stalls and consumes an extra phase.' },
+  { name: 'Hollow Wind', desc: 'Subsonic wind carries fragmented memory echoes.', dd: 8, failure: 'Gain 1 Trauma from disorientation.' },
+  { name: 'Silent Interval', desc: 'A still weather pocket with stable visibility.', dd: 0, failure: '' },
+  { name: 'Lumen Squall', desc: 'Charged streaks arc between exposed structures.', dd: 10, failure: 'Take 2 Health damage from arc flash.' },
+  { name: 'Ash Bloom', desc: 'Bioluminescent spores cloud the sky in drifting plumes.', dd: 6, failure: 'Suffer -1 on next scouting check.' },
+];
+const YESSOD_BIOMES = ['Shale Gardens', 'Resin Flats', 'Iron Mangroves', 'Pale Basin', 'Spire Barrens', 'Salt Ember Fields'];
+const YESSOD_STRATA = ['Pale Verge', 'Ash Layer', 'Resonant Shelf', 'Vaulted Mist', 'Titan Span', 'Noctis Crown'];
+const YESSOD_MARKERS = {
+  wilderness: { label: 'Wilderness', color: '#5d6d7f', glyph: '' },
+  seat: { label: 'Seat of Authority', color: '#f3cc78', glyph: '♜' },
+  holding: { label: 'Holding', color: '#6fb6a0', glyph: '⬢' },
+  dwelling: { label: 'Dwelling', color: '#86a7d9', glyph: '⌂' },
+  temple: { label: 'Temple', color: '#d58fe2', glyph: '⛩' },
+  monument: { label: 'Monument', color: '#c7a07a', glyph: '🜂' },
+  peril: { label: 'Peril', color: '#d96b6b', glyph: '⚠' },
+  ruins: { label: 'Ruins', color: '#a1846e', glyph: '⌁' },
+  gate: { label: 'Gate', color: '#7ed2e6', glyph: '⟐' },
+  lost_city: { label: 'Lost City', color: '#9d9dc8', glyph: '⛬' },
+  lift: { label: 'Layer Lift', color: '#7bd7c0', glyph: '⇅' },
+  barrier: { label: 'Barrier', color: '#8a5b5b', glyph: '⛝' },
+};
+
+function yessodCellId(row, col) {
+  return (row * YESSOD_COLS) + col + 1;
+}
+
+function yessodGetCell(state, id) {
+  if (!state || !Array.isArray(state.cells)) return null;
+  return state.cells.find((cell) => cell.id === Number(id)) || null;
+}
+
+function yessodTakeRandomCells(state, count, filterFn) {
+  const source = (state.cells || []).filter((cell) => {
+    if (cell.marker !== 'wilderness') return false;
+    if (typeof filterFn === 'function' && !filterFn(cell)) return false;
+    return true;
+  });
+  const picked = [];
+  while (source.length && picked.length < count) {
+    const idx = Math.floor(Math.random() * source.length);
+    const chosen = source.splice(idx, 1)[0];
+    if (chosen) picked.push(chosen);
+  }
+  return picked;
+}
+
+function yessodTraceLine(a, b) {
+  const steps = Math.max(Math.abs(a.row - b.row), Math.abs(a.col - b.col), 1);
+  const points = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps;
+    const row = Math.round(a.row + ((b.row - a.row) * t));
+    const col = Math.round(a.col + ((b.col - a.col) * t));
+    points.push({ row, col });
+  }
+  return points;
+}
+
+function yessodMarkPath(state, a, b, kind) {
+  yessodTraceLine(a, b).forEach((pt) => {
+    const id = yessodCellId(pt.row, pt.col);
+    const cell = yessodGetCell(state, id);
+    if (!cell) return;
+    if (kind === 'skyway') cell.skyway = true;
+    if (kind === 'titanpath') cell.titanpath = true;
+    if (cell.marker === 'wilderness' && kind === 'skyway') {
+      cell.marker = 'monument';
+      cell.feature = 'Skyway span across the Yessod shelf';
+    }
+  });
+}
+
+function rollYessodWeather(state) {
+  const weather = Object.assign({}, pick(YESSOD_WEATHER));
+  if (state) state.currentWeather = weather;
+  return weather;
+}
+
+function createYessodState() {
+  const cells = [];
+  for (let row = 0; row < YESSOD_ROWS; row += 1) {
+    for (let col = 0; col < YESSOD_COLS; col += 1) {
+      cells.push({
+        id: yessodCellId(row, col),
+        row,
+        col,
+        marker: 'wilderness',
+        biome: pick(YESSOD_BIOMES),
+        skyway: false,
+        titanpath: false,
+        explored: false,
+        feature: '',
+        note: '',
+      });
+    }
+  }
+
+  const state = {
+    unlocked: false,
+    rows: YESSOD_ROWS,
+    cols: YESSOD_COLS,
+    cells,
+    selectedCellId: yessodCellId(5, 5),
+    travelMethod: 'trek',
+    currentStrata: 1,
+    currentWeather: null,
+    lastEncounter: '',
+    eventLog: [],
+  };
+
+  const center = yessodGetCell(state, state.selectedCellId);
+  if (center) {
+    center.marker = 'seat';
+    center.explored = true;
+    center.feature = 'Seat of Yessod governance and ritual observatories.';
+  }
+
+  const holdings = yessodTakeRandomCells(state, 3, (cell) => Math.abs(cell.row - 5) > 1 || Math.abs(cell.col - 5) > 1);
+  holdings.forEach((cell, idx) => {
+    cell.marker = 'holding';
+    cell.feature = `Holding ${idx + 1}: a fortified strata outpost.`;
+  });
+
+  yessodTakeRandomCells(state, 9).forEach((cell) => {
+    cell.marker = 'dwelling';
+    cell.feature = 'Clustered dwellings wrapped in plated reeds.';
+  });
+  yessodTakeRandomCells(state, 6).forEach((cell) => {
+    cell.marker = 'temple';
+    cell.feature = 'Temple archive etched with harmonic runes.';
+  });
+  yessodTakeRandomCells(state, 8).forEach((cell) => {
+    cell.marker = 'ruins';
+    cell.feature = 'Ruined civil tier from an earlier age.';
+  });
+  yessodTakeRandomCells(state, 6).forEach((cell) => {
+    cell.marker = 'peril';
+    cell.feature = 'Hostile zone where weather and fauna become lethal.';
+  });
+  yessodTakeRandomCells(state, 3).forEach((cell) => {
+    cell.marker = 'gate';
+    cell.feature = 'Gate node linked to far orbital corridors.';
+  });
+  yessodTakeRandomCells(state, 3).forEach((cell) => {
+    cell.marker = 'lift';
+    cell.feature = 'Vertical lift between Yessod strata.';
+  });
+  yessodTakeRandomCells(state, 1).forEach((cell) => {
+    cell.marker = 'lost_city';
+    cell.feature = 'A submerged lost city beneath mirrored stone.';
+  });
+  yessodTakeRandomCells(state, 10).forEach((cell) => {
+    cell.marker = 'barrier';
+    cell.feature = 'Barrier wall and controlled checkpoint.';
+  });
+
+  if (holdings.length >= 2) {
+    yessodMarkPath(state, holdings[0], holdings[1], 'skyway');
+    if (holdings[2]) {
+      yessodMarkPath(state, holdings[1], holdings[2], 'skyway');
+      yessodMarkPath(state, holdings[0], holdings[2], 'skyway');
+    }
+  }
+  const temples = state.cells.filter((cell) => cell.marker === 'temple');
+  if (temples.length >= 2) yessodMarkPath(state, temples[0], temples[1], 'titanpath');
+  if (temples.length >= 4) yessodMarkPath(state, temples[2], temples[3], 'titanpath');
+
+  rollYessodWeather(state);
+  return state;
+}
+
+function ensureYessodState() {
+  ensureStarsState();
+  if (!S.starSystem.yessod || !Array.isArray(S.starSystem.yessod.cells)) {
+    S.starSystem.yessod = createYessodState();
+  }
+  return S.starSystem.yessod;
+}
+
+function syncYessodTabVisibility() {
+  const btn = document.getElementById('tabnav-yessod') || document.querySelector('.tab-btn[onclick*="switchTab(\'yessod\'"]');
+  if (!btn) return;
+  ensureStarsState();
+  const current = getCurrentStarHex();
+  if (current && current.type === 'star') S.starSystem.yessodUnlocked = true;
+  const canShow = !!S.starSystem.yessodUnlocked;
+  btn.style.display = canShow ? '' : 'none';
+}
+
+function openYessodFromSun() {
+  ensureStarsState();
+  S.starSystem.yessodUnlocked = true;
+  syncYessodTabVisibility();
+  if (typeof setContext === 'function') {
+    const spaceBtn = document.querySelector('.ctx-btn[onclick*="setContext(\'space\'"]');
+    setContext('space', spaceBtn || null);
+  }
+  const yessodBtn = document.getElementById('tabnav-yessod') || document.querySelector('.tab-btn[onclick*="switchTab(\'yessod\'"]');
+  if (typeof switchTab === 'function' && yessodBtn) switchTab('yessod', yessodBtn);
+  else renderYessodPanel();
+}
+
+function yessodTravelIsNight() {
+  const phaseText = (typeof getGameDatePhaseText === 'function') ? String(getGameDatePhaseText() || '') : '';
+  return /night|evening/i.test(phaseText);
+}
+
+function yessodApplyTravelCosts(state, fromCell, toCell) {
+  if (typeof registerProvinceHexTravel === 'function') registerProvinceHexTravel(1);
+  if (!state || !fromCell || !toCell) return;
+  if (state.travelMethod === 'lethe_ferry' && ((fromCell.row < 6 && toCell.row >= 6) || (fromCell.row >= 6 && toCell.row < 6))) {
+    if (typeof changeHealth === 'function') changeHealth(2);
+    showNotif('Ferry crossing on the Lethe costs 2 Health.', 'warn');
+  }
+  if (state.travelMethod === 'titanpaths') {
+    if (typeof changeStress === 'function') changeStress(5);
+    showNotif('Titanpath resonance inflicts +5 Mental Stress.', 'warn');
+  }
+  if (state.travelMethod === 'lifts' && typeof addTrauma === 'function') {
+    addTrauma(1);
+    showNotif('Layer lift strain inflicts +1 Trauma.', 'warn');
+  }
+  if (yessodTravelIsNight() && typeof changeStress === 'function') {
+    changeStress(roll(4));
+    showNotif('Night traversal: gain d4 mental stress.', 'warn');
+  }
+}
+
+function setYessodTravelMethod(method) {
+  const state = ensureYessodState();
+  state.travelMethod = String(method || 'trek');
+  renderYessodPanel();
+}
+
+function shiftYessodStrata(delta) {
+  const state = ensureYessodState();
+  const next = Math.max(1, Math.min(6, Number(state.currentStrata || 1) + Number(delta || 0)));
+  state.currentStrata = next;
+  renderYessodPanel();
+}
+
+function selectYessodCell(cellId) {
+  const state = ensureYessodState();
+  const toCell = yessodGetCell(state, cellId);
+  const fromCell = yessodGetCell(state, state.selectedCellId);
+  if (!toCell) return;
+
+  if (fromCell && fromCell.id !== toCell.id) {
+    if (state.travelMethod === 'titanpaths' && !(fromCell.titanpath && toCell.titanpath)) {
+      showNotif('Titanpaths travel requires both cells to be on Titanpaths.', 'warn');
+      return;
+    }
+    if (state.travelMethod === 'lifts' && fromCell.marker !== 'lift' && toCell.marker !== 'lift') {
+      showNotif('Lifts travel requires a layer lift entry or destination.', 'warn');
+      return;
+    }
+    yessodApplyTravelCosts(state, fromCell, toCell);
+    state.currentWeather = rollYessodWeather(state);
+  }
+
+  toCell.explored = true;
+  state.selectedCellId = toCell.id;
+  renderYessodPanel();
+}
+
+function rollYessodEncounter() {
+  const state = ensureYessodState();
+  const cell = yessodGetCell(state, state.selectedCellId);
+  if (!cell) return;
+  const wildlife = pick(['Mirror Jackals', 'Shard Stags', 'Iron-wing Vultures', 'Glass Eels']);
+  const strangers = pick(['Yessod pilgrims', 'Skyway couriers', 'Barrier wardens', 'Ruin salvagers']);
+  const omen = pick(['a null choir hum', 'a collapsing lumen halo', 'dust that moves against the wind', 'a star-map carved into wet stone']);
+  const result = `${cell.biome}: Encounter ${pick([wildlife, strangers])}; omen: ${omen}.`;
+  state.lastEncounter = result;
+  const out = document.getElementById('yessodEncounterResult');
+  if (out) out.textContent = result;
+}
+
+function rollYessodWeatherNow() {
+  const state = ensureYessodState();
+  rollYessodWeather(state);
+  renderYessodPanel();
+}
+
+function getYessodCellTerrainText(cell) {
+  if (!cell) return 'No cell selected.';
+  if (cell.marker === 'wilderness') {
+    return `Wilderness hex. Land: ${pick(['fractured shale shelves', 'resin marsh corridors', 'obsidian ridges'])}. Weather: ${pick(['crosswind dust', 'silent rain bands', 'hollow thunder'])}. Feature: ${pick(['nomad cairns', 'broken scan pylons', 'drifting fungal lanterns'])}.`;
+  }
+  return cell.feature || 'Mapped site with limited data.';
+}
+
+function renderYessodPanel() {
+  const host = document.getElementById('tab-yessod');
+  if (!host) return;
+  const state = ensureYessodState();
+  syncYessodTabVisibility();
+  const selected = yessodGetCell(state, state.selectedCellId) || state.cells[0];
+  const size = 18;
+  const xStep = size * 1.72;
+  const yStep = size * 1.45;
+  const baseX = 56;
+  const baseY = 56;
+  const width = Math.ceil(baseX * 2 + (YESSOD_COLS * xStep) + 30);
+  const height = Math.ceil(baseY * 2 + (YESSOD_ROWS * yStep) + 30);
+
+  const hexes = state.cells.map((cell) => {
+    const x = baseX + (cell.col * xStep) + ((cell.row % 2) * (xStep * 0.5));
+    const y = baseY + (cell.row * yStep);
+    const pts = hexPointsSVG(x, y, size - 1.5);
+    const marker = YESSOD_MARKERS[cell.marker] || YESSOD_MARKERS.wilderness;
+    const border = cell.id === state.selectedCellId ? '#ffffff' : (cell.explored ? '#2f4156' : '#1e2633');
+    const glyph = marker.glyph || '';
+    const label = cell.id;
+    return `<g onclick="selectYessodCell(${cell.id})" style="cursor:pointer;">
+      <polygon points="${pts}" fill="${marker.color}" fill-opacity="${cell.explored ? '0.86' : '0.56'}" stroke="${border}" stroke-width="${cell.id === state.selectedCellId ? '2' : '1'}"></polygon>
+      ${cell.skyway ? `<circle cx="${x - 9}" cy="${y - 10}" r="3" fill="#f1d17a"></circle>` : ''}
+      ${cell.titanpath ? `<circle cx="${x + 10}" cy="${y - 10}" r="3" fill="#d78be7"></circle>` : ''}
+      ${glyph ? `<text x="${x}" y="${y + 4}" text-anchor="middle" font-size="11" fill="#111622">${glyph}</text>` : ''}
+      <text x="${x}" y="${y + 15}" text-anchor="middle" font-size="8" fill="#dfe7f4">${label}</text>
+    </g>`;
+  }).join('');
+
+  const weather = state.currentWeather || rollYessodWeather(state);
+  const strataName = YESSOD_STRATA[Math.max(0, Math.min(YESSOD_STRATA.length - 1, Number(state.currentStrata || 1) - 1))];
+  const travelOptions = [
+    { value: 'trek', label: 'Trek (on foot)' },
+    { value: 'lethe_ferry', label: 'Ferries (River Lethe)' },
+    { value: 'titanpaths', label: 'Titanpaths' },
+    { value: 'lifts', label: 'Lifts (strata shift)' },
+  ];
+
+  host.innerHTML = `
+    <div class="card" style="display:grid;gap:.5rem;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;">
+        <div>
+          <h3 style="margin:0;">Yessod</h3>
+          <div style="font-size:.8rem;color:var(--muted2);">12x12 Province-style hex map with Yessod-exclusive strata travel and weather.</div>
+        </div>
+        <div style="display:flex;gap:.25rem;flex-wrap:wrap;">
+          <button class="btn btn-xs" onclick="rollYessodWeatherNow()">Roll Weather</button>
+          <button class="btn btn-xs btn-teal" onclick="rollYessodEncounter()">Roll Encounter</button>
+          <button class="btn btn-xs" onclick="shiftYessodStrata(-1)">Strata -</button>
+          <button class="btn btn-xs" onclick="shiftYessodStrata(1)">Strata +</button>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr;gap:.45rem;">
+        <div style="font-size:.8rem;color:var(--text2);">Current Strata: <strong>${state.currentStrata}</strong> (${strataName}) | Weather: <strong>${weather.name}</strong></div>
+        <div style="font-size:.76rem;color:var(--muted2);">${weather.desc} ${weather.dd > 0 ? `Travel check: Mind or Survival vs DD${weather.dd}. Failure: ${weather.failure}` : 'No travel check required.'}</div>
+        <label style="font-size:.75rem;color:var(--muted2);">Travel Method
+          <select onchange="setYessodTravelMethod(this.value)" style="margin-left:.3rem;">
+            ${travelOptions.map((opt) => `<option value="${opt.value}" ${state.travelMethod === opt.value ? 'selected' : ''}>${opt.label}</option>`).join('')}
+          </select>
+        </label>
+      </div>
+
+      <div style="overflow:auto;border:1px solid var(--border);background:linear-gradient(180deg,rgba(8,14,26,.92),rgba(10,16,30,.72));">
+        <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${hexes}</svg>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr;gap:.35rem;">
+        <div style="font-size:.82rem;color:var(--text2);">Selected Hex: <strong>${selected ? selected.id : '-'}</strong> · ${selected ? (YESSOD_MARKERS[selected.marker] || YESSOD_MARKERS.wilderness).label : ''} · Biome: ${selected ? selected.biome : '-'}</div>
+        <div style="font-size:.78rem;color:var(--muted2);line-height:1.55;">${getYessodCellTerrainText(selected)}</div>
+        <div id="yessodEncounterResult" style="font-size:.78rem;color:var(--teal);">${state.lastEncounter || 'No encounter rolled yet.'}</div>
+      </div>
+    </div>`;
+}
+
 function createPlanetTask(options) {
   const hex = getActivePlanetHex();
   const state = ensurePlanetSurfaceState(hex);
@@ -17291,6 +17669,9 @@ function updateStarSystemReadouts() {
       if (current.type === 'hub') {
         actionButtons.push('<button class="btn btn-xs btn-primary" onclick="if(typeof openSpaceHubHexcrawl===\'function\')openSpaceHubHexcrawl(\'' + String(current.label || current.name || 'Orbital Hub').replace(/'/g, "\\'") + '\');else if(typeof openHoldingSettlementHexcrawl===\'function\')openHoldingSettlementHexcrawl();">◫ Enter Space Hub</button>');
       }
+      if (current.type === 'star') {
+        actionButtons.push('<button class="btn btn-xs btn-teal" onclick="openYessodFromSun()">Open Yessod</button>');
+      }
       if (current.type === 'planet' && current.scanned) {
         actionButtons.push('<button class="btn btn-xs btn-teal" onclick="rollPlanetExploration()">Planet Exploration</button>');
         actionButtons.push('<button class="btn btn-xs" onclick="openActivePlanetMap()">Open Planet Map</button>');
@@ -17378,6 +17759,7 @@ function updateStarSystemReadouts() {
   if (radio) {
     radio.textContent = S.starSystem.lastRadioEvent || 'No monthly radio events yet.';
   }
+  syncYessodTabVisibility();
   maybeAutoOpenSolarCycleGalaxy();
 }
 
@@ -20793,6 +21175,12 @@ document.addEventListener('DOMContentLoaded', function() {
     panel.id = 'tab-exocrafts';
     tabHost.appendChild(panel);
   }
+  if (tabHost && !document.getElementById('tab-yessod')) {
+    const panel = document.createElement('div');
+    panel.className = 'tab-panel';
+    panel.id = 'tab-yessod';
+    tabHost.appendChild(panel);
+  }
   if (nav && !document.querySelector('.tab-btn[onclick*="switchTab(\'planet\'"]')) {
     const planetBtn = document.createElement('button');
     planetBtn.className = 'tab-btn ctx-space';
@@ -20809,6 +21197,16 @@ document.addEventListener('DOMContentLoaded', function() {
     exoBtn.setAttribute('onclick', "switchTab('exocrafts',this)");
     nav.appendChild(exoBtn);
   }
+  if (nav && !document.querySelector('.tab-btn[onclick*="switchTab(\'yessod\'"]')) {
+    const yessodBtn = document.createElement('button');
+    yessodBtn.className = 'tab-btn ctx-space';
+    yessodBtn.id = 'tabnav-yessod';
+    yessodBtn.style.display = 'none';
+    yessodBtn.textContent = 'Yessod';
+    yessodBtn.setAttribute('onclick', "switchTab('yessod',this)");
+    nav.appendChild(yessodBtn);
+  }
+  syncYessodTabVisibility();
 
   renderStarsCombatZone(1);
 });
@@ -20829,6 +21227,13 @@ window.rollOracleOpenEnded = rollOracleOpenEnded;
 window.rollPlanetExploration = rollPlanetExploration;
 window.renderPlanetExplorationPanel = renderPlanetExplorationPanel;
 window.openActivePlanetMap = openActivePlanetMap;
+window.renderYessodPanel = renderYessodPanel;
+window.openYessodFromSun = openYessodFromSun;
+window.selectYessodCell = selectYessodCell;
+window.setYessodTravelMethod = setYessodTravelMethod;
+window.shiftYessodStrata = shiftYessodStrata;
+window.rollYessodWeatherNow = rollYessodWeatherNow;
+window.rollYessodEncounter = rollYessodEncounter;
 window.explorePlanetCell = explorePlanetCell;
 window.createPlanetTask = createPlanetTask;
 window.resolvePlanetTask = resolvePlanetTask;

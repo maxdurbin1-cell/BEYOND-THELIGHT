@@ -1436,7 +1436,8 @@
             type: String(hex.type || "sea")
           });
         }
-        if (moved && typeof window.autoAdvanceMissionFromSeaHex === "function") {
+        const shouldAutoAdvanceMission = moved || S.lastSea.clickMode === "fog";
+        if (shouldAutoAdvanceMission && typeof window.autoAdvanceMissionFromSeaHex === "function") {
           window.autoAdvanceMissionFromSeaHex(hex.key);
         }
       });

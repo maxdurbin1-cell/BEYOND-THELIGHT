@@ -13616,7 +13616,8 @@ function renderHexMap(){
             terrain:(hex.terrain&&hex.terrain.name)?hex.terrain.name:hex.type
           });
         }
-        if(moved&&typeof window.autoAdvanceMissionFromProvinceHex==='function')window.autoAdvanceMissionFromProvinceHex(hex);
+        const shouldAutoAdvanceMission=moved||clickMode==='fog';
+        if(shouldAutoAdvanceMission&&typeof window.autoAdvanceMissionFromProvinceHex==='function')window.autoAdvanceMissionFromProvinceHex(hex);
         if(moved&&typeof window.triggerFactionTurn==='function')window.triggerFactionTurn();
         if(window.campaignSystem&&typeof window.campaignSystem.syncProvinceFocus==='function'){
           window.campaignSystem.syncProvinceFocus('province-click');

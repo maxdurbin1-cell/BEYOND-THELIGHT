@@ -9122,7 +9122,6 @@
       if (services.missionBoard) districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingDistrictMissionPickup(\'' + String(active.id) + '\')">Mission Board</button>';
       if (services.localWork) districtButtons += '<button type="button" class="btn btn-xs btn-teal" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_task\')">Local Shift</button>';
       if (services.merchant) districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingMerchantDistrict(\'' + String(active.id) + '\')">Merchants</button>';
-      if (typeof window.openHoldingCrucibleMatch === 'function') districtButtons += '<button type="button" class="btn btn-xs btn-primary" onclick="window.openHoldingCrucibleMatch()">Crucible</button>';
       if (active.kind === 'inn') districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'rest\')">Rest</button>';
       if (active.kind === 'lord') districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'audience\')">Audience</button>';
       if (services.inn) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'inn_service\')">Inn Loop</button>';

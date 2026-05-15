@@ -581,11 +581,6 @@
           '<div id="holdingGovernancePanel"></div>',
         '</div>',
         '<div class="card">',
-          '<div class="section-title">Crucible Operations</div>',
-          '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.5rem;">Training scenario launched from Holdings. Primary playlist is 3v3 Control on a large hex board with zone capture, loadouts, loot, and tactical movement.</div>',
-          '<div id="holdingCruciblePanel"></div>',
-        '</div>',
-        '<div class="card">',
           '<div class="section-title">Holding Treasury</div>',
           '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.5rem;">Prompt an amount, pick a care tier, and let the bank handle the credits.</div>',
           '<div id="holdingBankPanel"></div>',
@@ -1397,11 +1392,6 @@
           + btn('route','civic','Civic Corridors','btn-teal')
         + '</div>'
         + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;">Current Policy: Patrol <strong>' + gov.patrolStance + '</strong> · Tariff <strong>' + gov.tariffStance + '</strong> · Route <strong>' + gov.routePriority + '</strong></div>';
-    }
-
-    var crucibleEl = document.getElementById('holdingCruciblePanel');
-    if (crucibleEl) {
-      crucibleEl.innerHTML = buildHoldingCruciblePanelHtml();
     }
 
     var bankEl = document.getElementById('holdingBankPanel');

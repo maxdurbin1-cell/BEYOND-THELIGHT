@@ -1,3 +1,45 @@
+// --- Custom Music Logic for Settings Audio Tab ---
+window.playCustomMusicFromSettings = function() {
+  var url = document.getElementById('customMusicUrl');
+  var fileInput = document.getElementById('customMusicFile');
+  var playerDiv = document.getElementById('customMusicPlayer');
+  if (!playerDiv) return;
+  playerDiv.innerHTML = '';
+  var urlVal = url && url.value ? url.value.trim() : '';
+  if (urlVal) {
+    if (urlVal.includes('youtube.com') || urlVal.includes('youtu.be')) {
+      var videoId = '';
+      var ytMatch = urlVal.match(/(?:youtube\.com.*[?&]v=|youtu\.be\/)([\w-]+)/);
+      if (ytMatch) videoId = ytMatch[1];
+      if (videoId) {
+        playerDiv.innerHTML = '<iframe width="100%" height="200" src="https://www.youtube.com/embed/' + videoId + '?autoplay=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>';
+        return;
+      }
+    } else if (urlVal.includes('spotify.com')) {
+      var spMatch = urlVal.match(/spotify\.com\/(track|album|playlist)\/([\w]+)/);
+      if (spMatch) {
+        var type = spMatch[1], id = spMatch[2];
+        playerDiv.innerHTML = '<iframe src="https://open.spotify.com/embed/' + type + '/' + id + '?utm_source=generator&autoplay=1" width="100%" height="80" frameborder="0" allowtransparency="true" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>';
+        return;
+      }
+    } else if (urlVal.includes('music.apple.com')) {
+      playerDiv.innerHTML = '<iframe allow="autoplay *; encrypted-media *;" frameborder="0" height="150" style="width:100%;max-width:660px;overflow:hidden;background:transparent;" sandbox="allow-forms allow-popups allow-same-origin allow-scripts allow-top-navigation-by-user-activation" src="' + urlVal.replace('music.apple.com', 'embed.music.apple.com') + '"></iframe>';
+      return;
+    } else if (urlVal.match(/\.(mp3|m4a|ogg|wav)$/i)) {
+      playerDiv.innerHTML = '<audio controls autoplay style="width:100%"><source src="' + urlVal + '"></audio>';
+      return;
+    }
+    playerDiv.innerHTML = '<div style="color:var(--red);font-size:.9rem;">Unrecognized or unsupported link.</div>';
+    return;
+  }
+  if (fileInput && fileInput.files && fileInput.files[0]) {
+    var file = fileInput.files[0];
+    var urlObj = URL.createObjectURL(file);
+    playerDiv.innerHTML = '<audio controls autoplay style="width:100%"><source src="' + urlObj + '"></audio>';
+    return;
+  }
+  playerDiv.innerHTML = '<div style="color:var(--red);font-size:.9rem;">Please provide a link or upload an MP3.</div>';
+};
 // settings-system.js — Game Settings & Game Modes (Solo/GM/Campaign)
 // Manages audio volume, game mode selection, and mode-specific UI features
 (function () {
@@ -543,6 +585,16 @@
           <div class="settings-section">
             <h4>Audio</h4>
             <div class="setting-row">
+              <label>Custom Music</label>
+              <div style="display:flex;flex-direction:column;gap:.3rem;min-width:0;width:100%;">
+                <input type="text" id="customMusicUrl" placeholder="Paste YouTube, Spotify, Apple Music link, or direct MP3…" style="width:100%;max-width:420px;">
+                <input type="file" id="customMusicFile" accept="audio/mp3,audio/mpeg" style="max-width:420px;">
+                <div style="display:flex;gap:.5rem;justify-content:flex-end;">
+                  <button class="btn btn-primary btn-xs" onclick="window.playCustomMusicFromSettings()">Play</button>
+                </div>
+                <div id="customMusicPlayer" style="margin-top:.7rem;"></div>
+              </div>
+            </div>
               <label>Background Music</label>
               <div class="campaign-actions" style="margin:0;">
                 <button id="musicConsentBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleMusicConsent()">

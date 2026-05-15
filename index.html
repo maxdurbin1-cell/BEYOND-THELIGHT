@@ -17258,6 +17258,26 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script defer src="./shared-puzzles.js"></script>
 <script defer src="./economy-ledger-system.js"></script>
 <script defer src="./teamwork-rules-system.js"></script>
+<script>
+// Ensure World That Was tab is initialized after all scripts are loaded
+window.addEventListener('DOMContentLoaded', function() {
+  if (typeof initWorldThatWas === 'function') initWorldThatWas();
+  // If the World That Was tab is already active, mount its panel immediately
+  var wtwPanel = document.getElementById('tab-worldthatwas');
+  var wtwBtn = document.getElementById('tabnav-worldthatwas');
+  if (wtwPanel && wtwBtn && wtwBtn.classList.contains('active') && typeof mountWorldThatWasPanel === 'function') {
+    mountWorldThatWasPanel();
+  }
+
+  // Always attach a click handler to the World That Was tab button
+  if (wtwBtn) {
+    wtwBtn.addEventListener('click', function() {
+      if (typeof mountWorldThatWasPanel === 'function') mountWorldThatWasPanel();
+      if (typeof renderWorldThatWas === 'function') renderWorldThatWas();
+    });
+  }
+});
+</script>
 <script defer src="./infinite-library-system.js"></script>
 <script defer src="./solo-gm-system.js"></script>
 <script defer src="./audit-panel-ui.js"></script>

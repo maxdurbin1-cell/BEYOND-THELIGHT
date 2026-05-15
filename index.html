@@ -10327,6 +10327,223 @@ function escapeCustomForgeHtml(text){
   return String(text||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function getCustomCodexLibrarySnapshot(){
+  return {
+    schema:'btl-custom-content-v1',
+    exportedAt:new Date().toISOString(),
+    affixes:getCustomCodexAffixes().map(function(entry){return Object.assign({},entry);}),
+    items:getCustomCodexItems().map(function(entry){return Object.assign({},entry);})
+  };
+}
+
+function parseImportedCustomCodexLibrary(raw){
+  var payload=raw&&typeof raw==='object'?raw:{};
+  if(payload.customContent&&typeof payload.customContent==='object')payload=payload.customContent;
+  var affixes=(Array.isArray(payload.affixes)?payload.affixes:[])
+    .map(normalizeCustomCodexAffix)
+    .filter(Boolean);
+  var items=(Array.isArray(payload.items)?payload.items:[])
+    .map(normalizeCustomCodexItem)
+    .filter(Boolean);
+
+  var affixNameSeen={};
+  affixes=affixes.filter(function(entry){
+    var key=normalizeAffixLabel(entry.name);
+    if(!key||affixNameSeen[key])return false;
+    affixNameSeen[key]=true;
+    return true;
+  });
+
+  var itemNameSeen={};
+  items=items.filter(function(entry){
+    var key=String(entry.name||'').toLowerCase();
+    if(!key||itemNameSeen[key])return false;
+    itemNameSeen[key]=true;
+    entry.affixes=(entry.affixes||[]).filter(function(name){
+      return !!name;
+    });
+    return true;
+  });
+
+  return {affixes:affixes,items:items};
+}
+
+function codexForgeSetAffixFormMode(editing){
+  var saveBtn=document.getElementById('ccAffixSaveBtn');
+  var cancelBtn=document.getElementById('ccAffixCancelEdit');
+  var hint=document.getElementById('ccAffixEditHint');
+  if(saveBtn)saveBtn.textContent=editing?'Update Affix':'Save Affix';
+  if(cancelBtn)cancelBtn.style.display=editing?'inline-flex':'none';
+  if(hint)hint.style.display=editing?'block':'none';
+}
+
+function codexForgeSetItemFormMode(editing){
+  var saveBtn=document.getElementById('ccItemSaveBtn');
+  var cancelBtn=document.getElementById('ccItemCancelEdit');
+  var hint=document.getElementById('ccItemEditHint');
+  if(saveBtn)saveBtn.textContent=editing?'Update Item':'Save Item';
+  if(cancelBtn)cancelBtn.style.display=editing?'inline-flex':'none';
+  if(hint)hint.style.display=editing?'block':'none';
+}
+
+function codexForgeResetAffixForm(){
+  var ids=['ccAffixName','ccAffixDesc','ccAffixActionBonus','ccAffixStrikeFlat','ccAffixShootFlat','ccAffixDefendFlat','ccAffixControlFlat','ccAffixStrikeSteps','ccAffixCritShift','ccAffixShootClose'];
+  ids.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  var scope=document.getElementById('ccAffixScope');
+  if(scope)scope.value='any';
+  var far=document.getElementById('ccAffixFar');
+  if(far)far.checked=false;
+  var editId=document.getElementById('ccAffixEditId');
+  if(editId)editId.value='';
+  codexForgeSetAffixFormMode(false);
+}
+
+function codexForgeResetItemForm(){
+  var ids=['ccItemName','ccItemDesc','ccItemDie','ccItemFlat','ccItemRange','ccItemActions','ccItemCost','ccItemUseValue'];
+  ids.forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  var defaults={ccItemKind:'weapon',ccItemRollType:'strike',ccItemMerchantCategory:'weapons',ccItemUseEffect:'none'};
+  Object.keys(defaults).forEach(function(id){var el=document.getElementById(id);if(el)el.value=defaults[id];});
+  var editId=document.getElementById('ccItemEditId');
+  if(editId)editId.value='';
+  ensureCustomCodexState();
+  S.customContent.builderAffixes=[];
+  codexForgeSetItemFormMode(false);
+}
+
+function getCodexForgeItemFormDraft(){
+  return {
+    editId:((document.getElementById('ccItemEditId')||{}).value||'').trim(),
+    name:((document.getElementById('ccItemName')||{}).value||''),
+    description:((document.getElementById('ccItemDesc')||{}).value||''),
+    kind:((document.getElementById('ccItemKind')||{}).value||'weapon'),
+    rollType:((document.getElementById('ccItemRollType')||{}).value||'strike'),
+    die:((document.getElementById('ccItemDie')||{}).value||''),
+    flat:((document.getElementById('ccItemFlat')||{}).value||''),
+    range:((document.getElementById('ccItemRange')||{}).value||''),
+    actions:((document.getElementById('ccItemActions')||{}).value||''),
+    cost:((document.getElementById('ccItemCost')||{}).value||''),
+    merchantCategory:((document.getElementById('ccItemMerchantCategory')||{}).value||'weapons'),
+    useEffect:((document.getElementById('ccItemUseEffect')||{}).value||'none'),
+    useValue:((document.getElementById('ccItemUseValue')||{}).value||'')
+  };
+}
+
+function restoreCodexForgeItemFormDraft(draft){
+  if(!draft||typeof draft!=='object')return;
+  var setVal=function(id,value){var el=document.getElementById(id);if(el)el.value=String(value===undefined||value===null?'':value);};
+  setVal('ccItemName',draft.name);
+  setVal('ccItemDesc',draft.description);
+  setVal('ccItemKind',draft.kind);
+  setVal('ccItemRollType',draft.rollType);
+  setVal('ccItemDie',draft.die);
+  setVal('ccItemFlat',draft.flat);
+  setVal('ccItemRange',draft.range);
+  setVal('ccItemActions',draft.actions);
+  setVal('ccItemCost',draft.cost);
+  setVal('ccItemMerchantCategory',draft.merchantCategory);
+  setVal('ccItemUseEffect',draft.useEffect);
+  setVal('ccItemUseValue',draft.useValue);
+  setVal('ccItemEditId',draft.editId);
+  codexForgeSetItemFormMode(!!String(draft.editId||'').trim());
+}
+
+function codexForgeBeginEditAffix(id){
+  var key=String(id||'');
+  var affix=getCustomCodexAffixes().find(function(entry){return String(entry.id||'')===key;});
+  if(!affix){showNotif('Affix could not be loaded for editing.','warn');return;}
+  var setVal=function(id,value){var el=document.getElementById(id);if(el)el.value=String(value===undefined||value===null?'':value);};
+  setVal('ccAffixName',affix.name);
+  setVal('ccAffixDesc',affix.description);
+  setVal('ccAffixScope',affix.scope||'any');
+  setVal('ccAffixActionBonus',affix.actionBonus||0);
+  setVal('ccAffixStrikeFlat',affix.strikeFlat||0);
+  setVal('ccAffixShootFlat',affix.shootFlat||0);
+  setVal('ccAffixDefendFlat',affix.defendFlat||0);
+  setVal('ccAffixControlFlat',affix.controlFlat||0);
+  setVal('ccAffixStrikeSteps',affix.strikeDieSteps||0);
+  setVal('ccAffixCritShift',affix.critShift||0);
+  setVal('ccAffixShootClose',affix.shootCloseBonus||0);
+  var far=document.getElementById('ccAffixFar');
+  if(far)far.checked=!!affix.shootFarEnabled;
+  var editId=document.getElementById('ccAffixEditId');
+  if(editId)editId.value=key;
+  codexForgeSetAffixFormMode(true);
+}
+
+function codexForgeBeginEditItem(id){
+  var key=String(id||'');
+  var item=getCustomCodexItems().find(function(entry){return String(entry.id||'')===key;});
+  if(!item){showNotif('Item could not be loaded for editing.','warn');return;}
+  ensureCustomCodexState();
+  S.customContent.builderAffixes=(item.affixes||[]).slice();
+  var draft={
+    editId:key,
+    name:item.name,
+    description:item.description,
+    kind:item.kind||'item',
+    rollType:item.rollType||'mind',
+    die:item.die||0,
+    flat:item.flat||0,
+    range:item.range||'',
+    actions:item.actions||0,
+    cost:item.cost||0,
+    merchantCategory:item.merchantCategory||'items',
+    useEffect:item.useEffect||'none',
+    useValue:item.useValue||0
+  };
+  rerenderCodexCustomForge();
+  restoreCodexForgeItemFormDraft(draft);
+}
+
+function codexForgeExportLibrary(){
+  var payload=getCustomCodexLibrarySnapshot();
+  var text=JSON.stringify(payload,null,2);
+  try{
+    var blob=new Blob([text],{type:'application/json'});
+    var link=document.createElement('a');
+    var stamp=new Date().toISOString().replace(/[:.]/g,'-');
+    link.href=URL.createObjectURL(blob);
+    link.download='btl-custom-content-'+stamp+'.json';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(function(){
+      URL.revokeObjectURL(link.href);
+      if(link.parentNode)link.parentNode.removeChild(link);
+    },0);
+    showNotif('Custom content exported to JSON.','good');
+  }catch(_err){
+    openModal('Custom Content Export','<textarea style="width:100%;min-height:50vh;background:var(--surface);color:var(--text2);border:1px solid var(--border2);padding:.4rem;">'+escapeCustomForgeHtml(text)+'</textarea>');
+  }
+}
+
+function codexForgeImportLibraryFile(evt){
+  var input=(evt&&evt.target)?evt.target:document.getElementById('ccLibraryImportFile');
+  if(!input||!input.files||!input.files.length)return;
+  var file=input.files[0];
+  var reader=new FileReader();
+  reader.onload=function(){
+    try{
+      var parsed=JSON.parse(String(reader.result||'{}'));
+      var normalized=parseImportedCustomCodexLibrary(parsed);
+      ensureCustomCodexState();
+      S.customContent.affixes=normalized.affixes;
+      S.customContent.items=normalized.items;
+      S.customContent.builderAffixes=[];
+      showNotif('Imported '+normalized.affixes.length+' affix(es) and '+normalized.items.length+' item(s).','good');
+      rerenderCodexCustomForge();
+    }catch(err){
+      showNotif('Import failed: invalid JSON library file.','warn');
+      console.error('Custom content import failed:',err);
+    }finally{
+      try{input.value='';}catch(_clearErr){}
+    }
+  };
+  reader.onerror=function(){
+    showNotif('Import failed: could not read file.','warn');
+  };
+  reader.readAsText(file);
+}
+
 function buildCodexCustomForgeHtml(){
   ensureCustomCodexState();
   var affixes=getCustomCodexAffixes();
@@ -10343,7 +10560,10 @@ function buildCodexCustomForgeHtml(){
     return '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);">'
       +'<div style="display:flex;justify-content:space-between;gap:.35rem;align-items:flex-start;">'
       +'<div><strong style="color:var(--teal);">'+escapeCustomForgeHtml(affix.name)+'</strong><div style="font-size:.7rem;color:var(--muted2);">scope: '+escapeCustomForgeHtml(affix.scope)+'</div></div>'
+      +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'
+      +'<button class="btn btn-xs" onclick="codexForgeBeginEditAffix('+JSON.stringify(affix.id)+')">Edit</button>'
       +'<button class="btn btn-xs btn-red" onclick="codexForgeDeleteAffix('+JSON.stringify(affix.id)+')">Delete</button>'
+      +'</div>'
       +'</div>'
       +'<div style="font-size:.74rem;color:var(--text2);margin-top:.18rem;line-height:1.4;">'+escapeCustomForgeHtml(affix.description)+'</div>'
     +'</div>';
@@ -10357,6 +10577,7 @@ function buildCodexCustomForgeHtml(){
       +'<span style="font-size:.68rem;color:var(--muted2);text-transform:uppercase;">'+escapeCustomForgeHtml(item.kind)+'</span>'
       +'<div style="font-size:.72rem;color:var(--teal);margin-top:.1rem;">'+escapeCustomForgeHtml(stat)+' · '+Number(item.cost||0)+'₵</div></div>'
       +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'
+      +'<button class="btn btn-xs" onclick="codexForgeBeginEditItem('+JSON.stringify(item.id)+')">Edit</button>'
       +'<button class="btn btn-xs" onclick="codexForgeToggleMerchantItem('+JSON.stringify(item.id)+')">'+(item.merchantEnabled?'Hide':'Show')+' Merchant</button>'
       +'<button class="btn btn-xs btn-red" onclick="codexForgeDeleteItem('+JSON.stringify(item.id)+')">Delete</button>'
       +'</div>'
@@ -10370,9 +10591,16 @@ function buildCodexCustomForgeHtml(){
   return '<div class="card">'
     +'<div class="section-title">Codex Custom Content Forge</div>'
     +'<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.5rem;">Author custom weapons, armor, spells, and utility items here. Merchant integration and affix mapping are managed in this Codex page.</div>'
+    +'<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.45rem;">'
+      +'<button class="btn btn-xs btn-teal" onclick="codexForgeExportLibrary()">Export Library JSON</button>'
+      +'<button class="btn btn-xs" onclick="document.getElementById(\'ccLibraryImportFile\').click()">Import Library JSON</button>'
+      +'<input id="ccLibraryImportFile" type="file" accept="application/json,.json" style="display:none;" onchange="codexForgeImportLibraryFile(event)" />'
+    +'</div>'
     +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:.5rem;align-items:start;">'
       +'<div style="border:1px solid var(--border2);padding:.45rem;background:rgba(255,255,255,.02);">'
         +'<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.28rem;">Create Custom Affix</div>'
+        +'<input id="ccAffixEditId" type="hidden" value="" />'
+        +'<div id="ccAffixEditHint" style="display:none;font-size:.72rem;color:var(--teal);margin-bottom:.2rem;">Editing existing affix</div>'
         +'<input id="ccAffixName" type="text" placeholder="Affix Name" style="width:100%;margin-bottom:.25rem;" />'
         +'<textarea id="ccAffixDesc" rows="2" placeholder="What this affix does" style="width:100%;margin-bottom:.25rem;"></textarea>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:.25rem;margin-bottom:.25rem;">'
@@ -10387,11 +10615,14 @@ function buildCodexCustomForgeHtml(){
           +'<input id="ccAffixShootClose" type="number" placeholder="Shoot close bonus" />'
           +'<label style="display:flex;align-items:center;gap:.3rem;font-size:.72rem;color:var(--muted2);padding:.15rem .2rem;border:1px solid var(--border2);"><input id="ccAffixFar" type="checkbox"/> Enable far shoot</label>'
         +'</div>'
-        +'<button class="btn btn-xs btn-primary" onclick="codexForgeCreateAffix()">Save Affix</button>'
+        +'<button id="ccAffixSaveBtn" class="btn btn-xs btn-primary" onclick="codexForgeCreateAffix()">Save Affix</button>'
+        +'<button id="ccAffixCancelEdit" class="btn btn-xs" style="display:none;margin-left:.25rem;" onclick="codexForgeResetAffixForm()">Cancel Edit</button>'
         +'<div style="margin-top:.35rem;display:grid;gap:.28rem;max-height:230px;overflow:auto;">'+customAffixHtml+'</div>'
       +'</div>'
       +'<div style="border:1px solid var(--border2);padding:.45rem;background:rgba(255,255,255,.02);">'
         +'<div style="font-size:.78rem;color:var(--gold2);margin-bottom:.28rem;">Create Custom Item</div>'
+        +'<input id="ccItemEditId" type="hidden" value="" />'
+        +'<div id="ccItemEditHint" style="display:none;font-size:.72rem;color:var(--teal);margin-bottom:.2rem;">Editing existing item</div>'
         +'<input id="ccItemName" type="text" placeholder="Item Name" style="width:100%;margin-bottom:.25rem;" />'
         +'<textarea id="ccItemDesc" rows="2" placeholder="Item description" style="width:100%;margin-bottom:.25rem;"></textarea>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:.25rem;margin-bottom:.25rem;">'
@@ -10411,7 +10642,8 @@ function buildCodexCustomForgeHtml(){
           +'<button class="btn btn-xs" onclick="codexForgeImportAffixToBuilder()">Import Affix</button>'
         +'</div>'
         +'<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.3rem;">'+pendingHtml+'</div>'
-        +'<button class="btn btn-xs btn-primary" onclick="codexForgeCreateItem()">Save Item</button>'
+        +'<button id="ccItemSaveBtn" class="btn btn-xs btn-primary" onclick="codexForgeCreateItem()">Save Item</button>'
+        +'<button id="ccItemCancelEdit" class="btn btn-xs" style="display:none;margin-left:.25rem;" onclick="codexForgeResetItemForm();rerenderCodexCustomForge();">Cancel Edit</button>'
         +'<button class="btn btn-xs" style="margin-left:.25rem;" onclick="codexForgeClearBuilderAffixes()">Clear Affixes</button>'
         +'<div style="margin-top:.35rem;max-height:260px;overflow:auto;">'+itemRows+'</div>'
       +'</div>'
@@ -10426,6 +10658,7 @@ function rerenderCodexCustomForge(){
 
 function codexForgeCreateAffix(){
   ensureCustomCodexState();
+  var editId=((document.getElementById('ccAffixEditId')||{}).value||'').trim();
   var name=((document.getElementById('ccAffixName')||{}).value||'').trim();
   if(!name){showNotif('Custom Affix needs a name.','warn');return;}
   var affix=normalizeCustomCodexAffix({
@@ -10443,10 +10676,21 @@ function codexForgeCreateAffix(){
     shootFarEnabled:!!((document.getElementById('ccAffixFar')||{}).checked)
   });
   if(!affix){showNotif('Could not build custom affix definition.','warn');return;}
-  var existing=getCustomCodexAffixByName(affix.name);
-  if(existing){showNotif('An affix with that name already exists.','warn');return;}
-  S.customContent.affixes.push(affix);
-  showNotif('Custom affix saved: '+affix.name+'.','good');
+  affix.id=editId||affix.id;
+  var coll=getCustomCodexAffixes();
+  var duplicate=coll.some(function(existing){
+    if(editId&&String(existing.id||'')===editId)return false;
+    return normalizeAffixLabel(existing.name)===normalizeAffixLabel(affix.name);
+  });
+  if(duplicate){showNotif('An affix with that name already exists.','warn');return;}
+  if(editId){
+    S.customContent.affixes=coll.map(function(existing){return String(existing.id||'')===editId?affix:existing;});
+    showNotif('Custom affix updated: '+affix.name+'.','good');
+  }else{
+    S.customContent.affixes.push(affix);
+    showNotif('Custom affix saved: '+affix.name+'.','good');
+  }
+  codexForgeResetAffixForm();
   rerenderCodexCustomForge();
 }
 
@@ -10467,29 +10711,36 @@ function codexForgeDeleteAffix(id){
 
 function codexForgeImportAffixToBuilder(){
   ensureCustomCodexState();
+  var draft=getCodexForgeItemFormDraft();
   var pickEl=document.getElementById('ccItemAffixImport');
   var name=pickEl?String(pickEl.value||'').trim():'';
   if(!name)return;
   if(S.customContent.builderAffixes.indexOf(name)>=0)return;
   S.customContent.builderAffixes.push(name);
   rerenderCodexCustomForge();
+  restoreCodexForgeItemFormDraft(draft);
 }
 
 function codexForgeRemoveBuilderAffix(index){
   ensureCustomCodexState();
+  var draft=getCodexForgeItemFormDraft();
   var idx=Math.max(0,Number(index||0));
   S.customContent.builderAffixes.splice(idx,1);
   rerenderCodexCustomForge();
+  restoreCodexForgeItemFormDraft(draft);
 }
 
 function codexForgeClearBuilderAffixes(){
   ensureCustomCodexState();
+  var draft=getCodexForgeItemFormDraft();
   S.customContent.builderAffixes=[];
   rerenderCodexCustomForge();
+  restoreCodexForgeItemFormDraft(draft);
 }
 
 function codexForgeCreateItem(){
   ensureCustomCodexState();
+  var editId=((document.getElementById('ccItemEditId')||{}).value||'').trim();
   var item=normalizeCustomCodexItem({
     name:((document.getElementById('ccItemName')||{}).value||'').trim(),
     description:((document.getElementById('ccItemDesc')||{}).value||'').trim(),
@@ -10506,7 +10757,12 @@ function codexForgeCreateItem(){
     affixes:(S.customContent.builderAffixes||[]).slice()
   });
   if(!item||!item.name){showNotif('Custom item needs a name.','warn');return;}
-  if(getCustomCodexItems().some(function(existing){return String(existing.name||'').toLowerCase()===String(item.name||'').toLowerCase();})){
+  item.id=editId||item.id;
+  var items=getCustomCodexItems();
+  if(items.some(function(existing){
+    if(editId&&String(existing.id||'')===editId)return false;
+    return String(existing.name||'').toLowerCase()===String(item.name||'').toLowerCase();
+  })){
     showNotif('A custom item with that name already exists.','warn');
     return;
   }
@@ -10515,9 +10771,14 @@ function codexForgeCreateItem(){
     if(!affix)return true;
     return isCustomCodexItemCompatibleWithAffix(item,affix);
   });
-  S.customContent.items.push(item);
+  if(editId){
+    S.customContent.items=items.map(function(existing){return String(existing.id||'')===editId?item:existing;});
+  }else{
+    S.customContent.items.push(item);
+  }
   S.customContent.builderAffixes=[];
-  showNotif('Custom item saved: '+item.name+'.','good');
+  showNotif((editId?'Custom item updated: ':'Custom item saved: ')+item.name+'.','good');
+  codexForgeResetItemForm();
   rerenderCodexCustomForge();
 }
 

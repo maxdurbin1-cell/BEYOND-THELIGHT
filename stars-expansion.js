@@ -14272,7 +14272,11 @@ function openGlobalManualActionDreadPrompt(config) {
     + context
     + '</div>'
     + '<div><strong>' + statLabel + ' d' + actionDie + '</strong> vs <strong style="color:var(--red2);">Dread d' + dreadDie + '</strong></div>'
-    + '<div style="font-size:.72rem;color:var(--muted2);margin-top:.12rem;">Roll manually, then choose outcome.</div>'
+    + '<div style="font-size:.72rem;color:var(--muted2);margin-top:.12rem;">Enter your rolled values, then compare or choose outcome.</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.32rem;margin-top:.4rem;">'
+    + '<div><div style="font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;">' + statLabel + ' d' + actionDie + ' (total)</div><input type="number" id="globalManualActionValue" min="1" placeholder="1+" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;"></div>'
+    + '<div><div style="font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;">Dread d' + dreadDie + ' (total)</div><input type="number" id="globalManualDreadValue" min="1" placeholder="1+" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;"></div>'
+    + '</div>'
     + modifiersHtml
     + '<div style="margin-top:.34rem;padding:.28rem .36rem;border:1px solid rgba(232,192,80,.35);background:rgba(232,192,80,.08);">'
     + '<div style="font-size:.74rem;color:var(--gold2);"><strong>Teamwork:</strong> ' + currentTMW + ' TMW</div>'
@@ -14280,19 +14284,28 @@ function openGlobalManualActionDreadPrompt(config) {
     + '</div>'
     + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;margin-top:.45rem;">'
     + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
-    + '<button class="btn btn-sm btn-primary" onclick="resolveGlobalManualActionCheck(true,false)">Success</button>'
-    + '<button class="btn btn-sm btn-red" onclick="resolveGlobalManualActionCheck(false,false)">Failure</button>'
-    + '<button class="btn btn-sm btn-teal" ' + (currentTMW >= 2 ? '' : 'disabled') + ' onclick="resolveGlobalManualActionCheck(true,true)">Push Luck + Success</button>'
-    + '<button class="btn btn-sm btn-warn" ' + (currentTMW >= 2 ? '' : 'disabled') + ' onclick="resolveGlobalManualActionCheck(false,true)">Push Luck + Failure</button>'
+    + '<button class="btn btn-sm" onclick="resolveGlobalManualActionCheck(\"compare\",false)">Compare</button>'
+    + '<button class="btn btn-sm btn-primary" onclick="resolveGlobalManualActionCheck(\"success\",false)">Success</button>'
+    + '<button class="btn btn-sm btn-red" onclick="resolveGlobalManualActionCheck(\"failure\",false)">Failure</button>'
+    + '<button class="btn btn-sm btn-teal" ' + (currentTMW >= 2 ? '' : 'disabled') + ' onclick="resolveGlobalManualActionCheck(\"success\",true)">Push Luck + Success</button>'
+    + '<button class="btn btn-sm btn-warn" ' + (currentTMW >= 2 ? '' : 'disabled') + ' onclick="resolveGlobalManualActionCheck(\"failure\",true)">Push Luck + Failure</button>'
     + '</div>'
     + '</div>';
   openModal(title, html);
   return true;
 }
 
-function resolveGlobalManualActionCheck(success, pushLuck) {
+function resolveGlobalManualActionCheck(mode, pushLuck) {
   const pending = window._pendingGlobalManualActionCheck || null;
   if (!pending) return;
+  const actionInput = document.getElementById('globalManualActionValue');
+  const dreadInput = document.getElementById('globalManualDreadValue');
+  const actionValue = parseInt(actionInput && actionInput.value, 10);
+  const dreadValue = parseInt(dreadInput && dreadInput.value, 10);
+  if (!Number.isFinite(actionValue) || actionValue < 1 || !Number.isFinite(dreadValue) || dreadValue < 1) {
+    if (typeof showNotif === 'function') showNotif('Enter valid manual Action and Dread totals first.', 'warn');
+    return;
+  }
   const wantsPush = !!pushLuck;
   let usedPush = false;
   let finalDread = Number(pending.dreadDie || 6);
@@ -14307,16 +14320,21 @@ function resolveGlobalManualActionCheck(success, pushLuck) {
     usedPush = true;
     finalDread = stepGlobalManualDreadDie(finalDread);
   }
+  const modeKey = String(mode || 'compare').toLowerCase();
+  const resolvedSuccess = modeKey === 'success' ? true : (modeKey === 'failure' ? false : (actionValue >= dreadValue));
   window._pendingGlobalManualActionCheck = null;
   if (typeof closeModal === 'function') closeModal();
   if (typeof pending.resolver === 'function') {
     pending.resolver({
-      success: !!success,
+      success: !!resolvedSuccess,
       pushLuck: usedPush,
       statKey: pending.statKey,
       statLabel: pending.statLabel,
       actionDie: Number(pending.actionDie || 4),
       dreadDie: Number(finalDread || pending.dreadDie || 6),
+      actionTotal: Number(actionValue || 0),
+      dreadTotal: Number(dreadValue || 0),
+      mode: modeKey,
       manual: true
     });
   }
@@ -16295,6 +16313,29 @@ function yessodRollWeatherCheck() {
   const state = ensureYessodState();
   const weather = state.currentWeather;
   if (!weather || !weather.dd) return showNotif('No dangerous weather active.', 'info');
+  if (isGlobalManualRollMode()) {
+    openGlobalManualActionDreadPrompt({
+      title: 'Manual Roll - Yessod Weather Check',
+      context: String(weather.name || 'Yessod Weather') + ' weather pressure',
+      statKey: 'adventure',
+      statLabel: 'Traversal',
+      actionDie: 12,
+      dreadDie: Number(weather.dd || 6),
+      onResolve: function (outcome) {
+        const success = !!(outcome && outcome.success);
+        const actionTotal = Number((outcome && outcome.actionTotal) || 0);
+        const dreadTotal = Number((outcome && outcome.dreadTotal) || 0);
+        if (success) {
+          showNotif(`Weather check passed (${actionTotal} vs ${dreadTotal}). Safe passage.`, 'good');
+        } else {
+          const diff = Math.max(1, dreadTotal - actionTotal);
+          if (typeof changeStress === 'function') changeStress(diff);
+          showNotif(`Weather check failed (${actionTotal} vs ${dreadTotal}). ${weather.failure || `+${diff} Stress`}`, 'warn');
+        }
+      }
+    });
+    return;
+  }
   const result = roll(12);
   if (result >= weather.dd) {
     showNotif(`Weather check passed (d12: ${result} vs DD${weather.dd}). Safe passage.`, 'good');
@@ -18830,8 +18871,36 @@ function resolveGalaxyWeatherCheck() {
     if (el) el.innerHTML = `<span style="color:var(--green2);">${weather.name}. No traversal hazard in this hex.</span>`;
     return;
   }
-  const check = resolveGalaxySkillCheck(weather.check, null, weather.dd, weather.name + ' Traversal');
   const el = document.getElementById('starWeatherResult');
+  if (isGlobalManualRollMode()) {
+    const statKey = String(weather.check || 'lead').toLowerCase();
+    const die = (typeof getEffectiveDie === 'function') ? getEffectiveDie(statKey) : ((S.stats && S.stats[statKey]) || 4);
+    openGlobalManualActionDreadPrompt({
+      title: 'Manual Roll - Galaxy Weather Check',
+      context: String(weather.name || 'Galaxy Weather') + ' traversal',
+      statKey: statKey,
+      statLabel: String(weather.checkLabel || statKey).charAt(0).toUpperCase() + String(weather.checkLabel || statKey).slice(1),
+      actionDie: Math.max(4, Number(die || 4)),
+      dreadDie: Math.max(4, Number(weather.dd || 6)),
+      onResolve: function (outcome) {
+        const success = !!(outcome && outcome.success);
+        const actionTotal = Number((outcome && outcome.actionTotal) || 0);
+        const dreadTotal = Number((outcome && outcome.dreadTotal) || 0);
+        if (success) {
+          S.starSystem.currentWeather = null;
+          if (el) el.innerHTML = `<span style="color:var(--green2);">${actionTotal} vs ${dreadTotal}. Success: weather lane cleared.</span>`;
+          showNotif('Weather traversal succeeded.', 'good');
+        } else {
+          applyGalaxyFailureText(weather.failure);
+          if (el) el.innerHTML = `<span style="color:var(--red2);">${actionTotal} vs ${dreadTotal}. Failure: ${weather.failure}</span>`;
+          showNotif(`Weather traversal failed: ${weather.failure}`, 'warn');
+        }
+        updateStarSystemReadouts();
+      }
+    });
+    return;
+  }
+  const check = resolveGalaxySkillCheck(weather.check, null, weather.dd, weather.name + ' Traversal');
   if (check.success) {
     S.starSystem.currentWeather = null;
     if (el) el.innerHTML = `<span style="color:var(--green2);">${check.text}. Success: weather lane cleared.</span>`;

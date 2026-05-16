@@ -1557,7 +1557,11 @@
     var html = '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
       + '<div style="font-family:\'Cinzel\',serif;font-size:.78rem;letter-spacing:.08em;color:var(--gold2);margin-bottom:.28rem;">' + context + '</div>'
       + '<div><strong>' + statLabel + ' d' + actionDie + '</strong> vs <strong style="color:var(--red2);">Dread d' + dreadDie + '</strong></div>'
-      + '<div style="font-size:.72rem;color:var(--muted2);margin-top:.12rem;">Roll manually, then choose outcome.</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-top:.12rem;">Enter your rolled values, then compare or choose outcome.</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.32rem;margin-top:.4rem;">'
+      + '<div><div style="font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;">' + statLabel + ' d' + actionDie + ' (total)</div><input type="number" id="seaManualActionValue" min="1" placeholder="1+" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;"></div>'
+      + '<div><div style="font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;">Dread d' + dreadDie + ' (total)</div><input type="number" id="seaManualDreadValue" min="1" placeholder="1+" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;"></div>'
+      + '</div>'
       + modifiersHtml
       + '<div style="margin-top:.34rem;padding:.28rem .36rem;border:1px solid rgba(232,192,80,.35);background:rgba(232,192,80,.08);">'
       + '<div style="font-size:.74rem;color:var(--gold2);"><strong>Teamwork:</strong> ' + currentTMW + ' TMW</div>'
@@ -1565,19 +1569,28 @@
       + '</div>'
       + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;margin-top:.45rem;">'
       + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
-      + '<button class="btn btn-sm btn-primary" onclick="resolveSeaManualActionCheck(true,false)">Success</button>'
-      + '<button class="btn btn-sm btn-red" onclick="resolveSeaManualActionCheck(false,false)">Failure</button>'
-      + '<button class="btn btn-sm btn-teal" ' + (currentTMW >= 2 ? '' : 'disabled') + ' onclick="resolveSeaManualActionCheck(true,true)">Push Luck + Success</button>'
-      + '<button class="btn btn-sm btn-warn" ' + (currentTMW >= 2 ? '' : 'disabled') + ' onclick="resolveSeaManualActionCheck(false,true)">Push Luck + Failure</button>'
+      + '<button class="btn btn-sm" onclick="resolveSeaManualActionCheck(\"compare\",false)">Compare</button>'
+      + '<button class="btn btn-sm btn-primary" onclick="resolveSeaManualActionCheck(\"success\",false)">Success</button>'
+      + '<button class="btn btn-sm btn-red" onclick="resolveSeaManualActionCheck(\"failure\",false)">Failure</button>'
+      + '<button class="btn btn-sm btn-teal" ' + (currentTMW >= 2 ? '' : 'disabled') + ' onclick="resolveSeaManualActionCheck(\"success\",true)">Push Luck + Success</button>'
+      + '<button class="btn btn-sm btn-warn" ' + (currentTMW >= 2 ? '' : 'disabled') + ' onclick="resolveSeaManualActionCheck(\"failure\",true)">Push Luck + Failure</button>'
       + '</div>'
       + '</div>';
     openModal(title, html);
     return true;
   }
 
-  function resolveSeaManualActionCheck(success, pushLuck) {
+  function resolveSeaManualActionCheck(mode, pushLuck) {
     var pending = window._pendingSeaManualActionCheck || null;
     if (!pending) return;
+    var actionInput = document.getElementById('seaManualActionValue');
+    var dreadInput = document.getElementById('seaManualDreadValue');
+    var actionValue = parseInt(actionInput && actionInput.value, 10);
+    var dreadValue = parseInt(dreadInput && dreadInput.value, 10);
+    if (!Number.isFinite(actionValue) || actionValue < 1 || !Number.isFinite(dreadValue) || dreadValue < 1) {
+      if (typeof showNotif === 'function') showNotif('Enter valid manual Action and Dread totals first.', 'warn');
+      return;
+    }
     var wantsPush = !!pushLuck;
     var usedPush = false;
     var finalDread = Number(pending.dreadDie || 6);
@@ -1592,15 +1605,20 @@
       usedPush = true;
       finalDread = stepSeaManualDreadDie(finalDread);
     }
+    var modeKey = String(mode || 'compare').toLowerCase();
+    var resolvedSuccess = modeKey === 'success' ? true : (modeKey === 'failure' ? false : (actionValue >= dreadValue));
     window._pendingSeaManualActionCheck = null;
     if (typeof closeModal === 'function') closeModal();
     if (typeof pending.resolver === 'function') {
       pending.resolver({
-        success: !!success,
+        success: !!resolvedSuccess,
         pushLuck: usedPush,
         actionDie: Number(pending.actionDie || 4),
         dreadDie: Number(finalDread || pending.dreadDie || 6),
         statKey: pending.statKey,
+        actionTotal: Number(actionValue || 0),
+        dreadTotal: Number(dreadValue || 0),
+        mode: modeKey,
         manual: true
       });
     }
@@ -1637,24 +1655,27 @@
         dreadDie: dd,
         onResolve: function(outcome) {
           const success = !!(outcome && outcome.success);
+          const actionTotal = Number((outcome && outcome.actionTotal) || 0);
+          const dreadTotal = Number((outcome && outcome.dreadTotal) || 0);
           weather.checkResolved = true;
           weather.checkLast = {
             stat: checkStat,
             statDie,
-            statRoll: 'manual',
+            statRoll: actionTotal,
             dd: Number((outcome && outcome.dreadDie) || dd),
-            dreadRoll: 'manual',
+            dreadRoll: dreadTotal,
             success
           };
           if (!success) {
-            if (typeof changeMentalStress === 'function') changeMentalStress(1);
+            var diff = Math.max(1, dreadTotal - actionTotal);
+            if (typeof changeMentalStress === 'function') changeMentalStress(diff);
             else {
-              S.mentalStress = (S.mentalStress || 0) + 1;
+              S.mentalStress = (S.mentalStress || 0) + diff;
               if (typeof updateMentalStressUI === 'function') updateMentalStressUI();
             }
           }
           showNotif(
-            `${capitalize(checkStat)} d${statDie} vs Dread d${Number((outcome && outcome.dreadDie) || dd)} (manual). ${success ? 'Sea lane stabilized.' : 'You push through under strain (+1 Mental Stress).'}`,
+            `${capitalize(checkStat)} ${actionTotal} vs Dread ${dreadTotal} (manual). ${success ? 'Sea lane stabilized.' : 'You push through under strain.'}`,
             success ? 'good' : 'warn'
           );
           renderLastSeaMap();

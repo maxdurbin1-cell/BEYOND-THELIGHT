@@ -8680,6 +8680,19 @@ function maybeResetActionsAfterDefend(){
   }
 }
 
+function consumeEnemyActionBudget(actionLabel){
+  if(!S||!S.combat)return true;
+  var remaining=(typeof getEnemyActionsRemaining==='function')?Number(getEnemyActionsRemaining()||0):0;
+  if(remaining<=0){
+    showNotif((actionLabel||'Enemy action')+': no enemy actions remaining this cycle.','warn');
+    if(typeof updateCombatUI==='function')updateCombatUI();
+    if(typeof renderQP==='function')renderQP('combat');
+    return false;
+  }
+  maybeResetActionsAfterDefend();
+  return true;
+}
+
 const ENEMY_ACTION_EVENTS=[
   {name:'Suppressive Burst',desc:'Incoming fire hammers your position.',kind:'defendCheck',bonus:1,element:'kinetic',ranges:['engaged','close','nearby','far']},
   {name:'Arc Lash',desc:'Crackling current lashes the close lane.',kind:'directStress',scale:2,element:'shock',ranges:['close']},
@@ -8709,7 +8722,7 @@ function triggerEnemyActionEvent(){
   if(!requireCampaignTurn('enemy'))return;
   var actingEnemy=getPrimaryCombatEnemy();
   if(!actingEnemy){showNotif('Add an enemy first.','warn');return;}
-  maybeResetActionsAfterDefend();
+  if(!consumeEnemyActionBudget('Enemy Action'))return;
   if(consumeEnemyTurnBlock(actingEnemy))return;
   var enemyRange=getPrimaryEnemyZoneRelative();
   var rangeKinds=enemyRange==='engaged'
@@ -9790,7 +9803,6 @@ function applyEnemySpecialEffectsToWayfarer(action, sourceName){
 function enemyAttack(id){
   const e=S.enemies.find(x=>x.id===id);
   if(!e)return;
-  maybeResetActionsAfterDefend();
   ensureEnemyEffectState(e);
   if(e.ally){
     const target=getPrimaryCombatEnemy();
@@ -9804,6 +9816,7 @@ function enemyAttack(id){
     finalizeEnemyTurn(e);
     return;
   }
+  if(!consumeEnemyActionBudget(e.name||'Enemy'))return;
   if(consumeEnemyTurnBlock(e))return;
   if(typeof hasActivePsychicDomeProtection==='function'&&hasActivePsychicDomeProtection()){
     if(typeof window.AudioManager!=='undefined')window.AudioManager.combatMiss();
@@ -21045,11 +21058,7 @@ window.addEventListener('DOMContentLoaded', function() {
     var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
     var enemy = getArenaCurrentEnemy();
     if (!flow || !enemy) return false;
-    if (typeof getEnemyActionsRemaining === 'function' && Number(getEnemyActionsRemaining() || 0) <= 0) {
-      if (typeof showNotif === 'function') showNotif('No enemy actions remaining this cycle.', 'warn');
-      return false;
-    }
-    if (typeof maybeResetActionsAfterDefend === 'function') maybeResetActionsAfterDefend();
+    if (typeof consumeEnemyActionBudget === 'function' && !consumeEnemyActionBudget('Arena Enemy Special')) return false;
     flow.specialUses = Number(flow.specialUses || 0) + 1;
     var hitDie = Math.max(4, Number(enemy.dread || 4));
     var specialEffects = enemy.specialAction && enemy.specialAction.effects ? enemy.specialAction.effects : null;

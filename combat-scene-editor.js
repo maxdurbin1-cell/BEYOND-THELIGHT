@@ -657,6 +657,18 @@
       + '<div id="combatSceneOpenerSummary" class="combat-mini">No opener active.</div>'
       + '</div>'
       + '<div class="combat-action-block">'
+      + '<div class="combat-label">Live Combat Tab Feed</div>'
+      + '<div id="combatLegacyStatusMirror" class="combat-result-mirror">Status bridge idle.</div>'
+      + '<div id="combatLegacyRollModMirror" class="combat-result-mirror">Roll modifiers: none.</div>'
+      + '<div id="combatLegacyActionInfoMirror" class="combat-result-mirror">Wayfarer action details appear here.</div>'
+      + '<div id="combatLegacyFlavorMirror" class="combat-result-mirror"></div>'
+      + '<div class="combat-feed" id="combatLegacyRowsMirror"></div>'
+      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">'
+      + '<button class="btn btn-xs" id="combatOpenUtilityPromptBtn">Item/Hack/Flavor Prompt</button>'
+      + '<button class="btn btn-xs" id="combatOpenFlavorActionBtn">Use Flavor Action</button>'
+      + '</div>'
+      + '</div>'
+      + '<div class="combat-action-block">'
       + '<div class="combat-label">Combat Commands</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.22rem;margin-top:.22rem;">'
       + '<button class="btn btn-xs" id="combatCmdStrikeBtn">Strike</button>'
@@ -1063,6 +1075,54 @@
         if (raw) { text = raw; break; }
       }
       mirror.textContent = text || 'Legacy combat output mirrors here.';
+    }
+
+    var statusMirror = document.getElementById('combatLegacyStatusMirror');
+    if (statusMirror) {
+      var statusText = stripHtml((document.getElementById('combatStatus') || {}).textContent || '');
+      var actionHint = stripHtml((document.getElementById('maxActionsHint') || {}).textContent || '');
+      statusMirror.textContent = (statusText || 'Status bridge idle.') + (actionHint ? (' ' + actionHint) : '');
+    }
+
+    var rollMirror = document.getElementById('combatLegacyRollModMirror');
+    if (rollMirror) {
+      var rollText = stripHtml((document.getElementById('rollModDisplay-combat') || {}).textContent || '');
+      rollMirror.textContent = rollText ? ('Roll modifiers: ' + rollText) : 'Roll modifiers: none.';
+    }
+
+    var actionInfoMirror = document.getElementById('combatLegacyActionInfoMirror');
+    if (actionInfoMirror) {
+      var actionInfo = stripHtml((document.getElementById('wayfarerActionInfo') || {}).textContent || '');
+      actionInfoMirror.textContent = actionInfo || 'Wayfarer action details appear here.';
+    }
+
+    var flavorMirror = document.getElementById('combatLegacyFlavorMirror');
+    if (flavorMirror) {
+      var flavorSource = document.getElementById('flavorPassiveCombatIndicator');
+      if (flavorSource && String(flavorSource.style.display || '') !== 'none' && String(flavorSource.innerHTML || '').trim()) {
+        flavorMirror.innerHTML = String(flavorSource.innerHTML || '');
+      } else {
+        flavorMirror.textContent = '';
+      }
+    }
+
+    var rowsMirror = document.getElementById('combatLegacyRowsMirror');
+    if (rowsMirror) {
+      var rowMap = [
+        { id: 'attackResult', label: 'Strike/Shoot' },
+        { id: 'defendResult', label: 'Defend' },
+        { id: 'traumaResult', label: 'Trauma' },
+        { id: 'enemyActionResult', label: 'Enemy Action' },
+        { id: 'wayfarerActionResult', label: 'Wayfarer Action' },
+        { id: 'fleeResult', label: 'Escape/Morale' }
+      ];
+      var rowsHtml = rowMap.map(function (entry) {
+        var node = document.getElementById(entry.id);
+        var value = stripHtml(node ? (node.textContent || node.innerText || '') : '');
+        if (!value) return '';
+        return '<div class="combat-feed-line"><strong style="color:var(--combat-accent);">' + entry.label + ':</strong> ' + value + '</div>';
+      }).filter(Boolean).join('');
+      rowsMirror.innerHTML = rowsHtml || '<div class="combat-feed-line">No recent legacy combat rows.</div>';
     }
 
     var allySel = document.getElementById('combatAllySelect');
@@ -1497,6 +1557,28 @@
           try { window.executeWayfarerAction(); } catch (_err) {}
         }
         addHistory('Wayfarer action executed: ' + val + '.');
+        updateUiPanels();
+      };
+    }
+
+    var openUtilityPromptBtn = document.getElementById('combatOpenUtilityPromptBtn');
+    if (openUtilityPromptBtn && !openUtilityPromptBtn._bound) {
+      openUtilityPromptBtn._bound = true;
+      openUtilityPromptBtn.onclick = function () {
+        if (typeof window.promptCombatUtilityAction === 'function') {
+          try { window.promptCombatUtilityAction(); } catch (_err) {}
+        }
+        updateUiPanels();
+      };
+    }
+
+    var openFlavorActionBtn = document.getElementById('combatOpenFlavorActionBtn');
+    if (openFlavorActionBtn && !openFlavorActionBtn._bound) {
+      openFlavorActionBtn._bound = true;
+      openFlavorActionBtn.onclick = function () {
+        if (typeof window.usePersonalFlavorAction === 'function') {
+          try { window.usePersonalFlavorAction(); } catch (_err) {}
+        }
         updateUiPanels();
       };
     }

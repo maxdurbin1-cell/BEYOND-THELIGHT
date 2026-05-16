@@ -4344,20 +4344,27 @@
   function openStorylineManualRollPrompt(sceneId, option, actionDie, dreadDie, onResolve) {
     if (typeof openModal !== "function") return false;
     const statLabel = (STAT_LABELS && STAT_LABELS[option.stat]) ? STAT_LABELS[option.stat] : String(option.stat || "Stat").toUpperCase();
+    const statKey = String(option && option.stat || '').toLowerCase();
+    const modifierLines = (typeof window !== 'undefined' && typeof window.buildManualRollModifierLines === 'function')
+      ? (window.buildManualRollModifierLines(statKey, actionDie, { extraLines: ['Enter final totals after applying all listed modifiers.'] }) || [])
+      : [];
+    const modifierHtml = modifierLines.length
+      ? '<div style="font-size:.72rem;color:var(--muted2);margin-top:.18rem;line-height:1.5;">' + modifierLines.map(function(p){ return '<div>• ' + p + '</div>'; }).join('') + '</div>'
+      : '';
     window._pendingStorylineManualRoll = { resolver: typeof onResolve === "function" ? onResolve : null, actionDie: actionDie, dreadDie: dreadDie };
     const html = ""
       + "<div style='font-size:.84rem;color:var(--text2);line-height:1.6;'>"
       + "<div style='font-family:Cinzel,serif;font-size:.76rem;letter-spacing:.08em;color:var(--gold2);margin-bottom:.24rem;'>Manual Story Roll</div>"
       + "<div style='font-size:.78rem;color:var(--text2);margin-bottom:.06rem;font-style:italic;'>\"" + String(option.text || "").slice(0, 80) + "\"</div>"
       + "<div style='margin-top:.2rem;'><strong>" + statLabel + " d" + actionDie + "</strong> vs <strong style='color:var(--red2);'>Dread d" + dreadDie + "</strong></div>"
-      + "<div style='font-size:.85rem;color:var(--muted2);margin-top:.3rem;'>Enter your physical dice results below. Modifiers and bonuses should be applied as described in the rules.</div>"
+      + "<div style='font-size:.85rem;color:var(--muted2);margin-top:.3rem;'>Enter your physical dice results below. Apply all modifiers shown.</div>"
       + "<div style='display:grid;grid-template-columns:1fr 1fr;gap:.32rem;margin-top:.4rem;'>"
       + "<div><div style='font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;'>" + statLabel + " d" + actionDie + "</div>"
       + "<input type='number' id='storyManualActionValue' min='1' max='" + actionDie + "' placeholder='1-" + actionDie + "' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
       + "<div><div style='font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;'>Dread d" + dreadDie + "</div>"
       + "<input type='number' id='storyManualDreadValue' min='1' max='" + dreadDie + "' placeholder='1-" + dreadDie + "' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
       + "</div>"
-      + "<div style='font-size:.8rem;color:var(--muted2);margin-top:.3rem;'>Be explicit: If you have bonuses (e.g., +V.D., advantage, weapon, etc.), add them to your action die result as per the rules. Advantage means roll extra dice and take the best. +V.D. means add the Valor Die result to your main roll as an additive bonus, not as advantage.</div>"
+      + modifierHtml
       + "<div style='display:flex;gap:.26rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.46rem;'>"
       + "<button class='btn btn-sm' onclick='closeModal()'>Cancel</button>"
       + "<button class='btn btn-sm' onclick='window.resolveStorylineManualRoll(\"compare\")'>Compare</button>"

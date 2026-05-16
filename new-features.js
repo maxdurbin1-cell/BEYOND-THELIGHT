@@ -4232,14 +4232,22 @@
       kind: String(kind || 'spell').toLowerCase()
     };
     var pendingKind = String(kind || 'spell').toLowerCase();
+    var statKey = pendingKind === 'hack' ? 'control' : 'spirit';
     var actionDie = pendingKind === 'hack' ? getCrucibleStatDie('control', 8) : getCrucibleStatDie('spirit', 8);
     var dreadDie = Math.max(4, Number(target && (target.attackDie || target.defendDie || 8)));
+    var modifierLines = (typeof window !== 'undefined' && typeof window.buildManualRollModifierLines === 'function')
+      ? (window.buildManualRollModifierLines(statKey, actionDie, { extraLines: ['Enter final totals after applying all listed modifiers.'] }) || [])
+      : [];
+    var modifierHtml = modifierLines.length
+      ? '<div style="font-size:.72rem;color:var(--muted2);margin-top:.18rem;line-height:1.5;">' + modifierLines.map(function(p){ return '<div>• ' + p + '</div>'; }).join('') + '</div>'
+      : '';
     var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.5;">'
-      + '<div style="margin-bottom:.2rem;">Manual ' + (pendingKind === 'hack' ? 'Hack' : 'Spell') + ': enter Action and Dread roll totals.</div>'
+      + '<div style="margin-bottom:.2rem;">Manual ' + (pendingKind === 'hack' ? 'Hack' : 'Spell') + ': roll physically, apply modifiers, then enter Action and Dread totals.</div>'
       + '<div style="display:grid;grid-template-columns:repeat(2,minmax(120px,1fr));gap:.3rem;">'
       + '<label style="font-size:.7rem;color:var(--muted2);">Action d' + actionDie + '<input id="crucibleManualAction" type="number" min="1" max="99" style="width:100%;margin-top:.08rem;"></label>'
       + '<label style="font-size:.7rem;color:var(--muted2);">Dread d' + dreadDie + '<input id="crucibleManualDread" type="number" min="1" max="99" style="width:100%;margin-top:.08rem;"></label>'
       + '</div>'
+      + modifierHtml
       + '<div style="display:flex;justify-content:flex-end;gap:.3rem;margin-top:.26rem;">'
       + '<button class="btn btn-sm" onclick="goBackCrucibleManualActionRoll()">Go Back</button>'
       + '<button class="btn btn-sm" onclick="cancelCrucibleManualActionRoll()">Cancel</button>'

@@ -2239,6 +2239,12 @@
     const dreadDie = Math.max(4, Number(cfg.dreadDie || 6));
     const tmw = Math.max(0, Number((S && S.tmw) || 0));
     const pushDread = stepWtwManualDreadDie(dreadDie);
+    const modifierLines = (typeof window !== 'undefined' && typeof window.buildManualRollModifierLines === 'function')
+      ? (window.buildManualRollModifierLines(statKey, actionDie, { extraLines: ['Enter final totals after applying all listed modifiers.'] }) || [])
+      : [];
+    const modifiersHtml = modifierLines.length
+      ? '<div style="font-size:.72rem;color:var(--muted2);margin-top:.15rem;line-height:1.5;">' + modifierLines.map(function(p){ return '<div>• ' + p + '</div>'; }).join('') + '</div>'
+      : '';
 
     window._pendingWtwManualActionCheck = {
       statKey: statKey,
@@ -2252,11 +2258,12 @@
       + "<div style='font-size:.84rem;color:var(--text2);line-height:1.6;'>"
       + "<div style='font-family:Cinzel,serif;font-size:.78rem;letter-spacing:.08em;color:var(--gold2);margin-bottom:.28rem;'>" + context + "</div>"
       + "<div><strong>" + statLabel + " d" + actionDie + "</strong> vs <strong style='color:var(--red2);'>Dread d" + dreadDie + "</strong></div>"
-      + "<div style='font-size:.72rem;color:var(--muted2);margin-top:.12rem;'>Enter your rolled values, then compare or choose outcome.</div>"
+      + "<div style='font-size:.72rem;color:var(--muted2);margin-top:.12rem;'>Roll physically, apply modifiers listed below, then enter final totals.</div>"
       + "<div style='display:grid;grid-template-columns:1fr 1fr;gap:.32rem;margin-top:.4rem;'>"
       + "<div><div style='font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;'>" + statLabel + " d" + actionDie + "</div><input type='number' id='wtwManualActionValue' min='1' max='" + actionDie + "' placeholder='1-" + actionDie + "' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
       + "<div><div style='font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;'>Dread d" + dreadDie + "</div><input type='number' id='wtwManualDreadValue' min='1' max='" + dreadDie + "' placeholder='1-" + dreadDie + "' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
       + "</div>"
+      + modifiersHtml
       + "<div style='margin-top:.34rem;padding:.28rem .36rem;border:1px solid rgba(232,192,80,.35);background:rgba(232,192,80,.08);'>"
       + "<div style='font-size:.74rem;color:var(--gold2);'><strong>Teamwork:</strong> " + tmw + " TMW</div>"
       + "<div style='font-size:.7rem;color:var(--muted2);margin-top:.1rem;'>Push Luck costs 2 TMW and raises Dread to d" + pushDread + ".</div>"

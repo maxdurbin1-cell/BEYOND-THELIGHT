@@ -117,6 +117,13 @@
   }
 
   function buildRivalManualModifierSummary(stat){
+    if(typeof window!=='undefined'&&typeof window.buildManualRollModifierLines==='function'){
+      var lines=window.buildManualRollModifierLines(stat,(typeof getEffectiveDie==='function')?getEffectiveDie(stat||'lead'):6,{extraLines:['Enter final totals after applying all listed modifiers.']})||[];
+      if(!lines.length)return '<div style="font-size:.72rem;color:var(--muted2);margin-top:.18rem;">No active modifiers detected.</div>';
+      return '<div style="font-size:.72rem;color:var(--muted2);margin-top:.18rem;line-height:1.5;">'
+        + lines.map(function(p){return '<div>• '+p+'</div>';}).join('')
+        + '</div>';
+    }
     var key=String(stat||'lead').toLowerCase();
     var parts=[];
     if(typeof collectInventoryBonusesForStat==='function'){

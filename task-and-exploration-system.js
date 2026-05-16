@@ -133,6 +133,12 @@ function getAdjacentHexes(col,row){
 function performWildernessObservationManualRoll(col,row,directionKey,target){
   const leadDie=window.selectedDice.action||4;
   const dreadDie=window.selectedDice.dread||6;
+  const modifierLines=(typeof window!=='undefined'&&typeof window.buildManualRollModifierLines==='function')
+    ? (window.buildManualRollModifierLines('lead',leadDie,{extraLines:['Enter final totals after applying all listed modifiers.']})||[])
+    : [];
+  const modifierHtml=modifierLines.length
+    ? '<div style="font-size:.72rem;color:var(--muted2);margin-top:.18rem;line-height:1.5;">'+modifierLines.map(function(p){return '<div>• '+p+'</div>';}).join('')+'</div>'
+    : '';
   
   let html='<div style="font-size:.85rem;color:var(--text2);line-height:1.6;">'
     +'<div style="background:rgba(46,196,182,.05);border:1px solid rgba(46,196,182,.25);padding:.35rem .45rem;margin-bottom:.4rem;border-radius:3px;">'
@@ -140,12 +146,13 @@ function performWildernessObservationManualRoll(col,row,directionKey,target){
     +'<div><strong style="color:var(--text2);">Lead d'+leadDie+'</strong> <span style="color:var(--muted2);">vs</span> <strong style="color:var(--red);">Dread d'+dreadDie+'</strong></div>'
     +'</div>'
     +'<div style="background:rgba(232,192,80,.04);border:1px solid rgba(232,192,80,.3);padding:.35rem .45rem;margin-bottom:.4rem;border-radius:3px;">'
-    +'<div id="wildernessManualCheckPrompt" style="font-size:.78rem;color:var(--text2);">Roll your physical dice and enter the results below.</div>'
+    +'<div id="wildernessManualCheckPrompt" style="font-size:.78rem;color:var(--text2);">Roll physically, apply modifiers listed below, then enter totals.</div>'
     +'</div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-bottom:.4rem;">'
     +'<div><label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Lead d'+leadDie+'</label><input type="number" id="wildcardActionValue" min="1" max="'+leadDie+'" placeholder="1-'+leadDie+'" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;"></div>'
     +'<div><label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Dread d'+dreadDie+'</label><input type="number" id="wildcardDreadValue" min="1" max="'+dreadDie+'" placeholder="1-'+dreadDie+'" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;"></div>'
     +'</div>'
+    +modifierHtml
     +'</div>'
     +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
     +'<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'

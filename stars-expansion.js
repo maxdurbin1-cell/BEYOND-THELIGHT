@@ -14220,6 +14220,15 @@ function stepGlobalManualDreadDie(current) {
 }
 
 function buildGlobalManualRollModifierSummary(statKey) {
+  if (typeof window !== 'undefined' && typeof window.buildManualRollModifierLines === 'function') {
+    const lines = window.buildManualRollModifierLines(statKey, (typeof getEffectiveDie === 'function') ? getEffectiveDie(statKey) : 6, {
+      extraLines: ['Enter final totals after applying all listed modifiers.']
+    }) || [];
+    if (!lines.length) return '<div style="font-size:.72rem;color:var(--muted2);margin-top:.15rem;">No active modifiers detected.</div>';
+    return '<div style="font-size:.72rem;color:var(--muted2);margin-top:.15rem;line-height:1.5;">'
+      + lines.map((p) => '<div>• ' + p + '</div>').join('')
+      + '</div>';
+  }
   const key = String(statKey || 'valor').toLowerCase();
   const invBonus = (typeof collectInventoryBonusesForStat === 'function')
     ? collectInventoryBonusesForStat(key)
@@ -14276,7 +14285,7 @@ function openGlobalManualActionDreadPrompt(config) {
     + context
     + '</div>'
     + '<div><strong>' + statLabel + ' d' + actionDie + '</strong> vs <strong style="color:var(--red2);">Dread d' + dreadDie + '</strong></div>'
-    + '<div style="font-size:.72rem;color:var(--muted2);margin-top:.12rem;">Enter your rolled values, then compare or choose outcome.</div>'
+    + '<div style="font-size:.72rem;color:var(--muted2);margin-top:.12rem;">Roll physically, apply modifiers listed below, then enter final totals.</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.32rem;margin-top:.4rem;">'
     + '<div><div style="font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;">' + statLabel + ' d' + actionDie + ' (total)</div><input type="number" id="globalManualActionValue" min="1" placeholder="1+" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;"></div>'
     + '<div><div style="font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;">Dread d' + dreadDie + ' (total)</div><input type="number" id="globalManualDreadValue" min="1" placeholder="1+" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;"></div>'

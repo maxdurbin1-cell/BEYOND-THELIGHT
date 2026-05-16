@@ -63,6 +63,8 @@
     reader.readAsDataURL(file);
   }
 
+  window.readFileAsDataUrl = readFileAsDataUrl;
+
   function parseSlotWeight(name) {
     var text = String(name || '').trim();
     if (!text) return 0;
@@ -129,26 +131,8 @@
   }
 
   function ensureInventoryWeightHud() {
-    var grid = document.getElementById('backpackGrid');
-    if (!grid || !grid.parentElement) return;
     var host = document.getElementById('inventoryWeightHud');
-    if (!host) {
-      host = document.createElement('div');
-      host.id = 'inventoryWeightHud';
-      host.className = 'co-inventory-hud';
-      grid.parentElement.insertBefore(host, grid);
-    }
-    var total = getTotalCarryWeight();
-    var cap = getCarryCapacity();
-    var pct = Math.min(100, Math.round((total / Math.max(1, cap)) * 100));
-    var warn = total > cap;
-    host.innerHTML = ''
-      + '<div class="co-inv-top">'
-      + '<span class="sub-label" style="margin-bottom:0;">Carry Weight</span>'
-      + '<span style="font-size:.74rem;color:' + (warn ? 'var(--red2)' : 'var(--teal)') + ';">' + total + ' / ' + cap + '</span>'
-      + '</div>'
-      + '<div class="co-weight-bar"><div class="co-weight-fill ' + (warn ? 'warn' : '') + '" style="width:' + pct + '%;"></div></div>'
-      + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.16rem;">Drag items between backpack, equipment, and cosmetic slots. Slot rules are enforced.</div>';
+    if (host && host.parentElement) host.parentElement.removeChild(host);
   }
 
   function narrativeRangeFromDistance(distance) {
@@ -209,6 +193,455 @@
       };
     }
   }
+
+  function combatWorkshopRangeLabel(distance) {
+    var d = Math.max(0, Number(distance || 0));
+    if (d <= 0) return 'Engaged';
+    if (d <= 1) return 'Close';
+    if (d <= 2) return 'Nearby';
+    return 'Far';
+  }
+
+  function ensureCombatSceneWorkshopState() {
+    if (!window.S || typeof window.S !== 'object') return null;
+    if (!window.S.combat || typeof window.S.combat !== 'object') window.S.combat = {};
+    var combat = window.S.combat;
+    if (!combat.sceneWorkshop || typeof combat.sceneWorkshop !== 'object') combat.sceneWorkshop = {};
+    var ws = combat.sceneWorkshop;
+    if (!Array.isArray(ws.tokens)) ws.tokens = [];
+    if (!ws.features || typeof ws.features !== 'object') ws.features = {};
+    if (!Array.isArray(ws.history)) ws.history = [];
+    if (typeof ws.boardCols !== 'number') ws.boardCols = 7;
+    if (typeof ws.boardRows !== 'number') ws.boardRows = 7;
+    if (typeof ws.background !== 'string') ws.background = '';
+    if (typeof ws.selectedTokenId !== 'string' && typeof ws.selectedTokenId !== 'number') ws.selectedTokenId = '';
+    if (typeof ws.focusTokenId !== 'string' && typeof ws.focusTokenId !== 'number') ws.focusTokenId = '';
+    if (typeof ws.paintMode !== 'string') ws.paintMode = 'move';
+    if (typeof ws.autoRoll !== 'boolean') ws.autoRoll = !(window.settingsSystem && typeof window.settingsSystem.isManualRollMode === 'function' && window.settingsSystem.isManualRollMode());
+    return ws;
+  }
+
+  function combatWorkshopLog(ws, message) {
+    if (!ws || !message) return;
+    ws.history.unshift({ stamp: Date.now(), text: String(message) });
+    if (ws.history.length > 18) ws.history = ws.history.slice(0, 18);
+  }
+
+  function combatWorkshopCellKey(x, y) {
+    return String(x) + ':' + String(y);
+  }
+
+  function combatWorkshopDistance(a, b) {
+    if (!a || !b) return 0;
+    return Math.max(Math.abs(Number(a.x || 0) - Number(b.x || 0)), Math.abs(Number(a.y || 0) - Number(b.y || 0)));
+  }
+
+  function combatWorkshopPlayerToken(ws) {
+    if (!ws || !Array.isArray(ws.tokens) || !ws.tokens.length) return null;
+    var playerName = String((window.S && window.S.name) || 'Wayfarer').trim() || 'Wayfarer';
+    return ws.tokens.find(function (token) { return token && token.isPlayer; }) || ws.tokens.find(function (token) { return token && token.side === 'ally' && String(token.name || '') === playerName; }) || ws.tokens.find(function (token) { return token && token.side === 'ally'; }) || ws.tokens[0] || null;
+  }
+
+  function combatWorkshopFocusToken(ws) {
+    if (!ws || !Array.isArray(ws.tokens) || !ws.tokens.length) return null;
+    var focusId = String(ws.focusTokenId || '');
+    var found = ws.tokens.find(function (token) { return token && String(token.id) === focusId; });
+    if (found) return found;
+    return ws.tokens.find(function (token) { return token && token.side === 'enemy'; }) || ws.tokens[0] || null;
+  }
+
+  function combatWorkshopSyncTokens(ws) {
+    if (!ws || !window.S) return;
+    var combatMapUnits = (window.S.combatMap && Array.isArray(window.S.combatMap.units)) ? window.S.combatMap.units : [];
+    var existing = Array.isArray(ws.tokens) ? ws.tokens.slice() : [];
+    var byKey = {};
+    existing.forEach(function (token) {
+      if (!token) return;
+      if (token.sourceKey) byKey[token.sourceKey] = token;
+      if (token.unitId !== undefined && token.unitId !== null) byKey['unit:' + String(token.unitId)] = token;
+    });
+    var next = [];
+    var allyIndex = 0;
+    var enemyIndex = 0;
+    var playerName = String((window.S && window.S.name) || 'Wayfarer').trim() || 'Wayfarer';
+    var identityPortrait = (window.S.identityForge && window.S.identityForge.media && window.S.identityForge.media.portrait) || '';
+    combatMapUnits.forEach(function (unit) {
+      if (!unit) return;
+      var side = String(unit.side || 'enemy');
+      var sourceKey = unit.trackerKey ? String(unit.trackerKey) : ('unit:' + String(unit.id));
+      var token = byKey[sourceKey] || byKey['unit:' + String(unit.id)] || null;
+      if (!token) {
+        token = {
+          id: String(unit.id || sourceKey),
+          sourceKey: sourceKey,
+          unitId: unit.id,
+          side: side,
+          name: String(unit.name || (side === 'ally' ? 'Ally' : 'Enemy')),
+          x: side === 'ally' ? Math.max(2, 2 + allyIndex) : Math.max(2, 4 - enemyIndex),
+          y: side === 'ally' ? 5 : 1,
+          image: ''
+        };
+      }
+      token.sourceKey = sourceKey;
+      token.unitId = unit.id;
+      token.side = side;
+      token.name = String(unit.name || token.name || (side === 'ally' ? 'Ally' : 'Enemy'));
+      if (token.x === undefined || token.y === undefined) {
+        token.x = side === 'ally' ? Math.max(2, 2 + allyIndex) : Math.max(2, 4 - enemyIndex);
+        token.y = side === 'ally' ? 5 : 1;
+      }
+      if (side === 'ally') allyIndex += 1; else enemyIndex += 1;
+      if ((unit.isPlayer || token.name === playerName) && identityPortrait) token.image = token.image || identityPortrait;
+      if (!token.image) token.image = side === 'ally' ? identityPortrait : '';
+      next.push(token);
+    });
+    ws.tokens = next;
+    if (!String(ws.selectedTokenId || '') && next.length) {
+      var chosen = combatWorkshopPlayerToken(ws) || next[0];
+      ws.selectedTokenId = chosen ? String(chosen.id) : '';
+    }
+    if (!String(ws.focusTokenId || '') && next.some(function (token) { return token && token.side === 'enemy'; })) {
+      var enemy = next.find(function (token) { return token && token.side === 'enemy'; });
+      ws.focusTokenId = enemy ? String(enemy.id) : '';
+    }
+    var player = combatWorkshopPlayerToken(ws);
+    if (player) {
+      ws.tokens.forEach(function (token) {
+        if (!token) return;
+        token.rangeFromPlayer = combatWorkshopRangeLabel(combatWorkshopDistance(player, token));
+      });
+    }
+  }
+
+  function combatWorkshopSetSelectedToken(tokenId) {
+    var ws = ensureCombatSceneWorkshopState();
+    if (!ws) return;
+    ws.selectedTokenId = String(tokenId || '');
+    renderCombatSceneWorkshop();
+  }
+
+  function combatWorkshopSetFocusToken(tokenId) {
+    var ws = ensureCombatSceneWorkshopState();
+    if (!ws) return;
+    ws.focusTokenId = String(tokenId || '');
+    renderCombatSceneWorkshop();
+  }
+
+  function combatWorkshopSetMode(mode) {
+    var ws = ensureCombatSceneWorkshopState();
+    if (!ws) return;
+    ws.paintMode = String(mode || 'move');
+    renderCombatSceneWorkshop();
+  }
+
+  function combatWorkshopToggleManualMode(forceManual) {
+    if (!window.settingsSystem || typeof window.settingsSystem.toggleManualRollMode !== 'function') return;
+    var current = !!(typeof window.settingsSystem.isManualRollMode === 'function' && window.settingsSystem.isManualRollMode());
+    if (typeof forceManual === 'boolean' && current === forceManual) return;
+    window.settingsSystem.toggleManualRollMode();
+    renderCombatSceneWorkshop();
+  }
+
+  function combatWorkshopSetBoardBackground(dataUrl) {
+    var ws = ensureCombatSceneWorkshopState();
+    if (!ws) return;
+    ws.background = String(dataUrl || '');
+    combatWorkshopLog(ws, 'Board backdrop updated.');
+    renderCombatSceneWorkshop();
+  }
+
+  function combatWorkshopTokenImageInput(tokenId) {
+    var input = document.getElementById('combatWorkshopTokenImageInput');
+    if (!input) return;
+    input.setAttribute('data-token-id', String(tokenId || ''));
+    input.click();
+  }
+
+  function combatWorkshopBoardImageInput() {
+    var input = document.getElementById('combatWorkshopBoardImageInput');
+    if (input) input.click();
+  }
+
+  function combatWorkshopMoveToken(tokenId, x, y, reason) {
+    var ws = ensureCombatSceneWorkshopState();
+    if (!ws || !Array.isArray(ws.tokens)) return;
+    var token = ws.tokens.find(function (row) { return row && String(row.id) === String(tokenId); });
+    if (!token) return;
+    token.x = Math.max(0, Math.min(Number(ws.boardCols || 7) - 1, Number(x || 0)));
+    token.y = Math.max(0, Math.min(Number(ws.boardRows || 7) - 1, Number(y || 0)));
+    var player = combatWorkshopPlayerToken(ws);
+    if (player) {
+      ws.tokens.forEach(function (row) {
+        if (!row) return;
+        row.rangeFromPlayer = combatWorkshopRangeLabel(combatWorkshopDistance(player, row));
+      });
+    }
+    combatWorkshopLog(ws, String(token.name || 'Token') + ' moved to ' + token.x + ',' + token.y + (reason ? (' (' + reason + ')') : '') + '.');
+    renderCombatSceneWorkshop();
+    if (typeof window.updateCombatUI === 'function') window.updateCombatUI();
+  }
+
+  function combatWorkshopApplyFeature(x, y) {
+    var ws = ensureCombatSceneWorkshopState();
+    if (!ws) return;
+    var key = combatWorkshopCellKey(x, y);
+    if (ws.paintMode === 'clear') {
+      if (ws.features[key]) {
+        delete ws.features[key];
+        combatWorkshopLog(ws, 'Cleared feature at ' + key + '.');
+      }
+      renderCombatSceneWorkshop();
+      return;
+    }
+    if (ws.paintMode === 'barrier') {
+      ws.features[key] = { kind: 'barrier', label: 'Barrier' };
+      combatWorkshopLog(ws, 'Barrier placed at ' + key + '.');
+      renderCombatSceneWorkshop();
+      return;
+    }
+    if (ws.paintMode === 'button') {
+      ws.features[key] = { kind: 'interaction', label: 'Interact' };
+      combatWorkshopLog(ws, 'Interactable placed at ' + key + '.');
+      renderCombatSceneWorkshop();
+      return;
+    }
+    var selected = ws.tokens.find(function (row) { return row && String(row.id) === String(ws.selectedTokenId || ''); });
+    if (selected) combatWorkshopMoveToken(selected.id, x, y, 'placed');
+  }
+
+  function combatWorkshopInteractCell(x, y) {
+    var ws = ensureCombatSceneWorkshopState();
+    if (!ws) return;
+    var key = combatWorkshopCellKey(x, y);
+    var feature = ws.features[key];
+    if (!feature || feature.kind !== 'interaction') return;
+    var token = ws.tokens.find(function (row) { return row && String(row.id) === String(ws.selectedTokenId || ''); });
+    if (!token || Number(token.x) !== Number(x) || Number(token.y) !== Number(y)) {
+      combatWorkshopLog(ws, 'Move a token onto ' + key + ' to interact.');
+      renderCombatSceneWorkshop();
+      return;
+    }
+    var combat = window.S.combat || {};
+    if (Number(combat.actionsLeft || 0) > 0) {
+      combat.actionsLeft = Math.max(0, Number(combat.actionsLeft || 0) - 1);
+      combatWorkshopLog(ws, String(token.name || 'Token') + ' interacts at ' + key + ' and spends 1 Action.');
+      if (typeof window.updateCombatUI === 'function') window.updateCombatUI();
+    } else {
+      combatWorkshopLog(ws, String(token.name || 'Token') + ' interacts at ' + key + '.');
+    }
+    renderCombatSceneWorkshop();
+  }
+
+  function combatWorkshopAddToken(side) {
+    var label = side === 'ally' ? 'Ally' : 'Enemy';
+    var count = (window.S.enemies || []).filter(function (row) { return row && !!row.ally === (side === 'ally'); }).length;
+    var name = label + ' ' + (count + 1);
+    if (typeof window.addTrackedCombatantFromMap === 'function') {
+      window.addTrackedCombatantFromMap(side, name, side === 'ally' ? 'Close' : 'Nearby');
+      combatWorkshopLog(ensureCombatSceneWorkshopState(), name + ' added to scene.');
+      renderCombatSceneWorkshop();
+      return;
+    }
+    var ws = ensureCombatSceneWorkshopState();
+    if (!ws) return;
+    var id = String(Date.now() + Math.floor(Math.random() * 100000));
+    ws.tokens.push({ id: id, sourceKey: 'scene:' + id, unitId: id, side: side, name: name, x: side === 'ally' ? 3 : 3, y: side === 'ally' ? 5 : 1, image: '' });
+    if (side === 'ally') ws.selectedTokenId = id;
+    combatWorkshopLog(ws, name + ' added to scene.');
+    renderCombatSceneWorkshop();
+  }
+
+  function renderCombatSceneWorkshop() {
+    if (!window.S || typeof window.S !== 'object') return;
+    var host = document.getElementById('combatSceneWorkshop');
+    if (!host) return;
+    var ws = ensureCombatSceneWorkshopState();
+    if (!ws) return;
+    combatWorkshopSyncTokens(ws);
+    var cols = Math.max(4, Number(ws.boardCols || 7));
+    var rows = Math.max(4, Number(ws.boardRows || 7));
+    var boardBg = ws.background ? ('background-image:url(' + esc(ws.background) + ');') : 'background:radial-gradient(circle at top, rgba(46,196,182,.12), rgba(8,12,22,.98));';
+    var manualMode = !!(window.settingsSystem && typeof window.settingsSystem.isManualRollMode === 'function' && window.settingsSystem.isManualRollMode());
+    var playerToken = combatWorkshopPlayerToken(ws);
+    var focusToken = combatWorkshopFocusToken(ws);
+    var rangeDistance = playerToken && focusToken ? combatWorkshopDistance(playerToken, focusToken) : 0;
+    var rangeLabel = combatWorkshopRangeLabel(rangeDistance);
+    var tokensByCell = {};
+    ws.tokens.forEach(function (token) {
+      if (!token) return;
+      tokensByCell[combatWorkshopCellKey(token.x, token.y)] = token;
+    });
+    var cellsHtml = '';
+    for (var y = 0; y < rows; y++) {
+      for (var x = 0; x < cols; x++) {
+        var key = combatWorkshopCellKey(x, y);
+        var feature = ws.features[key] || null;
+        var token = tokensByCell[key] || null;
+        var cellStyle = 'position:relative;border:1px solid rgba(255,255,255,.08);border-radius:12px;clip-path:polygon(25% 6%,75% 6%,100% 50%,75% 94%,25% 94%,0 50%);background:rgba(255,255,255,.02);box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);';
+        if (feature && feature.kind === 'barrier') cellStyle += 'background:rgba(201,64,64,.16);border-color:rgba(201,64,64,.5);';
+        if (feature && feature.kind === 'interaction') cellStyle += 'background:rgba(46,196,182,.12);border-color:rgba(46,196,182,.5);';
+        cellsHtml += '<button type="button" class="combat-scene-cell" data-x="' + x + '" data-y="' + y + '" style="' + cellStyle + '" onclick="combatWorkshopApplyFeature(' + x + ',' + y + ')" ondragover="event.preventDefault()" ondrop="combatWorkshopDropToken(event,' + x + ',' + y + ')">'
+          + '<span style="position:absolute;inset:.22rem .28rem auto auto;font-size:.58rem;color:var(--muted2);font-family:Cinzel,serif;letter-spacing:.08em;">' + x + ',' + y + '</span>'
+          + (feature ? '<span style="position:absolute;left:.28rem;bottom:.22rem;font-size:.65rem;color:' + (feature.kind === 'barrier' ? 'var(--red2)' : 'var(--teal)') + ';font-family:Cinzel,serif;letter-spacing:.08em;text-transform:uppercase;">' + esc(feature.label || feature.kind) + '</span>' : '')
+          + (feature && feature.kind === 'interaction' && token && Number(token.x) === x && Number(token.y) === y ? '<button type="button" class="btn btn-xs btn-teal" style="position:absolute;right:.18rem;bottom:.15rem;z-index:3;" onclick="event.stopPropagation();combatWorkshopInteractCell(' + x + ',' + y + ')">Interact</button>' : '')
+          + '</button>';
+      }
+    }
+    var tokenHtml = ws.tokens.map(function (token) {
+      if (!token) return '';
+      var sel = String(ws.selectedTokenId || '') === String(token.id) ? 'outline:2px solid var(--gold2);box-shadow:0 0 0 3px rgba(255,196,88,.22);' : '';
+      var focus = String(ws.focusTokenId || '') === String(token.id) ? 'filter:drop-shadow(0 0 10px rgba(46,196,182,.5));' : '';
+      var px = (Number(token.x || 0) / Math.max(1, cols - 1)) * 100;
+      var py = (Number(token.y || 0) / Math.max(1, rows - 1)) * 100;
+      var src = token.image || (token.side === 'ally' && window.S.identityForge && window.S.identityForge.media && window.S.identityForge.media.portrait) || '';
+      var portrait = src ? '<img src="' + esc(src) + '" alt="' + esc(token.name || 'Token') + '" style="width:100%;height:100%;object-fit:cover;display:block;">' : '<div style="width:100%;height:100%;display:grid;place-items:center;background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.03));font-family:Cinzel,serif;color:var(--text2);font-size:.68rem;">' + esc((token.name || 'T').slice(0, 2).toUpperCase()) + '</div>';
+      return '<div draggable="true" ondragstart="combatWorkshopStartDragToken(event,\'' + esc(String(token.id)) + '\')" onclick="combatWorkshopSelectToken(\'' + esc(String(token.id)) + '\')" style="position:absolute;left:' + px + '%;top:' + py + '%;transform:translate(-50%,-50%);width:76px;z-index:4;cursor:grab;' + sel + focus + '">'
+        + '<div style="position:relative;border:1px solid ' + (token.side === 'ally' ? 'rgba(46,196,182,.55)' : 'rgba(201,64,64,.6)') + ';border-radius:18px;overflow:hidden;background:rgba(6,10,18,.9);">'
+        + '<div style="width:100%;aspect-ratio:1;">' + portrait + '</div>'
+        + '<div style="position:absolute;left:0;right:0;bottom:0;padding:.14rem .2rem;background:linear-gradient(180deg,transparent,rgba(0,0,0,.82));font-size:.62rem;color:#fff;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(token.name || 'Token') + '</div>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+    var tokenOptions = ws.tokens.map(function (token) {
+      return '<option value="' + esc(String(token.id)) + '"' + (String(ws.selectedTokenId || '') === String(token.id) ? ' selected' : '') + '>' + esc(token.name || 'Token') + '</option>';
+    }).join('');
+    var focusOptions = ws.tokens.map(function (token) {
+      return '<option value="' + esc(String(token.id)) + '"' + (String(ws.focusTokenId || '') === String(token.id) ? ' selected' : '') + '>' + esc(token.name || 'Token') + '</option>';
+    }).join('');
+    var turnOrder = Array.isArray(window.S.combat && window.S.combat.turnOrder) && window.S.combat.turnOrder.length ? window.S.combat.turnOrder.slice() : ws.tokens.map(function (token) { return token.name || 'Token'; });
+    var turnIndex = Math.max(0, Math.min(Number(window.S.combat && window.S.combat.currentActorIndex || 0), Math.max(0, turnOrder.length - 1)));
+    var historyHtml = ws.history.length ? ws.history.map(function (entry) {
+      return '<div style="padding:.28rem .32rem;border-bottom:1px solid rgba(255,255,255,.05);font-size:.72rem;line-height:1.35;color:var(--text2);">' + esc(entry.text || '') + '</div>';
+    }).join('') : '<div style="font-size:.74rem;color:var(--muted2);">No scene history yet.</div>';
+    var featureModeLabel = ws.paintMode === 'barrier' ? 'Barrier' : ws.paintMode === 'button' ? 'Interactable' : ws.paintMode === 'clear' ? 'Clear' : 'Move';
+    var bestiaryHtml = (window.S.enemies || []).filter(function (enemy) { return enemy && !enemy.ally; }).map(function (enemy) {
+      var rel = ws.tokens.find(function (token) { return token && token.side === 'enemy' && String(token.name || '') === String(enemy.name || ''); }) || null;
+      return '<div style="display:flex;gap:.38rem;align-items:center;padding:.28rem 0;border-bottom:1px solid rgba(255,255,255,.05);">'
+        + '<div style="width:34px;height:34px;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);">' + ((rel && rel.image) ? '<img src="' + esc(rel.image) + '" alt="' + esc(enemy.name || 'Enemy') + '" style="width:100%;height:100%;object-fit:cover;">' : '<div style="width:100%;height:100%;display:grid;place-items:center;color:var(--muted2);font-size:.65rem;">☠</div>') + '</div>'
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:.74rem;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(enemy.name || 'Enemy') + '</div>'
+        + '<div style="font-size:.66rem;color:var(--muted2);">Dread d' + esc(String(enemy.dread || (window.S.combat && window.S.combat.enemyDread) || 8)) + ' · ' + esc(String((rel && rel.rangeFromPlayer) || 'Far')) + '</div>'
+        + '</div>'
+        + '<button class="btn btn-xs" onclick="combatWorkshopSelectToken(\'' + esc(String(rel ? rel.id : '')) + '\');combatWorkshopSetFocusToken(\'' + esc(String(rel ? rel.id : '')) + '\')">Focus</button>'
+        + '</div>';
+    }).join('') || '<div style="font-size:.74rem;color:var(--muted2);">No hostiles are currently tracked.</div>';
+
+    host.innerHTML = ''
+      + '<div class="card" style="margin:0;">'
+      + '<div style="display:grid;grid-template-columns:minmax(0,1.55fr) minmax(290px,.95fr);gap:.75rem;align-items:start;">'
+      + '<div style="min-width:0;">'
+      + '<div style="display:flex;justify-content:space-between;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.45rem;">'
+      + '<div>'
+      + '<div class="section-title" style="margin:0;">Combat Scene Editor</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);">Drag tokens, upload scene art, paint barriers, and place interactables on the combat board.</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;">'
+      + '<button class="btn btn-xs btn-teal" onclick="combatWorkshopAddToken(\'ally\')">+ Ally Token</button>'
+      + '<button class="btn btn-xs btn-red" onclick="combatWorkshopAddToken(\'enemy\')">+ Monster Token</button>'
+      + '<button class="btn btn-xs" onclick="combatWorkshopBoardImageInput()">Upload Board Art</button>'
+      + '<input id="combatWorkshopBoardImageInput" type="file" accept="image/*" style="display:none;" onchange="var file=this.files&&this.files[0];if(file&&typeof readFileAsDataUrl===\'function\'){readFileAsDataUrl(file,function(url){combatWorkshopSetBoardBackground(url);});this.value=\'\';}">'
+      + '<input id="combatWorkshopTokenImageInput" type="file" accept="image/*" style="display:none;" onchange="var file=this.files&&this.files[0];var tokenId=this.getAttribute(\'data-token-id\');if(file&&typeof readFileAsDataUrl===\'function\'){readFileAsDataUrl(file,function(url){var ws=ensureCombatSceneWorkshopState();if(!ws)return;var token=ws.tokens.find(function(row){return row&&String(row.id)===String(tokenId);});if(token){token.image=url;combatWorkshopLog(ws,token.name+\' image updated.\');renderCombatSceneWorkshop();}});}this.value=\'\';">'
+      + '</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.45rem;">'
+      + '<button class="btn btn-xs' + (ws.paintMode === 'move' ? ' btn-teal' : '') + '" onclick="combatWorkshopSetMode(\'move\')">Move</button>'
+      + '<button class="btn btn-xs' + (ws.paintMode === 'barrier' ? ' btn-teal' : '') + '" onclick="combatWorkshopSetMode(\'barrier\')">Barrier</button>'
+      + '<button class="btn btn-xs' + (ws.paintMode === 'button' ? ' btn-teal' : '') + '" onclick="combatWorkshopSetMode(\'button\')">Interactable</button>'
+      + '<button class="btn btn-xs' + (ws.paintMode === 'clear' ? ' btn-teal' : '') + '" onclick="combatWorkshopSetMode(\'clear\')">Clear Feature</button>'
+      + '<button class="btn btn-xs" onclick="combatWorkshopToggleManualMode(true)">Manual Rolls</button>'
+      + '<button class="btn btn-xs" onclick="combatWorkshopToggleManualMode(false)">Auto Rolls</button>'
+      + '</div>'
+      + '<div style="position:relative;min-height:560px;border:1px solid var(--border2);border-radius:14px;overflow:hidden;' + boardBg + 'background-size:cover;background-position:center;">'
+      + '<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.04),rgba(0,0,0,.28));pointer-events:none;"></div>'
+      + '<div style="position:absolute;inset:0;padding:12px;display:grid;grid-template-columns:repeat(' + cols + ', minmax(0,1fr));grid-template-rows:repeat(' + rows + ', minmax(0,1fr));gap:6px;">' + cellsHtml + '</div>'
+      + '<div style="position:absolute;inset:0;pointer-events:none;">' + tokenHtml + '</div>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.35rem;margin-top:.45rem;">'
+      + '<label style="font-size:.68rem;color:var(--muted2);">Selected Token<select id="combatWorkshopSelectedTokenSel" onchange="combatWorkshopSetSelectedToken(this.value)" style="width:100%;margin-top:.12rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .35rem;font-size:.76rem;">' + tokenOptions + '</select></label>'
+      + '<label style="font-size:.68rem;color:var(--muted2);">Focus Token<select id="combatWorkshopFocusTokenSel" onchange="combatWorkshopSetFocusToken(this.value)" style="width:100%;margin-top:.12rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .35rem;font-size:.76rem;">' + focusOptions + '</select></label>'
+      + '</div>'
+      + '<div style="margin-top:.45rem;padding:.35rem .45rem;border:1px solid rgba(46,196,182,.35);background:rgba(46,196,182,.06);border-radius:10px;font-size:.74rem;color:var(--text2);line-height:1.45;">'
+      + '<strong style="color:var(--gold2);">Cinematic Range Translator:</strong> ' + esc(String((playerToken && playerToken.name) || 'Your token')) + ' to ' + esc(String((focusToken && focusToken.name) || 'target')) + ' is <strong style="color:var(--teal);">' + esc(rangeLabel) + '</strong> (' + rangeDistance + ' cells).'
+      + '</div>'
+      + '</div>'
+      + '<div style="min-width:0;display:grid;gap:.55rem;">'
+      + '<div style="padding:.5rem .55rem;border:1px solid var(--border2);border-radius:12px;background:rgba(255,255,255,.02);">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.35rem;margin-bottom:.25rem;">'
+      + '<div style="font-family:Cinzel,serif;font-size:.6rem;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;">Actions</div>'
+      + '<span style="font-size:.68rem;color:var(--muted2);">Mode: ' + (manualMode ? 'Manual' : 'Auto') + ' / Scene: ' + featureModeLabel + '</span>'
+      + '</div>'
+      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.35rem;">'
+      + '<button class="btn btn-xs" onclick="if(window.settingsSystem&&typeof window.settingsSystem.toggleManualRollMode===\'function\')window.settingsSystem.toggleManualRollMode();renderCombatSceneWorkshop();">Toggle Roll Mode</button>'
+      + '<button class="btn btn-xs" onclick="combatWorkshopSetMode(\'move\')">Move Token</button>'
+      + '<button class="btn btn-xs" onclick="combatWorkshopSetMode(\'barrier\')">Paint Barrier</button>'
+      + '<button class="btn btn-xs" onclick="combatWorkshopSetMode(\'button\')">Paint Button</button>'
+      + '<button class="btn btn-xs" onclick="combatWorkshopSetMode(\'clear\')">Clear Tile</button>'
+      + '</div>'
+      + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.3rem;">Selected: <strong style="color:var(--gold2);">' + esc(String((ws.tokens.find(function (token) { return token && String(token.id) === String(ws.selectedTokenId || ''); }) || {}).name || 'None')) + '</strong> · Focus: <strong style="color:var(--teal);">' + esc(String((focusToken && focusToken.name) || 'None')) + '</strong></div>'
+      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.35rem;">'
+      + '<button class="btn btn-xs btn-teal" onclick="if(window.S.identityForge&&window.S.identityForge.media&&window.S.identityForge.media.portrait){var ws=ensureCombatSceneWorkshopState();var token=ws&&ws.tokens.find(function(row){return row&&row.isPlayer;});if(token){token.image=window.S.identityForge.media.portrait;combatWorkshopLog(ws,\'Player token synced from identity portrait.\');renderCombatSceneWorkshop();}}">Sync Avatar</button>'
+      + '<button class="btn btn-xs" onclick="var ws=ensureCombatSceneWorkshopState();if(ws){ws.features={};combatWorkshopLog(ws,\'Cleared all board features.\');renderCombatSceneWorkshop();}">Clear Features</button>'
+      + '<button class="btn btn-xs" onclick="var ws=ensureCombatSceneWorkshopState();if(ws){ws.history=[];renderCombatSceneWorkshop();}">Clear History</button>'
+      + '</div>'
+      + '</div>'
+      + '<div style="padding:.5rem .55rem;border:1px solid var(--border2);border-radius:12px;background:rgba(255,255,255,.02);">'
+      + '<div style="font-family:Cinzel,serif;font-size:.6rem;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Turn Order</div>'
+      + '<div style="display:grid;gap:.18rem;">' + (Array.isArray(turnOrder) && turnOrder.length ? turnOrder.map(function (entry, idx) {
+        var active = idx === turnIndex ? 'border-color:rgba(255,196,88,.55);background:rgba(255,196,88,.08);' : '';
+        return '<div style="padding:.24rem .3rem;border:1px solid rgba(255,255,255,.06);border-radius:8px;font-size:.72rem;color:var(--text2);' + active + '">' + esc(String(entry || 'Turn ' + (idx + 1))) + '</div>';
+      }).join('') : '<div style="font-size:.74rem;color:var(--muted2);">No initiative order yet.</div>') + '</div>'
+      + '</div>'
+      + '<div style="padding:.5rem .55rem;border:1px solid var(--border2);border-radius:12px;background:rgba(255,255,255,.02);">'
+      + '<div style="font-family:Cinzel,serif;font-size:.6rem;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">Bestiary / Hostiles</div>'
+      + '<div style="max-height:220px;overflow:auto;">' + bestiaryHtml + '</div>'
+      + '</div>'
+      + '<div style="padding:.5rem .55rem;border:1px solid var(--border2);border-radius:12px;background:rgba(255,255,255,.02);">'
+      + '<div style="font-family:Cinzel,serif;font-size:.6rem;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;margin-bottom:.3rem;">History</div>'
+      + '<div style="max-height:220px;overflow:auto;">' + historyHtml + '</div>'
+      + '</div>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+
+    var selectedSel = document.getElementById('combatWorkshopSelectedTokenSel');
+    if (selectedSel) selectedSel.value = String(ws.selectedTokenId || '');
+    var focusSel = document.getElementById('combatWorkshopFocusTokenSel');
+    if (focusSel) focusSel.value = String(ws.focusTokenId || '');
+  }
+
+  function combatWorkshopStartDragToken(ev, tokenId) {
+    if (!ev || !ev.dataTransfer) return;
+    ev.dataTransfer.setData('text/plain', String(tokenId || ''));
+    ev.dataTransfer.effectAllowed = 'move';
+  }
+
+  function combatWorkshopDropToken(ev, x, y) {
+    if (!ev || !ev.dataTransfer) return;
+    ev.preventDefault();
+    var tokenId = String(ev.dataTransfer.getData('text/plain') || '');
+    if (tokenId) {
+      combatWorkshopMoveToken(tokenId, x, y, 'dragged');
+      return;
+    }
+    combatWorkshopApplyFeature(x, y);
+  }
+
+  window.renderCombatSceneWorkshop = renderCombatSceneWorkshop;
+  window.combatWorkshopMoveToken = combatWorkshopMoveToken;
+  window.combatWorkshopApplyFeature = combatWorkshopApplyFeature;
+  window.combatWorkshopInteractCell = combatWorkshopInteractCell;
+  window.combatWorkshopAddToken = combatWorkshopAddToken;
+  window.combatWorkshopSetMode = combatWorkshopSetMode;
+  window.combatWorkshopSetSelectedToken = combatWorkshopSetSelectedToken;
+  window.combatWorkshopSetFocusToken = combatWorkshopSetFocusToken;
+  window.combatWorkshopDropToken = combatWorkshopDropToken;
+  window.combatWorkshopStartDragToken = combatWorkshopStartDragToken;
+  window.combatWorkshopBoardImageInput = combatWorkshopBoardImageInput;
+  window.combatWorkshopTokenImageInput = combatWorkshopTokenImageInput;
+  window.combatWorkshopToggleManualMode = combatWorkshopToggleManualMode;
+  window.combatWorkshopSetBoardBackground = combatWorkshopSetBoardBackground;
+  window.ensureCombatSceneWorkshopState = ensureCombatSceneWorkshopState;
+  window.combatWorkshopLog = combatWorkshopLog;
 
   function getWhisperCandidates() {
     if (!window.campaignSystem || typeof window.campaignSystem.getState !== 'function') return [];

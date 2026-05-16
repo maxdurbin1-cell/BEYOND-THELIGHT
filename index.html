@@ -796,7 +796,6 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;">
         <div class="section-title" style="margin:0;">Equipment</div>
-        <button class="btn btn-xs btn-teal" onclick="if(typeof window.renderCompanionOverhaul==='function')window.renderCompanionOverhaul();var p=document.getElementById('wayfarerVisualPanel');if(p){p.scrollIntoView({behavior:'smooth',block:'start'});p.style.boxShadow='0 0 0 2px rgba(46,196,182,.45)';setTimeout(function(){p.style.boxShadow='';},900);}">🎨 Dress-Up</button>
       </div>
       <div class="form-row"><span class="sub-label">Weapon (Slot 1)</span><div style="display:flex;gap:.3rem;align-items:center;"><span id="eqWeapon1Icon" aria-hidden="true"></span><input type="text" id="eqWeapon1" placeholder="e.g. Sword (+1 Strike)" style="flex:1;" onchange="S.equipment.weapon1=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon1')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon1')" title="Unequip">✕</button></div></div>
       <div class="form-row"><span class="sub-label">Weapon (Slot 2)</span><div style="display:flex;gap:.3rem;align-items:center;"><span id="eqWeapon2Icon" aria-hidden="true"></span><input type="text" id="eqWeapon2" placeholder="Second weapon (optional)" style="flex:1;" onchange="S.equipment.weapon2=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon2')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon2')" title="Unequip">✕</button></div></div>
@@ -1034,6 +1033,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 
 <!-- COMBAT TAB -->
 <div class="tab-panel" id="tab-combat">
+  <div id="combatSceneWorkshop" style="margin-bottom:.85rem;"></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;">
     <div class="card">
       <div class="section-title">Combat Scene</div>
@@ -7095,6 +7095,7 @@ function updateCombatUI(){
   }
   if(typeof renderEnemyFocusSelect==='function')renderEnemyFocusSelect();
   if(typeof renderCampaignInitiativePanel==='function')renderCampaignInitiativePanel();
+  if(typeof renderCombatSceneWorkshop==='function')renderCombatSceneWorkshop();
   if(typeof updateWayfarerActionBtn==='function')updateWayfarerActionBtn();
   if(window._arenaCombatPopupOpen&&S&&S.combat&&S.combat.arenaFlow&&String(S.combat.arenaFlow.mode||'')==='pinnacle'&&typeof renderArenaCombatPopup==='function'){
     renderArenaCombatPopup();

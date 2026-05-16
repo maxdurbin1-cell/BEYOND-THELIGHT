@@ -603,7 +603,7 @@
   }
 
   function rollAgainstDread(statKey, dreadDie) {
-    // Valor Die (V.D.) replaces Adventure Die (A.D.)
+    // Valor Die (V.D.) additive bonus logic.
     const vd = getActionDie(statKey === "adventure" ? "valor" : statKey);
     const dd = normalizeDreadDie(dreadDie || 8, 8);
     const a = (typeof explodingRoll === "function") ? explodingRoll(vd) : { total: safeRoll(vd) };

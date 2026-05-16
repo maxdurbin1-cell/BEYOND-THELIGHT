@@ -373,7 +373,7 @@ function completeTaskAtHex(col,row){
   const originTask=originHex&&originHex.data?originHex.data.task:null;
   const councilTaskId=task.councilTaskId;
 
-  // Valor Die (V.D.) replaces Adventure Die (A.D.)
+  // Valor Die (V.D.) additive bonus logic.
   const vdDie=(S.stats&&S.stats.valor)?S.stats.valor:4;
   const v=explodingRoll(vdDie);
   const d=explodingRoll(6);
@@ -473,7 +473,7 @@ function completeRoyalTask(col,row){
 
   const task=hex.data.royalTask;
 
-  // Valor Die (V.D.) replaces Adventure Die (A.D.)
+  // Valor Die (V.D.) additive bonus logic.
   const vdDie=(S.stats&&S.stats.valor)?S.stats.valor:4;
   const v=explodingRoll(vdDie);
   const d=explodingRoll(8);

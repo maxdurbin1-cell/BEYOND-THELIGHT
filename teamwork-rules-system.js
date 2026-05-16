@@ -39,7 +39,7 @@
     var context = String(failureContext || "unknown-failure");
     var details = rollDetails || {};
 
-    // Valor Die (V.D.) replaces Adventure Die (A.D.)
+    // Valor Die (V.D.) additive bonus logic.
     var stat = String(details.stat || "valor");
     var roll = Number(details.roll || 0);
     var difficulty = Number(details.difficulty || 0);

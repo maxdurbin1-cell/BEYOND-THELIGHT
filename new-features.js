@@ -3323,7 +3323,7 @@
     if (isCrucibleManualRollModeEnabled()) {
       openCrucibleExpeditionManualSavePrompt({
         title: 'Manual Roll — Weather Check',
-        context: weatherName + ' — Dangerous Weather (' + String(sourceTag || 'Expedition') + ')',
+        context: 'Weather Check — Lead vs DD6' + (weatherBonus > 0 ? ' (+' + weatherBonus + ' bonus)' : '') + ' · ' + weatherName,
         statLabel: 'Lead',
         actionDie: leadDie,
         dreadDie: 6,

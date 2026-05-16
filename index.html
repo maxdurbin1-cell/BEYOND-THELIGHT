@@ -769,7 +769,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <!-- ── OS HACKS PANEL — visible only when OPERATING SYSTEM augmentation is installed ── -->
     <div class="card" id="osHacksPanel" style="display:none;">
       <div class="section-title">💻 OS Interface</div>
-      <div style="font-size:.76rem;color:var(--muted2);margin-bottom:.5rem;">Hacking requires the <strong style="color:var(--gold2);">OPERATING SYSTEM</strong> augmentation. Roll two Dread Dice, guess <strong style="color:var(--gold);">Below</strong> / <strong style="color:var(--gold);">Between</strong> / <strong style="color:var(--gold);">Above</strong>, then roll your <strong style="color:var(--teal);">Control</strong> die.</div>
+      <div style="font-size:.76rem;color:var(--muted2);margin-bottom:.5rem;">Hacking requires the <strong style="color:var(--gold2);">OPERATING SYSTEM</strong> augmentation. Roll two Dread Dice, split them low-to-high, guess <strong style="color:var(--gold);">Below</strong> / <strong style="color:var(--gold);">Middle</strong> / <strong style="color:var(--gold);">Above</strong>, then roll your <strong style="color:var(--teal);">Valor</strong> die.</div>
       <div id="ownedHacksList"></div>
       <div style="border-top:1px solid var(--border);padding-top:.5rem;margin-top:.4rem;">
         <div class="sub-label">Cast a Hack</div>
@@ -785,7 +785,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
           <span class="sub-label">Your Guess:</span>
           <div class="guess-grid" style="margin:.25rem 0 0;">
             <button class="guess-btn" id="hack-guess-below" onclick="setHackGuess('below')">Below</button>
-            <button class="guess-btn" id="hack-guess-between" onclick="setHackGuess('between')">Between</button>
+            <button class="guess-btn" id="hack-guess-between" onclick="setHackGuess('between')">Middle</button>
             <button class="guess-btn" id="hack-guess-above" onclick="setHackGuess('above')">Above</button>
           </div>
         </div>
@@ -794,7 +794,10 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
       </div>
     </div>
     <div class="card">
-      <div class="section-title">Equipment</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;">
+        <div class="section-title" style="margin:0;">Equipment</div>
+        <button class="btn btn-xs btn-teal" onclick="if(typeof window.renderCompanionOverhaul==='function')window.renderCompanionOverhaul();var p=document.getElementById('wayfarerVisualPanel');if(p){p.scrollIntoView({behavior:'smooth',block:'start'});p.style.boxShadow='0 0 0 2px rgba(46,196,182,.45)';setTimeout(function(){p.style.boxShadow='';},900);}">🎨 Dress-Up</button>
+      </div>
       <div class="form-row"><span class="sub-label">Weapon (Slot 1)</span><div style="display:flex;gap:.3rem;align-items:center;"><span id="eqWeapon1Icon" aria-hidden="true"></span><input type="text" id="eqWeapon1" placeholder="e.g. Sword (+1 Strike)" style="flex:1;" onchange="S.equipment.weapon1=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon1')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon1')" title="Unequip">✕</button></div></div>
       <div class="form-row"><span class="sub-label">Weapon (Slot 2)</span><div style="display:flex;gap:.3rem;align-items:center;"><span id="eqWeapon2Icon" aria-hidden="true"></span><input type="text" id="eqWeapon2" placeholder="Second weapon (optional)" style="flex:1;" onchange="S.equipment.weapon2=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon2')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon2')" title="Unequip">✕</button></div></div>
       <div class="form-row"><span class="sub-label">Armor</span>
@@ -9888,7 +9891,7 @@ Holdings have Doctors called <strong>Wiredogs</strong> who perform installations
   <li>Have <strong>Renown +3</strong> with that Faction</li>
 </ul>`,
   os_hacks:`<span class="srb-title">💻 OS Hacks — Casting a Hack</span>
-Hacks require the <strong>Operating System</strong> augmentation (2,000₵) to be installed. Roll <strong>two of the same Dread Dice</strong>, separating them from highest to lowest. Then guess whether your <strong>Control, Hack Check</strong> will roll <em>below</em>, <em>between</em>, or <em>above</em> the Dread Dice. Meeting one of the numbers counts as a success. If you <strong>win</strong>, the Hack is uploaded and the effect takes place. If you <strong>lose</strong>, the Hack fails and you are infected with <strong>Malware</strong>.<br>
+Hacks require the <strong>Operating System</strong> augmentation (2,000₵) to be installed. Roll <strong>two of the same Dread Dice</strong>, separating them from lowest to highest. Then guess whether your <strong>Valor, Hack Check</strong> will roll <em>below</em>, <em>middle</em>, or <em>above</em> the Dread spread. Meeting one of the numbers counts as a success. If you <strong>win</strong>, the Hack is uploaded and the effect takes place. If you <strong>lose</strong>, the Hack fails and you are infected with <strong>Malware</strong>.<br>
 Hack activation costs <strong>TMW (Teamwork Points)</strong> as listed. <strong>Master Hacks</strong> are found only at Black Market Dealers.`,
   weapon_mods:`<span class="srb-title">🔩 Weapon Mods — Available Upgrades</span>
 Weapons have as many available Mod Slots as their bonus damage value. <strong>Ad# weapons cannot be modded</strong> — only <strong>+# weapons</strong> classified as Simple–Heavy are eligible.
@@ -12718,61 +12721,86 @@ function castScrollFromBackpack(index) {
 
   var mindDie = S.stats.mind || 4;
   var advDie = S.stats.adventure || 4;
-  var mR = explodingRoll(mindDie);
-  var aR = explodingRoll(advDie);
-  var castSuccess = mR.total >= aR.total;
-
   var scrollName = scrollItem ? scrollItem.name : text.replace(/^Scroll:\s*/i, '').trim() || text;
   var scrollDesc = scrollItem ? scrollItem.desc : '';
 
-  // Apply condition if this scroll grants one
-  if (castSuccess && scrollItem && scrollItem.condition && S.conditions && (scrollItem.condition in S.conditions)) {
-    S.conditions[scrollItem.condition] = true;
-    if (typeof updateConditionButtons === 'function') updateConditionButtons();
-    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
-  }
-
-  var condNote = (castSuccess && scrollItem && scrollItem.condition)
-    ? '<br><span style="color:var(--teal);font-size:.82rem;">⟡ ' + scrollItem.condition.charAt(0).toUpperCase() + scrollItem.condition.slice(1) + ' applied!</span>'
-    : '';
-
-  if (castSuccess && scrollName.toLowerCase() === 'reveal traps') {
-    ensureExplorationEffectState();
-    S.explorationEffects.revealTraps = Math.max(0, Number(S.explorationEffects.revealTraps || 0)) + 1;
-    condNote += '<br><span style="color:var(--gold2);font-size:.82rem;">⟡ The next trap you encounter in exploration is revealed and disarmed.</span>';
-  }
-
-  var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
-    + '<div style="margin-bottom:.5rem;font-size:.8rem;color:var(--muted2);">Mind d' + mindDie + ' vs Adventure d' + advDie + '</div>'
-    + '<strong style="color:' + (castSuccess ? 'var(--green2)' : 'var(--red)') + ';">'
-    + (castSuccess ? '✦ Cast! — ' : '✕ Failed — ') + '</strong>'
-    + '<strong style="color:var(--teal);">' + mR.total + '</strong> vs <strong style="color:var(--red);">' + aR.total + '</strong><br><br>'
-    + (castSuccess
-        ? '<em style="color:var(--text2);">' + scrollDesc + '</em>' + condNote
-        : '<em style="color:var(--muted2);">The words blur and fade. The scroll remains — try again.</em>')
-    + '</div>';
-
-  openModal(scrollName, html);
-
-  if (castSuccess) {
-    if (typeof showDccSuccessOutcome === 'function') {
-      showDccSuccessOutcome('spell', Math.max(1, mR.total - aR.total), {
-        actionTotal: mR.total,
-        dreadTotal: aR.total,
-        context: 'Scroll cast: ' + scrollName
-      });
+  function finalizeCastFromTotals(mR, aR, castSuccess, manualMode) {
+    // Apply condition if this scroll grants one
+    if (castSuccess && scrollItem && scrollItem.condition && S.conditions && (scrollItem.condition in S.conditions)) {
+      S.conditions[scrollItem.condition] = true;
+      if (typeof updateConditionButtons === 'function') updateConditionButtons();
+      if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
     }
-    if (typeof addSuccessRoll === 'function') addSuccessRoll();
-  } else {
-    if (typeof showDccFailureOutcome === 'function') {
-      showDccFailureOutcome('spell', Math.max(1, aR.total - mR.total), {
-        actionTotal: mR.total,
-        dreadTotal: aR.total,
-        context: 'Scroll cast: ' + scrollName
-      });
+
+    var condNote = (castSuccess && scrollItem && scrollItem.condition)
+      ? '<br><span style="color:var(--teal);font-size:.82rem;">⟡ ' + scrollItem.condition.charAt(0).toUpperCase() + scrollItem.condition.slice(1) + ' applied!</span>'
+      : '';
+
+    if (castSuccess && scrollName.toLowerCase() === 'reveal traps') {
+      ensureExplorationEffectState();
+      S.explorationEffects.revealTraps = Math.max(0, Number(S.explorationEffects.revealTraps || 0)) + 1;
+      condNote += '<br><span style="color:var(--gold2);font-size:.82rem;">⟡ The next trap you encounter in exploration is revealed and disarmed.</span>';
     }
-    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+
+    var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
+      + '<div style="margin-bottom:.5rem;font-size:.8rem;color:var(--muted2);">Mind d' + mindDie + ' vs Adventure d' + advDie + (manualMode ? ' (manual)' : '') + '</div>'
+      + '<strong style="color:' + (castSuccess ? 'var(--green2)' : 'var(--red)') + ';">'
+      + (castSuccess ? '✦ Cast! — ' : '✕ Failed — ') + '</strong>'
+      + '<strong style="color:var(--teal);">' + mR.total + '</strong> vs <strong style="color:var(--red);">' + aR.total + '</strong><br><br>'
+      + (castSuccess
+          ? '<em style="color:var(--text2);">' + scrollDesc + '</em>' + condNote
+          : '<em style="color:var(--muted2);">The words blur and fade. The scroll remains — try again.</em>')
+      + '</div>';
+
+    openModal(scrollName, html);
+
+    if (castSuccess) {
+      if (typeof showDccSuccessOutcome === 'function') {
+        showDccSuccessOutcome('spell', Math.max(1, mR.total - aR.total), {
+          actionTotal: mR.total,
+          dreadTotal: aR.total,
+          context: 'Scroll cast: ' + scrollName
+        });
+      }
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+    } else {
+      if (typeof showDccFailureOutcome === 'function') {
+        showDccFailureOutcome('spell', Math.max(1, aR.total - mR.total), {
+          actionTotal: mR.total,
+          dreadTotal: aR.total,
+          context: 'Scroll cast: ' + scrollName
+        });
+      }
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+    }
   }
+
+  if (window.settingsSystem && typeof window.settingsSystem.isManualRollMode === 'function' && window.settingsSystem.isManualRollMode()) {
+    openProvinceManualCheckPrompt({
+      title: 'Manual Roll - Spell Cast',
+      context: 'Cast ' + scrollName,
+      statKey: 'mind',
+      statLabel: 'Mind',
+      actionDie: mindDie,
+      dreadDie: advDie,
+      cancelLabel: 'Go Back',
+      onCancel: function () { showBackpackItem(index); },
+      onResolve: function (outcome) {
+        finalizeCastFromTotals(
+          { total: Number(outcome && outcome.actionTotal || 0) },
+          { total: Number(outcome && outcome.dreadTotal || 0) },
+          !!(outcome && outcome.success),
+          true
+        );
+      }
+    });
+    return;
+  }
+
+  var mR = explodingRoll(mindDie);
+  var aR = explodingRoll(advDie);
+  var castSuccess = mR.total >= aR.total;
+  finalizeCastFromTotals(mR, aR, castSuccess, false);
   // Scroll is never removed — indefinite use
 }
 
@@ -12935,8 +12963,10 @@ function openProvinceManualCheckPrompt(config){
   const statLabel=String(cfg.statLabel||statKey.charAt(0).toUpperCase()+statKey.slice(1));
   const actionDie=Math.max(4,Number(cfg.actionDie||4));
   const dreadDie=Math.max(4,Number(cfg.dreadDie||6));
+  const cancelLabel=String(cfg.cancelLabel||'Cancel');
   window._pendingProvinceManualCheck={
     resolver:typeof cfg.onResolve==='function'?cfg.onResolve:null,
+    onCancel:typeof cfg.onCancel==='function'?cfg.onCancel:null,
     actionDie:actionDie,
     dreadDie:dreadDie
   };
@@ -12950,7 +12980,7 @@ function openProvinceManualCheckPrompt(config){
     + '<div><div style="font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;">Dread d'+dreadDie+'</div><input type="number" id="provinceManualDreadValue" min="1" max="'+dreadDie+'" placeholder="1-'+dreadDie+'" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;"></div>'
     + '</div>'
     + '<div style="display:flex;gap:.26rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.46rem;">'
-    + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
+    + '<button class="btn btn-sm" onclick="resolveProvinceManualCheckCancel()">'+cancelLabel+'</button>'
     + '<button class="btn btn-sm" onclick="resolveProvinceManualCheck(\'compare\')">Compare</button>'
     + '<button class="btn btn-sm btn-primary" onclick="resolveProvinceManualCheck(\'success\')">Success</button>'
     + '<button class="btn btn-sm btn-red" onclick="resolveProvinceManualCheck(\'failure\')">Failure</button>'
@@ -12959,6 +12989,15 @@ function openProvinceManualCheckPrompt(config){
   openModal(title,html);
   return true;
 }
+window.resolveProvinceManualCheckCancel=function(){
+  const pending=window._pendingProvinceManualCheck||null;
+  window._pendingProvinceManualCheck=null;
+  if(pending&&typeof pending.onCancel==='function'){
+    pending.onCancel();
+    return;
+  }
+  if(typeof closeModal==='function')closeModal();
+};
 window.resolveProvinceManualCheck=function(mode){
   const pending=window._pendingProvinceManualCheck||null;
   if(!pending)return;
@@ -21986,7 +22025,7 @@ window.addEventListener('DOMContentLoaded', function() {
         ? '<div style="font-size:.72rem;color:var(--red2);margin-top:.2rem;">🔒 Progress blocked by an unsolved puzzle in an earlier room.</div>'
       : room.type==='Puzzle'
         ? '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="startProvinceRuinPuzzle('+col+','+row+','+roomI+')">🧩 Solve Puzzle</button></div>'
-        : '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceRuinRoom('+col+','+row+','+roomI+')">⚄ Explore (Action vs DD'+dreadForRoom+')</button></div>';
+        : '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceRuinRoom('+col+','+row+','+roomI+')">⚄ Explore (Valor Die vs DD'+dreadForRoom+')</button></div>';
     const currentRoomCard='<div class="room-block" style="margin-bottom:.45rem;border-left:3px solid '+typeColor+';padding-left:.5rem;">'
       + '<div class="rb-title" style="color:'+typeColor+';">'+typeIcon+' Room '+room.idx+' — '+room.type+'</div>'
       + '<div class="rb-text" style="font-size:.8rem;line-height:1.55;">'+roomDesc+'</div>'

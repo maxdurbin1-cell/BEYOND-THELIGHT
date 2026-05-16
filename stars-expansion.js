@@ -11944,7 +11944,7 @@ function rollPlanetExploration() {
     takeGalaxyLoot(rewardItem, 'pack');
     detail = `Recovered ${rewardItem} near the ${profile.wonder}.`;
   } else if (outcome === 'Hazard') {
-    detail = `${profile.terrainEffect} Make an Action Die test vs DD8 before pushing deeper.`;
+    detail = `${profile.terrainEffect} Make a Valor Die test vs DD8 before pushing deeper.`;
     if (targetCell) {
       targetCell.marker = 'hazard';
       targetCell.feature = targetCell.feature || 'Hazard line';
@@ -11952,7 +11952,7 @@ function rollPlanetExploration() {
       affectedCell = targetCell;
     }
   } else if (outcome === 'Beast') {
-    detail = `${profile.fauna} surge from cover. Action Die vs DD8 to outmaneuver them or take Stress.`;
+    detail = `${profile.fauna} surge from cover. Valor Die vs DD8 to outmaneuver them or take Stress.`;
     if (targetCell) {
       targetCell.marker = 'hazard';
       targetCell.feature = 'Fauna migration';
@@ -13288,7 +13288,7 @@ function openPlanetRuinPopup(cellId) {
     const desc = room.description || buildPlanetRuinRoomDescription(roomType);
     const actionHtml = room.cleared
       ? '<div style="font-size:.7rem;color:var(--green);margin-top:.2rem;">✓ Cleared</div>'
-      : '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolvePlanetRuinRoom(' + Number(cell.id) + ',' + Number(room.id) + ')">⚄ Explore (Action vs DD' + dread + ')</button></div>';
+      : '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolvePlanetRuinRoom(' + Number(cell.id) + ',' + Number(room.id) + ')">⚄ Explore (Valor Die vs DD' + dread + ')</button></div>';
     return '<div class="room-block" style="margin-bottom:.45rem;border-left:3px solid ' + typeColor + ';padding-left:.5rem;">'
       + '<div class="rb-title" style="color:' + typeColor + ';">' + icon + ' Room ' + Number(room.id) + ' - ' + roomType + '</div>'
       + '<div class="rb-text" style="font-size:.8rem;line-height:1.55;">' + desc + '</div>'
@@ -13374,6 +13374,8 @@ function resolvePlanetRuinRoom(cellId, roomId) {
       statLabel: 'Valor',
       actionDie: vdDie,
       dreadDie: dread,
+      cancelLabel: 'Go Back',
+      onCancel: function () { openPlanetRuinPopup(cellId); },
       onResolve: finalizeRuinRoom
     });
     return;
@@ -14255,6 +14257,7 @@ function openGlobalManualActionDreadPrompt(config) {
   const actionDie = Math.max(4, Number(cfg.actionDie || ((typeof getEffectiveDie === 'function') ? getEffectiveDie(statKey) : 6) || 6));
   const dreadDie = Math.max(4, Number(cfg.dreadDie || 6));
   const context = String(cfg.context || title);
+  const cancelLabel = String(cfg.cancelLabel || 'Go Back');
   const currentTMW = Math.max(0, Number((S && S.tmw) || 0));
   const pushDread = stepGlobalManualDreadDie(dreadDie);
   const modifiersHtml = buildGlobalManualRollModifierSummary(statKey);
@@ -14264,7 +14267,8 @@ function openGlobalManualActionDreadPrompt(config) {
     statLabel,
     actionDie,
     dreadDie,
-    resolver: (typeof cfg.onResolve === 'function') ? cfg.onResolve : null
+    resolver: (typeof cfg.onResolve === 'function') ? cfg.onResolve : null,
+    onCancel: (typeof cfg.onCancel === 'function') ? cfg.onCancel : null
   };
 
   const html = '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
@@ -14283,7 +14287,7 @@ function openGlobalManualActionDreadPrompt(config) {
     + '<div style="font-size:.7rem;color:var(--muted2);margin-top:.1rem;">Push Luck costs 2 TMW and raises Dread to d' + pushDread + '.</div>'
     + '</div>'
     + '<div style="display:flex;gap:.28rem;flex-wrap:wrap;margin-top:.45rem;">'
-    + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
+    + '<button class="btn btn-sm" onclick="resolveGlobalManualActionCheckCancel()">' + cancelLabel + '</button>'
     + '<button class="btn btn-sm" onclick="resolveGlobalManualActionCheck(\"compare\",false)">Compare</button>'
     + '<button class="btn btn-sm btn-primary" onclick="resolveGlobalManualActionCheck(\"success\",false)">Success</button>'
     + '<button class="btn btn-sm btn-red" onclick="resolveGlobalManualActionCheck(\"failure\",false)">Failure</button>'
@@ -14293,6 +14297,24 @@ function openGlobalManualActionDreadPrompt(config) {
     + '</div>';
   openModal(title, html);
   return true;
+}
+
+function resolveGlobalManualActionCheckCancel() {
+  const pending = window._pendingGlobalManualActionCheck || null;
+  window._pendingGlobalManualActionCheck = null;
+  if (pending && typeof pending.onCancel === 'function') {
+    pending.onCancel();
+    return;
+  }
+  if (typeof window.goBackOrCloseModal === 'function') {
+    window.goBackOrCloseModal();
+    return;
+  }
+  if (typeof goBackModal === 'function') {
+    goBackModal();
+    return;
+  }
+  if (typeof closeModal === 'function') closeModal();
 }
 
 function resolveGlobalManualActionCheck(mode, pushLuck) {

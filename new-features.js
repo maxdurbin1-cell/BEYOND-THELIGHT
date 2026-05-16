@@ -12121,6 +12121,12 @@
     return !!(window.settingsSystem && typeof window.settingsSystem.isManualRollMode === 'function' && window.settingsSystem.isManualRollMode());
   }
 
+  function getHackGuessLabel(value) {
+    var key = String(value || 'between').toLowerCase();
+    if (key === 'between') return 'Middle';
+    return capFirst(key);
+  }
+
   function applyHackCastOutcome(payload) {
     var data = payload || {};
     var hackName = String(data.hackName || 'Unknown Hack');
@@ -12128,16 +12134,16 @@
     var dreadDie = Math.max(4, Number(data.dreadDie || 6));
     var low = Math.max(1, Number(data.low || 1));
     var high = Math.max(low, Number(data.high || low));
-    var ctrlDie = Math.max(4, Number(data.ctrlDie || 4));
-    var ctrlVal = Math.max(1, Number(data.ctrlVal || 1));
+    var valorDie = Math.max(4, Number(data.valorDie || data.ctrlDie || 4));
+    var valorVal = Math.max(1, Number(data.valorVal || data.ctrlVal || 1));
     var guess = String(data.guess || S.hackRoller.guess || 'between');
     var tmwCost = Math.max(0, Number(data.tmwCost || 0));
     var manual = !!data.manual;
     var combatEnemy = data.combatEnemy || ((typeof getPrimaryCombatEnemy === 'function') ? getPrimaryCombatEnemy() : null);
 
     var actual;
-    if (ctrlVal < low) actual = 'below';
-    else if (ctrlVal > high) actual = 'above';
+    if (valorVal < low) actual = 'below';
+    else if (valorVal > high) actual = 'above';
     else actual = 'between';
 
     var success = actual === guess;
@@ -12168,15 +12174,15 @@
     if (resultEl) {
       resultEl.innerHTML = '<div class="gamble-rolls">'
         + '<div class="gamble-die"><div class="gd-label">Dread Low</div><div class="gd-value" style="color:var(--red);">' + low + '</div></div>'
-        + '<div class="gamble-die"><div class="gd-label">Control d' + ctrlDie + '</div><div class="gd-value" style="color:var(--teal);">' + ctrlVal + '</div></div>'
+        + '<div class="gamble-die"><div class="gd-label">Valor d' + valorDie + '</div><div class="gd-value" style="color:var(--teal);">' + valorVal + '</div></div>'
         + '<div class="gamble-die"><div class="gd-label">Dread High</div><div class="gd-value" style="color:var(--red);">' + high + '</div></div>'
         + '</div>'
         + (tmwCost > 0 ? '<div style="font-size:.72rem;color:var(--muted2);margin:.25rem 0;">-' + tmwCost + ' TMW spent · ' + (S.tmw || 0) + ' remaining</div>' : '')
         + '<div class="gamble-outcome ' + (success ? 'good' : 'warn') + '" style="margin-top:.4rem;">'
         + '<strong style="color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">' + (success ? 'Hack Succeeded!' : 'Hack Failed - Malware!') + '</strong><br>'
         + 'Dread d' + dreadDie + ': ' + low + '-' + high
-        + ' | Guess: <strong>' + capFirst(guess) + '</strong>'
-        + ' | Control: ' + ctrlVal + ' (<em>' + capFirst(actual) + (manual ? ', manual' : '') + '</em>)'
+        + ' | Guess: <strong>' + getHackGuessLabel(guess) + '</strong>'
+        + ' | Valor: ' + valorVal + ' (<em>' + getHackGuessLabel(actual) + (manual ? ', manual' : '') + '</em>)'
         + effectHtml
         + malwareHtml
         + '</div>';
@@ -12184,12 +12190,12 @@
 
     if (success) {
       var hackMargin = 1;
-      if (actual === 'below') hackMargin = Math.max(1, low - ctrlVal);
-      else if (actual === 'above') hackMargin = Math.max(1, ctrlVal - high);
-      else hackMargin = Math.max(1, Math.min(ctrlVal - low, high - ctrlVal) + 1);
+      if (actual === 'below') hackMargin = Math.max(1, low - valorVal);
+      else if (actual === 'above') hackMargin = Math.max(1, valorVal - high);
+      else hackMargin = Math.max(1, Math.min(valorVal - low, high - valorVal) + 1);
       if (typeof showDccSuccessOutcome === 'function') {
         showDccSuccessOutcome('spell', hackMargin, {
-          actionTotal: ctrlVal,
+          actionTotal: valorVal,
           dreadTotal: actual === 'below' ? low : (actual === 'above' ? high : Math.round((low + high) / 2)),
           context: 'Hack cast: ' + hackName
         });
@@ -12197,7 +12203,7 @@
       if (typeof addSuccessRoll === 'function') addSuccessRoll();
     } else if (typeof showDccFailureOutcome === 'function') {
       showDccFailureOutcome('spell', Math.max(1, malwareBy), {
-        actionTotal: ctrlVal,
+        actionTotal: valorVal,
         dreadTotal: actual === 'below' ? low : (actual === 'above' ? high : Math.round((low + high) / 2)),
         context: 'Hack cast: ' + hackName
       });
@@ -12219,11 +12225,11 @@
       combatEnemyId: String(data.combatEnemy && data.combatEnemy.id || '')
     };
     var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.54;">'
-      + '<div style="margin-bottom:.22rem;">Manual Hack Roll: enter your rolled values and resolve against your guess <strong>' + capFirst(S.hackRoller.guess || 'between') + '</strong>.</div>'
+      + '<div style="margin-bottom:.22rem;">Manual Hack Roll: enter your rolled values and resolve against your guess <strong>' + getHackGuessLabel(S.hackRoller.guess || 'between') + '</strong>.</div>'
       + '<div style="display:grid;grid-template-columns:repeat(3,minmax(100px,1fr));gap:.3rem;">'
       + '<label style="font-size:.7rem;color:var(--muted2);">Dread Low<input id="manualHackLow" type="number" min="1" max="' + Number(data.dreadDie || 6) + '" style="width:100%;margin-top:.08rem;"></label>'
       + '<label style="font-size:.7rem;color:var(--muted2);">Dread High<input id="manualHackHigh" type="number" min="1" max="' + Number(data.dreadDie || 6) + '" style="width:100%;margin-top:.08rem;"></label>'
-      + '<label style="font-size:.7rem;color:var(--muted2);">Control Total<input id="manualHackControl" type="number" min="1" max="999" style="width:100%;margin-top:.08rem;"></label>'
+      + '<label style="font-size:.7rem;color:var(--muted2);">Valor Total<input id="manualHackControl" type="number" min="1" max="999" style="width:100%;margin-top:.08rem;"></label>'
       + '</div>'
       + '<div style="font-size:.7rem;color:var(--muted2);margin-top:.2rem;">Cost on resolve: ' + Number(data.tmwCost || 0) + ' TMW.</div>'
       + '<div style="margin-top:.28rem;">'
@@ -12269,8 +12275,8 @@
       dreadDie: pending.dreadDie,
       low: Math.min(low, high),
       high: Math.max(low, high),
-      ctrlDie: Number(S.stats && S.stats.control || 4),
-      ctrlVal: ctrl,
+      valorDie: Number((S.stats && (S.stats.valor || S.stats.control)) || 4),
+      valorVal: ctrl,
       guess: String(S.hackRoller.guess || 'between'),
       combatEnemy: combatEnemy,
       manual: true
@@ -12336,11 +12342,11 @@
     var d2 = roll(dreadDie);
     var low = Math.min(d1, d2);
     var high = Math.max(d1, d2);
-    var ctrlDie = Math.max(4, Number(S.stats && S.stats.control || 4));
-    var ctrlRoll = explodingRoll(ctrlDie);
+    var valorDie = Math.max(4, Number((S.stats && (S.stats.valor || S.stats.control)) || 4));
+    var valorRoll = explodingRoll(valorDie);
     var augBonusDie = (typeof getAugBonus === 'function') ? getAugBonus('control') : 0;
     var augRoll = augBonusDie > 0 ? explodingRoll(augBonusDie) : null;
-    var ctrlVal = Number(ctrlRoll.total || 0) + Number(augRoll ? augRoll.total : 0);
+    var valorVal = Number(valorRoll.total || 0) + Number(augRoll ? augRoll.total : 0);
 
     applyHackCastOutcome({
       hackName: hackName,
@@ -12349,8 +12355,8 @@
       dreadDie: dreadDie,
       low: low,
       high: high,
-      ctrlDie: ctrlDie,
-      ctrlVal: ctrlVal,
+      valorDie: valorDie,
+      valorVal: valorVal,
       guess: String(S.hackRoller.guess || 'between'),
       combatEnemy: combatEnemy,
       manual: false

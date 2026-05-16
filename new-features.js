@@ -3170,6 +3170,119 @@
     return true;
   }
 
+  // ── Shared manual-save modal for Crucible Expedition (mirrors WTW openWtwManualActionDreadPrompt) ──
+  function openCrucibleExpeditionManualSavePrompt(config) {
+    if (typeof openModal !== 'function') return false;
+    var cfg = config || {};
+    var title = String(cfg.title || 'Manual Save');
+    var context = String(cfg.context || title);
+    var statLabel = String(cfg.statLabel || 'Action');
+    var actionDie = Math.max(4, Number(cfg.actionDie || 6));
+    var dreadDie = Math.max(4, Number(cfg.dreadDie || 6));
+    var bonus = Number(cfg.bonus || 0);
+    var bonusLabel = String(cfg.bonusLabel || '');
+    var tmw = Math.max(0, Number((S && S.tmw) || 0));
+    var diceChain = [4, 6, 8, 10, 12, 20];
+    var dreadIdx = diceChain.indexOf(dreadDie);
+    var pushDread = diceChain[Math.min(diceChain.length - 1, (dreadIdx < 0 ? 1 : dreadIdx) + 1)];
+
+    window._pendingExpedSaveManual = {
+      statLabel: statLabel,
+      actionDie: actionDie,
+      dreadDie: dreadDie,
+      bonus: bonus,
+      resolver: (typeof cfg.onResolve === 'function') ? cfg.onResolve : null
+    };
+
+    var bonusHtml = bonus > 0
+      ? "<div style='margin-top:.28rem;padding:.22rem .36rem;border:1px solid rgba(46,196,182,.35);background:rgba(46,196,182,.07);border-radius:3px;font-size:.74rem;color:var(--teal);'>"
+        + "<strong>+" + bonus + " bonus</strong>" + (bonusLabel ? " — " + bonusLabel : "")
+        + " (add to your " + statLabel + " result before entering below)"
+        + "</div>"
+      : "";
+
+    var html = ""
+      + "<div style='font-size:.84rem;color:var(--text2);line-height:1.6;'>"
+      + "<div style='font-family:Cinzel,serif;font-size:.78rem;letter-spacing:.08em;color:var(--gold2);margin-bottom:.28rem;'>" + context + "</div>"
+      + "<div><strong>" + statLabel + " d" + actionDie + "</strong> vs <strong style='color:var(--red2);'>Dread d" + dreadDie + "</strong></div>"
+      + "<div style='font-size:.72rem;color:var(--muted2);margin-top:.1rem;margin-bottom:.28rem;'>Roll your physical dice, apply any bonuses shown, then enter your totals and choose outcome.</div>"
+      + bonusHtml
+      + "<div style='display:grid;grid-template-columns:1fr 1fr;gap:.32rem;margin-top:.4rem;'>"
+      + "<div><div style='font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;'>" + statLabel + " d" + actionDie + (bonus > 0 ? " +" + bonus + " (total)" : " (total)") + "</div>"
+      + "<input type='number' id='expedSaveManualActionValue' min='1' placeholder='1+' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
+      + "<div><div style='font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;'>Dread d" + dreadDie + "</div>"
+      + "<input type='number' id='expedSaveManualDreadValue' min='1' placeholder='1+' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
+      + "</div>"
+      + "<div style='margin-top:.34rem;padding:.28rem .36rem;border:1px solid rgba(232,192,80,.35);background:rgba(232,192,80,.08);border-radius:3px;'>"
+      + "<div style='font-size:.74rem;color:var(--gold2);'><strong>Teamwork:</strong> " + tmw + " TMW</div>"
+      + "<div style='font-size:.7rem;color:var(--muted2);margin-top:.08rem;'>Push Luck costs 2 TMW and raises Dread to d" + pushDread + ".</div>"
+      + "</div>"
+      + "<div style='display:flex;gap:.26rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.45rem;'>"
+      + "<button class='btn btn-sm' onclick='closeModal()'>Cancel</button>"
+      + "<button class='btn btn-sm' onclick='resolveExpedSaveManualPrompt(\"compare\",false)'>Compare</button>"
+      + "<button class='btn btn-sm btn-primary' onclick='resolveExpedSaveManualPrompt(\"success\",false)'>Success</button>"
+      + "<button class='btn btn-sm btn-red' onclick='resolveExpedSaveManualPrompt(\"failure\",false)'>Failure</button>"
+      + "<button class='btn btn-sm btn-teal' " + (tmw >= 2 ? '' : "disabled title='Need 2 Teamwork'") + " onclick='resolveExpedSaveManualPrompt(\"success\",true)'>Push Luck + Success</button>"
+      + "<button class='btn btn-sm btn-warn' " + (tmw >= 2 ? '' : "disabled title='Need 2 Teamwork'") + " onclick='resolveExpedSaveManualPrompt(\"failure\",true)'>Push Luck + Failure</button>"
+      + "</div>"
+      + "</div>";
+    openModal(title, html);
+    return true;
+  }
+
+  window.resolveExpedSaveManualPrompt = function resolveExpedSaveManualPrompt(mode, pushLuck) {
+    var pending = window._pendingExpedSaveManual || null;
+    if (!pending) return;
+    var actionInput = document.getElementById('expedSaveManualActionValue');
+    var dreadInput = document.getElementById('expedSaveManualDreadValue');
+    var actionValue = parseInt(actionInput && actionInput.value, 10);
+    var dreadValue = parseInt(dreadInput && dreadInput.value, 10);
+    var actionDie = Math.max(4, Number(pending.actionDie || 4));
+    var baseDreadDie = Math.max(4, Number(pending.dreadDie || 6));
+    if (!Number.isFinite(actionValue) || actionValue < 1) {
+      if (typeof showNotif === 'function') showNotif('Enter a valid ' + pending.statLabel + ' result first.', 'warn');
+      if (actionInput) actionInput.focus();
+      return;
+    }
+    if (!Number.isFinite(dreadValue) || dreadValue < 1) {
+      if (typeof showNotif === 'function') showNotif('Enter a valid Dread result first.', 'warn');
+      if (dreadInput) dreadInput.focus();
+      return;
+    }
+    var usedPush = false;
+    var finalDreadDie = baseDreadDie;
+    if (pushLuck) {
+      var tmw = Math.max(0, Number((S && S.tmw) || 0));
+      if (tmw < 2) {
+        if (typeof showNotif === 'function') showNotif('Need 2 Teamwork to Push Luck.', 'warn');
+        return;
+      }
+      if (typeof changeCounter === 'function') changeCounter('tmw', -2);
+      else if (typeof S !== 'undefined') S.tmw = Math.max(0, tmw - 2);
+      usedPush = true;
+      var chain = [4, 6, 8, 10, 12, 20];
+      var idx = chain.indexOf(baseDreadDie);
+      finalDreadDie = chain[Math.min(chain.length - 1, (idx < 0 ? 1 : idx) + 1)];
+    }
+    var modeKey = String(mode || 'compare').toLowerCase();
+    var success = modeKey === 'success' ? true : (modeKey === 'failure' ? false : (actionValue >= dreadValue));
+    window._pendingExpedSaveManual = null;
+    if (typeof closeModal === 'function') closeModal();
+    if (typeof pending.resolver === 'function') {
+      pending.resolver({
+        success: success,
+        manual: true,
+        pushLuck: usedPush,
+        statLabel: pending.statLabel,
+        actionDie: actionDie,
+        dreadDie: finalDreadDie,
+        actionTotal: actionValue,
+        dreadTotal: dreadValue,
+        mode: modeKey
+      });
+    }
+  };
+
   function resolveCrucibleExpeditionDangerousWeather(match, sourceTag) {
     if (!match || String(match.mode || '') !== 'expedition') return true;
     var cell = getCrucibleExpeditionCellFromPlayer(match);
@@ -3180,66 +3293,47 @@
     var weather = weatherTable[wr - 1] || { result: 'Still Air', rough: false };
     if (!weather.rough) return true;
     var leadDie = getCrucibleExpeditionStatDie('lead', 6);
+    var weatherBonus = applyCrucibleExpeditionFlavorRollBonus(match, getCrucibleExpeditionPlayer(match), 'lead', 'weather');
+    var weatherName = String(weather.result || 'Rough Weather');
+    var applyWeatherResult = function (r) {
+      var actionTotal = Number(r && r.actionTotal || 0);
+      var dreadTotal = Number(r && r.dreadTotal || 0);
+      var success = !!(r && r.success);
+      if (success) {
+        if (typeof showNotif === 'function') showNotif(formatCrucibleExpeditionSaveLine('Weather Save', leadDie, actionTotal, 6, dreadTotal, true), 'good');
+        match.log = (match.log || []).concat(['Dangerous weather (' + String(sourceTag || 'Expedition') + '): ' + formatCrucibleExpeditionSaveLine('Weather Save', leadDie, actionTotal, 6, dreadTotal, true)]).slice(-120);
+      } else {
+        var diff = Math.max(1, dreadTotal - actionTotal);
+        if (typeof changeMentalStress === 'function') changeMentalStress(diff);
+        match.log = (match.log || []).concat(['Dangerous weather (' + String(sourceTag || 'Expedition') + '): failed Lead save (' + actionTotal + ' vs ' + dreadTotal + '). +' + diff + ' Mental Stress.']).slice(-120);
+        if (typeof showNotif === 'function') showNotif(formatCrucibleExpeditionSaveLine('Weather Save', leadDie, actionTotal, 6, dreadTotal, false, '+' + diff + ' Mental Stress.'), 'warn');
+      }
+    };
+    // Manual roll mode: show the proper Save prompt (Compare / Success / Failure buttons)
+    if (typeof isManualRollModeEnabled === 'function' && isManualRollModeEnabled()) {
+      openCrucibleExpeditionManualSavePrompt({
+        title: 'Manual Roll — Weather Check',
+        context: weatherName + ' — Dangerous Weather (' + String(sourceTag || 'Expedition') + ')',
+        statLabel: 'Lead',
+        actionDie: leadDie,
+        dreadDie: 6,
+        bonus: weatherBonus,
+        bonusLabel: weatherBonus > 0 ? 'Archetype / Flavor bonus' : '',
+        onResolve: applyWeatherResult
+      });
+      return true;
+    }
+    // Auto-roll
     var action = (typeof explodingRoll === 'function')
       ? explodingRoll(leadDie, { type: 'action', major: true, label: 'Danger Weather Save (Lead)' })
       : { total: Math.floor(Math.random() * leadDie) + 1 };
     var dread = (typeof explodingRoll === 'function')
       ? explodingRoll(6, { type: 'dread', major: true, label: 'Danger Weather DD6' })
       : { total: Math.floor(Math.random() * 6) + 1 };
-    var weatherBonus = applyCrucibleExpeditionFlavorRollBonus(match, getCrucibleExpeditionPlayer(match), 'lead', 'weather');
     if (weatherBonus) action.total = Number(action.total || 0) + weatherBonus;
-    var success = Number(action.total || 0) >= Number(dread.total || 0);
-
-    // Barrier-style modal for manual roll
-    if (typeof openModal === 'function') {
-      var html = '<div style="font-size:.92rem;color:var(--text2);line-height:1.6;">'
-        + '<div style="font-family:Cinzel,serif;font-size:.8rem;letter-spacing:.08em;color:var(--gold2);margin-bottom:.18rem;">Manual Weather Check</div>'
-        + '<div style="margin-bottom:.18rem;"><strong>Lead d' + leadDie + '</strong> vs <strong style="color:var(--red2);">Dread d6</strong></div>'
-        + '<div style="font-size:.8rem;color:var(--muted2);margin-bottom:.18rem;">Enter your physical dice results below. Apply all bonuses and modifiers as per the rules. +A.D. means add the Adventure Die result to your main roll. Advantage means roll extra dice and take the best.</div>'
-        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.32rem;margin-bottom:.2rem;">'
-        + '<div><div style="font-size:.7rem;color:var(--muted2);margin-bottom:.12rem;">Lead d' + leadDie + '</div>'
-        + '<input type="number" id="weatherManualActionValue" min="1" max="' + leadDie + '" placeholder="1-' + leadDie + '" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;"></div>'
-        + '<div><div style="font-size:.7rem;color:var(--muted2);margin-bottom:.12rem;">Dread d6</div>'
-        + '<input type="number" id="weatherManualDreadValue" min="1" max="6" placeholder="1-6" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;"></div>'
-        + '</div>'
-        + '<div style="display:flex;gap:.26rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.32rem;">'
-        + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
-        + '<button class="btn btn-sm btn-primary" onclick="window.resolveWeatherManualRoll()">Resolve</button>'
-        + '</div>'
-        + '</div>';
-      openModal('Manual Weather Check', html);
-      window.resolveWeatherManualRoll = function () {
-        var actionInput = document.getElementById('weatherManualActionValue');
-        var dreadInput = document.getElementById('weatherManualDreadValue');
-        var actionValue = parseInt(actionInput && actionInput.value, 10);
-        var dreadValue = parseInt(dreadInput && dreadInput.value, 10);
-        if (!Number.isFinite(actionValue) || !Number.isFinite(dreadValue)) {
-          alert('Please enter valid dice results for both Lead and Dread.');
-          return;
-        }
-        var resultHtml = '<div style="font-size:.92rem;color:var(--text2);line-height:1.6;">'
-          + '<div style="font-family:Cinzel,serif;font-size:.8rem;letter-spacing:.08em;color:var(--gold2);margin-bottom:.18rem;">Weather Check Result</div>'
-          + '<div style="margin-bottom:.18rem;"><strong>' + actionValue + '</strong> vs <strong style="color:var(--red2);">' + dreadValue + '</strong></div>'
-          + '<div style="font-size:.8rem;color:var(--muted2);margin-bottom:.18rem;">' + (actionValue >= dreadValue ? 'Success! You withstand the weather.' : 'Failure. Suffer the weather consequences.') + '</div>'
-          + '<div style="display:flex;gap:.26rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.32rem;">'
-          + '<button class="btn btn-sm btn-primary" onclick="closeModal()">OK</button>'
-          + '</div>'
-          + '</div>';
-        openModal('Weather Check Result', resultHtml);
-      };
-      return success;
-    }
-    // fallback: legacy notif if modal not available
-    if (!success) {
-      var diff = Math.max(1, Number(dread.total || 0) - Number(action.total || 0));
-      if (typeof changeMentalStress === 'function') changeMentalStress(diff);
-      match.log = (match.log || []).concat(['Dangerous weather (' + String(sourceTag || 'Expedition') + '): failed Lead save (' + action.total + ' vs ' + dread.total + '). +' + diff + ' Mental Stress.']).slice(-120);
-      if (typeof showNotif === 'function') showNotif(formatCrucibleExpeditionSaveLine('Weather Save', leadDie, action.total, 6, dread.total, false, '+ ' + diff + ' Mental Stress.'), 'warn');
-      return false;
-    }
-    if (typeof showNotif === 'function') showNotif(formatCrucibleExpeditionSaveLine('Weather Save', leadDie, action.total, 6, dread.total, true), 'good');
-    match.log = (match.log || []).concat(['Dangerous weather (' + String(sourceTag || 'Expedition') + '): ' + formatCrucibleExpeditionSaveLine('Weather Save', leadDie, action.total, 6, dread.total, true)]).slice(-120);
-    return true;
+    var autoSuccess = Number(action.total || 0) >= Number(dread.total || 0);
+    applyWeatherResult({ success: autoSuccess, actionTotal: action.total, dreadTotal: dread.total });
+    return autoSuccess;
   }
 
   function resolveCrucibleExpeditionBarrierCrossing(match, actor, fromHex, toHex) {
@@ -3247,27 +3341,52 @@
     if (!cell) return true;
     if (isCrucibleExpeditionBarrierOpen(match, cell)) return true;
     var bodyDie = getCrucibleExpeditionStatDie('body', 6);
+    var revisitKey = String(Number(toHex && toHex.q || 0)) + ',' + String(Number(toHex && toHex.r || 0));
+    var barrierContext = getCrucibleExpeditionVisitedHexCount(match, revisitKey) > 0 ? 'revisit' : 'barrier';
+    var barrierBonus = applyCrucibleExpeditionFlavorRollBonus(match, actor, 'body', barrierContext);
+    var actorName = String(actor && actor.name || 'Wayfarer');
+    var applyBarrierResult = function (r) {
+      var actionTotal = Number(r && r.actionTotal || 0);
+      var dreadTotal = Number(r && r.dreadTotal || 0);
+      var success = !!(r && r.success);
+      if (success) {
+        cell.barrier.passToken = String(match.expedition.day) + ':' + String(match.expedition.phase || 'explore');
+        if (typeof showNotif === 'function') showNotif(formatCrucibleExpeditionSaveLine('Barrier Save', bodyDie, actionTotal, 6, dreadTotal, true) + ' Move again to cross.', 'good');
+        if (match && match.log) match.log = (match.log || []).concat([actorName + ' ' + formatCrucibleExpeditionSaveLine('Barrier Save', bodyDie, actionTotal, 6, dreadTotal, true)]).slice(-120);
+      } else {
+        if (typeof recordCrucibleExpeditionHexClick === 'function') recordCrucibleExpeditionHexClick(match, { skipEncounter: true });
+        if (typeof showNotif === 'function') showNotif(formatCrucibleExpeditionSaveLine('Barrier Save', bodyDie, actionTotal, 6, dreadTotal, false, '+1 Tick.'), 'warn');
+        if (match && match.log) match.log = (match.log || []).concat([actorName + ' ' + formatCrucibleExpeditionSaveLine('Barrier Save', bodyDie, actionTotal, 6, dreadTotal, false, '+1 Tick.')]).slice(-120);
+      }
+      if (typeof renderHoldingCruciblePopup === 'function') renderHoldingCruciblePopup();
+      if (typeof renderHoldingUI === 'function') renderHoldingUI();
+    };
+    // Manual roll mode: show the proper Save prompt (Compare / Success / Failure buttons)
+    if (typeof isManualRollModeEnabled === 'function' && isManualRollModeEnabled()) {
+      openCrucibleExpeditionManualSavePrompt({
+        title: 'Manual Roll — Barrier Crossing',
+        context: 'Barrier Crossing — Body vs DD6' + (barrierBonus > 0 ? ' (+' + barrierBonus + ' bonus)' : ''),
+        statLabel: 'Body',
+        actionDie: bodyDie,
+        dreadDie: 6,
+        bonus: barrierBonus,
+        bonusLabel: barrierBonus > 0 ? (barrierContext === 'revisit' ? 'Revisit bonus' : 'Archetype / Flavor bonus') : '',
+        onResolve: applyBarrierResult
+      });
+      // Block movement now; passToken will be set on Success so the next move auto-crosses
+      return false;
+    }
+    // Auto-roll
     var playerRoll = (typeof explodingRoll === 'function')
       ? explodingRoll(bodyDie, { type: 'action', major: true, label: 'Barrier Crossing (Body)' })
       : { total: Math.floor(Math.random() * bodyDie) + 1 };
     var dreadRoll = (typeof explodingRoll === 'function')
       ? explodingRoll(6, { type: 'dread', major: true, label: 'Barrier DD6' })
       : { total: Math.floor(Math.random() * 6) + 1 };
-    var revisitKey = String(Number(toHex && toHex.q || 0)) + ',' + String(Number(toHex && toHex.r || 0));
-    var barrierContext = getCrucibleExpeditionVisitedHexCount(match, revisitKey) > 0 ? 'revisit' : 'barrier';
-    var barrierBonus = applyCrucibleExpeditionFlavorRollBonus(match, actor, 'body', barrierContext);
     if (barrierBonus) playerRoll.total = Number(playerRoll.total || 0) + barrierBonus;
-    var success = Number(playerRoll.total || 0) >= Number(dreadRoll.total || 0);
-    if (success) {
-      cell.barrier.passToken = String(match.expedition.day) + ':' + String(match.expedition.phase || 'explore');
-      if (typeof showNotif === 'function') showNotif(formatCrucibleExpeditionSaveLine('Barrier Save', bodyDie, playerRoll.total, 6, dreadRoll.total, true), 'good');
-      if (match && match.log) match.log = (match.log || []).concat([String(actor && actor.name || 'Wayfarer') + ' ' + formatCrucibleExpeditionSaveLine('Barrier Save', bodyDie, playerRoll.total, 6, dreadRoll.total, true)]).slice(-120);
-      return true;
-    }
-    if (typeof recordCrucibleExpeditionHexClick === 'function') recordCrucibleExpeditionHexClick(match, { skipEncounter: true });
-    if (typeof showNotif === 'function') showNotif(formatCrucibleExpeditionSaveLine('Barrier Save', bodyDie, playerRoll.total, 6, dreadRoll.total, false, '+1 Tick.'), 'warn');
-    if (match && match.log) match.log = (match.log || []).concat([String(actor && actor.name || 'Wayfarer') + ' ' + formatCrucibleExpeditionSaveLine('Barrier Save', bodyDie, playerRoll.total, 6, dreadRoll.total, false, '+1 Tick.')]).slice(-120);
-    return false;
+    var autoSuccess = Number(playerRoll.total || 0) >= Number(dreadRoll.total || 0);
+    applyBarrierResult({ success: autoSuccess, actionTotal: playerRoll.total, dreadTotal: dreadRoll.total });
+    return autoSuccess;
   }
 
   function openCrucibleExpeditionCombatPopup(match) {

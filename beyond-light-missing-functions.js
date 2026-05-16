@@ -3197,7 +3197,8 @@ window.syncManualCheckPanel = syncManualCheckPanel;
 syncManualCheckPanel();
 
 function rollWilderness() {
-  const result = roll(6);
+  const die = 6;
+  const result = roll(die);
   let text = "";
   if (result === 1) {
     text = "Random Event";
@@ -3206,14 +3207,21 @@ function rollWilderness() {
   } else {
     text = "All Clear";
   }
-  const el = document.getElementById("wildResult");
-  if (el) {
-    el.style.display = "block";
-    el.innerHTML =
-      '<div class="wild-roll-output"><div class="wild-section" style="border-bottom:none;">' +
-      '<div class="wild-section-label">Quick Wilderness Roll</div>' +
-      '<div class="wild-section-text">d6=' + result + " - " + text + "</div></div></div>";
-  }
+
+  // Styled modal breakdown
+  let detailHtml = '<div style="font-size:.85rem;color:var(--muted2);margin-top:.3rem;">'
+    + 'Rolled <strong>d' + die + '</strong>: <span style="color:var(--gold2);font-weight:600;">' + result + '</span><br>'
+    + 'Outcome: <strong>' + text + '</strong>'
+    + '</div>';
+
+  openModal(
+    'Wilderness Roll',
+    '<div style="font-size:.95rem;color:var(--text2);line-height:1.7;">'
+      + '<strong style="color:var(--teal);">Wilderness d' + die + '</strong>'
+      + '<br>Result: <strong style="color:var(--gold2);">' + result + '</strong>'
+      + detailHtml
+      + '</div>'
+  );
 }
 
 function rollFreedie(sides) {

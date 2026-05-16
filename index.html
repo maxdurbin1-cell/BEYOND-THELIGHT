@@ -6262,6 +6262,39 @@ function rollWildernessFull(){
 }
 
 window.resolveProvinceShiftWeatherDanger = function(){
+  // Check if manual roll mode is enabled
+  if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
+    return !!openProvinceManualCheckPrompt({
+      title:'Manual Roll - Weather Shift',
+      context:'Dangerous weather shift (Lead vs DD8)',
+      statKey:'lead',
+      statLabel:'Lead',
+      actionDie:typeof getEffectiveDie==='function'?getEffectiveDie('lead'):((S.stats&&S.stats.lead)||6),
+      dreadDie:8,
+      onResolve:function(outcome){
+        const success=!!(outcome&&outcome.success);
+        const leadTotal=Number((outcome&&outcome.actionTotal)||0);
+        const dreadTotal=Number((outcome&&outcome.dreadTotal)||8);
+        const el=document.getElementById('wildShiftWeatherResult');
+        if(el){
+          el.innerHTML='<div style="font-size:.78rem;color:'+(success?'var(--green2)':'var(--red2)')+';">Lead '+leadTotal+' vs DD8 '+dreadTotal+' — '+(success?'Safe passage secured.':'Dangerous shift: remain in this hex, lose 1 Phase, gain +1 Mental Stress.')+'</div>';
+        }
+        if(success){
+          if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('lead',Math.max(1,leadTotal-dreadTotal),{actionTotal:leadTotal,dreadTotal:dreadTotal,context:'Sudden weather shift'});
+          if(typeof addSuccessRoll==='function')addSuccessRoll();
+          showNotif('You weathered the sudden storm shift.', 'good');
+        }else{
+          if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('lead',Math.max(1,dreadTotal-leadTotal),{actionTotal:leadTotal,dreadTotal:dreadTotal,context:'Sudden weather shift'});
+          if(typeof changeMentalStress==='function')changeMentalStress(1);
+          if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
+          advanceProvincePhasePenalty(1);
+          showNotif('Dangerous weather shift: remain in hex, lose 1 Phase, gain +1 Mental Stress.', 'warn');
+        }
+      }
+    });
+  }
+  
+  // Automatic roll mode
   const leadRoll = rollProvinceLeadCheck();
   const dreadRoll = explodingRoll(8,{type:'dread',major:true,label:'Weather DD8'});
   const success = leadRoll.total >= dreadRoll.total;

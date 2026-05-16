@@ -3488,14 +3488,14 @@
     { id: 'voice_deity_order', label: 'Deity Option: Order', group: 'passive', subclass: 'Voice', detail: 'Choose one deity path. Order: once per day, evenly distribute damage among your party.', cost: 1, requires: ['voice_spirit_d20'], requiresAny: [] },
     { id: 'voice_deity_chaos', label: 'Deity Option: Chaos', group: 'passive', subclass: 'Voice', detail: 'Choose one deity path. Chaos: once per day, invoke a chaotic blessing and roll d6 for a random effect (luck, obstacle, backlash, confusion, teleportation, or unstable healing).', cost: 1, requires: ['voice_spirit_d20'], requiresAny: [] },
     { id: 'voice_deity_creation', label: 'Deity Option: Creation', group: 'passive', subclass: 'Voice', detail: 'Choose one deity path. Creation: once per day as an action, bless an ally with a temporary encounter-long enhancement chosen by the player.', cost: 1, requires: ['voice_spirit_d20'], requiresAny: [] },
-    { id: 'voice_behold_my_lord', label: 'Behold My Lord!', group: 'action', subclass: 'Voice', detail: 'Alpha · 1 AP. Invoke your deity: all allies in your zone step up their Adventure die for the round.', cost: 1, requires: ['voice_deity_order'], requiresAny: [], actionId: 'voice_behold_my_lord' },
+    { id: 'voice_behold_my_lord', label: 'Behold My Lord!', group: 'action', subclass: 'Voice', detail: 'Alpha · 1 AP. Invoke your deity: all allies in your zone step up their Valor die for the round.', cost: 1, requires: ['voice_deity_order'], requiresAny: [], actionId: 'voice_behold_my_lord' },
     { id: 'voice_bless', label: 'Bless', group: 'passive', subclass: 'Voice', detail: 'Passive. When engaged with an ally, bless them with a d4 bonus to their next action.', cost: 1, requires: ['voice_deity_creation'], requiresAny: [] },
     { id: 'voice_bow_sinners', label: 'Bow, Sinners', group: 'action', subclass: 'Voice', detail: '2 AP. Unleash divine force to stun all creatures in your zone for 1 round (unable to perform an action). Usable once per encounter.', cost: 1, requires: ['voice_deity_chaos'], requiresAny: [], actionId: 'voice_bow_sinners' },
     { id: 'voice_compel', label: 'Compel', group: 'action', subclass: 'Voice', detail: '1 AP. Utter a divine truth and compel an enemy to believe it for 1d4 rounds.', cost: 1, requires: ['voice_behold_my_lord'], requiresAny: [], actionId: 'voice_compel' },
     { id: 'voice_deliver_truth', label: 'Deliver Truth', group: 'passive', subclass: 'Voice', detail: 'Passive. When you speak with sincerity and honesty, others are compelled to believe you are truthful.', cost: 1, requires: ['voice_compel'], requiresAny: [] },
     { id: 'voice_have_faith', label: 'Have Faith, My Child', group: 'passive', subclass: 'Voice', detail: 'Passive. Inspire an ally in your zone and remove one condition from them.', cost: 1, requires: ['voice_bless'], requiresAny: [] },
     { id: 'voice_holy_fire_within', label: 'Holy Fire Within', group: 'action', subclass: 'Voice', detail: 'Free · once per encounter. Remove half your current Mental Stress and gain +1 Trauma.', cost: 1, requires: ['voice_deliver_truth'], requiresAny: [], actionId: 'voice_holy_fire_within' },
-    { id: 'voice_witness_divine_might', label: 'Witness Divine Might!', group: 'action', subclass: 'Voice', detail: '1 AP. Each ally within your vicinity steps up their Adventure die by 1 step for the round.', cost: 1, requires: ['voice_have_faith'], requiresAny: [], actionId: 'voice_witness_divine_might' },
+    { id: 'voice_witness_divine_might', label: 'Witness Divine Might!', group: 'action', subclass: 'Voice', detail: '1 AP. Each ally within your vicinity steps up their Valor die by 1 step for the round.', cost: 1, requires: ['voice_have_faith'], requiresAny: [], actionId: 'voice_witness_divine_might' },
     { id: 'voice_shoulder_burden', label: 'Shoulder Your Burden', group: 'action', subclass: 'Voice', detail: '1 AP. Take up to 10 damage from another character and apply it to yourself instead.', cost: 1, requires: ['voice_holy_fire_within'], requiresAny: [], actionId: 'voice_shoulder_burden' },
     { id: 'voice_bestow_blessing', label: 'Bestow Blessing', group: 'passive', subclass: 'Voice', detail: 'Passive. While engaged with an ally, grant an additional d4 for their next action.', cost: 1, requires: ['voice_shoulder_burden'], requiresAny: [] },
     { id: 'voice_tw_divine_guidance', label: 'Divine Guidance (Teamwork)', group: 'teamwork', subclass: 'Voice', detail: 'Teamwork. If Behold My Lord! is used and an ally in your zone hits an enemy that turn, generate 1 Teamwork Point.', cost: 1, requires: ['voice_behold_my_lord'], requiresAny: [] },
@@ -10863,7 +10863,7 @@
     if (dmgStr.indexOf('+d') >= 0) { bonusRoll = roll(parseInt(dmgStr.split('+d')[1] || '4', 10)); }
     var effect = String(action.effect || 'health');
     var getPlayerDefendDie = function () {
-      return Math.max(4, Number(typeof getEffectiveDie === 'function' ? (getEffectiveDie('defend') || getEffectiveDie('adventure') || 8) : 8));
+      return Math.max(4, Number(typeof getEffectiveDie === 'function' ? (getEffectiveDie('defend') || getEffectiveDie('valor') || 8) : 8));
     };
     var allyTargets = [];
     if (!encounter.partyHp || typeof encounter.partyHp !== 'object') encounter.partyHp = { allies: {} };
@@ -11574,14 +11574,14 @@
   }
 
   function getLegacyRaidCheckDieForStat(statKey) {
-    var key = String(statKey || 'adventure').toLowerCase();
+    var key = String(statKey || 'valor').toLowerCase();
     if (typeof getEffectiveDie === 'function') {
-      if (key === 'mind') return Math.max(4, Number(getEffectiveDie('mind') || getEffectiveDie('adventure') || 8));
-      if (key === 'body') return Math.max(4, Number(getEffectiveDie('body') || getEffectiveDie('adventure') || 8));
-      if (key === 'defend') return Math.max(4, Number(getEffectiveDie('defend') || getEffectiveDie('adventure') || 8));
-      return Math.max(4, Number(getEffectiveDie('adventure') || 8));
+      if (key === 'mind') return Math.max(4, Number(getEffectiveDie('mind') || getEffectiveDie('valor') || 8));
+      if (key === 'body') return Math.max(4, Number(getEffectiveDie('body') || getEffectiveDie('valor') || 8));
+      if (key === 'defend') return Math.max(4, Number(getEffectiveDie('defend') || getEffectiveDie('valor') || 8));
+      return Math.max(4, Number(getEffectiveDie('valor') || 8));
     }
-    return Math.max(4, Number(typeof getStat === 'function' ? getStat('adventure') : 8) || 8);
+    return Math.max(4, Number(typeof getStat === 'function' ? getStat('valor') : 8) || 8);
   }
 
   function resolveLegacyRaidHexContest(statKey, dreadDie) {
@@ -13253,7 +13253,7 @@
     var guessRow = function (mode, die, label, tone) {
       return '<div style="margin-bottom:.18rem;padding:.22rem .28rem;border:1px solid var(--border2);background:rgba(255,255,255,.03);">'
         + '<div style="font-size:.69rem;color:' + tone + ';margin-bottom:.1rem;">' + label + ' · Gatekeeper d' + die + '</div>'
-        + '<div style="font-size:.66rem;color:var(--muted2);margin-bottom:.14rem;">Roll two gatekeeper dice, then roll your Wayfarer Adventure Die and guess whether it lands under, middle, or over. Matching either gatekeeper die still counts as middle.</div>'
+        + '<div style="font-size:.66rem;color:var(--muted2);margin-bottom:.14rem;">Roll two gatekeeper dice, then roll your Wayfarer Valor Die and guess whether it lands under, middle, or over. Matching either gatekeeper die still counts as middle.</div>'
         + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
         + '<button class="btn btn-xs" onclick="window.submitLegacyRaidGambleHand(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'' + mode + '\',\'under\')">Guess Under</button>'
         + '<button class="btn btn-xs btn-primary" onclick="window.submitLegacyRaidGambleHand(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'' + mode + '\',\'middle\')">Guess Middle</button>'
@@ -14373,7 +14373,7 @@
       + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.1rem;">Attempt Log</div>'
       + '<div style="max-height:120px;overflow:auto;border:1px solid var(--border2);padding:.24rem .28rem;background:rgba(0,0,0,.16);margin-bottom:.24rem;">' + logHtml + '</div>'
       + '<div style="display:flex;justify-content:space-between;gap:.24rem;flex-wrap:wrap;">'
-      + '<button class="btn btn-xs btn-warn" onclick="resolveLegacyRaidPuzzleBypass(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Bypass Puzzle (AD vs DD6)</button>'
+      + '<button class="btn btn-xs btn-warn" onclick="resolveLegacyRaidPuzzleBypass(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Bypass Puzzle (VD vs DD6)</button>'
       + '<button class="btn btn-xs" onclick="resetLegacyRaidPuzzleRoom(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Reconfigure Puzzle</button>'
       + '<button class="btn btn-xs" onclick="openRaidWingPopup(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Back To Room</button>'
       + '</div>'

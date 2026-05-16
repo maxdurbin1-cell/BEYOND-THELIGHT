@@ -3283,6 +3283,16 @@
     }
   };
 
+  function isCrucibleManualRollModeEnabled() {
+    try {
+      return !!(window.settingsSystem
+        && typeof window.settingsSystem.isManualRollMode === 'function'
+        && window.settingsSystem.isManualRollMode());
+    } catch (_err) {
+      return false;
+    }
+  }
+
   function resolveCrucibleExpeditionDangerousWeather(match, sourceTag) {
     if (!match || String(match.mode || '') !== 'expedition') return true;
     var cell = getCrucibleExpeditionCellFromPlayer(match);
@@ -3310,7 +3320,7 @@
       }
     };
     // Manual roll mode: show the proper Save prompt (Compare / Success / Failure buttons)
-    if (typeof isManualRollModeEnabled === 'function' && isManualRollModeEnabled()) {
+    if (isCrucibleManualRollModeEnabled()) {
       openCrucibleExpeditionManualSavePrompt({
         title: 'Manual Roll — Weather Check',
         context: weatherName + ' — Dangerous Weather (' + String(sourceTag || 'Expedition') + ')',
@@ -3362,7 +3372,7 @@
       if (typeof renderHoldingUI === 'function') renderHoldingUI();
     };
     // Manual roll mode: show the proper Save prompt (Compare / Success / Failure buttons)
-    if (typeof isManualRollModeEnabled === 'function' && isManualRollModeEnabled()) {
+    if (isCrucibleManualRollModeEnabled()) {
       openCrucibleExpeditionManualSavePrompt({
         title: 'Manual Roll — Barrier Crossing',
         context: 'Barrier Crossing — Body vs DD6' + (barrierBonus > 0 ? ' (+' + barrierBonus + ' bonus)' : ''),

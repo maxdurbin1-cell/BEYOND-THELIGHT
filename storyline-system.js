@@ -3,7 +3,7 @@
   const STORY_TAB_ID = "storyline";
 
   const STAT_LABELS = {
-    adventure: "Adventure",
+    valor: "Valor",
     body: "Body",
     mind: "Mind",
     spirit: "Spirit",
@@ -26,7 +26,7 @@
 
   const DECISION_ROLES = [
     "Lead Check",
-    "Adventure Check",
+    "Valor Check",
     "Body Check",
     "Mind Check",
     "Spirit Check",
@@ -193,7 +193,7 @@
         {
           id: "o3",
           text: "Track the killers into the marsh roads",
-          stat: "adventure",
+          stat: "valor",
           baseDread: 8,
           success: {
             next: "marshal_ambush",
@@ -1007,7 +1007,7 @@
         {
           id: "o4",
           text: "Infiltrate the undercity ration market",
-          stat: "adventure",
+          stat: "valor",
           baseDread: 10,
           req: { backgroundIncludes: ["drifter", "merchant", "smuggler", "outlaw"] },
           success: { next: "undercity_market", text: "You slip under the city and find the loyalty-price algorithms.", effects: { flags: { undercityIntel: true }, credits: 120 } },
@@ -2072,7 +2072,7 @@
           id: "o2",
           text: "Search the province marker and recover hard evidence",
           req: { theosProvinceIs: id },
-          stat: "adventure",
+          stat: "valor",
           baseDread: Math.max(6, dreads - 1),
           success: {
             next: "mission_bridge",
@@ -2329,7 +2329,7 @@
   }
 
   function getAssignedWayfarerActionDie(statKey, decisionMeta) {
-    var key = String(statKey || 'adventure').toLowerCase();
+    var key = String(statKey || 'valor').toLowerCase();
     var localDie = (typeof getEffectiveDie === 'function')
       ? Number(getEffectiveDie(key) || 4)
       : Number((S && S.stats && S.stats[key]) || 4);
@@ -2743,7 +2743,7 @@
     const stat = lc(option.stat);
     if (stat === "lead" || stat === "spirit") return "social";
     if (stat === "mind" || stat === "control") return "investigation";
-    if (stat === "adventure" || stat === "defend" || stat === "strike" || stat === "shoot" || stat === "body") return "combat";
+    if (stat === "valor" || stat === "defend" || stat === "strike" || stat === "shoot" || stat === "body") return "combat";
     return "social";
   }
 
@@ -4638,8 +4638,12 @@
     const actionDie = getAssignedWayfarerActionDie(statKey, decisionMeta);
     const a = (typeof explodingRoll === "function") ? explodingRoll(actionDie) : { total: Math.floor(Math.random() * actionDie) + 1, exploded: false };
     const d = (typeof explodingRoll === "function") ? explodingRoll(dreadDie) : { total: Math.floor(Math.random() * dreadDie) + 1, exploded: false };
-    const relicRolls = (typeof window.getPermanentAdventureBonusRolls === "function") ? window.getPermanentAdventureBonusRolls(statKey, "Story Relic") : [];
-    const relicTotal = (typeof window.sumAdventureBonusRolls === "function") ? window.sumAdventureBonusRolls(relicRolls) : 0;
+    const relicRolls = (typeof window.getPermanentValorBonusRolls === "function")
+      ? window.getPermanentValorBonusRolls(statKey, "Story Relic")
+      : ((typeof window.getPermanentAdventureBonusRolls === "function") ? window.getPermanentAdventureBonusRolls(statKey, "Story Relic") : []);
+    const relicTotal = (typeof window.sumValorBonusRolls === "function")
+      ? window.sumValorBonusRolls(relicRolls)
+      : ((typeof window.sumAdventureBonusRolls === "function") ? window.sumAdventureBonusRolls(relicRolls) : 0);
     const campaignBonus = Math.max(0, Math.floor(getStoryModifierValue("storyRollBonus")));
     const bonus = (typeof window.getFactionStoryRollBonus === "function" && factionKey)
       ? Number(window.getFactionStoryRollBonus(factionKey, statKey) || 0)
@@ -4657,7 +4661,7 @@
             if (profile.timeSight && (statKey === "control" || statKey === "mind" || statKey === "spirit")) flavorBonus += 1;
             if (profile.corpseMemory && (statKey === "mind" || statKey === "spirit")) flavorBonus += 1;
             if (profile.disguiseShift && (statKey === "lead" || statKey === "control")) flavorBonus += 1;
-            if (profile.luckyReroll && statKey === "adventure") flavorBonus += 1;
+            if (profile.luckyReroll && statKey === "valor") flavorBonus += 1;
         }
       }
     } catch (_err) { console.error(_err); }

@@ -836,7 +836,7 @@
       openCombatTabForTask(task);
       return;
     }
-    const check = rollBaseCheck("adventure", 6);
+    const check = rollBaseCheck("valor", 6);
     grantTaskReward(task, check.success);
     removeTask(task.id);
   }
@@ -1666,7 +1666,7 @@
     const base = ensureBaseActivity(factionId);
     const ev = base && Array.isArray(base.activeEvents) ? base.activeEvents[Number(idx)] : null;
     if (!ev || ev.resolved) return;
-    const check = rollBaseCheck("adventure", 6);
+    const check = rollBaseCheck("valor", 6);
     ev.resolved = true;
     if (check.success) {
       if (typeof changeCounter === "function") changeCounter("tmw", 1);

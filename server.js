@@ -618,7 +618,7 @@ function ensureCampaignShape(raw) {
     const responses = Array.isArray(roll.responses) ? roll.responses : [];
     normalized.activeRollRequest = {
       id: String(roll.id),
-      stat: String(roll.stat || "adventure"),
+      stat: String(roll.stat || "valor"),
       dread: Math.max(1, Number(roll.dread || 8)),
       label: String(roll.label || "GM Check").slice(0, 80),
       createdAt: Number(roll.createdAt) || Date.now(),
@@ -1100,7 +1100,7 @@ function applyCampaignImportSnapshot(campaign, rawSnapshot) {
   campaign.activeRollRequest = roll
     ? {
         id: String(roll.id || `${Date.now()}-import`),
-        stat: String(roll.stat || "adventure"),
+        stat: String(roll.stat || "valor"),
         dread: Math.max(1, Number(roll.dread || 8)),
         label: String(roll.label || "GM Check").slice(0, 80),
         createdAt: Number(roll.createdAt || Date.now()),
@@ -2217,7 +2217,7 @@ io.on("connection", (socket) => {
     if (!requireGmAction(campaign, token, "campaign:rollRequest", ack)) return;
 
     const dread = Math.max(1, Number((payload && payload.dread) || 8));
-    const stat = String((payload && payload.stat) || "adventure").trim().slice(0, 32) || "adventure";
+    const stat = String((payload && payload.stat) || "valor").trim().slice(0, 32) || "valor";
     const label = String((payload && payload.label) || "GM Check").trim().slice(0, 80) || "GM Check";
 
     campaign.activeRollRequest = {

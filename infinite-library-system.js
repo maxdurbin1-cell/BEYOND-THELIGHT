@@ -353,10 +353,10 @@
   function getLibraryNodeRelevantEffects(node) {
     var kind = String(node && node.kind || '').toLowerCase();
     if (/reading|sentence|word/.test(kind)) return ['Mind checks', 'Mental Stress risk', 'Instability +1 on shifts'];
-    if (/encounter|spider|owl/.test(kind)) return ['Adventure checks', 'Health risk', 'Combat escalation'];
+    if (/encounter|spider|owl/.test(kind)) return ['Valor checks', 'Health risk', 'Combat escalation'];
     if (/mutable/.test(kind)) return ['Environment shift', 'Instability +1', 'Pathing changes'];
     if (/portal|elevator|stair/.test(kind)) return ['Depth transition', 'Area transition', 'Route volatility'];
-    return ['Adventure checks', 'Radiation exposure risk', 'Mental Stress risk'];
+    return ['Valor checks', 'Radiation exposure risk', 'Mental Stress risk'];
   }
 
   function startLibraryEncounterCombat(col, row, profile) {
@@ -659,7 +659,7 @@
     }
     st.selectedNodeByDepth[String(depth)] = selected;
     var selectedNode = floor.nodes[selected] || null;
-    var relevantEffectsLine = selectedNode ? getLibraryNodeRelevantEffects(selectedNode).join(' · ') : 'Adventure checks · Radiation exposure risk · Mental Stress risk';
+    var relevantEffectsLine = selectedNode ? getLibraryNodeRelevantEffects(selectedNode).join(' · ') : 'Valor checks · Radiation exposure risk · Mental Stress risk';
 
     var canAscend = depth > 1;
     var task = st.lastHook || ('Retrieve a depth-' + depth + ' volume from ' + String(st.activeArea || 'Catalog Atrium') + ' and get it out alive.');
@@ -707,7 +707,7 @@
     var dd = tierForDepth(depth) + Math.min(4, Math.floor(Number(state.instability || 0) / 3));
 
     if (mode === 'scout') {
-      var scoutRoll = runActionRoll('adventure', dd, 'Library Scout');
+      var scoutRoll = runActionRoll('valor', dd, 'Library Scout');
       if (scoutRoll.success) {
         node.discovered = true;
         node.detail = pick(LIBRARY_AMBIENCE);
@@ -774,7 +774,7 @@
     }
 
     if (mode === 'hidden') {
-      var hRoll = runActionRoll('adventure', dd, 'Hidden Room Search');
+      var hRoll = runActionRoll('valor', dd, 'Hidden Room Search');
       if (hRoll.success) {
         var hiddenNode = null;
         for (var hi = 0; hi < floor.nodes.length; hi++) {
@@ -830,7 +830,7 @@
       return;
     }
 
-    var stat = node.kind === 'Word Storm' ? 'spirit' : (node.kind === 'Sentence Forge' ? 'mind' : 'adventure');
+    var stat = node.kind === 'Word Storm' ? 'spirit' : (node.kind === 'Sentence Forge' ? 'mind' : 'valor');
     var exploreRoll = runActionRoll(stat, dd, 'Library ' + node.kind);
     node.discovered = true;
     if (exploreRoll.success) {

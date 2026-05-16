@@ -1901,7 +1901,7 @@
     return roster;
   }
 
-  // Start campaign combat: establish turn order based on initiative (adventure roll)
+  // Start campaign combat: establish turn order based on initiative (valor roll)
   function startCampaignCombat(participants, callback, options) {
     if (!state.role) {
       if (callback) callback({ ok: false, error: "Join a campaign first" });
@@ -1939,11 +1939,11 @@
       combatState.round = 1;
       combatState.currentActorIndex = 0;
 
-      // Build turn order: Wayfarers first (highest Adventure first), then enemies.
+      // Build turn order: Wayfarers first (highest Valor first), then enemies.
       var roster = (Array.isArray(participants) ? participants : buildPartyRoster()).slice();
       roster.sort(function(a, b) {
-        var advA = Number((a.character && a.character.stats && a.character.stats.adventure) || 0);
-        var advB = Number((b.character && b.character.stats && b.character.stats.adventure) || 0);
+        var advA = Number((a.character && a.character.stats && (a.character.stats.valor || a.character.stats.adventure)) || 0);
+        var advB = Number((b.character && b.character.stats && (b.character.stats.valor || b.character.stats.adventure)) || 0);
         return advB - advA;
       });
 
@@ -2784,7 +2784,7 @@
     try {
       var dice = ensureCharacterDice();
       dice[token] = {
-        adventure: Math.max(4, Number((diceConfig && diceConfig.adventure) || 4)),
+        valor: Math.max(4, Number((diceConfig && (diceConfig.valor || diceConfig.adventure)) || 4)),
         body: Math.max(4, Number((diceConfig && diceConfig.body) || 4)),
         mind: Math.max(4, Number((diceConfig && diceConfig.mind) || 4)),
         spirit: Math.max(4, Number((diceConfig && diceConfig.spirit) || 4)),
@@ -2813,7 +2813,7 @@
   function getCharacterDice(token) {
     var dice = ensureCharacterDice();
     return dice[token] || {
-      adventure: 4, body: 4, mind: 4, spirit: 4, control: 4,
+      valor: 4, body: 4, mind: 4, spirit: 4, control: 4,
       strike: 4, shoot: 4, defend: 4, wayfarersLead: 1
     };
   }
@@ -3106,7 +3106,7 @@
       ["Spirit", stats.spirit],
       ["Control", stats.control],
       ["Lead", stats.lead],
-      ["Adventure", stats.adventure]
+      ["Valor", stats.valor || stats.adventure]
     ];
     return ''
       + '<div style="display:grid;gap:.55rem;">'
@@ -3180,7 +3180,7 @@
         spirit: Number(stats.spirit || 4),
         control: Number(stats.control || 4),
         lead: Number(stats.lead || 4),
-        adventure: Number(stats.adventure || 4)
+        valor: Number((stats.valor || stats.adventure) || 4)
       },
       backpack: normalizeBackpackItems(window.S && window.S.backpack)
     };
@@ -3646,7 +3646,7 @@
           + '<div class="campaign-card-title">GM Roll Call</div>'
           + '<div class="campaign-roll-grid">'
           + '<input id="campaignRollLabel" class="campaign-input" type="text" maxlength="80" placeholder="Dread Check" value="Dread Check">'
-          + '<input id="campaignRollStat" class="campaign-input" type="text" maxlength="32" placeholder="adventure" value="adventure">'
+          + '<input id="campaignRollStat" class="campaign-input" type="text" maxlength="32" placeholder="valor" value="valor">'
           + '<input id="campaignRollDread" class="campaign-input" type="number" min="1" max="20" value="8">'
           + "</div>"
           + '<div class="campaign-actions" style="margin-top:.35rem;">'
@@ -3736,7 +3736,7 @@
                 + '</div>'
                 + '<div class="campaign-muted" style="margin-top:.2rem;font-size:.85rem;">'
                 + 'HP ' + p.character.health + ' · MS ' + p.character.mentalStress
-                + (p.character.stats && p.character.stats.adventure ? ' · Adv ' + Number(p.character.stats.adventure) : '')
+                + (p.character.stats && (p.character.stats.valor || p.character.stats.adventure) ? ' · Val ' + Number(p.character.stats.valor || p.character.stats.adventure) : '')
                 + '</div>'
                 + '</div>';
             }).join('');
@@ -3875,10 +3875,10 @@
             return '<div style="margin-bottom:.2rem;"><strong>Largest Wayfarer\'s Lead: d' + leadDie + '</strong></div>'
               + roster.map(function(p) {
                 var dice = allDice[p.token] || getCharacterDice(p.token);
-                var shorthand = 'Ad:d' + dice.adventure + ' | Bd:d' + dice.body + ' | Md:d' + dice.mind;
+                var shorthand = 'Vd:d' + Number(dice.valor || dice.adventure || 4) + ' | Bd:d' + dice.body + ' | Md:d' + dice.mind;
                 return '<div style="padding:.3rem;background:var(--bg3);border-radius:.2rem;font-size:.85rem;border-left:2px solid var(--teal);">'
                   + '<strong>' + escapeHtml(p.character.name) + '</strong>'
-                  + ' Lead: <strong style="color:var(--gold2);">d' + Math.max(dice.adventure, dice.body, dice.mind, dice.spirit, dice.control, dice.strike, dice.shoot, dice.defend) + '</strong>'
+                  + ' Lead: <strong style="color:var(--gold2);">d' + Math.max(Number(dice.valor || dice.adventure || 4), dice.body, dice.mind, dice.spirit, dice.control, dice.strike, dice.shoot, dice.defend) + '</strong>'
                   + '<div style="margin-top:.1rem;">' + shorthand + '</div>'
                   + '</div>';
               }).join('');
@@ -4310,7 +4310,7 @@
         var responseCount = Array.isArray(active.responses) ? active.responses.length : 0;
         roll.innerHTML = ""
           + '<div class="campaign-dock-roll-line">'
-          + '<span><strong>' + escapeHtml(active.label || "Dread Check") + '</strong> · ' + escapeHtml(String(active.stat || "adventure").toUpperCase()) + ' vs d' + Number(active.dread || 8) + '</span>'
+          + '<span><strong>' + escapeHtml(active.label || "Dread Check") + '</strong> · ' + escapeHtml(String(active.stat || "valor").toUpperCase()) + ' vs d' + Number(active.dread || 8) + '</span>'
           + '<span>' + responseCount + ' response' + (responseCount === 1 ? "" : "s") + '</span>'
           + "</div>"
           + (canRoll
@@ -4582,7 +4582,7 @@
     if (state.activePromptId === activeRequest.id) return;
     state.activePromptId = activeRequest.id;
 
-    var stat = String(activeRequest.stat || "adventure");
+    var stat = String(activeRequest.stat || "valor");
     var dread = Number(activeRequest.dread || 8);
     var html = ""
       + '<div style="font-size:.82rem;color:var(--muted2);margin-bottom:.45rem;">GM requested a synchronized campaign roll.</div>'
@@ -4798,7 +4798,7 @@
     if (!guardAction("callRoll", "Only connected GM can call campaign rolls.")) return;
 
     var label = readUiValue("campaignRollLabel").trim() || "Dread Check";
-    var stat = readUiValue("campaignRollStat").trim().toLowerCase() || "adventure";
+    var stat = readUiValue("campaignRollStat").trim().toLowerCase() || "valor";
     var dread = Math.max(1, Number(readUiValue("campaignRollDread") || 8));
 
     var res = await emitWithAck("campaign:rollRequest", { label: label, stat: stat, dread: dread });
@@ -5052,7 +5052,7 @@
       return;
     }
 
-    var stat = String(req.stat || "adventure").toLowerCase();
+    var stat = String(req.stat || "valor").toLowerCase();
     var actionDie = resolveActionDie(stat);
     var action = (typeof window.explodingRoll === "function")
       ? window.explodingRoll(actionDie, { type: "action", major: true, label: "Campaign " + stat })

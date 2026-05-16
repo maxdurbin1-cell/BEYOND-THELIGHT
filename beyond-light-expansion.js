@@ -1518,10 +1518,10 @@
     var key = String(statKey || 'lead').toLowerCase();
     var parts = [];
     if (typeof collectInventoryBonusesForStat === 'function') {
-      var inv = collectInventoryBonusesForStat(key) || { advDice: [], flat: 0, addAdventure: 0 };
+      var inv = collectInventoryBonusesForStat(key) || { advDice: [], flat: 0, addValor: 0 };
       if (Array.isArray(inv.advDice) && inv.advDice.length) parts.push('Advantage dice: ' + inv.advDice.map(function(d) { return 'd' + Number(d); }).join(', '));
       if (Number(inv.flat || 0) !== 0) parts.push('Flat modifier: ' + (Number(inv.flat) > 0 ? '+' : '') + Number(inv.flat));
-      if (Number(inv.addAdventure || 0) > 0) parts.push('Bonus Adventure rolls: +' + Number(inv.addAdventure));
+      if (Number((inv.addValor || inv.addAdventure) || 0) > 0) parts.push('Bonus Valor rolls: +' + Number(inv.addValor || inv.addAdventure));
     }
     if (S && S.conditions && typeof S.conditions === 'object') {
       var active = Object.keys(S.conditions).filter(function(c) { return !!S.conditions[c]; });
@@ -5116,11 +5116,11 @@
     renderGambling();
   }
 
-  function getAdventurePosition(adventure, low, high) {
-    if (adventure < low) {
+  function getValorPosition(valor, low, high) {
+    if (valor < low) {
       return "under";
     }
-    if (adventure > high) {
+    if (valor > high) {
       return "over";
     }
     return "middle";
@@ -5138,8 +5138,8 @@
     const dreadTwo = roll(level.die);
     const low = Math.min(dreadOne, dreadTwo);
     const high = Math.max(dreadOne, dreadTwo);
-    const adventure = roll(level.die);
-    const actual = getAdventurePosition(adventure, low, high);
+    const valor = roll(level.die);
+    const actual = getValorPosition(valor, low, high);
     const success = actual === S.gambling.guess;
 
     if (success) {
@@ -5152,7 +5152,7 @@
 
     document.getElementById("gambleDieOne").textContent = String(low);
     document.getElementById("gambleDieTwo").textContent = String(high);
-    document.getElementById("gambleValor").textContent = String(adventure);
+    document.getElementById("gambleValor").textContent = String(valor);
 
     const outcome = document.getElementById("gamblingOutcome");
     if (outcome) {
@@ -5166,7 +5166,7 @@
     }
 
     S.gambling.history.unshift(
-      `Level ${level.level} (${level.label}) - Dread ${low}/${high}, Valor ${adventure}, guessed ${S.gambling.guess}, result ${actual}, ${success ? `won ${level.buyIn} C` : `lost ${level.buyIn} C`}.`
+      `Level ${level.level} (${level.label}) - Dread ${low}/${high}, Valor ${valor}, guessed ${S.gambling.guess}, result ${actual}, ${success ? `won ${level.buyIn} C` : `lost ${level.buyIn} C`}.`
     );
     S.gambling.history = S.gambling.history.slice(0, 20);
     updateCreditsUI();
@@ -5181,7 +5181,7 @@
       outcome.className = "gamble-outcome";
       outcome.textContent = "Pick a difficulty and a guess, then let the house roll.";
     }
-    ["gambleDieOne", "gambleDieTwo", "gambleAdventure"].forEach((id) => {
+    ["gambleDieOne", "gambleDieTwo", "gambleValor", "gambleAdventure"].forEach((id) => {
       const el = document.getElementById(id);
       if (el) {
         el.textContent = "-";

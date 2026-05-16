@@ -528,14 +528,14 @@
   function ensureWorldServiceBonuses() {
     if (typeof S === "undefined") return;
     S.worldServiceBonuses = S.worldServiceBonuses || {};
-    if (typeof S.worldServiceBonuses.nextAdventureBonus !== "number") S.worldServiceBonuses.nextAdventureBonus = 0;
+    if (typeof S.worldServiceBonuses.nextValorBonus !== "number") S.worldServiceBonuses.nextValorBonus = 0;
     if (typeof S.worldServiceBonuses.nextTradeBonus !== "number") S.worldServiceBonuses.nextTradeBonus = 0;
   }
 
   function grantWorldServiceBonus(kind, amount, cap) {
     ensureWorldServiceBonuses();
     if (!S || !S.worldServiceBonuses) return;
-    const key = String(kind || "nextAdventureBonus");
+    const key = String(kind || "nextValorBonus");
     const add = Math.max(0, Number(amount || 0));
     const max = Math.max(0, Number(cap || 6));
     S.worldServiceBonuses[key] = Math.min(max, Number(S.worldServiceBonuses[key] || 0) + add);
@@ -544,7 +544,7 @@
   function consumeWorldServiceBonus(kind) {
     ensureWorldServiceBonuses();
     if (!S || !S.worldServiceBonuses) return 0;
-    const key = String(kind || "nextAdventureBonus");
+    const key = String(kind || "nextValorBonus");
     const val = Math.max(0, Number(S.worldServiceBonuses[key] || 0));
     if (val > 0) S.worldServiceBonuses[key] = 0;
     return val;
@@ -604,11 +604,11 @@
 
   function rollAgainstDread(statKey, dreadDie) {
     // Valor Die (V.D.) additive bonus logic.
-    const vd = getActionDie(statKey === "adventure" ? "valor" : statKey);
+    const vd = getActionDie(statKey);
     const dd = normalizeDreadDie(dreadDie || 8, 8);
     const a = (typeof explodingRoll === "function") ? explodingRoll(vd) : { total: safeRoll(vd) };
     const d = (typeof explodingRoll === "function") ? explodingRoll(dd) : { total: safeRoll(dd) };
-    const invBonus = (typeof collectInventoryBonusesForStat === "function") ? collectInventoryBonusesForStat(statKey === "adventure" ? "valor" : statKey) : { addValor: 0, flat: 0 };
+    const invBonus = (typeof collectInventoryBonusesForStat === "function") ? collectInventoryBonusesForStat(statKey) : { addValor: 0, flat: 0 };
     const serviceBonus = String(statKey || "") === "valor" ? consumeWorldServiceBonus("nextValorBonus") : 0;
     let homeSecurityBonus = 0;
     if ((statKey === "valor" || statKey === "defend") && typeof getWayfarerHomeBonuses === "function") {
@@ -690,7 +690,7 @@
 
   function applyWtwEncounterFailureConsequences(hex, encounter, check, options) {
     var cfg = options || {};
-    var statKey = String((cfg.stat || (encounter && encounter.stat) || 'adventure')).toLowerCase();
+    var statKey = String((cfg.stat || (encounter && encounter.stat) || 'valor')).toLowerCase();
     var actionTotal = Number(check && check.actionTotal || 0);
     var dreadTotal = Number(check && check.dreadTotal || 0);
     var margin = Math.max(1, dreadTotal - actionTotal);
@@ -760,7 +760,7 @@
     var html = ''
       + "<div style='font-size:.82rem;color:var(--text2);line-height:1.6;'>"
       + "<div style='font-family:Cinzel,serif;font-size:.92rem;color:#ff8a72;margin-bottom:.2rem;'>" + String(contextLabel || 'Encounter Failure') + "</div>"
-      + "<div style='margin-bottom:.28rem;'><strong>Roll:</strong> " + statLabel((encounter && encounter.stat) || 'adventure') + " d" + Number(check && check.ad || getActionDie((encounter && encounter.stat) || 'adventure')) + " " + Number(check && check.actionTotal || 0) + " vs Dread " + dreadLabel(Number(check && check.dd || (encounter && encounter.dread) || 8)) + " " + Number(check && check.dreadTotal || 0) + "</div>"
+      + "<div style='margin-bottom:.28rem;'><strong>Roll:</strong> " + statLabel((encounter && encounter.stat) || 'valor') + " d" + Number(check && check.vd || getActionDie((encounter && encounter.stat) || 'valor')) + " " + Number(check && check.actionTotal || 0) + " vs Dread " + dreadLabel(Number(check && check.dd || (encounter && encounter.dread) || 8)) + " " + Number(check && check.dreadTotal || 0) + "</div>"
       + "<div style='margin-bottom:.28rem;'><strong>Weather Pressure:</strong> " + pressure.weatherLabel + (pressure.weatherHazard ? " (hazardous)" : "") + "</div>"
       + "<div style='margin-bottom:.35rem;'><strong>Rival Pressure:</strong> " + pressure.rivalLabel + "</div>"
       + "<div style='background:rgba(255,96,96,.07);border:1px solid rgba(255,96,96,.3);padding:.42rem .55rem;border-radius:4px;margin-bottom:.45rem;'>"
@@ -926,7 +926,7 @@
       action: base.action || "Resolve the operation",
       reward: base.reward || "Loot and influence",
       mode: "skill",
-      stat: "adventure",
+      stat: "valor",
       dread: normalizeDreadDie(safePick([6, 8, 8, 10], 8) + danger.eventDreadBias, 8)
     };
   }
@@ -1562,7 +1562,7 @@
         if (ft) {
           const subtitle = ft.monsterTask
             ? (ft.status === "combat_pending" ? "Monster encounter pending" : (ft.monsterSummary || "Monster encounter"))
-            : "Adventure check task";
+            : "Valor check task";
           setMarker(w, hex, "faction_task", ft.title || "Wayfarer Task", subtitle);
         }
       });
@@ -1996,19 +1996,19 @@
     if (name.indexOf("data forge") >= 0) {
       addWorldItem("dataDrives", 2);
       addZoneReputation(hex.zone, 2);
-      grantWorldServiceBonus("nextAdventureBonus", 2, 6);
+      grantWorldServiceBonus("nextValorBonus", 2, 6);
       applyPositiveCondition("focused");
       putLootInBackpack(drawServiceMerchantItem(["items", "toolkits", "tradegoods"]));
-      if (typeof showNotif === "function") showNotif("Data Forge: Focused, +2 Data Drives, next Adventure +2, and intel gear added to backpack.", "good");
+      if (typeof showNotif === "function") showNotif("Data Forge: Focused, +2 Data Drives, next Valor +2, and intel gear added to backpack.", "good");
       return true;
     }
 
     if (name.indexOf("augment tune-up") >= 0 || name.indexOf("cyber") >= 0) {
       setCredits(getCredits() + 35);
-      grantWorldServiceBonus("nextAdventureBonus", 1, 6);
+      grantWorldServiceBonus("nextValorBonus", 1, 6);
       applyPositiveCondition("empowered");
       putLootInBackpack("Cyber Calibration Kit");
-      if (typeof showNotif === "function") showNotif("Augment service: Empowered, +35 Credits, next Adventure +1, and Cyber Calibration Kit added.", "good");
+      if (typeof showNotif === "function") showNotif("Augment service: Empowered, +35 Credits, next Valor +1, and Cyber Calibration Kit added.", "good");
       return true;
     }
 
@@ -2040,8 +2040,8 @@
       addWorldItem("meds", 1);
       addZoneReputation(hex.zone, 1);
       putLootInBackpack("Medical Patch");
-      grantWorldServiceBonus("nextAdventureBonus", 1, 6);
-      if (typeof showNotif === "function") showNotif("Service effect: recovered stress, added Medical Patch, next Adventure +1.", "good");
+      grantWorldServiceBonus("nextValorBonus", 1, 6);
+      if (typeof showNotif === "function") showNotif("Service effect: recovered stress, added Medical Patch, next Valor +1.", "good");
       if (!hadWater && typeof showNotif === "function") showNotif("No Water consumed. Clinic supplied emergency reserves.", "good");
       return true;
     }
@@ -2055,8 +2055,8 @@
       addWorldItem("scrap", 1);
       addZoneReputation(hex.zone, 1);
       putLootInBackpack("Intel Packet");
-      grantWorldServiceBonus("nextAdventureBonus", 2, 6);
-      if (typeof showNotif === "function") showNotif("Service effect: spawned intel lead, added Intel Packet, next Adventure +2.", "good");
+      grantWorldServiceBonus("nextValorBonus", 2, 6);
+      if (typeof showNotif === "function") showNotif("Service effect: spawned intel lead, added Intel Packet, next Valor +2.", "good");
       return true;
     }
 
@@ -2067,8 +2067,8 @@
       if (zone && zone.leader) hex.controller = zone.leader;
       addZoneReputation(hex.zone, 2);
       putLootInBackpack("Ward Sigil");
-      grantWorldServiceBonus("nextAdventureBonus", 1, 6);
-      if (typeof showNotif === "function") showNotif("Service effect: district stabilized, added Ward Sigil, next Adventure +1.", "good");
+      grantWorldServiceBonus("nextValorBonus", 1, 6);
+      if (typeof showNotif === "function") showNotif("Service effect: district stabilized, added Ward Sigil, next Valor +1.", "good");
       return true;
     }
 
@@ -2084,9 +2084,9 @@
 
     if (name.indexOf("vr drill") >= 0) {
       applyPositiveCondition("empowered");
-      grantWorldServiceBonus("nextAdventureBonus", 1, 6);
+      grantWorldServiceBonus("nextValorBonus", 1, 6);
       setCredits(getCredits() + 20);
-      if (typeof showNotif === "function") showNotif("VR Drill: Empowered, next Adventure +1, and +20 Credits.", "good");
+      if (typeof showNotif === "function") showNotif("VR Drill: Empowered, next Valor +1, and +20 Credits.", "good");
       return true;
     }
 
@@ -2233,7 +2233,7 @@
     const cfg = config || {};
     const title = String(cfg.title || 'Manual Roll');
     const context = String(cfg.context || title);
-    const statKey = String(cfg.statKey || 'adventure').toLowerCase();
+    const statKey = String(cfg.statKey || 'valor').toLowerCase();
     const statLabel = String(cfg.statLabel || statLabel(statKey));
     const actionDie = Math.max(4, Number(cfg.actionDie || ((typeof getEffectiveDie === 'function') ? getEffectiveDie(statKey) : 6) || 6));
     const dreadDie = Math.max(4, Number(cfg.dreadDie || 6));
@@ -2558,7 +2558,7 @@
       return;
     }
 
-    const stat = "adventure";
+    const stat = "valor";
     const completeEvent = function (check) {
       if (check.success) {
         const zone = zoneForHex(hex);
@@ -2569,10 +2569,10 @@
         grantRandomLoot("medium");
         putLootInBackpack(drawServiceMerchantItem(["items", "toolkits", "tradegoods"]));
         if (typeof showNotif === "function") {
-          showNotif("Event success: " + statLabel(stat) + " d" + check.ad + " " + check.actionTotal + " vs DD" + check.dd + " " + check.dreadTotal + (check.manual ? " [manual]" : "") + ". Rewards: +50 Credits, loot, and backpack supplies.", "good");
+          showNotif("Event success: " + statLabel(stat) + " d" + check.vd + " " + check.actionTotal + " vs DD" + check.dd + " " + check.dreadTotal + (check.manual ? " [manual]" : "") + ". Rewards: +50 Credits, loot, and backpack supplies.", "good");
         }
       } else if (typeof showNotif === "function") {
-        showNotif("Event failed: " + statLabel(stat) + " d" + check.ad + " " + check.actionTotal + " vs DD" + check.dd + " " + check.dreadTotal + (check.manual ? " [manual]" : "") + ".", "warn");
+        showNotif("Event failed: " + statLabel(stat) + " d" + check.vd + " " + check.actionTotal + " vs DD" + check.dd + " " + check.dreadTotal + (check.manual ? " [manual]" : "") + ".", "warn");
         hex.skirmish = true;
       }
 
@@ -2587,18 +2587,18 @@
 
     const eventDreadDie = normalizeDreadDie(evt.dread || 8, 8);
     if (isWtwManualRollModeEnabled()) {
-      const adventureDie = getActionDie("adventure");
+      const valorDie = getActionDie("valor");
       openWtwManualActionDreadPrompt({
         title: "Manual Roll - World Event",
         context: "World That Was random event",
         statKey: stat,
         statLabel: statLabel(stat),
-        actionDie: adventureDie,
+        actionDie: valorDie,
         dreadDie: eventDreadDie,
         onResolve: function (outcome) {
           completeEvent({
             success: !!(outcome && outcome.success),
-            ad: adventureDie,
+            vd: valorDie,
             dd: Number((outcome && outcome.dreadDie) || eventDreadDie),
             actionTotal: Number((outcome && outcome.actionTotal) || 0),
             dreadTotal: Number((outcome && outcome.dreadTotal) || 0),
@@ -2798,12 +2798,12 @@
       grantRandomLoot("easy");
       setCredits(getCredits() + 30);
       if (opts.pushLuck) {
-        applyWtwCondition(normalizeWtwConditionByStat(hex.encounter.stat || 'adventure', true));
+        applyWtwCondition(normalizeWtwConditionByStat(hex.encounter.stat || 'valor', true));
       }
       applyWtwNightModeBonusRewards(hex.encounter, 'skill success');
       if (typeof showNotif === "function") {
         if (opts.pushLuck) {
-          showNotif('Push Luck succeeded. Condition gained: ' + normalizeWtwConditionByStat(hex.encounter.stat || 'adventure', true) + '. Encounter resolved successfully.', 'good');
+          showNotif('Push Luck succeeded. Condition gained: ' + normalizeWtwConditionByStat(hex.encounter.stat || 'valor', true) + '. Encounter resolved successfully.', 'good');
         } else {
           showNotif(forced ? "GM override: encounter marked success." : "Encounter resolved successfully.", "good");
         }
@@ -2813,7 +2813,7 @@
         openWtwEncounterFailureModal(hex, hex.encounter, check, forced ? 'Manual Failure' : 'Encounter Failed');
         return;
       }
-      var consequence = applyWtwEncounterFailureConsequences(hex, hex.encounter, check, { stat: hex.encounter.stat || 'adventure' });
+      var consequence = applyWtwEncounterFailureConsequences(hex, hex.encounter, check, { stat: hex.encounter.stat || 'valor' });
       if (typeof showNotif === "function") {
         if (opts.pushLuck) {
           showNotif('Push Luck failed. ' + consequence.summary + '.', 'warn');
@@ -3170,7 +3170,7 @@
     const zoneHexes = w.hexes.filter(function (hex) { return hex.zone === h.zone && (!selected || hex.id !== selected.id); });
     const taskHex = safePick(zoneHexes, zoneHexes[0]) || selected;
     const rewardCredits = 120 + safeRoll(8) * 20;
-    const rollStat = "adventure";
+    const rollStat = "valor";
     const taskDread = taskDreadForZone(h.zone);
 
     const t = {
@@ -3224,10 +3224,10 @@
     }
 
     const dreadDie = t.dread || taskDreadForZone(selected.zone);
-    const adventureDie = getActionDie("adventure");
+    const valorDie = getActionDie("valor");
 
     const processTaskCheck = function (check) {
-      const rollSummary = "Adventure d" + adventureDie + " [" + check.actionTotal + "] vs Dread " + dreadLabel(dreadDie) + " [" + check.dreadTotal + "]";
+      const rollSummary = "Valor d" + valorDie + " [" + check.actionTotal + "] vs Dread " + dreadLabel(dreadDie) + " [" + check.dreadTotal + "]";
 
       if (!check.success) {
         // Deferred: store state, show modal with player options — task stays active until resolved
@@ -3267,7 +3267,7 @@
         showNotif("Task complete: " + rollSummary + (check.manual ? " [manual]" : "") + ". +" + credits + "₵ · Streak +1 · +1 " + t.power + " renown.", "good");
       }
 
-      openTaskResultModal(t, check, rollSummary, true, adventureDie, dreadDie);
+      openTaskResultModal(t, check, rollSummary, true, valorDie, dreadDie);
 
       w.activeTasks = w.activeTasks.filter(function (x) { return x.id !== taskId; });
       if (t.hexId) delete w.markers[t.hexId];
@@ -3281,14 +3281,14 @@
       openWtwManualActionDreadPrompt({
         title: "Manual Roll - Complete Task",
         context: "World That Was holding task",
-        statKey: "adventure",
-        statLabel: "Adventure",
-        actionDie: adventureDie,
+        statKey: "valor",
+        statLabel: "Valor",
+        actionDie: valorDie,
         dreadDie: dreadDie,
         onResolve: function (outcome) {
           processTaskCheck({
             success: !!(outcome && outcome.success),
-            ad: adventureDie,
+            vd: valorDie,
             dd: dreadDie,
             actionTotal: Number((outcome && outcome.actionTotal) || 0),
             dreadTotal: Number((outcome && outcome.dreadTotal) || 0),
@@ -3300,7 +3300,7 @@
       return;
     }
 
-    processTaskCheck(rollAgainstDread("adventure", dreadDie));
+    processTaskCheck(rollAgainstDread("valor", dreadDie));
   }
 
   function openTaskResultModal(task, check, rollSummary, success, adventureDie, dreadDie) {
@@ -3310,7 +3310,7 @@
     const html = ""
       + "<div style='text-align:center;font-family:Cinzel,serif;font-size:1.1rem;color:" + color + ";margin-bottom:.6rem;letter-spacing:.08em;'>" + icon + "</div>"
       + "<div style='display:flex;justify-content:center;gap:1.5rem;margin-bottom:.7rem;'>"
-      + "<div style='text-align:center;'><div style='font-size:.72rem;color:var(--muted2);margin-bottom:.2rem;'>Adventure d" + adventureDie + "</div>"
+      + "<div style='text-align:center;'><div style='font-size:.72rem;color:var(--muted2);margin-bottom:.2rem;'>Valor d" + adventureDie + "</div>"
       + "<div style='font-size:2rem;font-weight:700;color:" + (success ? "var(--teal)" : "var(--text2)") + ";'>" + check.actionTotal + "</div></div>"
       + "<div style='text-align:center;padding-top:.6rem;font-size:1.4rem;color:var(--muted2);'>vs</div>"
       + "<div style='text-align:center;'><div style='font-size:.72rem;color:var(--muted2);margin-bottom:.2rem;'>Dread " + dreadLabel(dreadDie) + "</div>"
@@ -3501,11 +3501,11 @@
         + "<div class='title'>" + t.title + dangerTag + "</div>"
         + "<div class='meta'>Power: " + t.power + " · Target: " + (taskHex ? (taskHex.zone + " / " + taskHex.district) : "Any district") + "</div>"
         + "<div class='meta' style='color:var(--gold2);'>"
-        + "⚄ Adventure vs Dread " + dieLabel
+        + "⚄ Valor vs Dread " + dieLabel
         + " · Reward: " + (t.rewardCredits || 150) + "₵ + Loot + +1 Teamwork"
         + "</div>"
         + "<div class='meta' style='color:var(--muted2);font-size:.72rem;'>Failure: gain Path Token · "+
-        statLabel(t.rollStat || "adventure") + " die used</div>"
+        statLabel(t.rollStat || "valor") + " die used</div>"
         + "<div class='actions'>"
         + "<button class='btn btn-xs' onclick='wtwTrackTask(\"" + t.id + "\")'>Track</button>"
         + "<button class='btn btn-xs btn-teal' onclick='wtwCompleteTask(\"" + t.id + "\")'" + (atLocation ? "" : " title='Travel to task district first' disabled") + ">Complete Task</button>"
@@ -3623,7 +3623,7 @@
     const eventDeathNumber = Math.max(1, Math.ceil(eventEnemyHealth / 2));
     const eventCheck = evt.mode === "combat"
       ? ("<strong>Combat Encounter:</strong> " + (evt.enemies || 2) + " " + eventEnemyName + ((evt.enemies || 2) > 1 ? "s" : "") + " (DD" + eventDread + " | " + eventEnemyHealth + " HP each | Death Number " + eventDeathNumber + ")")
-      : ("<strong>Check:</strong> Adventure d" + getActionDie("adventure") + " vs DD" + eventDread);
+      : ("<strong>Check:</strong> Valor d" + getActionDie("valor") + " vs DD" + eventDread);
 
     const gmMode = !!(window.settingsSystem && typeof window.settingsSystem.isGMMode === "function" && window.settingsSystem.isGMMode());
     const gmEncounterControls = (gmMode && hex.encounter && hex.encounter.mode !== "combat" && hex.encounter.mode !== "wayfarer")
@@ -3634,7 +3634,7 @@
         ? ((hex.encounter.enemies || 2) + " " + String(hex.encounter.enemyName || 'Ash Revenant') + ((hex.encounter.enemies || 2) > 1 ? "s" : "") + " (DD" + normalizeDreadDie(hex.encounter.dread || 8, 8) + " | " + (hex.encounter.enemyHealth || 16) + " HP each | Death Number " + Math.max(1, Math.ceil(Number(hex.encounter.enemyHealth || 16) / 2)) + ")" + (hex.encounter.enemyDesc ? "<br><em>" + hex.encounter.enemyDesc + "</em>" : ""))
         : (hex.encounter.mode === "wayfarer"
           ? "Social encounter (no action check required)."
-          : (statLabel(hex.encounter.stat || "adventure") + " vs DD" + normalizeDreadDie(hex.encounter.dread || 8, 8))))
+          : (statLabel(hex.encounter.stat || "valor") + " vs DD" + normalizeDreadDie(hex.encounter.dread || 8, 8))))
       : "";
     const encounterPressure = getWtwEncounterPressureSummary(hex);
     const encounterActions = hex.encounter
@@ -4149,9 +4149,9 @@
     if (typeof changeCounter === 'function') changeCounter('tmw', -2);
     else if (typeof S !== 'undefined') S.tmw = Math.max(0, tmw - 2);
     const pushDread = stepDreadDie(p.dreadDie, 1);
-    const adventureDie = getActionDie("adventure");
-    const newCheck = rollAgainstDread("adventure", pushDread);
-    const newSummary = "Adventure d" + adventureDie + " [" + newCheck.actionTotal + "] vs Dread " + dreadLabel(pushDread) + " [" + newCheck.dreadTotal + "]";
+    const valorDie = getActionDie("valor");
+    const newCheck = rollAgainstDread("valor", pushDread);
+    const newSummary = "Valor d" + valorDie + " [" + newCheck.actionTotal + "] vs Dread " + dreadLabel(pushDread) + " [" + newCheck.dreadTotal + "]";
     const w = ensureWorldState();
     const hex = w && hexById(p.hexId);
     window._pendingWtwTaskRoll = null;
@@ -4164,20 +4164,20 @@
       grantRandomLoot(t.rewardTier || "medium");
       setCredits(getCredits() + (t.rewardCredits || 150));
       recordWtwSuccessRoll();
-      applyWtwCondition(normalizeWtwConditionByStat('adventure', true));
+      applyWtwCondition(normalizeWtwConditionByStat('valor', true));
       if (p.dreadDie >= 10 && typeof changeCounter === "function") changeCounter("renown", 1);
-      if (typeof showNotif === "function") showNotif("Push Luck succeeded! " + newSummary + ". +" + (t.rewardCredits || 150) + "₵ + Loot. Condition: " + normalizeWtwConditionByStat('adventure', true) + ".", "good");
+      if (typeof showNotif === "function") showNotif("Push Luck succeeded! " + newSummary + ". +" + (t.rewardCredits || 150) + "₵ + Loot. Condition: " + normalizeWtwConditionByStat('valor', true) + ".", "good");
       if (w) {
         w.activeTasks = w.activeTasks.filter(function (x) { return x.id !== p.taskId; });
         if (t.hexId) delete w.markers[t.hexId];
       }
-      openTaskResultModal(t, newCheck, newSummary, true, adventureDie, pushDread);
+      openTaskResultModal(t, newCheck, newSummary, true, valorDie, pushDread);
     } else {
       if (hex) hex.skirmish = true;
       if (typeof changeCounter === "function") changeCounter("tmw", 1);
       else if (typeof S !== "undefined") S.tmw = Math.max(0, (S.tmw || 0) + 1);
-      applyWtwCondition(normalizeWtwConditionByStat('adventure', false));
-      if (typeof showNotif === "function") showNotif("Push Luck failed. " + newSummary + ". Condition: " + normalizeWtwConditionByStat('adventure', false) + ". +1 Teamwork. Skirmish triggered.", "warn");
+      applyWtwCondition(normalizeWtwConditionByStat('valor', false));
+      if (typeof showNotif === "function") showNotif("Push Luck failed. " + newSummary + ". Condition: " + normalizeWtwConditionByStat('valor', false) + ". +1 Teamwork. Skirmish triggered.", "warn");
       if (w) {
         w.activeTasks = w.activeTasks.filter(function (x) { return x.id !== p.taskId; });
         if (p.task.hexId) delete w.markers[p.task.hexId];
@@ -4244,7 +4244,7 @@
       if (typeof closeModal === 'function') closeModal();
       return;
     }
-    var check = rollAgainstDread(hex.encounter.stat || 'adventure', p.pushDread || stepDreadDie(p.baseDread || 8, 1));
+    var check = rollAgainstDread(hex.encounter.stat || 'valor', p.pushDread || stepDreadDie(p.baseDread || 8, 1));
     window._pendingWtwEncounterRoll = null;
     if (typeof closeModal === 'function') closeModal();
     resolveDistrictEncounter(check.success ? 'success' : 'failure', {

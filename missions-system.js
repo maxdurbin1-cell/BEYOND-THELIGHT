@@ -66,7 +66,7 @@
   function getLegacyRaidRoomCheckLine(roomType, dd) {
     var die = normalizeMissionDreadDie(dd);
     var type = String(roomType || '').toLowerCase();
-    var stat = 'Adventure';
+    var stat = 'Valor';
     if (type === 'lorereading' || type === 'puzzle') stat = 'Mind';
     else if (type === 'trap') stat = 'Control';
     else if (type === 'peril') stat = 'Spirit';
@@ -806,8 +806,8 @@
   function resolveSeaColosseumBout(hexKey) {
     ensureState();
     var tierDie = getSeaColosseumTierDie();
-    var actionDie = Math.max(4, Number((S && S.adventure) || 6));
-    var a = (typeof explodingRoll === 'function') ? explodingRoll(actionDie, { type: 'action', major: true, label: 'Sea Colosseum AD' + actionDie }) : { total: roll(actionDie), exploded: false };
+    var actionDie = Math.max(4, Number((S && S.valor) || 6));
+    var a = (typeof explodingRoll === 'function') ? explodingRoll(actionDie, { type: 'action', major: true, label: 'Sea Colosseum VD' + actionDie }) : { total: roll(actionDie), exploded: false };
     var d = (typeof explodingRoll === 'function') ? explodingRoll(tierDie, { type: 'dread', major: true, label: 'Sea Colosseum DD' + tierDie }) : { total: roll(tierDie), exploded: false };
     var success = Number(a.total || 0) >= Number(d.total || 0);
     var endgame = ensureEndgameDirectorState();
@@ -847,7 +847,7 @@
       if (success) {
         showNotif('Colosseum win: +' + rewardCredits + ' Credits' + (rewardLoot ? ' and ' + rewardLoot + '.' : '.'), 'good');
       } else {
-        showNotif('Colosseum loss: AD d' + actionDie + ' (' + a.total + ') vs d' + tierDie + ' (' + d.total + ').', 'warn');
+        showNotif('Colosseum loss: VD d' + actionDie + ' (' + a.total + ') vs d' + tierDie + ' (' + d.total + ').', 'warn');
       }
     }
     return { success: success, tierDie: tierDie, actionTotal: Number(a.total || 0), dreadTotal: Number(d.total || 0), credits: rewardCredits, loot: rewardLoot };
@@ -2714,7 +2714,7 @@
       var statKey = String(trap.stat || 'control').toLowerCase();
       var statDie = (typeof getEffectiveDie === 'function')
         ? Math.max(4, Number(getEffectiveDie(statKey) || 4))
-        : Math.max(4, Number((S && S.stats && S.stats[statKey]) || (S && S.adventure) || 4));
+        : Math.max(4, Number((S && S.stats && S.stats[statKey]) || (S && S.valor) || 4));
       var playerRoll = (typeof explodingRoll === 'function') ? explodingRoll(statDie, { type: 'action', major: true, label: 'Pinnacle Trap ' + statKey.toUpperCase() + ' d' + statDie }) : { total: roll(statDie) };
       var trapRoll = (typeof explodingRoll === 'function') ? explodingRoll(Math.max(4, Number(trap.dd || 6)), { type: 'dread', major: true, label: 'Pinnacle Trap DD' + Math.max(4, Number(trap.dd || 6)) }) : { total: roll(Math.max(4, Number(trap.dd || 6))) };
       if (Number(playerRoll.total || 0) >= Number(trapRoll.total || 0)) {
@@ -2758,12 +2758,12 @@
         var campCount = 1 + Math.floor(Math.random() * 4);
         var campHp = campCount * 8;
         var campDie = 4;
-        var ad = Math.max(4, Number((S && S.adventure) || 6));
+        var ad = Math.max(4, Number((S && S.valor) || 6));
         var rounds = 0;
         var squadPressure = 0;
         while (campHp > 0 && rounds < 5) {
           rounds += 1;
-          var aRoll = typeof explodingRoll === 'function' ? explodingRoll(ad, { type: 'action', major: true, label: 'Pinnacle Camp AD' + ad }) : { total: roll(ad) };
+          var aRoll = typeof explodingRoll === 'function' ? explodingRoll(ad, { type: 'action', major: true, label: 'Pinnacle Camp VD' + ad }) : { total: roll(ad) };
           var dRoll = typeof explodingRoll === 'function' ? explodingRoll(campDie, { type: 'dread', major: true, label: 'Pinnacle Camp DD' + campDie }) : { total: roll(campDie) };
           if (Number(aRoll.total || 0) >= Number(dRoll.total || 0)) {
             campHp = Math.max(0, campHp - (4 + Math.floor(Math.random() * 5)));
@@ -3287,7 +3287,7 @@
       var m = armorText.match(/ad\s*(4|6|8|10|12|20)/i);
       if (m && m[1]) return stepMissionDreadDieBy(Number(m[1]), getLegacyRaidTalentRank('action_die_training'));
     } catch (_err) {}
-    var base = typeof getStat === 'function' ? Number(getStat('adventure') || 8) : 8;
+    var base = typeof getStat === 'function' ? Number(getStat('valor') || 8) : 8;
     return stepMissionDreadDieBy(base, getLegacyRaidTalentRank('action_die_training'));
   }
 
@@ -11188,7 +11188,7 @@
       hazard:  '🌫 <b>Hazard:</b> Mind vs Dread d' + dd + ' · fail = +1 Teamwork, Mental Stress by difference, −1 Tick' + cleared,
       barrier: '🚧 <b>Barrier:</b> Body vs Dread d' + dd + ' · fail = +1 Teamwork, random Condition, −1 Tick' + cleared,
       enemy:   '⚔️ <b>Enemy:</b> Combat (' + (w === 1 ? '1–4' : '2–8') + ' hostiles) · win = hex cleared' + cleared,
-      loot:    '💰 <b>Loot:</b> Adventure vs Dread d' + dd + ' · success = Merchant loot + random key (Bronze/Silver/Gold/Platinum) vaulted until boss kill' + cleared,
+      loot:    '💰 <b>Loot:</b> Valor vs Dread d' + dd + ' · success = Merchant loot + random key (Bronze/Silver/Gold/Platinum) vaulted until boss kill' + cleared,
       teleport:'🌀 <b>Teleport:</b> Instant warp to linked hex on entry · no roll required',
       rest:    '🛌 <b>Rest:</b> Enter to restore <b>+2 Ticks</b> (once per wing)' + rested
     };
@@ -11279,7 +11279,7 @@
           { clue: 'Across: Magic cast by a wizard (5)', answer: 'spell', direction: 'across' },
           { clue: 'Across: Sneaky dagger-user (5)', answer: 'rogue', direction: 'across' },
           { clue: 'Down: Person running the campaign (2)', answer: 'dm', direction: 'down' },
-          { clue: 'Down: Adventure setting location (4)', answer: 'lore', direction: 'down' },
+          { clue: 'Down: Valor setting location (4)', answer: 'lore', direction: 'down' },
           { clue: 'Down: Character morality system (5)', answer: 'align', direction: 'down' },
           { clue: 'Down: Arcane casting class (3)', answer: 'arc', direction: 'down' }
         ]
@@ -11796,8 +11796,8 @@
     var mission = getMission(missionId);
     if (!mission) return false;
     var statByType = { peril: 'defend', hazard: 'mind', barrier: 'body' };
-    var statKey = statByType[eventType] || 'adventure';
-    var statLabel = statKey === 'defend' ? 'Defend' : (statKey === 'mind' ? 'Mind' : (statKey === 'body' ? 'Body' : 'Adventure'));
+    var statKey = statByType[eventType] || 'valor';
+    var statLabel = statKey === 'defend' ? 'Defend' : (statKey === 'mind' ? 'Mind' : (statKey === 'body' ? 'Body' : 'Valor'));
     var dd = getLegacyRaidHexDreadDie(wingNum, eventType);
     var et = String(eventType || '').toLowerCase();
     var failureDesc = et === 'peril'
@@ -11828,7 +11828,7 @@
     if (!cell) return false;
     var et = String(eventType || '').toLowerCase();
     var statByType = { peril: 'defend', hazard: 'mind', barrier: 'body' };
-    var result = resolveLegacyRaidHexContest(statByType[et] || 'adventure', getLegacyRaidHexDreadDie(wingNum, et));
+    var result = resolveLegacyRaidHexContest(statByType[et] || 'valor', getLegacyRaidHexDreadDie(wingNum, et));
     if (typeof closeModal === 'function') closeModal();
     if (!result.success) {
       if (typeof addTMWOnFail === 'function') addTMWOnFail();
@@ -12119,7 +12119,7 @@
           startCombat();
           return true;
         }
-        result = resolveLegacyRaidHexContest('adventure', getLegacyRaidHexDreadDie(wingNum, eventType));
+        result = resolveLegacyRaidHexContest('valor', getLegacyRaidHexDreadDie(wingNum, eventType));
         if (!result.success) {
           if (typeof addTMWOnFail === 'function') addTMWOnFail();
           if (typeof S !== 'undefined' && S) S.health = Math.max(0, Number(S.health || 0) - Math.max(1, result.diff));
@@ -13303,7 +13303,7 @@
     gamble.handsPlayed = Number(gamble.handsPlayed || 0) + 1;
     gamble.chips = Math.max(0, Number(gamble.chips || 0) - (String(mode || 'safe') === 'high' ? 1 : 0));
 
-    gamble.lastHand = 'Gatekeeper d' + stakeDie + ': [' + sortedLow + ', ' + sortedHigh + '] · Adventure d' + advDie + ': ' + playerRoll + ' · guessed ' + String(guess || 'unknown') + ' · actual ' + outcome + '.';
+    gamble.lastHand = 'Gatekeeper d' + stakeDie + ': [' + sortedLow + ', ' + sortedHigh + '] · Valor d' + advDie + ': ' + playerRoll + ' · guessed ' + String(guess || 'unknown') + ' · actual ' + outcome + '.';
     if (success) {
       gamble.wins = Number(gamble.wins || 0) + winValue;
       gamble.log.push('Hand ' + gamble.handsPlayed + ': win (' + gamble.lastHand + ')');
@@ -14064,13 +14064,13 @@
     }
 
     var dd = 6;
-    var advDie = typeof getStat === 'function' ? getStat('adventure') : 8;
+    var advDie = typeof getStat === 'function' ? getStat('valor') : 8;
     var manualMode = typeof isMissionManualRollMode === 'function' && isMissionManualRollMode();
 
     if (manualMode) {
       openModal('Deploy ' + wf.name,
         '<div style="font-size:.84rem;color:var(--muted3);line-height:1.55;margin-bottom:.4rem;">'
-        + wf.name + ' advances into the next room, covering pressure and absorbing a hazard. Roll Adventure d' + advDie + ' vs DD' + dd + '.'
+        + wf.name + ' advances into the next room, covering pressure and absorbing a hazard. Roll Valor d' + advDie + ' vs DD' + dd + '.'
         + '</div><div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.28);padding:.3rem .4rem;font-size:.73rem;color:var(--red2);margin-bottom:.35rem;">'
         + '⚠ On failure, ' + wf.name + ' is lost for this raid. If all Wayfarers fall, the next wing begins with no allied support.'
         + '</div>'
@@ -14554,10 +14554,10 @@
     if (!room || room.type !== 'Puzzle') return false;
     var check = resolveLegacyRaidContest(6, 6, 0);
     if (check.success) {
-      room.result = '🧩 Bypass success (AD d' + check.actionDie + ' ' + check.actionRoll + ' vs DD6 ' + check.dreadRoll + '). Route forced open.';
+      room.result = '🧩 Bypass success (VD d' + check.actionDie + ' ' + check.actionRoll + ' vs DD6 ' + check.dreadRoll + '). Route forced open.';
       return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, true);
     }
-    room.result = '🧩 Bypass failed (AD d' + check.actionDie + ' ' + check.actionRoll + ' vs DD6 ' + check.dreadRoll + '). Pressure spikes.';
+    room.result = '🧩 Bypass failed (VD d' + check.actionDie + ' ' + check.actionRoll + ' vs DD6 ' + check.dreadRoll + '). Pressure spikes.';
     return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, false);
   };
 
@@ -15157,20 +15157,20 @@
         return;
       }
     }
-    var advDie=getStat('adventure'), dreadDie=mission.dread;
+    var advDie=getStat('valor'), dreadDie=mission.dread;
     var manualMode=isMissionManualRollMode();
-    var advR=manualMode?null:explodingRoll(advDie,{type:'action',major:true,label:'Mission Step 1 AD'+advDie}), dreadR=manualMode?null:explodingRoll(dreadDie,{type:'dread',major:true,label:'Mission Step 1 DD'+dreadDie});
+    var advR=manualMode?null:explodingRoll(advDie,{type:'action',major:true,label:'Mission Step 1 VD'+advDie}), dreadR=manualMode?null:explodingRoll(dreadDie,{type:'dread',major:true,label:'Mission Step 1 DD'+dreadDie});
     var success=manualMode?null:(advR.total>=dreadR.total);
     var successFod=rollInfoFeature();
     var failureFod=rollInfoDanger();
 
     var rollBlock = manualMode
       ? '<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .65rem;margin-bottom:.45rem;">'
-        + '<div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Roll Adventure d'+advDie+' vs Dread d'+dreadDie+' using the Dice tab or physical dice, then choose the outcome.</div>'
+        + '<div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Roll Valor d'+advDie+' vs Dread d'+dreadDie+' using the Dice tab or physical dice, then choose the outcome.</div>'
         + '<div style="font-size:.7rem;color:var(--muted2);">Success reveals a Hidden Feature and grants +5 bonus. Failure adds Additional Danger.</div>'
       + '</div>'
       : '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .6rem;margin-bottom:.45rem;">'
-        + '<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.3rem;">Adventure d'+advDie+' vs Dread d'+dreadDie+'</div>'
+        + '<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.3rem;">Valor d'+advDie+' vs Dread d'+dreadDie+'</div>'
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.3rem;">'
           + '<div style="text-align:center;">'
             + '<div style="font-family:\'Cinzel\',serif;font-size:.52rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;margin-bottom:.1rem;">Your Roll</div>'
@@ -15290,11 +15290,11 @@
       }
     }
     if (!mission.siteRoll) {
-      var advDie=getStat('adventure'), bonus=mission.bonus||0;
+      var advDie=getStat('valor'), bonus=mission.bonus||0;
       if (isMissionManualRollMode()) {
         mission.siteRoll={ advDie:advDie, dreadDie:mission.dread, adv:null, bonus:bonus, dread:null, total:null, success:null, exploded:false, manual:true, pending:true };
       } else {
-        var aR=explodingRoll(advDie,{type:'action',major:true,label:'Mission Site AD'+advDie}), dR=explodingRoll(mission.dread,{type:'dread',major:true,label:'Mission Site DD'+mission.dread});
+        var aR=explodingRoll(advDie,{type:'action',major:true,label:'Mission Site VD'+advDie}), dR=explodingRoll(mission.dread,{type:'dread',major:true,label:'Mission Site DD'+mission.dread});
         var tot=aR.total+bonus;
         mission.siteRoll={ advDie:advDie, dreadDie:mission.dread, adv:aR.total, bonus:bonus, dread:dR.total, total:tot, success:tot>=dR.total, exploded:aR.exploded };
       }
@@ -15323,7 +15323,7 @@
       if (titleElPending) titleElPending.textContent='Step 2 - '+((mission.steps[2] && mission.steps[2].name) || 'Go to Site');
       if (contentElPending) contentElPending.innerHTML=buildMissionStepDialogue(mission, 'site')+compBanner+featureBadge
         +'<div style="background:var(--surface);border:1px solid var(--border2);padding:.55rem .65rem;margin-bottom:.45rem;">'
-          +'<div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Roll Adventure d'+sr.advDie+(bonus?' + '+bonus:'')+' vs Dread d'+sr.dreadDie+' to approach the site, then choose the outcome.</div>'
+          +'<div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Roll Valor d'+sr.advDie+(bonus?' + '+bonus:'')+' vs Dread d'+sr.dreadDie+' to approach the site, then choose the outcome.</div>'
           +'<div style="font-size:.7rem;color:var(--muted2);">Success means you arrive undetected. Failure means you lose time and the site is alerted.</div>'
         +'</div>'
         +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
@@ -15336,7 +15336,7 @@
     }
 
     var rollBlock='<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .5rem;margin-bottom:.4rem;">'
-      +'<div style="font-size:.7rem;color:var(--muted2);">Adventure d'+sr.advDie+(bonus?'+'+bonus:'')+' vs Dread d'+sr.dreadDie+'</div>'
+      +'<div style="font-size:.7rem;color:var(--muted2);">Valor d'+sr.advDie+(bonus?'+'+bonus:'')+' vs Dread d'+sr.dreadDie+'</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin:.25rem 0;">'
         +'<div style="text-align:center;"><div style="font-family:\'Cinzel\',serif;font-size:.52rem;letter-spacing:.08em;color:var(--teal);text-transform:uppercase;">Your Roll</div>'
           +'<div style="font-family:\'Rajdhani\',sans-serif;font-size:1.8rem;font-weight:700;color:var(--teal);">'+sr.total+(bonus?'<span style="font-size:.7rem;color:var(--muted2);"> ('+sr.adv+'+'+bonus+')</span>':'')+'</div>'
@@ -15452,23 +15452,23 @@
     var room=mission.rooms[roomIdx]; if (!room||!room.find||room.find.type!=='trap'||room.find.resolved) return;
     if (isMissionManualRollMode()) {
       openModal('Room Trap','<div style="font-size:.84rem;color:var(--muted3);line-height:1.55;margin-bottom:.5rem;">'
-        +room.find.text+'<br><br>Roll Adventure d'+getStat('adventure')+' vs Dread d'+(room.find.dd||6)+' and choose the outcome.</div>'
+        +room.find.text+'<br><br>Roll Valor d'+getStat('valor')+' vs Dread d'+(room.find.dd||6)+' and choose the outcome.</div>'
         +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
           +'<button class="btn btn-sm btn-red" onclick="window.resolveMissionRoomTrapOutcome('+missionId+','+roomIdx+',false)">Failure</button>'
           +'<button class="btn btn-sm btn-primary" onclick="window.resolveMissionRoomTrapOutcome('+missionId+','+roomIdx+',true)">Success</button>'
         +'</div>');
       return;
     }
-    var statDie=getStat('adventure');
-    var a=explodingRoll(statDie,{type:'action',major:true,label:'Mission Room '+String(room.find.stat||'AD').toUpperCase()+' d'+statDie}), d=explodingRoll(room.find.dd||6,{type:'dread',major:true,label:'Mission Room DD'+(room.find.dd||6)});
+    var statDie=getStat('valor');
+    var a=explodingRoll(statDie,{type:'action',major:true,label:'Mission Room '+String(room.find.stat||'VD').toUpperCase()+' d'+statDie}), d=explodingRoll(room.find.dd||6,{type:'dread',major:true,label:'Mission Room DD'+(room.find.dd||6)});
     room.find.resolved=true;
     if (a.total>=d.total) {
-      room.find.text='TRAP DISARMED \u2014 AD d'+statDie+'='+a.total+' vs DD'+(room.find.dd||6)+'='+d.total+'.';
+      room.find.text='TRAP DISARMED \u2014 VD d'+statDie+'='+a.total+' vs DD'+(room.find.dd||6)+'='+d.total+'.';
       if (typeof addSuccessRoll==='function') addSuccessRoll();
     } else {
       if (typeof changeStress==='function') changeStress(1);
       if (typeof addTMWOnFail==='function') addTMWOnFail();
-      room.find.text='TRAP TRIGGERED \u2014 AD d'+statDie+'='+a.total+' vs DD'+(room.find.dd||6)+'='+d.total+'. +1 Stress.';
+      room.find.text='TRAP TRIGGERED \u2014 VD d'+statDie+'='+a.total+' vs DD'+(room.find.dd||6)+'='+d.total+'. +1 Stress.';
     }
     renderSiteModal(missionId);
   }
@@ -15671,7 +15671,7 @@
         return;
       }
     }
-    var advDie=getStat('adventure'), dreadDie=Number(mission.gmDreadOverride || mission.dread || 8), bonus=mission.bonus||0;
+    var advDie=getStat('valor'), dreadDie=Number(mission.gmDreadOverride || mission.dread || 8), bonus=mission.bonus||0;
     var gmMode = isGMModeActive();
     var revealDC = shouldRevealDC();
     var revealHidden = shouldRevealHiddenInfo();
@@ -15702,7 +15702,7 @@
     }
 
     var targetRow='<div style="font-size:.78rem;margin-bottom:.45rem;padding:.25rem .35rem;border:1px solid var(--border2);"><strong style="color:var(--gold2);">Target:</strong> <span style="color:var(--text);">'+mission.target+'</span></div>';
-    var rollInstr='<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .55rem;margin-bottom:.45rem;"><div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Roll Adventure d'+advDie+(bonus?' + '+bonus:'')+' vs '+(revealDC?('Dread d'+dreadDie):'scene Dread')+' \u2014 then click your outcome:</div><div style="font-size:.7rem;color:var(--muted);">Use the Dice tab or physical dice. Add the +'+(bonus||0)+' bonus to your roll before comparing.</div></div>';
+    var rollInstr='<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .55rem;margin-bottom:.45rem;"><div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Roll Valor d'+advDie+(bonus?' + '+bonus:'')+' vs '+(revealDC?('Dread d'+dreadDie):'scene Dread')+' \u2014 then click your outcome:</div><div style="font-size:.7rem;color:var(--muted);">Use the Dice tab or physical dice. Add the +'+(bonus||0)+' bonus to your roll before comparing.</div></div>';
     var isLegacyRaidMission = mission && mission.missionType === 'legacy_raid';
     var successAction = isLegacyRaidMission
       ? ('openLegacyRaidCompletionSummary(' + missionId + ')')
@@ -15731,7 +15731,7 @@
   }
 
   function normalizeMissionConditionByStat(statKey, positive) {
-    var key = String(statKey || 'adventure').toLowerCase();
+    var key = String(statKey || 'valor').toLowerCase();
     if (positive) {
       if (key === 'body' || key === 'strike' || key === 'shoot') return 'empowered';
       if (key === 'defend' || key === 'control') return 'protected';
@@ -15782,7 +15782,7 @@
 
   function applyMissionFailureConsequences(mission, check, options) {
     var cfg = options || {};
-    var statKey = 'adventure';
+    var statKey = 'valor';
     var actionTotal = Number(check && check.actionTotal || 0);
     var dreadTotal = Number(check && check.dreadTotal || mission && (mission.gmDreadOverride || mission.dread) || 8);
     var margin = Math.max(1, dreadTotal - actionTotal);
@@ -15880,7 +15880,7 @@
     if (typeof openModal === 'function') {
       openModal('Push Luck — Mission Confrontation',
         '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
-          + '<div style="margin-bottom:.28rem;"><strong>Reroll now:</strong> Adventure vs <strong>Dread d' + pushDread + '</strong>.</div>'
+          + '<div style="margin-bottom:.28rem;"><strong>Reroll now:</strong> Valor vs <strong>Dread d' + pushDread + '</strong>.</div>'
           + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.4rem;">Use your reroll result, then choose the matching outcome below.</div>'
           + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;justify-content:flex-end;">'
             + '<button class="btn btn-sm btn-red" onclick="resolveMissionPushLuck(false)">Push Luck Failed</button>'
@@ -15898,7 +15898,7 @@
     var reroll = getMissionManualRollPair(Number(pending.pushDread || stepMissionDreadDie(Number(mission.gmDreadOverride || mission.dread || 8), 1)));
     window._pendingMissionFailure = null;
     if (success) {
-      var posCond = normalizeMissionConditionByStat('adventure', true);
+      var posCond = normalizeMissionConditionByStat('valor', true);
       applyMissionOutcomeCondition(posCond);
       if (typeof showNotif === 'function') showNotif('Push Luck succeeded. Condition gained: ' + posCond + '.', 'good');
       resolveMissionOutcome(mission.id, true);

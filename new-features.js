@@ -6102,14 +6102,14 @@
         if (typeof showNotif === 'function') showNotif('Roaming merchant found. You can buy from the encounter pop-up.', 'good');
       } else if (encounterRoll === 8) {
         var advDie = getCrucibleExpeditionStatDie('spirit', 6);
-        var adv = (typeof explodingRoll === 'function') ? explodingRoll(advDie, { type: 'action', major: true, label: 'Adventure Check (Spirit)' }) : { total: Math.floor(Math.random() * advDie) + 1 };
-        var advDd = (typeof explodingRoll === 'function') ? explodingRoll(6, { type: 'dread', major: true, label: 'Adventure DD6' }) : { total: Math.floor(Math.random() * 6) + 1 };
+        var adv = (typeof explodingRoll === 'function') ? explodingRoll(advDie, { type: 'action', major: true, label: 'Valor Check (Spirit)' }) : { total: Math.floor(Math.random() * advDie) + 1 };
+        var advDd = (typeof explodingRoll === 'function') ? explodingRoll(6, { type: 'dread', major: true, label: 'Valor DD6' }) : { total: Math.floor(Math.random() * 6) + 1 };
         if (Number(adv.total || 0) < Number(advDd.total || 0)) {
           var radDiff = Math.max(1, Number(advDd.total || 0) - Number(adv.total || 0));
           if (typeof changeRads === 'function') changeRads(radDiff);
-          logLine += ' Encounter 8/9: Adventure check failed. +' + radDiff + ' Radiation.';
+          logLine += ' Encounter 8/9: Valor check failed. +' + radDiff + ' Radiation.';
         } else {
-          logLine += ' Encounter 8/9: Adventure check cleared.';
+          logLine += ' Encounter 8/9: Valor check cleared.';
         }
       } else {
         var currentKey = (player && player.position) ? (String(player.position.q) + ',' + String(player.position.r)) : '';
@@ -9151,7 +9151,7 @@
         guess: '',
         dieOne: '-',
         dieTwo: '-',
-        adventure: '-',
+        valor: '-',
         outcome: 'Pick a difficulty and guess, then play a hand.',
         history: []
       };
@@ -9171,7 +9171,7 @@
     rerenderHoldingSettlementHexcrawl({ advanceVisit: false });
   }
 
-  function holdingGambleAdventureDie(level) {
+  function holdingGambleValorDie(level) {
     var map = { 1: 20, 2: 12, 3: 10, 4: 8, 5: 6, 6: 4 };
     var key = Math.max(1, Math.min(6, Number(level || 1)));
     return map[key] || 20;
@@ -9182,7 +9182,7 @@
     var state = ensureHoldingGamblingState(crawl, node);
     var level = Math.max(1, Math.min(6, Number(state.level || 1)));
     var buyIn = level * 10;
-    var advDie = holdingGambleAdventureDie(level);
+    var advDie = holdingGambleValorDie(level);
     var historyHtml = (state.history || []).slice(0, 6).map(function (line) {
       return '<div style="font-size:.68rem;color:var(--muted2);line-height:1.45;">• ' + String(line || '') + '</div>';
     }).join('');
@@ -9214,7 +9214,7 @@
       + '</div>'
       + '<div style="display:grid;grid-template-columns:repeat(3,minmax(64px,1fr));gap:.16rem;margin-top:.2rem;">'
       + '<div style="font-size:.66rem;color:var(--muted2);">Dread 1<br><strong style="color:var(--red2);font-size:.84rem;">' + state.dieOne + '</strong></div>'
-      + '<div style="font-size:.66rem;color:var(--muted2);">Adventure<br><strong style="color:var(--teal);font-size:.84rem;">' + state.adventure + '</strong></div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);">Valor<br><strong style="color:var(--teal);font-size:.84rem;">' + state.valor + '</strong></div>'
       + '<div style="font-size:.66rem;color:var(--muted2);">Dread 2<br><strong style="color:var(--red2);font-size:.84rem;">' + state.dieTwo + '</strong></div>'
       + '</div>'
       + '<div style="font-size:.72rem;color:var(--text2);margin-top:.2rem;">' + String(state.outcome || '') + '</div>'
@@ -9276,21 +9276,21 @@
     var dreadB = roll(6);
     var low = Math.min(dreadA, dreadB);
     var high = Math.max(dreadA, dreadB);
-    var adventure = roll(holdingGambleAdventureDie(level));
-    var actual = adventure < low ? 'under' : (adventure > high ? 'over' : 'middle');
+    var valor = roll(holdingGambleValorDie(level));
+    var actual = valor < low ? 'under' : (valor > high ? 'over' : 'middle');
     var win = String(actual) === String(state.guess);
     if (win) {
       S.credits = Number(S.credits || 0) + buyIn + payout;
       state.outcome = 'Win. Call ' + String(state.guess).toUpperCase() + ' landed. Profit +' + payout + '₵.';
     } else {
-      state.outcome = 'Loss. Adventure landed ' + String(actual).toUpperCase() + '. Buy-in lost.';
+      state.outcome = 'Loss. Valor landed ' + String(actual).toUpperCase() + '. Buy-in lost.';
     }
     if (typeof updateCreditsUI === 'function') updateCreditsUI();
     state.dieOne = low;
     state.dieTwo = high;
-    state.adventure = adventure;
+    state.valor = valor;
     state.history = Array.isArray(state.history) ? state.history : [];
-    state.history.unshift('L' + level + ' · ' + low + '/' + high + ' vs Ad' + holdingGambleAdventureDie(level) + '=' + adventure + ' · called ' + String(state.guess).toUpperCase() + ' · ' + (win ? 'WIN' : 'LOSS'));
+    state.history.unshift('L' + level + ' · ' + low + '/' + high + ' vs Vd' + holdingGambleValorDie(level) + '=' + valor + ' · called ' + String(state.guess).toUpperCase() + ' · ' + (win ? 'WIN' : 'LOSS'));
     state.history = state.history.slice(0, 10);
     node.result = 'Gambling round: ' + state.outcome;
     crawl.history = Array.isArray(crawl.history) ? crawl.history : [];
@@ -10062,7 +10062,7 @@
       + '<strong style="color:var(--gold2);">Step 1: Gather Information</strong> — optional. Success grants +5 bonus and reveals a hidden feature. Failure introduces Additional Danger. You may also skip.'
       + '</div>'
       + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.5rem .6rem;margin-bottom:.45rem;">'
-      + '<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.3rem;">Adventure d' + advDie + ' vs Dread d' + dreadDie + '</div>'
+      + '<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.3rem;">Valor d' + advDie + ' vs Dread d' + dreadDie + '</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.3rem;">'
       + '<div style="text-align:center;"><div style="font-size:.7rem;color:var(--teal);text-transform:uppercase;">Your Roll</div><div style="font-family:\'Rajdhani\',sans-serif;font-size:1.8rem;font-weight:700;color:var(--teal);">' + a.total + '</div></div>'
       + '<div style="text-align:center;"><div style="font-size:.7rem;color:var(--red2);text-transform:uppercase;">Dread Roll</div><div style="font-family:\'Rajdhani\',sans-serif;font-size:1.8rem;font-weight:700;color:var(--red);">' + d.total + '</div></div>'
@@ -10269,7 +10269,7 @@
       securityRows += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.74rem;color:var(--muted3);padding:.15rem 0;border-bottom:1px solid var(--border);"><span>Security Unit ' + (si + 1) + '</span><span style="color:var(--red2);font-family:\'Rajdhani\',sans-serif;font-weight:700;">DD8 | 16 HP</span></div>';
     }
     var securitySection = '<div style="margin-bottom:.4rem;"><div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.1em;color:var(--red2);text-transform:uppercase;margin-bottom:.15rem;">Security (' + q.securityCount + ' Units)</div>' + securityRows + '</div>';
-    var rollInstr = '<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .55rem;margin-bottom:.45rem;"><div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Confrontation: 2 Security + Roll Adventure d8 + 5 vs Dread d8 — then click your outcome Success or Failure.</div><div style="font-size:.7rem;color:var(--muted);">Use the Dice tab or physical dice, then choose Success/Failure below.</div></div>';
+    var rollInstr = '<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .55rem;margin-bottom:.45rem;"><div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Confrontation: 2 Security + Roll Valor d8 + 5 vs Dread d8 — then click your outcome Success or Failure.</div><div style="font-size:.7rem;color:var(--muted);">Use the Dice tab or physical dice, then choose Success/Failure below.</div></div>';
 
     var html = dangerBanner + featureBadge + securitySection + rollInstr
       + buildNestedModalActionRow(
@@ -10292,7 +10292,7 @@
   }
 
   function normalizeHoldingQuestConditionByStat(statKey, positive) {
-    var key = String(statKey || 'adventure').toLowerCase();
+    var key = String(statKey || 'valor').toLowerCase();
     if (positive) {
       if (key === 'body' || key === 'strike' || key === 'shoot') return 'empowered';
       if (key === 'defend' || key === 'control') return 'protected';
@@ -10363,7 +10363,7 @@
     if (applyChanges) addHoldingQuestRadiation(1);
     notes.push('Radiation +1');
 
-    var negCond = normalizeHoldingQuestConditionByStat('adventure', false);
+    var negCond = normalizeHoldingQuestConditionByStat('valor', false);
     if (applyChanges) applyHoldingQuestCondition(negCond);
     notes.push('Condition ' + negCond);
 
@@ -10434,7 +10434,7 @@
     if (typeof openModal === 'function') {
       openModal('Push Luck — Holding Confrontation',
         '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
-          + '<div style="margin-bottom:.28rem;"><strong>Reroll now:</strong> Adventure vs <strong>Dread d' + pushDread + '</strong>.</div>'
+          + '<div style="margin-bottom:.28rem;"><strong>Reroll now:</strong> Valor vs <strong>Dread d' + pushDread + '</strong>.</div>'
           + '<div style="font-size:.73rem;color:var(--muted2);margin-bottom:.4rem;">Use your reroll result, then choose the matching outcome below.</div>'
           + buildNestedModalActionRow(
               '<button class="btn btn-sm btn-red" onclick="resolveHoldingQuestPushLuck(false)">Push Luck Failed</button>'
@@ -10451,7 +10451,7 @@
     var reroll = getHoldingQuestManualRollPair(Number(pending.pushDread || 10));
     window._pendingHoldingQuestFailure = null;
     if (success) {
-      var posCond = normalizeHoldingQuestConditionByStat('adventure', true);
+      var posCond = normalizeHoldingQuestConditionByStat('valor', true);
       applyHoldingQuestCondition(posCond);
       if (typeof showNotif === 'function') showNotif('Push Luck succeeded. Condition gained: ' + posCond + '.', 'good');
       resolveHoldingQuestOutcome(true);
@@ -11034,7 +11034,7 @@
     if ((S.pathTokens || 0) < 15) {
       showNotif("Need 15 Path Tokens to step up an Action Die!", "warn"); return;
     }
-    var statKeys = ["body", "strike", "shoot", "mind", "spirit", "defend", "control", "lead", "adventure"];
+    var statKeys = ["body", "strike", "shoot", "mind", "spirit", "defend", "control", "lead", "valor"];
     var opts = statKeys.map(function(s) {
       var val = (S.stats && S.stats[s]) || 4;
       var canUp = val < 20;
@@ -12501,7 +12501,7 @@
     if (key.indexOf('defend') >= 0) return 'defend';
     if (key.indexOf('lead') >= 0 || key.indexOf('spirit') >= 0) return 'spirit';
     if (key.indexOf('mind') >= 0 || key.indexOf('control') >= 0) return 'mind';
-    return 'adventure';
+    return 'valor';
   }
 
   function applyEnhancedManualCondition(statKey, positive) {

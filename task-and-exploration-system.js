@@ -372,17 +372,19 @@ function completeTaskAtHex(col,row){
   const originHex=mapData.find(h=>h.col===task.originCol&&h.row===task.originRow);
   const originTask=originHex&&originHex.data?originHex.data.task:null;
   const councilTaskId=task.councilTaskId;
-  const adDie=(S.stats&&S.stats.adventure)?S.stats.adventure:4;
-  const a=explodingRoll(adDie);
+
+  // Valor Die (V.D.) replaces Adventure Die (A.D.)
+  const vdDie=(S.stats&&S.stats.valor)?S.stats.valor:4;
+  const v=explodingRoll(vdDie);
   const d=explodingRoll(6);
-  const success=a.total>=d.total;
+  const success=v.total>=d.total;
 
   if(success){
     S.renown=(S.renown||0)+1;
     if(typeof updateRenown==='function')updateRenown();
     if(typeof addSuccessRoll==='function')addSuccessRoll();
     showNotif(`Task Complete: ${task.verb} ${task.target} — +1 Renown!`,'good');
-    appendHexNote(col,row,`[Task Complete] ${task.verb} ${task.target}: AD${adDie} ${a.total} vs DD6 ${d.total} — success, Renown +1`);
+    appendHexNote(col,row,`[Task Complete] ${task.verb} ${task.target}: VD${vdDie} ${v.total} vs DD6 ${d.total} — success, Renown +1`);
     if(originTask){
       originTask.completed=true;
       originTask.status='concluded';
@@ -396,8 +398,8 @@ function completeTaskAtHex(col,row){
     delete hex.data.taskSite;
   }else{
     if(typeof addTMWOnFail==='function')addTMWOnFail();
-    showNotif(`Task Failed: ${task.verb} ${task.target} (${a.total} vs ${d.total})`,'warn');
-    appendHexNote(col,row,`[Task Failed] ${task.verb} ${task.target}: AD${adDie} ${a.total} vs DD6 ${d.total}`);
+    showNotif(`Task Failed: ${task.verb} ${task.target} (${v.total} vs ${d.total})`,'warn');
+    appendHexNote(col,row,`[Task Failed] ${task.verb} ${task.target}: VD${vdDie} ${v.total} vs DD6 ${d.total}`);
     if(originTask){
       originTask.completed=true;
       originTask.status='concluded';
@@ -470,22 +472,24 @@ function completeRoyalTask(col,row){
   if(!hex||!hex.data||!hex.data.royalTask)return;
 
   const task=hex.data.royalTask;
-  const adDie=(S.stats&&S.stats.adventure)?S.stats.adventure:4;
-  const a=explodingRoll(adDie);
+
+  // Valor Die (V.D.) replaces Adventure Die (A.D.)
+  const vdDie=(S.stats&&S.stats.valor)?S.stats.valor:4;
+  const v=explodingRoll(vdDie);
   const d=explodingRoll(8);
-  const success=a.total>=d.total;
+  const success=v.total>=d.total;
 
   if(success){
     S.renown=(S.renown||0)+1;
     if(typeof updateRenown==='function')updateRenown();
     if(typeof addSuccessRoll==='function')addSuccessRoll();
     showNotif(`Royal Task Complete: ${task.verb} ${task.target} — +1 Renown!`,'good');
-    appendHexNote(col,row,`[Royal Task Complete] ${task.verb} ${task.target}: AD${adDie} ${a.total} vs DD8 ${d.total} — success, Renown +1`);
+    appendHexNote(col,row,`[Royal Task Complete] ${task.verb} ${task.target}: VD${vdDie} ${v.total} vs DD8 ${d.total} — success, Renown +1`);
     delete hex.data.royalTask;
   }else{
     if(typeof addTMWOnFail==='function')addTMWOnFail();
-    showNotif(`Royal Task Failed: ${task.verb} ${task.target} (${a.total} vs ${d.total})`,'warn');
-    appendHexNote(col,row,`[Royal Task Failed] ${task.verb} ${task.target}: AD${adDie} ${a.total} vs DD8 ${d.total}`);
+    showNotif(`Royal Task Failed: ${task.verb} ${task.target} (${v.total} vs ${d.total})`,'warn');
+    appendHexNote(col,row,`[Royal Task Failed] ${task.verb} ${task.target}: VD${vdDie} ${v.total} vs DD8 ${d.total}`);
     delete hex.data.royalTask;
   }
 

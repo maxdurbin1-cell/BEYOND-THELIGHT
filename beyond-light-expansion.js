@@ -521,8 +521,8 @@
           <div class="card">
             <div class="section-title">Gambling Den</div>
             <div style="font-size:.85rem;color:var(--muted3);line-height:1.65;">
-              Choose a difficulty, pay the buy-in, roll two Dread dice from low to high, then guess whether your Adventure Die lands <strong style="color:var(--gold2);">under</strong>, <strong style="color:var(--gold2);">middle</strong>, or <strong style="color:var(--gold2);">over</strong>.<br><br>
-              If the Adventure Die matches the lower or upper Dread die exactly, that still counts as <strong style="color:var(--gold2);">middle</strong>.
+              Choose a difficulty, pay the buy-in, roll two Dread dice from low to high, then guess whether your Valor Die lands <strong style="color:var(--gold2);">under</strong>, <strong style="color:var(--gold2);">middle</strong>, or <strong style="color:var(--gold2);">over</strong>.<br><br>
+              If the Valor Die matches the lower or upper Dread die exactly, that still counts as <strong style="color:var(--gold2);">middle</strong>.
             </div>
             <div class="sea-summary" style="margin-top:.65rem;">
               <div class="info-cell"><span class="ic-label">Credits</span><span id="gamblingCredits">0 ₵</span></div>
@@ -531,7 +531,7 @@
               <div class="info-cell"><span class="ic-label">Die</span><span id="gamblingDieReadout">d20</span></div>
             </div>
             <div class="difficulty-grid" id="gamblingDifficultyGrid"></div>
-            <div class="sub-label" style="margin-top:.8rem;">Guess The Adventure Die</div>
+            <div class="sub-label" style="margin-top:.8rem;">Guess The Valor Die</div>
             <div class="guess-grid">
               <button class="guess-btn" id="guess-under" onclick="setGamblingGuess('under')">Under</button>
               <button class="guess-btn" id="guess-middle" onclick="setGamblingGuess('middle')">Middle</button>
@@ -543,7 +543,7 @@
             </div>
             <div class="gamble-rolls">
               <div class="gamble-die"><div class="gd-label">Dread One</div><div class="gd-value" id="gambleDieOne">-</div></div>
-              <div class="gamble-die"><div class="gd-label">Adventure</div><div class="gd-value" id="gambleAdventure">-</div></div>
+              <div class="gamble-die"><div class="gd-label">Valor</div><div class="gd-value" id="gambleValor">-</div></div>
               <div class="gamble-die"><div class="gd-label">Dread Two</div><div class="gd-value" id="gambleDieTwo">-</div></div>
             </div>
             <div id="gamblingOutcome" class="gamble-outcome" style="margin-top:.75rem;">
@@ -593,7 +593,7 @@
           <div class="section-title">Gambling Den</div>
           <div style="font-size:.85rem;color:var(--muted3);line-height:1.7;">
             Buy in from <strong style="color:var(--text);">10 to 60 Credits</strong> based on difficulty.<br>
-            Roll <strong style="color:var(--text);">2 Dread dice</strong>, order them low to high, then guess whether the Adventure Die lands under, middle, or over.<br>
+            Roll <strong style="color:var(--text);">2 Dread dice</strong>, order them low to high, then guess whether the Valor Die lands under, middle, or over.<br>
             Matching either Dread die counts as <strong style="color:var(--gold2);">middle</strong>.<br>
             A win pays <strong style="color:var(--green2);">difficulty level x 10 Credits</strong>.
           </div>
@@ -1861,7 +1861,7 @@
             ? (() => { const mt = S.lastSea.missionTokens[hex.key]; const missionRef = (S && Array.isArray(S.activeMissions)) ? S.activeMissions.find(function (m) { return m && String(m.id || '') === String(mt.missionId || ''); }) : null; const isRaid = mt.missionType === 'legacy_raid' || !!(missionRef && missionRef.missionType === 'legacy_raid'); const isSoul = mt.missionType === 'soul_mission' || !!(missionRef && missionRef.missionType === 'soul_mission'); const raidLabel = isRaid ? (mt.type === 'informer' ? 'Raid Lore Wing' : 'Raid Confrontation Wing') : ''; const tokenLabel = isSoul ? (mt.type === 'informer' ? 'Soul Forge Lead' : 'Soul Forge Boss') : (raidLabel || (mt.type === 'site' ? 'Sea Mission Site' : mt.type === 'story' ? 'Story Objective' : 'Sea Informer')); const tokenIcon = isRaid ? '🐉' : isSoul ? (mt.icon || '⚒') : '📍'; const raidNarrative = isRaid ? getSeaRaidNarrative(mt) : ''; return `<div class="npc-block" style="margin-bottom:.35rem;border-color:${isSoul ? 'rgba(255,111,145,.45)' : 'rgba(201,162,39,.45)'};background:${isSoul ? 'rgba(255,111,145,.08)' : 'rgba(201,162,39,.06)'};">
                 <div class="nb-label" style="color:${isSoul ? '#ff6f91' : 'var(--gold2)'};">${tokenIcon} ${tokenLabel}</div>
                 <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${mt.title || 'Quest objective here.'}${raidNarrative ? '<br>'+raidNarrative : ''}${isSoul ? '<br><span style="color:var(--muted2);">Endgame boss encounter. Defeat it to capture an affix, choose weapon or armor enhancement, then continue in the Merchant tab at the Soul Forge vendor.</span>' : ''}</div>
-                ${mt.missionId === 'sea_task' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-success" onclick="completeSeaTask('${hex.key}')">✓ Resolve Task (AD vs DD8)</button></div>` : ''}
+                ${mt.missionId === 'sea_task' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-success" onclick="completeSeaTask('${hex.key}')">✓ Resolve Task (VD vs DD8)</button></div>` : ''}
                 ${mt.type === 'story' ? `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(typeof openStorylineTab==='function')openStorylineTab();">Continue Storyline</button></div>` : ''}
               </div>`; })()
             : ""
@@ -1888,7 +1888,7 @@
             <div class="nb-label" style="color:${ft.status==='combat_pending'?'var(--red2)':'var(--gold2)'};">${ft.monsterTask?'⚔ Monster Wayfarer Task':'✦ Wayfarer Task'}</div>
             <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${ft.title}${ft.monsterSummary?`<br><em>${ft.monsterSummary}</em>`:''}</div>
             <div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
-              ${!ft.monsterTask&&ft.status==='open'?`<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.resolveMapTask('sea','${hex.key}');if(typeof renderLastSeaInfo==='function')renderLastSeaInfo();if(typeof renderLastSeaMap==='function')renderLastSeaMap();">Roll AD vs Dread d6</button>`:''}
+              ${!ft.monsterTask&&ft.status==='open'?`<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.resolveMapTask('sea','${hex.key}');if(typeof renderLastSeaInfo==='function')renderLastSeaInfo();if(typeof renderLastSeaMap==='function')renderLastSeaMap();">Roll VD vs Dread d6</button>`:''}
               ${ft.monsterTask&&ft.status==='open'?`<button class="btn btn-xs btn-warn" onclick="if(window.factionSystem)window.factionSystem.startMonsterTask('sea','${hex.key}');if(typeof renderLastSeaInfo==='function')renderLastSeaInfo();if(typeof renderLastSeaMap==='function')renderLastSeaMap();">Generate Monsters / Combat</button>`:''}
               ${ft.monsterTask&&ft.status==='combat_pending'?`<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask('sea','${hex.key}',null,true);if(typeof renderLastSeaInfo==='function')renderLastSeaInfo();if(typeof renderLastSeaMap==='function')renderLastSeaMap();">Slayed Monsters</button><button class="btn btn-xs btn-red" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask('sea','${hex.key}',null,false);if(typeof renderLastSeaInfo==='function')renderLastSeaInfo();if(typeof renderLastSeaMap==='function')renderLastSeaMap();">Failed Encounter</button>`:''}
             </div>
@@ -3441,7 +3441,7 @@
   function completeSeaTask(hexKey) {
     if (!S.lastSea || !S.lastSea.missionTokens || !S.lastSea.missionTokens[hexKey]) return;
     const task = S.lastSea.missionTokens[hexKey];
-    const adDie = (S.stats && S.stats.adventure) ? S.stats.adventure : 4;
+    const vdDie = (S.stats && S.stats.valor) ? S.stats.valor : 4;
     var finishSeaTask = function(success, checkText) {
       delete S.lastSea.missionTokens[hexKey];
       let msg = `Task failed: ${task.title}. ${checkText}.`;
@@ -3468,22 +3468,22 @@
       openSeaManualActionDreadPrompt({
         title: 'Manual Roll - Sea Task',
         context: String(task.title || 'Sea Task'),
-        statKey: 'adventure',
-        statLabel: 'Adventure',
-        actionDie: adDie,
+        statKey: 'valor',
+        statLabel: 'Valor',
+        actionDie: vdDie,
         dreadDie: task.dread || 8,
         onResolve: function(outcome) {
           var usedDd = Number((outcome && outcome.dreadDie) || (task.dread || 8));
-          finishSeaTask(!!(outcome && outcome.success), 'AD' + adDie + ' vs DD' + usedDd + ' (manual' + (outcome && outcome.pushLuck ? ', Push Luck' : '') + ')');
+          finishSeaTask(!!(outcome && outcome.success), 'VD' + vdDie + ' vs DD' + usedDd + ' (manual' + (outcome && outcome.pushLuck ? ', Push Luck' : '') + ')');
         }
       });
       return;
     }
 
-    const actionRoll = explodingRoll(adDie);
+    const actionRoll = explodingRoll(vdDie);
     const dreadRoll = explodingRoll(task.dread || 8);
     const success = actionRoll.total >= dreadRoll.total;
-    finishSeaTask(success, 'AD' + adDie + ' ' + actionRoll.total + ' vs DD' + (task.dread || 8) + ' ' + dreadRoll.total);
+    finishSeaTask(success, 'VD' + vdDie + ' ' + actionRoll.total + ' vs DD' + (task.dread || 8) + ' ' + dreadRoll.total);
   }
   window.completeSeaTask = completeSeaTask;
 
@@ -3844,7 +3844,7 @@
             + '<div style="font-size:.7rem;color:var(--muted2);margin-bottom:.12rem;">Status: ' + (active.explored ? 'Cleared' : 'Unexplored') + '</div>'
             + (active.explored
               ? '<span style="font-size:.72rem;color:var(--green2);">Already cleared.</span>'
-              : '<button class="btn btn-xs btn-teal" onclick="exploreSeaDungeonHexNode(' + Number(active.id || 0) + ')">⚄ Explore Selected Hex (AD vs DD6)</button>');
+              : '<button class="btn btn-xs btn-teal" onclick="exploreSeaDungeonHexNode(' + Number(active.id || 0) + ')">⚄ Explore Selected Hex (VD vs DD6)</button>');
         })()
       + '</div>'
       + '</div>';
@@ -3889,7 +3889,7 @@
         const dreadForRoom = getSeaDungeonRoomDread(type);
         const bossAction = type === 'Boss Chamber'
           ? `<div style="margin-top:.35rem;"><button class="btn btn-xs btn-warn" onclick="exploreSeaDungeonRoom(${index - 1})">💀 Resolve Boss Chamber</button></div>`
-          : `<div style="margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="exploreSeaDungeonRoom(${index - 1})">⚄ Resolve Room (AD vs DD${dreadForRoom})</button></div>`;
+          : `<div style="margin-top:.35rem;"><button class="btn btn-xs btn-teal" onclick="exploreSeaDungeonRoom(${index - 1})">⚄ Resolve Room (VD vs DD${dreadForRoom})</button></div>`;
         html += `
           <div class="room-block">
             <div class="rb-title">Room ${index} — ${type}</div>
@@ -3914,10 +3914,10 @@
       const searchDone = !!data.hiddenSearched;
       html += `<div class="room-block" style="border-color:rgba(176,96,208,.5);background:rgba(176,96,208,.06);">
         <div class="rb-title" style="color:var(--purple);">🔎 Hidden Room Search</div>
-        <div class="rb-text">Roll your Adventure Die vs DD6. Success reveals a secret compartment with rare loot.</div>
+        <div class="rb-text">Roll your Valor Die vs DD6. Success reveals a secret compartment with rare loot.</div>
         ${searchDone
           ? (data.hiddenRoomResult ? `<div style="font-size:.78rem;color:var(--gold2);margin-top:.2rem;">${data.hiddenRoomResult}</div>` : '<div style="font-size:.74rem;color:var(--muted2);">Search complete — nothing more found.</div>')
-          : `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="seaDungeonSearchHidden(${S.lastSea&&S.lastSea.activeDungeon?S.lastSea.activeDungeon.col:0},${S.lastSea&&S.lastSea.activeDungeon?S.lastSea.activeDungeon.row:0})">⚄ Search (AD vs DD6)</button></div>`}
+          : `<div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="seaDungeonSearchHidden(${S.lastSea&&S.lastSea.activeDungeon?S.lastSea.activeDungeon.col:0},${S.lastSea&&S.lastSea.activeDungeon?S.lastSea.activeDungeon.row:0})">⚄ Search (VD vs DD6)</button></div>`}
       </div>`;
     }
     return html;
@@ -4039,12 +4039,12 @@
       return openModal(data.name, buildDungeonModal(data));
     }
     if (room.type === 'Puzzle') return startSeaDungeonPuzzle(roomIndex);
-    const actionDie = (S.stats && S.stats.adventure) ? S.stats.adventure : 4;
+    const actionDie = (S.stats && S.stats.valor) ? S.stats.valor : 4;
     const dreadDie = getSeaDungeonRoomDread(room.type);
     const actionRoll = explodingRoll(actionDie);
     const dreadRoll = explodingRoll(dreadDie);
     const success = actionRoll.total >= dreadRoll.total;
-    let result = `AD${actionDie} ${actionRoll.total} vs DD${dreadDie} ${dreadRoll.total}. `;
+    let result = `VD${actionDie} ${actionRoll.total} vs DD${dreadDie} ${dreadRoll.total}. `;
     if (success) {
       const loot = rollSeaDungeonLoot();
       data.exploration = data.exploration || { clearedRooms: 0, discoveredLoot: [] };
@@ -4241,14 +4241,14 @@
     const hex = getSeaCell(col, row);
     const data = hex && hex.encounter && hex.encounter.type === 'dungeon' ? hex.encounter.data : hex && hex.siteType === 'dungeon' ? hex.siteData : null;
     if (!data || data.hiddenSearched) return;
-    const ad = (S.stats && S.stats.adventure) ? S.stats.adventure : ((S.stats && S.stats.action) ? S.stats.action : 4);
-    const a = explodingRoll(ad);
+    const vd = (S.stats && S.stats.valor) ? S.stats.valor : ((S.stats && S.stats.action) ? S.stats.action : 4);
+    const a = explodingRoll(vd);
     const d = explodingRoll(6);
     const success = a.total >= d.total;
     data.hiddenSearched = true;
     if (success) {
       const loot = rollSeaDungeonLoot();
-      data.hiddenRoomResult = 'AD' + ad + ' ' + a.total + ' vs DD6 ' + d.total + ' — Hidden room revealed. Loot: ' + loot + '.';
+      data.hiddenRoomResult = 'VD' + vd + ' ' + a.total + ' vs DD6 ' + d.total + ' — Hidden room revealed. Loot: ' + loot + '.';
       data.exploration = data.exploration || { clearedRooms: 0, discoveredLoot: [] };
       data.exploration.discoveredLoot.push(loot);
       if (typeof addToBackpack === 'function') {
@@ -4256,7 +4256,7 @@
       }
       if (typeof showNotif === 'function') showNotif('Hidden room found: ' + loot + '.', 'good');
     } else {
-      data.hiddenRoomResult = 'AD' + ad + ' ' + a.total + ' vs DD6 ' + d.total + ' — No hidden rooms revealed.';
+      data.hiddenRoomResult = 'VD' + vd + ' ' + a.total + ' vs DD6 ' + d.total + ' — No hidden rooms revealed.';
     }
     openModal(data.name, buildDungeonModal(data));
   }
@@ -5152,7 +5152,7 @@
 
     document.getElementById("gambleDieOne").textContent = String(low);
     document.getElementById("gambleDieTwo").textContent = String(high);
-    document.getElementById("gambleAdventure").textContent = String(adventure);
+    document.getElementById("gambleValor").textContent = String(adventure);
 
     const outcome = document.getElementById("gamblingOutcome");
     if (outcome) {
@@ -5160,13 +5160,13 @@
       outcome.innerHTML = `
         <strong style="color:${success ? "var(--green2)" : "var(--red2)"};">${success ? "Success" : "Failure"}</strong><br>
         Guess: ${capitalize(S.gambling.guess)}<br>
-        Adventure Die landed in the <strong style="color:var(--gold2);">${capitalize(actual)}</strong> position.<br>
+        Valor Die landed in the <strong style="color:var(--gold2);">${capitalize(actual)}</strong> position.<br>
         ${success ? `You gain ${level.buyIn} Credits.` : `You lose ${level.buyIn} Credits.`}
       `;
     }
 
     S.gambling.history.unshift(
-      `Level ${level.level} (${level.label}) - Dread ${low}/${high}, Adventure ${adventure}, guessed ${S.gambling.guess}, result ${actual}, ${success ? `won ${level.buyIn} C` : `lost ${level.buyIn} C`}.`
+      `Level ${level.level} (${level.label}) - Dread ${low}/${high}, Valor ${adventure}, guessed ${S.gambling.guess}, result ${actual}, ${success ? `won ${level.buyIn} C` : `lost ${level.buyIn} C`}.`
     );
     S.gambling.history = S.gambling.history.slice(0, 20);
     updateCreditsUI();

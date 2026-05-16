@@ -579,7 +579,7 @@
         // Council
         '<div class="card">',
           '<div class="section-title">The Council</div>',
-          '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.4rem;">Assign tasks. Roll Adventure Die vs Dread d8 for outcomes. Tasks take a Phase to a Season. Councils typically have 3–6 Retainers.</div>',
+          '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.4rem;">Assign tasks. Roll Valor Die (V.D.) vs Dread d8 for outcomes. Tasks take a Phase to a Season. Councils typically have 3–6 Retainers.</div>',
           '<div id="holdingCouncil"></div>',
         '</div>',
         // The Court
@@ -1376,7 +1376,7 @@
           + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.2rem;">Task Capacity: <span style="color:var(--gold2);">' + activeTasks + '/' + retainers + '</span></div>'
           + '<div style="margin-bottom:.28rem;"><span class="sub-label">Current Task</span><input type="text" style="width:100%;" value="' + taskValue.replace(/"/g, "&quot;") + '" placeholder="Assigned task\u2026" onchange="updateCouncilMember(\'' + role.key + '\',\'task\',this.value)"></div>'
           + '<div style="display:flex;align-items:center;gap:.4rem;">'
-          + '<button class="btn btn-xs btn-teal" onclick="rollCouncilTask(\'' + role.key + '\')">⚄ Roll Task (Ad vs d6)</button>'
+          + '<button class="btn btn-xs btn-teal" onclick="rollCouncilTask(\'' + role.key + '\')">⚄ Roll Task (VD vs d6)</button>'
           + '<button class="btn btn-xs" onclick="hireRetainer(\'' + role.key + '\')">+ Retainer (200₵)</button>'
           + '<span id="councilResult-' + role.key + '" style="font-size:.76rem;color:var(--muted3);"></span>'
           + '</div>'
@@ -10820,9 +10820,9 @@
   }
 
   function rollCouncilTask(role) {
-    var advDie = (S.stats && S.stats.adventure) || 4;
+    var vdDie = (S.stats && S.stats.valor) || 4;
     var dreadTarget = (role === "regent" && (S.holding.crises || []).length > 0) ? 8 : 6;
-    var a = explodingRoll(advDie, { type: 'action', major: true, label: 'Council Task AD' + advDie });
+    var a = explodingRoll(vdDie, { type: 'action', major: true, label: 'Council Task VD' + vdDie });
     var d = explodingRoll(dreadTarget, { type: 'dread', major: true, label: 'Council Task DD' + dreadTarget });
     var success = a.total >= d.total;
     var el = document.getElementById("councilResult-" + role);
@@ -12031,7 +12031,7 @@
     'COLLAPSE (Master)':    { tmw: 12, effect: function() { return 'Enemy <strong>crippled for the day</strong> — cannot act.'; } },
     'DETONATE GRENADE (Master)': { tmw: 10, effect: function() { var d=roll(10)+roll(10); return 'Explosion deals <strong>'+d+' Stress</strong>. (2d10)'; } },
     'AEGIES (Master)':      { tmw: 10, effect: function() { return 'You gain <strong>+10 to Defend Rolls</strong> for this Combat Scene.'; } },
-    'PARASYTE (Master)':    { tmw: 12, effect: function() { var ad=S.stats&&S.stats.adventure?S.stats.adventure:4; var d=roll(ad); return 'Enemy takes <strong>'+d+' Stress per Round</strong> for 12 Rounds. (Adventure d'+ad+' rolled)'; } }
+    'PARASYTE (Master)':    { tmw: 12, effect: function() { var vd=S.stats&&S.stats.valor?S.stats.valor:4; var d=roll(vd); return 'Enemy takes <strong>'+d+' Stress per Round</strong> for 12 Rounds. (Valor d'+vd+' rolled)'; } }
   };
 
   // ── OS HACKS PANEL ────────────────────────────────────────────────────────────

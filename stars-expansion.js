@@ -1338,7 +1338,7 @@ const NEW_SUN_STAGE_SCENES = {
       {
         id: 'break_ledger_ward',
         text: 'Break the archive ward with a stolen rite or field tool',
-        stat: 'adventure',
+        stat: 'valor',
         baseDread: 10,
         req: { backpackAny: ['scroll', 'warding sigil', 'lockpick', 'dungeoneer\'s kit'], consumeRequiredItem: true },
         success: { text: 'The ward buckles. The false ledger burns and the true launch window appears beneath it.', effects: { credits: 80, flags: { newSunWardBroken: true } } },
@@ -1437,28 +1437,28 @@ const NEW_SUN_ENDING_RELIC_REWARDS = {
     name: "Autarch's Signet",
     kind: 'relic',
     fallbackCredits: 180,
-    summary: 'Sovereign seal: using it grants Focused + Protected and banks an Adventure advantage die for your next key roll.'
+    summary: 'Sovereign seal: using it grants Focused + Protected and banks a Valor bonus die for your next key roll.'
   },
   ark_of_witness: {
     id: 'autarch_signet',
     name: "Autarch's Signet",
     kind: 'relic',
     fallbackCredits: 180,
-    summary: 'Sovereign seal: using it grants Focused + Protected and banks an Adventure advantage die for your next key roll.'
+    summary: 'Sovereign seal: using it grants Focused + Protected and banks a Valor bonus die for your next key roll.'
   },
   shared_dawn_compromise: {
     id: 'autarch_signet',
     name: "Autarch's Signet",
     kind: 'relic',
     fallbackCredits: 180,
-    summary: 'Sovereign seal: using it grants Focused + Protected and banks an Adventure advantage die for your next key roll.'
+    summary: 'Sovereign seal: using it grants Focused + Protected and banks a Valor bonus die for your next key roll.'
   },
   witness_loop: {
     id: 'autarch_signet',
     name: "Autarch's Signet",
     kind: 'relic',
     fallbackCredits: 180,
-    summary: 'Sovereign seal: using it grants Focused + Protected and banks an Adventure advantage die for your next key roll.'
+    summary: 'Sovereign seal: using it grants Focused + Protected and banks a Valor bonus die for your next key roll.'
   }
 };
 
@@ -1658,14 +1658,17 @@ function handleSolarCycleRelicBackpackUse(index) {
   if (name === 'book of the new sun') {
     consumeSolarCycleBackpackItem(index, 'Book of the New Sun');
     if (typeof ensureRelicBonusState === 'function') ensureRelicBonusState();
-    S.relicAdventureBonuses = S.relicAdventureBonuses || {};
+    S.relicValorBonuses = S.relicValorBonuses || {};
+    S.relicAdventureBonuses = S.relicAdventureBonuses || {}; // Compatibility mirror
+    S.relicValorBonuses.mind = Math.max(0, Number(S.relicValorBonuses.mind || 0)) + 1;
+    S.relicValorBonuses.spirit = Math.max(0, Number(S.relicValorBonuses.spirit || 0)) + 1;
     S.relicAdventureBonuses.mind = Math.max(0, Number(S.relicAdventureBonuses.mind || 0)) + 1;
     S.relicAdventureBonuses.spirit = Math.max(0, Number(S.relicAdventureBonuses.spirit || 0)) + 1;
     if (typeof changeCounter === 'function') changeCounter('tmw', 1);
     else S.tmw = Math.max(0, Number(S.tmw || 0) + 1);
     if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
     if (typeof renderBackpackUI === 'function') renderBackpackUI();
-    if (typeof showNotif === 'function') showNotif('Book of the New Sun attuned: permanent +A.D. to Mind and Spirit.', 'good');
+    if (typeof showNotif === 'function') showNotif('Book of the New Sun attuned: permanent +V.D. to Mind and Spirit.', 'good');
     return true;
   }
 
@@ -1674,14 +1677,13 @@ function handleSolarCycleRelicBackpackUse(index) {
     S.conditions = S.conditions || {};
     S.conditions.focused = true;
     S.conditions.protected = true;
-    S.rollMod = S.rollMod || { advDice: [], flat: 0 };
-    if (!Array.isArray(S.rollMod.advDice)) S.rollMod.advDice = [];
-    S.rollMod.advDice.push((S.stats && S.stats.adventure) ? S.stats.adventure : 4);
+    S.rollMod = S.rollMod || { advDice: [], flat: 0, addValor: 0 };
+    S.rollMod.addValor = Math.max(0, Number(S.rollMod.addValor || 0) + 1);
     if (typeof updateConditionButtons === 'function') updateConditionButtons();
     if (typeof updateRollModDisplay === 'function') updateRollModDisplay();
     if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
     if (typeof renderBackpackUI === 'function') renderBackpackUI();
-    if (typeof showNotif === 'function') showNotif("Autarch's Signet invoked: Focused + Protected and +A.D. queued.", 'good');
+    if (typeof showNotif === 'function') showNotif("Autarch's Signet invoked: Focused + Protected and +V.D. queued (additive).", 'good');
     return true;
   }
 
@@ -1689,13 +1691,12 @@ function handleSolarCycleRelicBackpackUse(index) {
     consumeSolarCycleBackpackItem(index, 'New Sun Puzzle Sigil');
     if (typeof changeCounter === 'function') changeCounter('tmw', 1);
     else S.tmw = Math.max(0, Number(S.tmw || 0) + 1);
-    S.rollMod = S.rollMod || { advDice: [], flat: 0 };
-    if (!Array.isArray(S.rollMod.advDice)) S.rollMod.advDice = [];
-    S.rollMod.advDice.push((S.stats && S.stats.adventure) ? S.stats.adventure : 4);
+    S.rollMod = S.rollMod || { advDice: [], flat: 0, addValor: 0 };
+    S.rollMod.addValor = Math.max(0, Number(S.rollMod.addValor || 0) + 1);
     if (typeof updateRollModDisplay === 'function') updateRollModDisplay();
     if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
     if (typeof renderBackpackUI === 'function') renderBackpackUI();
-    if (typeof showNotif === 'function') showNotif('New Sun Puzzle Sigil aligned: +1 TMW and +A.D. queued.', 'good');
+    if (typeof showNotif === 'function') showNotif('New Sun Puzzle Sigil aligned: +1 TMW and +V.D. queued (additive).', 'good');
     return true;
   }
 
@@ -1716,9 +1717,8 @@ function handleSolarCycleRelicBackpackUse(index) {
       if (typeof updateSolarCycleTimeFractureUI === 'function') updateSolarCycleTimeFractureUI();
     }
     if (!gainedCharge) {
-      S.rollMod = S.rollMod || { advDice: [], flat: 0 };
-      if (!Array.isArray(S.rollMod.advDice)) S.rollMod.advDice = [];
-      S.rollMod.advDice.push((S.stats && S.stats.adventure) ? S.stats.adventure : 4);
+      S.rollMod = S.rollMod || { advDice: [], flat: 0, addValor: 0 };
+      S.rollMod.addValor = Math.max(0, Number(S.rollMod.addValor || 0) + 1);
       if (typeof updateRollModDisplay === 'function') updateRollModDisplay();
     }
     if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
@@ -1726,7 +1726,7 @@ function handleSolarCycleRelicBackpackUse(index) {
     if (typeof showNotif === 'function') {
       showNotif(gainedCharge
         ? 'Fractured Sigil stabilized: +1 Time Fracture charge (Paradox Strain +1).'
-        : 'Fractured Sigil resonated: +A.D. queued (Paradox Strain +1).', 'warn');
+        : 'Fractured Sigil resonated: +V.D. queued (additive, Paradox Strain +1).', 'warn');
     }
     return true;
   }
@@ -9204,13 +9204,13 @@ function rollGalaxyTaskCheck(taskId, attempt) {
   ensureStarsState();
   const task = getGalaxyTaskById(taskId);
   if (!task || task.resolved) return;
-  const adventureDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 6);
+  const valorDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('valor') : ((S.stats && S.stats.valor) || 6);
   const dreadRoll = roll(8);
-  const playerRoll = roll(adventureDie);
+  const playerRoll = roll(valorDie);
   const success = playerRoll >= dreadRoll;
   const resultText = success 
-    ? `Rolled d${adventureDie}: ${playerRoll} vs Dread d8: ${dreadRoll} — SUCCESS!` 
-    : `Rolled d${adventureDie}: ${playerRoll} vs Dread d8: ${dreadRoll} — failure.`;
+    ? `Rolled d${valorDie}: ${playerRoll} vs Dread d8: ${dreadRoll} — SUCCESS!` 
+    : `Rolled d${valorDie}: ${playerRoll} vs Dread d8: ${dreadRoll} — failure.`;
   const out = document.getElementById('starExplorationDetail');
   if (out) {
     out.innerHTML = `<div style="font-size:.88rem;color:var(--gold2);margin-bottom:.2rem;">${task.title}</div>
@@ -10140,14 +10140,14 @@ function resolveGalaxySkillCheck(primaryKey, secondaryKey, dd, label) {
   const p = (typeof getEffectiveDie === 'function') ? getEffectiveDie(primaryKey) : ((S.stats && S.stats[primaryKey]) || 4);
   const s = secondaryKey ? ((typeof getEffectiveDie === 'function') ? getEffectiveDie(secondaryKey) : ((S.stats && S.stats[secondaryKey]) || 4)) : 0;
   const die = Math.max(p || 4, s || 0, 4);
-  const invBonus = (typeof collectInventoryBonusesForStat === 'function') ? collectInventoryBonusesForStat(primaryKey) : { advDice: [], flat: 0, addAdventure: 0 };
+  const invBonus = (typeof collectInventoryBonusesForStat === 'function') ? collectInventoryBonusesForStat(primaryKey) : { advDice: [], flat: 0, addValor: 0, addAdventure: 0 };
   const action = (typeof rollWithAdvantage === 'function' && invBonus.advDice && invBonus.advDice.length)
     ? rollWithAdvantage(die, invBonus.advDice)
     : { total: explodingRoll(die).total };
   let actionTotal = action.total + Number(invBonus.flat || 0);
-  const advDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
-  for (let i = 0; i < Number(invBonus.addAdventure || 0); i++) {
-    actionTotal += explodingRoll(advDie).total;
+  const valorDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('valor') : ((S.stats && S.stats.valor) || 4);
+  for (let i = 0; i < Number(invBonus.addValor || invBonus.addAdventure || 0); i++) {
+    actionTotal += explodingRoll(valorDie).total;
   }
   const dread = explodingRoll(dd);
   const success = actionTotal >= dread.total;
@@ -10563,7 +10563,7 @@ const FACILITY_SUBJECTS = ['fuel tanks', 'data crates', 'damaged drones', 'seale
 const FACILITY_DREAD_EVENTS = [
   'There is nothing you can do. The darkness has come for you. Gain TAINT while at this site.',
   'What was that noise? All characters gain d4 Stress.',
-  'A random character misplaces gear: Adventure Die vs DD6 or lose 1 Item.',
+  'A random character misplaces gear: Valor Die vs DD6 or lose 1 Item.',
   'You are surrounded and alone. Any character that flees gains +d10 Stress.',
   'Paralyzing fear grips a random character; they cannot use Talents while at this site.',
   'All characters spend 1 Day Phase shooting at shadows.',
@@ -10576,7 +10576,7 @@ const FACILITY_TAINT = [
   'Max Health +5, but gain +1 Stress every module.',
   'Suffer +d4 when damaged, but permanently +2 Defend rolls.',
   'Weakened condition, but +5 to Defend rolls for the day.',
-  '-2 all skill checks, but start each module with +1 to A.D. luck checks.',
+  '-2 all skill checks, but start each module with +1 to V.D. luck checks.',
   'Lose one Talent, gain +10 Path Tokens.',
   'Max Health steps down one die tier, but attacks deal +d10 damage.',
   'No Path Tokens while at site, but immune to Stress effects.',
@@ -12129,7 +12129,7 @@ function getPlanetInteractionProfile(cell) {
   if (cell.marker === 'temple') return { stat: 'mind', dd: 8, label: 'Mind' };
   if (cell.marker === 'dwelling') return { stat: 'spirit', dd: 6, label: 'Spirit' };
   if (cell.marker === 'merchant_colony' || cell.tradeRoute) return { stat: 'control', dd: 8, label: 'Control' };
-  if (cell.marker === 'peril' || cell.marker === 'barrier') return { stat: 'adventure', dd: 6, label: 'Adventure' };
+  if (cell.marker === 'peril' || cell.marker === 'barrier') return { stat: 'valor', dd: 6, label: 'Valor' };
   if (cell.marker === 'ruins' || cell.marker === 'empty_colony') return { stat: 'body', dd: 8, label: 'Body' };
   return { stat: 'lead', dd: 6, label: 'Lead' };
 }
@@ -12584,7 +12584,7 @@ function rollPlanetTerrainEffectCheck() {
   const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
   if (!selected) return;
   const cfg = getPlanetTerrainCheckConfig(selected);
-  const actionDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
+  const actionDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('valor') : ((S.stats && S.stats.valor) || 4);
   const action = explodingRoll(actionDie);
   const dread = explodingRoll(cfg.dread);
   const success = action.total >= dread.total;
@@ -12832,13 +12832,13 @@ function rollPlanetObstacleTraversal() {
   if (!state) return;
   const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
   if (!selected || !(selected.marker === 'peril' || selected.marker === 'barrier')) return;
-  const actionDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
+  const actionDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('valor') : ((S.stats && S.stats.valor) || 4);
   const finalizeTraversal = (outcome) => {
     const success = !!(outcome && outcome.success);
     const isManual = !!(outcome && outcome.manual);
     const dreadDie = Number((outcome && outcome.dreadDie) || 6);
     const checkText = isManual
-      ? `Wayfarer AD d${actionDie} vs Dread d${dreadDie}` + ((outcome && outcome.pushLuck) ? ' (Push Luck)' : '')
+      ? `Wayfarer VD d${actionDie} vs Dread d${dreadDie}` + ((outcome && outcome.pushLuck) ? ' (Push Luck)' : '')
       : (outcome && outcome.text) || 'Wayfarer traversal check';
     selected.data = selected.data || {};
     if (success) {
@@ -12867,8 +12867,8 @@ function rollPlanetObstacleTraversal() {
     openGlobalManualActionDreadPrompt({
       title: 'Manual Roll - Obstacle Traversal',
       context: (selected.marker === 'peril' ? 'Peril' : 'Barrier') + ' route check',
-      statKey: 'adventure',
-      statLabel: 'Adventure',
+      statKey: 'valor',
+      statLabel: 'Valor',
       actionDie: actionDie,
       dreadDie: 6,
       onResolve: finalizeTraversal
@@ -12880,7 +12880,7 @@ function rollPlanetObstacleTraversal() {
   const dread = explodingRoll(6);
   finalizeTraversal({
     success: action.total >= dread.total,
-    text: `Wayfarer AD d${actionDie}=${action.total} vs Dread d6=${dread.total}`,
+    text: `Wayfarer VD d${actionDie}=${action.total} vs Dread d6=${dread.total}`,
     manual: false,
     dreadDie: 6
   });
@@ -13074,7 +13074,7 @@ function openPlanetLostCityHexcrawl() {
     ? ('<div style="font-size:.73rem;color:var(--text2);line-height:1.5;margin-top:.24rem;">'
       + '<strong style="color:var(--gold2);">' + String(active.label || 'District Node') + '</strong><br>'
       + String(active.atmosphere || 'No atmospheric readout.') + '<br>'
-      + 'Check: Adventure vs DD' + Number(active.dd || 6) + ' · Status: ' + (active.explored ? 'Explored' : 'Unexplored')
+      + 'Check: Valor vs DD' + Number(active.dd || 6) + ' · Status: ' + (active.explored ? 'Explored' : 'Unexplored')
       + (active.result ? ('<br><span style="color:var(--teal);">' + String(active.result) + '</span>') : '')
       + '</div>')
     : '';
@@ -13119,8 +13119,8 @@ function resolvePlanetLostCityHexNode(nodeId) {
   if (!crawl) return;
   const node = crawl.nodes.find((n) => String(n.id || '') === String(nodeId || ''));
   if (!node || node.explored) return;
-  const adDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
-  const action = explodingRoll(adDie);
+  const vdDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('valor') : ((S.stats && S.stats.valor) || 4);
+  const action = explodingRoll(vdDie);
   const dread = explodingRoll(Number(node.dd || 6));
   const success = action.total >= dread.total;
   node.explored = true;
@@ -13159,8 +13159,8 @@ function resolvePlanetLostCityRoom(cellId, roomId) {
   if (!cell || !cell.data || !Array.isArray(cell.data.lostCityRooms)) return;
   const room = cell.data.lostCityRooms.find((entry) => entry.id === Number(roomId));
   if (!room || room.cleared) return;
-  const adDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
-  const action = explodingRoll(adDie);
+  const vdDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('valor') : ((S.stats && S.stats.valor) || 4);
+  const action = explodingRoll(vdDie);
   const dread = explodingRoll(room.dread || 4);
   const success = action.total >= dread.total;
   if (success) {
@@ -13202,7 +13202,7 @@ function openPlanetLostCityBuildingExploration() {
   }
   if (generatedRooms) syncCampaignSharedWorldSoon('planet-lostcity-generated');
   const roomsHtml = selected.data.lostCityRooms.map((room) => {
-    return `<div style='padding:.24rem .35rem;border:1px solid var(--border2);margin-bottom:.25rem;'><strong>${room.id}. ${room.area}</strong><br>${room.detail}<br>${room.cleared ? `Loot: ${room.loot} ✓` : `<button class='btn btn-xs btn-teal' onclick='resolvePlanetLostCityRoom(${selected.id},${room.id})'>Explore Room (AD vs d4)</button>`}</div>`;
+    return `<div style='padding:.24rem .35rem;border:1px solid var(--border2);margin-bottom:.25rem;'><strong>${room.id}. ${room.area}</strong><br>${room.detail}<br>${room.cleared ? `Loot: ${room.loot} ✓` : `<button class='btn btn-xs btn-teal' onclick='resolvePlanetLostCityRoom(${selected.id},${room.id})'>Explore Room (VD vs d4)</button>`}</div>`;
   }).join('');
   if (typeof openModal === 'function') {
     openModal('Lost City Building Exploration', `<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">
@@ -13324,7 +13324,7 @@ function resolvePlanetRuinRoom(cellId, roomId) {
     openPlanetRuinPopup(cellId);
     return;
   }
-  const adDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
+  const vdDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('valor') : ((S.stats && S.stats.valor) || 4);
   const dread = roomType === 'Boss Chamber' ? 12 : ((roomType === 'Obstacle' || roomType === 'Trap') ? 6 : 8);
 
   const finalizeRuinRoom = function (outcome) {
@@ -13338,9 +13338,9 @@ function resolvePlanetRuinRoom(cellId, roomId) {
         setPositiveGalaxyCondition(pick(['focused', 'empowered', 'protected', 'bolstered']));
       }
       if (outcome && outcome.manual) {
-        room.result = 'Manual SUCCESS: Adventure d' + adDie + ' vs Dread d' + Number(outcome.dreadDie || dread) + (outcome.pushLuck ? ' (Push Luck)' : '') + '. Loot secured: ' + room.loot;
+        room.result = 'Manual SUCCESS: Valor d' + vdDie + ' vs Dread d' + Number(outcome.dreadDie || dread) + (outcome.pushLuck ? ' (Push Luck)' : '') + '. Loot secured: ' + room.loot;
       } else {
-        room.result = 'AD d' + adDie + ' success vs DD' + dread + '. Loot secured: ' + room.loot;
+        room.result = 'VD d' + vdDie + ' success vs DD' + dread + '. Loot secured: ' + room.loot;
       }
       if (roomType === 'Boss Chamber' && typeof changeFactionRenown === 'function') {
         changeFactionRenown('political', 1);
@@ -13355,9 +13355,9 @@ function resolvePlanetRuinRoom(cellId, roomId) {
       }
       if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
       if (outcome && outcome.manual) {
-        room.result = 'Manual FAILURE: Adventure d' + adDie + ' vs Dread d' + Number(outcome.dreadDie || dread) + (outcome.pushLuck ? ' (Push Luck)' : '') + '. Take ' + loss + ' Stress.';
+        room.result = 'Manual FAILURE: Valor d' + vdDie + ' vs Dread d' + Number(outcome.dreadDie || dread) + (outcome.pushLuck ? ' (Push Luck)' : '') + '. Take ' + loss + ' Stress.';
       } else {
-        room.result = 'AD d' + adDie + ' failed vs DD' + dread + '. Take ' + loss + ' Stress.';
+        room.result = 'VD d' + vdDie + ' failed vs DD' + dread + '. Take ' + loss + ' Stress.';
       }
       room.cleared = true;
       showNotif('Room ' + room.id + ' failed.', 'warn');
@@ -13370,16 +13370,16 @@ function resolvePlanetRuinRoom(cellId, roomId) {
     openGlobalManualActionDreadPrompt({
       title: 'Manual Roll - Ruin Room',
       context: 'Planet Ruins Room ' + Number(room.id) + ' (' + roomType + ')',
-      statKey: 'adventure',
-      statLabel: 'Adventure',
-      actionDie: adDie,
+      statKey: 'valor',
+      statLabel: 'Valor',
+      actionDie: vdDie,
       dreadDie: dread,
       onResolve: finalizeRuinRoom
     });
     return;
   }
 
-  const a = explodingRoll(adDie);
+  const a = explodingRoll(vdDie);
   const d = explodingRoll(dread);
   const success = a.total >= d.total;
   if (success) {
@@ -13390,7 +13390,7 @@ function resolvePlanetRuinRoom(cellId, roomId) {
     if (roomType === 'Shrine Room' && typeof setPositiveGalaxyCondition === 'function') {
       setPositiveGalaxyCondition(pick(['focused', 'empowered', 'protected', 'bolstered']));
     }
-    room.result = 'AD d' + adDie + ' ' + a.total + ' vs DD' + dread + ' ' + d.total + ' - Success. Loot secured: ' + room.loot;
+    room.result = 'VD d' + vdDie + ' ' + a.total + ' vs DD' + dread + ' ' + d.total + ' - Success. Loot secured: ' + room.loot;
     if (roomType === 'Boss Chamber' && typeof changeFactionRenown === 'function') {
       changeFactionRenown('political', 1);
     }
@@ -13403,7 +13403,7 @@ function resolvePlanetRuinRoom(cellId, roomId) {
       if (typeof updateConditionButtons === 'function') updateConditionButtons();
     }
     if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
-    room.result = 'AD d' + adDie + ' ' + a.total + ' vs DD' + dread + ' ' + d.total + ' - Failure. Take ' + loss + ' Stress.';
+    room.result = 'VD d' + vdDie + ' ' + a.total + ' vs DD' + dread + ' ' + d.total + ' - Failure. Take ' + loss + ' Stress.';
     room.cleared = true;
     showNotif('Room ' + room.id + ' failed.', 'warn');
   }
@@ -14218,10 +14218,10 @@ function stepGlobalManualDreadDie(current) {
 }
 
 function buildGlobalManualRollModifierSummary(statKey) {
-  const key = String(statKey || 'adventure').toLowerCase();
+  const key = String(statKey || 'valor').toLowerCase();
   const invBonus = (typeof collectInventoryBonusesForStat === 'function')
     ? collectInventoryBonusesForStat(key)
-    : { advDice: [], flat: 0, addAdventure: 0 };
+    : { advDice: [], flat: 0, addValor: 0, addAdventure: 0 };
   const parts = [];
   if (invBonus && Array.isArray(invBonus.advDice) && invBonus.advDice.length) {
     parts.push('Advantage dice: ' + invBonus.advDice.map((d) => 'd' + Number(d)).join(', '));
@@ -14229,8 +14229,8 @@ function buildGlobalManualRollModifierSummary(statKey) {
   if (invBonus && Number(invBonus.flat || 0) !== 0) {
     parts.push('Flat modifier: ' + (Number(invBonus.flat) > 0 ? '+' : '') + Number(invBonus.flat));
   }
-  if (invBonus && Number(invBonus.addAdventure || 0) > 0) {
-    parts.push('Bonus Adventure rolls: +' + Number(invBonus.addAdventure));
+  if (invBonus && Number(invBonus.addValor || invBonus.addAdventure || 0) > 0) {
+    parts.push('Bonus Valor rolls: +' + Number(invBonus.addValor || invBonus.addAdventure || 0));
   }
   if (S && S.conditions) {
     const active = Object.keys(S.conditions).filter((c) => !!S.conditions[c]);
@@ -14249,7 +14249,7 @@ function buildGlobalManualRollModifierSummary(statKey) {
 function openGlobalManualActionDreadPrompt(config) {
   if (typeof openModal !== 'function') return false;
   const cfg = config || {};
-  const statKey = String(cfg.statKey || 'adventure').toLowerCase();
+  const statKey = String(cfg.statKey || 'valor').toLowerCase();
   const statLabel = String(cfg.statLabel || (statKey.charAt(0).toUpperCase() + statKey.slice(1)));
   const title = String(cfg.title || 'Manual Roll');
   const actionDie = Math.max(4, Number(cfg.actionDie || ((typeof getEffectiveDie === 'function') ? getEffectiveDie(statKey) : 6) || 6));
@@ -14755,7 +14755,7 @@ function resolvePlanetWeatherCheck() {
     });
     return;
   }
-  const result = resolveGalaxySkillCheck('adventure', stat, dd, `Planet Weather: ${state.currentWeather.label}`);
+  const result = resolveGalaxySkillCheck('valor', stat, dd, `Planet Weather: ${state.currentWeather.label}`);
   if (!result.success) {
     applyPlanetHazardFailure(state, 'Weather check failed.');
   } else {
@@ -16317,7 +16317,7 @@ function yessodRollWeatherCheck() {
     openGlobalManualActionDreadPrompt({
       title: 'Manual Roll - Yessod Weather Check',
       context: String(weather.name || 'Yessod Weather') + ' weather pressure',
-      statKey: 'adventure',
+      statKey: 'valor',
       statLabel: 'Traversal',
       actionDie: 12,
       dreadDie: Number(weather.dd || 6),
@@ -16683,7 +16683,7 @@ function renderYessodHexInfo(cell) {
       <div style="font-size:.77rem;color:var(--text2);margin-top:.2rem;">Sheltering in ruins provides rough rest: restore 1 Health but risk a random encounter (Roll Encounter).</div>
       <div style="display:flex;gap:.28rem;flex-wrap:wrap;margin-top:.32rem;">
         <button class="btn btn-sm" style="border-color:#a09870;color:#a09870;" onclick="yessodRestAtRuins(${cell.id})">🛏 Rest in Ruins (+1 Health, Roll Encounter)</button>
-        <button class="btn btn-sm btn-gold" onclick="yessodExploreRuins(${cell.id})">🏛 Explore Ruins (AD vs DD${strataFlavor.threat + 4})</button>
+        <button class="btn btn-sm btn-gold" onclick="yessodExploreRuins(${cell.id})">🏛 Explore Ruins (VD vs DD${strataFlavor.threat + 4})</button>
       </div>
     </div>`;
   }
@@ -16728,7 +16728,7 @@ function renderYessodHexInfo(cell) {
       <div style="font-size:.8rem;font-weight:700;color:var(--muted2);">⛝ ${cell.feature || 'Barrier scar perimeter — veil fractures and temporal drift.'}</div>
       <div style="font-size:.77rem;color:var(--text2);margin-top:.2rem;">Barriers are at hex edges. Crossing requires a check. Failure inflicts Trauma or blocks passage.</div>
       <div style="margin-top:.32rem;">
-        <button class="btn btn-sm btn-primary" onclick="yessodTraverseBarrier(${cell.id})">⚄ Cross Barrier (AD vs DD${strataFlavor.threat + 3})</button>
+        <button class="btn btn-sm btn-primary" onclick="yessodTraverseBarrier(${cell.id})">⚄ Cross Barrier (VD vs DD${strataFlavor.threat + 3})</button>
       </div>
     </div>`;
   }
@@ -16751,7 +16751,7 @@ function renderYessodHexInfo(cell) {
       <div class="ss-title" style="color:var(--red2);">⚠ ${cell.feature || 'Peril zone — converging hazards.'}</div>
       <div class="ss-text">Dangerous terrain. Roll to traverse or prepare for a fight.</div>
       <div style="margin-top:.32rem;">
-        <button class="btn btn-sm btn-primary" onclick="yessodTraversePeril(${cell.id})">⚄ Traverse Peril (AD vs DD${strataFlavor.threat + 4})</button>
+        <button class="btn btn-sm btn-primary" onclick="yessodTraversePeril(${cell.id})">⚄ Traverse Peril (VD vs DD${strataFlavor.threat + 4})</button>
       </div>
     </div>`;
   }
@@ -16988,11 +16988,11 @@ function rollPlanetTaskCheck(taskId) {
   if (!state) return;
   const task = state.tasks.find((entry) => entry.id === taskId && !entry.resolved);
   if (!task) return;
-  const adDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
-  const adRoll = explodingRoll(adDie);
+  const vdDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('valor') : ((S.stats && S.stats.valor) || 4);
+  const vdRoll = explodingRoll(vdDie);
   const dreadRoll = explodingRoll(6);
-  const success = adRoll.total >= dreadRoll.total;
-  const rollText = `Task roll: AD d${adDie}=${adRoll.total} vs Dread d6=${dreadRoll.total}`;
+  const success = vdRoll.total >= dreadRoll.total;
+  const rollText = `Task roll: VD d${vdDie}=${vdRoll.total} vs Dread d6=${dreadRoll.total}`;
   task.lastRollText = rollText;
   if (typeof openModal === 'function') {
     openModal('Selected Hex Task', `<div style="font-size:.85rem;color:var(--text2);line-height:1.6;">${rollText}<br><strong style="color:${success ? 'var(--green2)' : 'var(--red2)'};">${success ? 'Success' : 'Failure'}</strong></div>`);
@@ -17015,9 +17015,9 @@ function explorePlanetCell(cellId) {
   const hazardCount = getPlanetHazardProfile(state.profile).length;
   const baseDd = bypass ? 6 : state.difficulty;
   const dd = Math.max(6, Math.min(12, baseDd + (bypass ? 0 : Math.min(2, Math.floor(hazardCount / 2)))));
-  const adventureDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('adventure') : ((S.stats && S.stats.adventure) || 4);
+  const valorDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('valor') : ((S.stats && S.stats.valor) || 4);
   const leadDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
-  const actionDie = Math.max(4, Number(adventureDie || 4), Number(leadDie || 0));
+  const actionDie = Math.max(4, Number(valorDie || 4), Number(leadDie || 0));
 
   const finalizeExplore = function (outcome) {
     const success = !!(outcome && outcome.success);
@@ -17091,8 +17091,8 @@ function explorePlanetCell(cellId) {
     openGlobalManualActionDreadPrompt({
       title: 'Manual Roll - Planet Exploration',
       context: 'Planet Hex ' + Number(cell.id),
-      statKey: 'adventure',
-      statLabel: 'Adventure/Lead',
+      statKey: 'valor',
+      statLabel: 'Valor/Lead',
       actionDie: actionDie,
       dreadDie: dd,
       onResolve: finalizeExplore
@@ -17100,7 +17100,7 @@ function explorePlanetCell(cellId) {
     return;
   }
 
-  const check = resolveGalaxySkillCheck('adventure', 'lead', dd, `Planet Hex ${cell.id}`);
+  const check = resolveGalaxySkillCheck('valor', 'lead', dd, `Planet Hex ${cell.id}`);
   finalizeExplore({ success: check.success, text: check.text, manual: false, dreadDie: dd });
 }
 
@@ -17254,7 +17254,7 @@ function renderPlanetExplorationPanel() {
 
           ${selectedFactionBase ? `<div class="sea-site" style="margin-bottom:.35rem;border-color:rgba(70,196,182,.55);background:rgba(70,196,182,.08);"><div class="ss-title">🏰 Faction Base</div><div class="ss-text">${selectedFactionBase.baseName || 'Faction base'} is established in this surface cell.</div><div style="margin-top:.3rem;"><button class="btn btn-xs btn-primary" onclick="if(window.factionSystem&&typeof window.factionSystem.openBaseFromMarker==='function')window.factionSystem.openBaseFromMarker('planet',${planetHex.id},${selected.id});">Enter Base</button></div></div>` : ''}
 
-          ${selectedFactionTask ? `<div class="sea-site" style="margin-bottom:.35rem;border-color:${selectedFactionTask.status==='combat_pending'?'rgba(224,80,80,.55)':'rgba(232,192,80,.5)'};background:${selectedFactionTask.status==='combat_pending'?'rgba(224,80,80,.08)':'rgba(232,192,80,.08)'};"><div class="ss-title">${selectedFactionTask.monsterTask?'⚔ Monster Wayfarer Task':'✦ Wayfarer Task'}</div><div class="ss-text">${selectedFactionTask.title}${selectedFactionTask.monsterSummary?`<br><em>${selectedFactionTask.monsterSummary}</em>`:''}</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">${!selectedFactionTask.monsterTask&&selectedFactionTask.status==='open'?`<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.resolveMapTask('planet',${planetHex.id},${selected.id});renderPlanetExplorationPanel();">Roll AD vs Dread d6</button>`:''}${selectedFactionTask.monsterTask&&selectedFactionTask.status==='open'?`<button class="btn btn-xs btn-warn" onclick="if(window.factionSystem)window.factionSystem.startMonsterTask('planet',${planetHex.id},${selected.id});renderPlanetExplorationPanel();">Generate Monsters / Combat</button>`:''}${selectedFactionTask.monsterTask&&selectedFactionTask.status==='combat_pending'?`<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask('planet',${planetHex.id},${selected.id},true);renderPlanetExplorationPanel();">Slayed Monsters</button><button class="btn btn-xs btn-red" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask('planet',${planetHex.id},${selected.id},false);renderPlanetExplorationPanel();">Failed Encounter</button>`:''}</div></div>` : ''}
+          ${selectedFactionTask ? `<div class="sea-site" style="margin-bottom:.35rem;border-color:${selectedFactionTask.status==='combat_pending'?'rgba(224,80,80,.55)':'rgba(232,192,80,.5)'};background:${selectedFactionTask.status==='combat_pending'?'rgba(224,80,80,.08)':'rgba(232,192,80,.08)'};"><div class="ss-title">${selectedFactionTask.monsterTask?'⚔ Monster Wayfarer Task':'✦ Wayfarer Task'}</div><div class="ss-text">${selectedFactionTask.title}${selectedFactionTask.monsterSummary?`<br><em>${selectedFactionTask.monsterSummary}</em>`:''}</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">${!selectedFactionTask.monsterTask&&selectedFactionTask.status==='open'?`<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.resolveMapTask('planet',${planetHex.id},${selected.id});renderPlanetExplorationPanel();">Roll VD vs Dread d6</button>`:''}${selectedFactionTask.monsterTask&&selectedFactionTask.status==='open'?`<button class="btn btn-xs btn-warn" onclick="if(window.factionSystem)window.factionSystem.startMonsterTask('planet',${planetHex.id},${selected.id});renderPlanetExplorationPanel();">Generate Monsters / Combat</button>`:''}${selectedFactionTask.monsterTask&&selectedFactionTask.status==='combat_pending'?`<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask('planet',${planetHex.id},${selected.id},true);renderPlanetExplorationPanel();">Slayed Monsters</button><button class="btn btn-xs btn-red" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask('planet',${planetHex.id},${selected.id},false);renderPlanetExplorationPanel();">Failed Encounter</button>`:''}</div></div>` : ''}
 
           ${(selected && typeof window.buildBackstoryAnchorActionPanelHtml === 'function') ? window.buildBackstoryAnchorActionPanelHtml('planet', String(planetHex.id) + ':' + String(selected.id)) : ''}
 
@@ -17281,7 +17281,7 @@ function renderPlanetExplorationPanel() {
             ${(selected && selected.tradeRoute) ? '<button class="btn btn-sm" onclick="rollPlanetTradeRouteEncounter()">⚄ Trade Route Encounter</button><button class="btn btn-sm" onclick="showPlanetTradeGoods()">📦 Trade Goods</button>' : ''}
             ${canTravelThroughGate && !(selected && selected.tradeRoute) ? '<button class="btn btn-sm btn-teal" onclick="travelThroughPlanetGate()">◆ Travel Through Gate (Spirit vs Dread d12)</button>' : ''}
             ${(selected && selected.marker === 'wayfarer' && !(selected && selected.tradeRoute)) ? '<button class="btn btn-sm" onclick="createPlanetTask({ source: \'wayfarer\', preferredCellId: ' + selected.id + ' })">⚄ Generate Task (Wayfarer)</button>' : ''}
-            ${canTraverseObstacle && !(selected && selected.tradeRoute) ? '<button class="btn btn-sm btn-primary" onclick="rollPlanetObstacleTraversal()">⚄ Traverse Obstacle (AD vs DD6)</button>' : ''}
+            ${canTraverseObstacle && !(selected && selected.tradeRoute) ? '<button class="btn btn-sm btn-primary" onclick="rollPlanetObstacleTraversal()">⚄ Traverse Obstacle (VD vs DD6)</button>' : ''}
             ${canUseLostCityTravel && !(selected && selected.tradeRoute) ? '<button class="btn btn-sm" onclick="rollPlanetLostCityTravel()">⚄ Lost City Travel (d6)</button>' : ''}
             ${(selected && selected.marker === 'empty_colony' && !(selected && selected.tradeRoute)) ? '<button class="btn btn-sm" onclick="requestJoinPlanetLostCityArea()">Join Area: Building Exploration</button>' : ''}
             ${(selected && selected.marker === 'ruins' && !(selected && selected.tradeRoute)) ? '<button class="btn btn-sm btn-primary" onclick="generatePlanetRuinRooms(' + selected.id + ')">⚄ Enter Ruins</button>' : ''}
@@ -17306,7 +17306,7 @@ function renderPlanetExplorationPanel() {
             <div style="display:flex;gap:.25rem;flex-wrap:wrap;">${planetMissionMarkers.map((task) => `<button class="btn btn-xs btn-warn" onclick="openPlanetMissionMarker('${task.id}')">🐉 ${task.title} · Cell ${Number(task.planetCellId || 0) || '?'} (${task.missionStep || 'site'})</button>`).join('')}</div>
           </div>` : ''}
 
-          ${selectedTask ? `<div class="sea-result"><div class="sea-result-title">Selected Task</div><div class="planet-micro"><strong style="color:var(--gold2);">${selectedTask.title}${selectedTask.source === 'wayfarer' ? ' ✦' : ''}</strong><br>${selectedTask.text}${selectedTask.lastRollText ? `<br><span style="color:var(--muted2);">${selectedTask.lastRollText}</span>` : ''}</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-teal" onclick="rollPlanetTaskCheck('${selectedTask.id}')">⚄ Roll to Succeed (AD vs Dread d6)</button></div></div>` : ''}
+          ${selectedTask ? `<div class="sea-result"><div class="sea-result-title">Selected Task</div><div class="planet-micro"><strong style="color:var(--gold2);">${selectedTask.title}${selectedTask.source === 'wayfarer' ? ' ✦' : ''}</strong><br>${selectedTask.text}${selectedTask.lastRollText ? `<br><span style="color:var(--muted2);">${selectedTask.lastRollText}</span>` : ''}</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-teal" onclick="rollPlanetTaskCheck('${selectedTask.id}')">⚄ Roll to Succeed (VD vs Dread d6)</button></div></div>` : ''}
 
           <div style="margin-top:.55rem;border-top:1px solid var(--border);padding-top:.55rem;">
             <div class="sub-label">📝 Hex Notes</div>
@@ -18744,7 +18744,7 @@ function updateStarSystemReadouts() {
         galaxyWorldActions.push('<button class="btn btn-xs btn-teal" onclick="if(typeof resolveWorldStateActionAtKeyForRegion===\'function\')resolveWorldStateActionAtKeyForRegion(\'galaxy\',\'' + String(current.id) + '\',\'reopen\');renderStarSystemMap();updateStarSystemReadouts();">🛣 Reopen Routes</button>');
       }
       if (factionBase) actionButtons.push('<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem&&typeof window.factionSystem.openBaseFromMarker===\'function\')window.factionSystem.openBaseFromMarker(\'galaxy\',' + current.id + ')">Enter Faction Base</button>');
-      if (factionTask && !factionTask.monsterTask && factionTask.status === 'open') actionButtons.push('<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.resolveMapTask(\'galaxy\',' + current.id + ');renderStarSystemMap();updateStarSystemReadouts();">Resolve Wayfarer Task (AD vs d6)</button>');
+      if (factionTask && !factionTask.monsterTask && factionTask.status === 'open') actionButtons.push('<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.resolveMapTask(\'galaxy\',' + current.id + ');renderStarSystemMap();updateStarSystemReadouts();">Resolve Wayfarer Task (VD vs d6)</button>');
       if (factionTask && factionTask.monsterTask && factionTask.status === 'open') actionButtons.push('<button class="btn btn-xs btn-warn" onclick="if(window.factionSystem)window.factionSystem.startMonsterTask(\'galaxy\',' + current.id + ');renderStarSystemMap();updateStarSystemReadouts();">Generate Monsters / Combat</button>');
       if (factionTask && factionTask.monsterTask && factionTask.status === 'combat_pending') actionButtons.push('<button class="btn btn-xs btn-primary" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask(\'galaxy\',' + current.id + ',null,true);renderStarSystemMap();updateStarSystemReadouts();">Slayed Monsters</button><button class="btn btn-xs btn-red" onclick="if(window.factionSystem)window.factionSystem.finalizeMonsterTask(\'galaxy\',' + current.id + ',null,false);renderStarSystemMap();updateStarSystemReadouts();">Failed Encounter</button>');
       panel.innerHTML = `
@@ -18954,10 +18954,10 @@ function promptRadioTaskRoll() {
     return;
   }
   
-  const adventureDie = (S.stats && S.stats.adventure) ? S.stats.adventure : 4;
+  const valorDie = (S.stats && S.stats.valor) ? S.stats.valor : 4;
   let html = `<div style="font-size:.84rem;color:var(--text2);line-height:1.6;margin-bottom:.5rem;">
     <strong>Radio Task Challenge</strong><br>
-    Roll your Adventure Die (${adventureDie}) vs Dread Die (d8)<br>
+    Roll your Valor Die (${valorDie}) vs Dread Die (d8)<br>
     Success = Complete the contract and gain rewards
   </div>`;
   html += `<div style="margin-top:.5rem;"><button class="btn btn-primary" onclick="resolveGalaxyRadioTaskWithRoll()">Roll for Success</button></div>`;
@@ -18973,15 +18973,15 @@ function resolveGalaxyRadioTaskWithRoll() {
     return;
   }
   
-  const adventureDie = (S.stats && S.stats.adventure) ? S.stats.adventure : 4;
-  const adRoll = explodingRoll(adventureDie);
+  const valorDie = (S.stats && S.stats.valor) ? S.stats.valor : 4;
+  const vdRoll = explodingRoll(valorDie);
   const ddRoll = explodingRoll(8);
-  const success = adRoll.total >= ddRoll.total;
+  const success = vdRoll.total >= ddRoll.total;
   
   let resultHtml = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;">
     <div style="text-align:center;">
-      <div style="font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);">Ad${adventureDie}</div>
-      <div style="font-family:'Rajdhani',sans-serif;font-size:2rem;font-weight:700;color:var(--gold);">${adRoll.total}</div>
+      <div style="font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);">Vd${valorDie}</div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:2rem;font-weight:700;color:var(--gold);">${vdRoll.total}</div>
     </div>
     <div style="text-align:center;">
       <div style="font-family:'Cinzel',serif;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);">DD8</div>
@@ -19490,7 +19490,7 @@ function applySableWardMentalStress(delta) {
   }
   if (S.flavorState.sableWard.used) return incoming;
 
-  var ad = Math.max(4, Number((S && S.stats && S.stats.adventure) || 4));
+  var ad = Math.max(4, Number((S && S.stats && S.stats.valor) || 4));
   var reducedBy = (typeof explodingRoll === 'function')
     ? Number(explodingRoll(ad, { type: 'action', major: false, label: 'Sable Ward' }).total || 0)
     : (Math.floor(Math.random() * ad) + 1);

@@ -88,7 +88,7 @@
       { title: "Cryptogram Grid", prompt: "Cryptogram (+1 shift): [XPSME]. Decode.", answer: "world" }
     ],
     task: [
-      { title: "Field Brief", prompt: "Type the stat used most for exploration checks in this game section.", answer: "adventure" },
+      { title: "Field Brief", prompt: "Type the stat used most for exploration checks in this game section.", answer: "valor" },
       { title: "Route Marker", prompt: "How many directions are shown in the 8-way observation controls?", answer: "8" },
       { title: "Jigsaw Brief", prompt: "Arrange phrase parts: [ROUTE] [THE] [HOLD] [LINE]. Enter full phrase.", answer: "hold the route line" }
     ],

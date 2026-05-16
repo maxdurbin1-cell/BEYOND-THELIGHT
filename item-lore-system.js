@@ -242,7 +242,7 @@ var ITEM_LORE_DATA = {
   'Balanced Armor': {
     flavorName: 'Wayfarer\'s Pact',
     type: 'Standard Medium Armor',
-    lore: 'Designed during the Long Peace by the Cinder Plaza Coalitions as a common accord — every mercenary would wear the same grade, and no one would have a material advantage in the halls of negotiation. The Long Peace ended. The armor endured.'
+    lore: 'Designed during the Long Peace by the Cinder Plaza Coalitions as a common accord — every mercenary would wear the same grade, and no one would have a material edge in the halls of negotiation. The Long Peace ended. The armor endured.'
   },
   'Heavy Armor': {
     flavorName: 'Iron Doctrine',

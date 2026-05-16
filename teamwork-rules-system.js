@@ -39,7 +39,8 @@
     var context = String(failureContext || "unknown-failure");
     var details = rollDetails || {};
 
-    var stat = String(details.stat || "adventure");
+    // Valor Die (V.D.) replaces Adventure Die (A.D.)
+    var stat = String(details.stat || "valor");
     var roll = Number(details.roll || 0);
     var difficulty = Number(details.difficulty || 0);
     var description = String(details.description || "");
@@ -47,6 +48,9 @@
 
     // Build detailed failure reason
     var failureReason = context + ": " + stat.toUpperCase() + " d? " + roll + " vs " + difficulty;
+    if (stat === "valor") {
+      failureReason += " (Valor Die, additive bonus)";
+    }
     if (description) {
       failureReason += " (" + description + ")";
     }

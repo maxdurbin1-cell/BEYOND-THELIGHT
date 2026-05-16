@@ -603,25 +603,26 @@
   }
 
   function rollAgainstDread(statKey, dreadDie) {
-    const ad = getActionDie(statKey);
+    // Valor Die (V.D.) replaces Adventure Die (A.D.)
+    const vd = getActionDie(statKey === "adventure" ? "valor" : statKey);
     const dd = normalizeDreadDie(dreadDie || 8, 8);
-    const a = (typeof explodingRoll === "function") ? explodingRoll(ad) : { total: safeRoll(ad) };
+    const a = (typeof explodingRoll === "function") ? explodingRoll(vd) : { total: safeRoll(vd) };
     const d = (typeof explodingRoll === "function") ? explodingRoll(dd) : { total: safeRoll(dd) };
-    const invBonus = (typeof collectInventoryBonusesForStat === "function") ? collectInventoryBonusesForStat(statKey) : { addAdventure: 0, flat: 0 };
-    const serviceBonus = String(statKey || "") === "adventure" ? consumeWorldServiceBonus("nextAdventureBonus") : 0;
+    const invBonus = (typeof collectInventoryBonusesForStat === "function") ? collectInventoryBonusesForStat(statKey === "adventure" ? "valor" : statKey) : { addValor: 0, flat: 0 };
+    const serviceBonus = String(statKey || "") === "valor" ? consumeWorldServiceBonus("nextValorBonus") : 0;
     let homeSecurityBonus = 0;
-    if ((statKey === "adventure" || statKey === "defend") && typeof getWayfarerHomeBonuses === "function") {
+    if ((statKey === "valor" || statKey === "defend") && typeof getWayfarerHomeBonuses === "function") {
       const hb = getWayfarerHomeBonuses() || {};
       homeSecurityBonus = Math.min(2, Math.max(0, Number(hb.security || 0)));
     }
     let actionTotal = a.total + serviceBonus + homeSecurityBonus + Number(invBonus.flat || 0);
-    const advDie = (typeof getEffectiveDie === "function") ? getEffectiveDie("adventure") : ((S.stats && S.stats.adventure) || 4);
-    for (let i = 0; i < Number(invBonus.addAdventure || 0); i++) {
-      const bonusRoll = (typeof explodingRoll === "function") ? explodingRoll(advDie) : { total: safeRoll(advDie) };
+    const valorDie = (typeof getEffectiveDie === "function") ? getEffectiveDie("valor") : ((S.stats && S.stats.valor) || 4);
+    for (let i = 0; i < Number(invBonus.addValor || 0); i++) {
+      const bonusRoll = (typeof explodingRoll === "function") ? explodingRoll(valorDie) : { total: safeRoll(valorDie) };
       actionTotal += bonusRoll.total;
     }
     return {
-      ad: ad,
+      vd: vd,
       dd: dd,
       actionTotal: actionTotal,
       dreadTotal: d.total,
@@ -2697,7 +2698,7 @@
           action: 'Exploit the shadow window',
           reward: 'Immediate tactical reward',
           mode: 'skill',
-          stat: 'adventure',
+          stat: 'valor',
           dread: 8,
           zoneName: hex.zone,
           nightModeBonus: bonus
@@ -3048,8 +3049,8 @@
     if (!w || !hex || !hex.skirmish) return;
 
     w.skirmishState.activeHexId = hex.id;
-    const adv = (S.stats && S.stats.adventure) ? S.stats.adventure : 6;
-    const a = safeRoll(adv);
+    const vd = (S.stats && S.stats.valor) ? S.stats.valor : 6;
+    const a = safeRoll(vd);
     const d = safeRoll(8);
     finishSkirmishOutcome(a >= d);
   }

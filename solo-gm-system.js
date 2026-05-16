@@ -25,7 +25,7 @@
       ],
       choices: [
         { id: 'charm', label: 'Flirt at tactical velocity', stat: 'spirit', risky: false },
-        { id: 'breach', label: 'Breach the vault with improvised poetry', stat: 'adventure', risky: true },
+        { id: 'breach', label: 'Breach the vault with improvised poetry', stat: 'valor', risky: true },
         { id: 'duel', label: 'Challenge the wedding-cake mech', stat: 'strike', risky: true }
       ]
     },
@@ -336,12 +336,12 @@
     var success = true;
     var detail = 'Narrative beat advanced.';
     if (risky) {
-      var aDie = statDie(choice.stat || 'adventure');
+      var aDie = statDie(choice.stat || 'valor');
       var dd = 6 + Math.min(8, Math.floor(Number(st.weirdness || 1) / 2));
       var a = rollDie(aDie);
       var d = rollDie(dd);
       success = a >= d;
-      detail = String(choice.stat || 'adventure').toUpperCase() + ' d' + aDie + '=' + a + ' vs DD' + dd + '=' + d;
+      detail = String(choice.stat || 'valor').toUpperCase() + ' d' + aDie + '=' + a + ' vs DD' + dd + '=' + d;
       st.sinceRoll = 0;
       if (!success) applyFailureConsequence(choice.stat);
     } else {

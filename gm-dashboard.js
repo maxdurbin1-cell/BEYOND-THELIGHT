@@ -69,7 +69,7 @@
       title: '🧑 Character Sheet',
       body: `<p>Each character has the following tracked values:</p>
 <ul>
-  <li><strong>Stats:</strong> Body, Mind, Spirit, Agility, Control, Adventure, Defend, Strike, Shoot, Sneak, Lead, Notice. Each is represented by a die (d4→d6→d8→d10→d12→d20).</li>
+  <li><strong>Stats:</strong> Body, Mind, Spirit, Agility, Control, Valor, Defend, Strike, Shoot, Sneak, Lead, Notice. Each is represented by a die (d4→d6→d8→d10→d12→d20). The Valor Die (V.D.) is an additive bonus die, not an advantage mechanic.</li>
   <li><strong>Stress:</strong> Rises from failed rolls, combat damage, and hostile conditions. Max = derived from stats. At max, future rolls take penalties.</li>
   <li><strong>Credits (₵):</strong> The economy. Earned from mission rewards, trading, and loot.</li>
   <li><strong>Backpack / Inventory:</strong> Items carried during missions. Some items grant bonuses to specific rolls.</li>
@@ -84,7 +84,7 @@
 <ul>
   <li><strong>Step 1 — Info Gather:</strong> Optional. Roll to gain a feature (hidden cache, back entrance, shrine, etc.) that helps in later steps. Can be skipped.</li>
   <li><strong>Step 2 — Site Exploration:</strong> Navigate rooms. Each room may contain guards, traps, puzzles, or caches. Resolve via NPC/item cards drawn per room.</li>
-  <li><strong>Step 3 — Confrontation:</strong> The mission climax. Roll Adventure vs Dread die. GM can adjust Dread, force success/failure, or reveal/hide the DC from players.</li>
+  <li><strong>Step 3 — Confrontation:</strong> The mission climax. Roll Valor Die (V.D.) vs Dread die. GM can adjust Dread, force success/failure, or reveal/hide the DC from players. The Valor Die is always additive, not an advantage mechanic.</li>
   <li><strong>Difficulty levels:</strong> Easy (d4) → Medium (d6) → Hard (d8) → Challenging (d10) → Very Hard (d12) → Impossible (d20).</li>
 </ul>
 <p><strong>GM Tip:</strong> The Mission Creator (tab) lets you build a fully custom mission from scratch with randomized or hand-chosen components and push it directly to the mission board or active tracker.</p>`

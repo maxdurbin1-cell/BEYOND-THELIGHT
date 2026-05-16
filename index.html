@@ -1035,7 +1035,6 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 
 <!-- COMBAT TAB -->
 <div class="tab-panel" id="tab-combat">
-  <div id="combatSceneWorkshop" style="margin-bottom:.85rem;"></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;">
     <div class="card">
       <div class="section-title">Combat Scene</div>
@@ -7107,7 +7106,6 @@ function updateCombatUI(){
   }
   if(typeof renderEnemyFocusSelect==='function')renderEnemyFocusSelect();
   if(typeof renderCampaignInitiativePanel==='function')renderCampaignInitiativePanel();
-  if(typeof renderCombatSceneWorkshop==='function')renderCombatSceneWorkshop();
   if(typeof updateWayfarerActionBtn==='function')updateWayfarerActionBtn();
   if(window._arenaCombatPopupOpen&&S&&S.combat&&S.combat.arenaFlow&&String(S.combat.arenaFlow.mode||'')==='pinnacle'&&typeof renderArenaCombatPopup==='function'){
     renderArenaCombatPopup();
@@ -8828,8 +8826,9 @@ function triggerEnemyActionEvent(){
       summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
     }else{
       var sDmg=Math.max(1,Math.ceil(dr.total/3)+(ev.scale||0)-getCoverDefenseBonusForTier(playerCoverTier2));
-      changeStress(sDmg);
-      summary='Direct hit — '+sDmg+' Stress.';
+      var adjustedSDmg=Math.max(1,sDmg-sceneEnemyModTotal);
+      changeStress(adjustedSDmg);
+      summary='Direct hit — '+adjustedSDmg+' Stress.'+sceneEnemyModHtml;
     }
   }else if(ev.kind==='radiation'){
     supportsSave=true;
@@ -8874,8 +8873,9 @@ function triggerEnemyActionEvent(){
       summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
     }else{
       var hDmg=Math.max(1,Math.ceil(dr.total/(ev.scale||4)));
-      if(typeof changeHealth==='function')changeHealth(hDmg);else changeStress(hDmg);
-      summary='Critical impact — '+hDmg+' Health damage.';
+      var adjustedHDmg=Math.max(1,hDmg-sceneEnemyModTotal);
+      if(typeof changeHealth==='function')changeHealth(adjustedHDmg);else changeStress(adjustedHDmg);
+      summary='Critical impact — '+adjustedHDmg+' Health damage.'+sceneEnemyModHtml;
     }
   }else if(ev.kind==='forceTrauma'){
     if(shouldNegateEnemyEventByFlavor(ev.element,ev.kind)){

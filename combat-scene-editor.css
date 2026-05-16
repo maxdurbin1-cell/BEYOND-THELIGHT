@@ -175,6 +175,41 @@
   padding: 0.18rem 0.05rem;
 }
 
+.combat-rule-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.7rem;
+}
+
+.combat-rule-table th,
+.combat-rule-table td {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0.22rem 0.24rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.combat-rule-table th {
+  color: var(--combat-accent);
+  font-family: "Cinzel", serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.62rem;
+}
+
+.combat-action-block {
+  margin-top: 0.28rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 0.3rem;
+}
+
+.combat-result-mirror {
+  margin-top: 0.24rem;
+  font-size: 0.72rem;
+  color: var(--combat-muted);
+}
+
 .combat-right-rail {
   right: 0.7rem;
   top: 3.2rem;

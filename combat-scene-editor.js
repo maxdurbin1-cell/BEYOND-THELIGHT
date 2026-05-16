@@ -46,6 +46,10 @@
     return String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   }
 
+  function stripHtml(text) {
+    return String(text || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
   function flattenCodexBestiary() {
     var out = [];
     if (typeof NAMED_ENEMY_BESTIARY === 'object' && NAMED_ENEMY_BESTIARY) {
@@ -211,18 +215,22 @@
     if (!tokens.length && window.S && Array.isArray(window.S.enemies) && window.S.enemies.length) {
       tokens = window.S.enemies.map(function (enemy, idx) {
         var allied = !!enemy.ally;
+        var dread = Math.max(4, Number(enemy.dread || 6));
+        var hpByDread = dread * 2;
         return {
           id: uid(allied ? 'ally' : 'enm'),
           name: String(enemy.name || (allied ? 'Ally' : 'Enemy ' + (idx + 1))),
           faction: allied ? 'player' : 'monster',
-          hp: Number(enemy.stress || 8),
-          maxHp: Number(enemy.stress || 8),
+          hp: allied ? Number(enemy.stress || hpByDread) : hpByDread,
+          maxHp: allied ? Number(enemy.stress || hpByDread) : hpByDread,
           status: [],
           q: allied ? idx : idx + 3,
           r: allied ? 2 : 0,
           image: '',
           size: 1,
-          isPlayer: allied && idx === 0
+          isPlayer: allied && idx === 0,
+          dread: dread,
+          deathNumber: dread
         };
       });
     }
@@ -278,6 +286,7 @@
     codexBestiary: flattenCodexBestiary(),
     tokens: seedFromCurrentCombat(),
     initiative: [],
+    teamActions: {},
     actionHistory: ['Combat mode initialized.'],
     panelPos: {
       tools: { x: 14, y: 58 },
@@ -294,6 +303,46 @@
       }).sort(function (a, b) { return Number(b.init || 0) - Number(a.init || 0); });
     }
     return state;
+  }
+
+  function isCampaignModeActive() {
+    try {
+      if (window.campaignSystem && typeof window.campaignSystem.getState === 'function') {
+        var st = window.campaignSystem.getState();
+        return !!(st && st.activeMissionId);
+      }
+    } catch (_err) {}
+    return false;
+  }
+
+  function ensureActionBudgetMap(state) {
+    var next = Object.assign({}, state);
+    var map = Object.assign({}, state.teamActions || {});
+    if (!isCampaignModeActive()) {
+      (state.tokens || []).forEach(function (token) {
+        if (!token) return;
+        if (String(token.faction) === 'player' || String(token.faction) === 'monster') {
+          if (typeof map[token.id] !== 'number') map[token.id] = 2;
+        }
+      });
+    }
+    next.teamActions = map;
+    return next;
+  }
+
+  function spendUnitAction(tokenId) {
+    var state = store.getState();
+    if (isCampaignModeActive()) return true;
+    var available = Number(state.teamActions && state.teamActions[tokenId] || 0);
+    if (available <= 0) return false;
+    store.setState(function (inner) {
+      var next = Object.assign({}, inner);
+      next.teamActions = Object.assign({}, inner.teamActions || {});
+      next.teamActions[tokenId] = Math.max(0, Number(next.teamActions[tokenId] || 0) - 1);
+      persist(next);
+      return next;
+    });
+    return true;
   }
 
   function addHistory(line) {
@@ -401,19 +450,41 @@
     var terrain = String(state.layers.terrain[toKey(actor.q, actor.r)] || '');
     if (terrain === 'difficult terrain') terrainMod = -1;
     if (terrain === 'water' && actionType === 'melee') terrainMod -= 1;
-    var total = base + elevationMod + weatherMod + terrainMod;
-
-    var summary = (actor.name || 'Token')
-      + ' action [' + actionType + ']'
-      + ' base ' + base
-      + ' + elevation ' + elevationMod
-      + ' + weather ' + weatherMod
-      + ' + terrain ' + terrainMod
-      + ' = ' + total;
+    var supportBonus = Math.max(0, Number(state.sceneRules && state.sceneRules.supportBonus || 0));
+    var total = base + elevationMod + weatherMod + terrainMod + supportBonus;
+    var summary = (actor.name || 'Token') + ' action [' + actionType + '] base ' + base + ' + elevation ' + elevationMod + ' + weather ' + weatherMod + ' + terrain ' + terrainMod + ' + support ' + supportBonus + ' = ' + total;
     addHistory(summary);
     if (target) {
       var cin = hexLabel(range);
-      addHistory((actor.name || 'Token') + ' targets ' + (target.name || 'Target') + ' at ' + range + ' hexes (' + cin + ').');
+      var targetDread = Math.max(4, Number(target.dread || target.codexDread || 6));
+      var hit = total >= targetDread;
+      if (hit) {
+        var damage = Math.max(1, total - targetDread);
+        var deathNumber = Math.max(1, Number(target.deathNumber || targetDread));
+        var autoKill = damage >= deathNumber;
+        store.setState(function (inner) {
+          var next = Object.assign({}, inner);
+          next.tokens = (inner.tokens || []).map(function (token) {
+            if (!token || String(token.id) !== String(target.id)) return token;
+            var hpNow = Math.max(0, Number(token.hp || 0));
+            var hpLoss = autoKill ? hpNow : damage;
+            return Object.assign({}, token, { hp: Math.max(0, hpNow - hpLoss) });
+          });
+          persist(next);
+          return next;
+        });
+        addHistory((actor.name || 'Token') + ' hits ' + (target.name || 'Target') + ' at ' + range + ' hexes (' + cin + ') for ' + damage + ' damage vs DD' + targetDread + '.' + (autoKill ? (' Death Number ' + deathNumber + ' reached: instant kill.') : ''));
+      } else {
+        addHistory((actor.name || 'Token') + ' misses ' + (target.name || 'Target') + ' at ' + range + ' hexes (' + cin + ') vs DD' + targetDread + '.');
+      }
+    }
+    if (supportBonus > 0) {
+      store.setState(function (inner) {
+        var next = Object.assign({}, inner);
+        next.sceneRules = Object.assign({}, inner.sceneRules, { supportBonus: 0 });
+        persist(next);
+        return next;
+      });
     }
     updateUiPanels();
   }
@@ -489,15 +560,16 @@
         id: uid('bst'),
         name: String(profile.name || 'Beast'),
         faction: 'monster',
-        hp: Math.max(1, Number(profile.hp || 8)),
-        maxHp: Math.max(1, Number(profile.hp || 8)),
+        dread: Math.max(4, Number(profile.dread || 6)),
+        deathNumber: Math.max(4, Number(profile.dread || 6)),
+        hp: Math.max(1, Math.max(4, Number(profile.dread || 6)) * 2),
+        maxHp: Math.max(1, Math.max(4, Number(profile.dread || 6)) * 2),
         status: [],
         q: Number(q || 0),
         r: Number(r || 0),
         image: String(profile.image || ''),
         size: Number(profile.size || 1),
-        codexRegion: String(profile.region || 'province'),
-        codexDread: Math.max(4, Number(profile.dread || 4))
+        codexRegion: String(profile.region || 'province')
       };
       next.tokens = (state.tokens || []).concat([token]);
       next.selectedTokenId = token.id;
@@ -580,6 +652,50 @@
       + '<div class="combat-panel-body">'
       + '<div id="combatInitiativeList"></div>'
       + '<div style="display:flex;gap:.24rem;margin-top:.26rem;"><button class="btn btn-xs" id="combatNextTurnBtn">Next Turn</button><button class="btn btn-xs" id="combatRollModeBtn">Auto Roll</button></div>'
+      + '<div class="combat-action-block">'
+      + '<div class="combat-label">Scene Opener</div>'
+      + '<div id="combatSceneOpenerSummary" class="combat-mini">No opener active.</div>'
+      + '</div>'
+      + '<div class="combat-action-block">'
+      + '<div class="combat-label">Combat Commands</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.22rem;margin-top:.22rem;">'
+      + '<button class="btn btn-xs" id="combatCmdStrikeBtn">Strike</button>'
+      + '<button class="btn btn-xs" id="combatCmdShootBtn">Shoot</button>'
+      + '<button class="btn btn-xs" id="combatCmdDefendBtn">Defend</button>'
+      + '<button class="btn btn-xs" id="combatCmdTraumaBtn">Trauma</button>'
+      + '<button class="btn btn-xs" id="combatCmdEnemyBtn">Enemy Turn</button>'
+      + '<button class="btn btn-xs" id="combatCmdFlowBtn">Enemy Flow</button>'
+      + '</div>'
+      + '<div style="margin-top:.22rem;">'
+      + '<div class="combat-label">Wayfarer Action</div>'
+      + '<select class="combat-select" id="combatWayfarerActionSel">'
+      + '<option value="">Select action</option>'
+      + '<option value="flourish">Flourish (+1 Strike this turn)</option>'
+      + '<option value="bandage">Bandage (-1 Stress)</option>'
+      + '<option value="reposition">Reposition (adjacent +1 Defend)</option>'
+      + '<option value="break_grapple">Break Grapple (auto disengage)</option>'
+      + '<option value="improvise_tool">Improvise Tool (single-use +2)</option>'
+      + '<option value="patch_cover">Patch Cover (repair cover)</option>'
+      + '</select>'
+      + '<button class="btn btn-xs" id="combatCmdWayfarerBtn" style="margin-top:.18rem;">Execute Wayfarer Action</button>'
+      + '</div>'
+      + '<div id="combatLegacyResultMirror" class="combat-result-mirror">Legacy combat output mirrors here.</div>'
+      + '</div>'
+      + '<div class="combat-action-block">'
+      + '<div class="combat-label">Wayfarer Options & Rules</div>'
+      + '<div id="combatWayfarerRulesTable" style="margin-top:.22rem;"></div>'
+      + '</div>'
+      + '<div class="combat-action-block">'
+      + '<div class="combat-label">Ally Actions</div>'
+      + '<div class="combat-mini" id="combatAllyBudgetMeta">2 actions each ally/enemy (non-campaign).</div>'
+      + '<select class="combat-select" id="combatAllySelect" style="margin-top:.2rem;"></select>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.22rem;margin-top:.2rem;">'
+      + '<button class="btn btn-xs" id="combatAllyDefendBtn">Defend Ally</button>'
+      + '<button class="btn btn-xs" id="combatAllySupportBtn">Support Ally</button>'
+      + '<button class="btn btn-xs" id="combatAllyAttackBtn">Attack Enemy</button>'
+      + '<button class="btn btn-xs" id="combatAllyMoveBtn">Move</button>'
+      + '</div>'
+      + '</div>'
       + '<div class="combat-feed" id="combatFeedLog"></div>'
       + '</div>'
       + '</aside>'
@@ -776,7 +892,7 @@
   }
 
   function updateUiPanels() {
-    var state = ensureInitiative(store.getState());
+    var state = ensureActionBudgetMap(ensureInitiative(store.getState()));
 
     var layers = ['terrain', 'objects', 'hazards', 'elevation', 'lighting', 'weather', 'interactives', 'spawns'];
     var tools = ['select', 'paint', 'erase', 'fog', 'ruler', 'pan'];
@@ -876,8 +992,10 @@
     var selectedHp = document.getElementById('combatSelectedHp');
     var selectedElevation = document.getElementById('combatSelectedElevation');
     if (selectedSummary) {
+      var selectedDread = selected ? Math.max(4, Number(selected.dread || selected.codexDread || 0)) : 0;
+      var selectedDeath = selected ? Math.max(1, Number(selected.deathNumber || selectedDread || 0)) : 0;
       selectedSummary.textContent = selected
-        ? (selected.name + ' · ' + selected.faction + ' · hex ' + toKey(selected.q, selected.r))
+        ? (selected.name + ' · ' + selected.faction + ' · hex ' + toKey(selected.q, selected.r) + (selectedDread ? (' · DD d' + selectedDread + ' · DN ' + selectedDeath) : ''))
         : 'Select a token.';
     }
     if (selectedHp) {
@@ -905,6 +1023,62 @@
     var topMeta = document.getElementById('combatTopMeta');
     if (topMeta) {
       topMeta.textContent = 'Tokens ' + (state.tokens || []).length + ' · Hexes ' + (state.board.cols * 2) + 'x' + (state.board.rows * 2);
+    }
+
+    var opener = document.getElementById('combatSceneOpenerSummary');
+    if (opener) {
+      var so = window.S && window.S.combat && window.S.combat.sceneOpener ? window.S.combat.sceneOpener : null;
+      if (so) {
+        var zone = String(so.zone || 'Unknown');
+        var cover = String(so.cover || 'none');
+        var react = String(so.enemyReaction || 'Unknown');
+        var activity = String(so.enemyActivity || 'Unknown');
+        opener.textContent = 'Zone: ' + zone + ' · Cover: ' + cover + ' · Enemy Reaction: ' + react + ' · Enemy Activity: ' + activity + ' · Rad zones +10 unless protected.';
+      } else {
+        opener.textContent = 'No opener active.';
+      }
+    }
+
+    var rulesTable = document.getElementById('combatWayfarerRulesTable');
+    if (rulesTable && !rulesTable._seeded) {
+      rulesTable._seeded = true;
+      rulesTable.innerHTML = ''
+        + '<table class="combat-rule-table"><thead><tr><th>Action</th><th>Cost</th><th>Effect</th></tr></thead><tbody>'
+        + '<tr><td>Flourish</td><td>1</td><td>+1 Strike this turn.</td></tr>'
+        + '<tr><td>Bandage</td><td>1</td><td>-1 Stress from target ally.</td></tr>'
+        + '<tr><td>Reposition</td><td>1</td><td>Move ally and grant +1 Defend until next turn.</td></tr>'
+        + '<tr><td>Break Grapple</td><td>1</td><td>Auto-disengage from grappled state.</td></tr>'
+        + '<tr><td>Improvise Tool</td><td>1</td><td>Single-use +2 on item/flavor prompt.</td></tr>'
+        + '<tr><td>Patch Cover</td><td>1</td><td>Repair one local cover segment.</td></tr>'
+        + '</tbody></table>';
+    }
+
+    var mirror = document.getElementById('combatLegacyResultMirror');
+    if (mirror) {
+      var ids = ['attackResult', 'defendResult', 'traumaResult', 'enemyEventResult', 'wayfarerActionResult'];
+      var text = '';
+      for (var ii = 0; ii < ids.length; ii++) {
+        var node = document.getElementById(ids[ii]);
+        var raw = node ? stripHtml(node.textContent || node.innerText || '') : '';
+        if (raw) { text = raw; break; }
+      }
+      mirror.textContent = text || 'Legacy combat output mirrors here.';
+    }
+
+    var allySel = document.getElementById('combatAllySelect');
+    if (allySel) {
+      var allies = (state.tokens || []).filter(function (token) { return token && String(token.faction) === 'player'; });
+      allySel.innerHTML = allies.map(function (ally) {
+        var left = Number(state.teamActions && state.teamActions[ally.id] || (isCampaignModeActive() ? 0 : 2));
+        return '<option value="' + String(ally.id) + '">' + String(ally.name || 'Ally') + (isCampaignModeActive() ? '' : (' · actions ' + left)) + '</option>';
+      }).join('');
+    }
+
+    var allyBudget = document.getElementById('combatAllyBudgetMeta');
+    if (allyBudget) {
+      allyBudget.textContent = isCampaignModeActive()
+        ? 'Campaign mode active: standard campaign action economy.'
+        : '2 actions each ally/enemy. Actions refresh on Next Turn.';
     }
   }
 
@@ -1091,6 +1265,13 @@
           var size = Math.max(1, (state.initiative || []).length);
           var idx = (Number(state.initiativeIndex || 0) + 1) % size;
           var next = Object.assign({}, state, { initiativeIndex: idx });
+          if (!isCampaignModeActive()) {
+            next.teamActions = {};
+            (state.tokens || []).forEach(function (token) {
+              if (!token) return;
+              if (String(token.faction) === 'player' || String(token.faction) === 'monster') next.teamActions[token.id] = 2;
+            });
+          }
           persist(next);
           return next;
         });
@@ -1255,6 +1436,183 @@
       };
     }
 
+    function runLegacyAction(kind) {
+      try {
+        if (kind === 'strike' && typeof window.rollAttack === 'function') window.rollAttack('strike');
+        else if (kind === 'shoot' && typeof window.rollAttack === 'function') window.rollAttack('shoot');
+        else if (kind === 'defend' && typeof window.rollDefend === 'function') window.rollDefend();
+        else if (kind === 'trauma' && typeof window.rollTraumaCheck === 'function') window.rollTraumaCheck();
+        else if (kind === 'enemy' && typeof window.doEnemyTurn === 'function') window.doEnemyTurn();
+        else if (kind === 'flow' && typeof window.triggerEnemyActionEvent === 'function') window.triggerEnemyActionEvent();
+      } catch (_err) {}
+      updateUiPanels();
+    }
+
+    var cmdStrike = document.getElementById('combatCmdStrikeBtn');
+    if (cmdStrike && !cmdStrike._bound) {
+      cmdStrike._bound = true;
+      cmdStrike.onclick = function () { runLegacyAction('strike'); };
+    }
+
+    var cmdShoot = document.getElementById('combatCmdShootBtn');
+    if (cmdShoot && !cmdShoot._bound) {
+      cmdShoot._bound = true;
+      cmdShoot.onclick = function () { runLegacyAction('shoot'); };
+    }
+
+    var cmdDefend = document.getElementById('combatCmdDefendBtn');
+    if (cmdDefend && !cmdDefend._bound) {
+      cmdDefend._bound = true;
+      cmdDefend.onclick = function () { runLegacyAction('defend'); };
+    }
+
+    var cmdTrauma = document.getElementById('combatCmdTraumaBtn');
+    if (cmdTrauma && !cmdTrauma._bound) {
+      cmdTrauma._bound = true;
+      cmdTrauma.onclick = function () { runLegacyAction('trauma'); };
+    }
+
+    var cmdEnemy = document.getElementById('combatCmdEnemyBtn');
+    if (cmdEnemy && !cmdEnemy._bound) {
+      cmdEnemy._bound = true;
+      cmdEnemy.onclick = function () { runLegacyAction('enemy'); };
+    }
+
+    var cmdFlow = document.getElementById('combatCmdFlowBtn');
+    if (cmdFlow && !cmdFlow._bound) {
+      cmdFlow._bound = true;
+      cmdFlow.onclick = function () { runLegacyAction('flow'); };
+    }
+
+    var cmdWayfarer = document.getElementById('combatCmdWayfarerBtn');
+    if (cmdWayfarer && !cmdWayfarer._bound) {
+      cmdWayfarer._bound = true;
+      cmdWayfarer.onclick = function () {
+        var sel = document.getElementById('combatWayfarerActionSel');
+        var val = String(sel && sel.value || '');
+        if (!val) return;
+        var legacySel = document.getElementById('wayfarerActionSel');
+        if (legacySel) legacySel.value = val;
+        if (typeof window.executeWayfarerAction === 'function') {
+          try { window.executeWayfarerAction(); } catch (_err) {}
+        }
+        addHistory('Wayfarer action executed: ' + val + '.');
+        updateUiPanels();
+      };
+    }
+
+    function allyAction(handlerLabel, applyFn) {
+      var allySel = document.getElementById('combatAllySelect');
+      var allyId = String(allySel && allySel.value || '');
+      if (!allyId) return;
+      if (!spendUnitAction(allyId)) {
+        addHistory('No remaining actions for selected ally.');
+        updateUiPanels();
+        return;
+      }
+      applyFn(allyId);
+      addHistory(handlerLabel);
+      drawBoard();
+      updateUiPanels();
+    }
+
+    var allyDefend = document.getElementById('combatAllyDefendBtn');
+    if (allyDefend && !allyDefend._bound) {
+      allyDefend._bound = true;
+      allyDefend.onclick = function () {
+        allyAction('Ally used Defend: +1 cover effect to active position.', function (allyId) {
+          store.setState(function (state) {
+            var next = Object.assign({}, state);
+            var ally = (state.tokens || []).find(function (t) { return t && String(t.id) === allyId; }) || null;
+            if (!ally) return state;
+            var key = toKey(ally.q, ally.r);
+            next.layers = Object.assign({}, state.layers);
+            next.layers.objects = Object.assign({}, state.layers.objects);
+            next.layers.objects[key] = 'obstacle';
+            persist(next);
+            return next;
+          });
+        });
+      };
+    }
+
+    var allySupport = document.getElementById('combatAllySupportBtn');
+    if (allySupport && !allySupport._bound) {
+      allySupport._bound = true;
+      allySupport.onclick = function () {
+        allyAction('Ally used Support: next action gets +2 scene bonus.', function () {
+          store.setState(function (state) {
+            var next = Object.assign({}, state);
+            next.sceneRules = Object.assign({}, state.sceneRules, { supportBonus: 2 });
+            persist(next);
+            return next;
+          });
+        });
+      };
+    }
+
+    var allyAttack = document.getElementById('combatAllyAttackBtn');
+    if (allyAttack && !allyAttack._bound) {
+      allyAttack._bound = true;
+      allyAttack.onclick = function () {
+        allyAction('Ally attacked nearest enemy.', function (allyId) {
+          var state = store.getState();
+          var ally = (state.tokens || []).find(function (t) { return t && String(t.id) === allyId; }) || null;
+          if (!ally) return;
+          var enemies = (state.tokens || []).filter(function (t) { return t && String(t.faction) === 'monster' && Number(t.hp || 0) > 0; });
+          if (!enemies.length) return;
+          enemies.sort(function (a, b) {
+            return hexDistance({ q: ally.q, r: ally.r }, { q: a.q, r: a.r }) - hexDistance({ q: ally.q, r: ally.r }, { q: b.q, r: b.r });
+          });
+          var target = enemies[0];
+          var roll = Math.floor(Math.random() * 20) + 1;
+          var dd = Math.max(4, Number(target.dread || target.codexDread || 6));
+          var support = Number(state.sceneRules && state.sceneRules.supportBonus || 0);
+          var total = roll + support;
+          if (total >= dd) {
+            var dmg = Math.max(1, total - dd);
+            var dn = Math.max(1, Number(target.deathNumber || dd));
+            var kill = dmg >= dn;
+            store.setState(function (inner) {
+              var next = Object.assign({}, inner);
+              next.tokens = (inner.tokens || []).map(function (t) {
+                if (!t || String(t.id) !== String(target.id)) return t;
+                var hpNow = Math.max(0, Number(t.hp || 0));
+                return Object.assign({}, t, { hp: kill ? 0 : Math.max(0, hpNow - dmg) });
+              });
+              next.sceneRules = Object.assign({}, inner.sceneRules, { supportBonus: 0 });
+              persist(next);
+              return next;
+            });
+            addHistory((ally.name || 'Ally') + ' hit ' + (target.name || 'Enemy') + ' for ' + dmg + ' (DD d' + dd + ', DN ' + dn + (kill ? ', instant kill).' : ').'));
+          } else {
+            addHistory((ally.name || 'Ally') + ' missed ' + (target.name || 'Enemy') + ' (roll ' + total + ' vs DD d' + dd + ').');
+          }
+        });
+      };
+    }
+
+    var allyMove = document.getElementById('combatAllyMoveBtn');
+    if (allyMove && !allyMove._bound) {
+      allyMove._bound = true;
+      allyMove.onclick = function () {
+        allyAction('Ally moved one hex.', function (allyId) {
+          store.setState(function (state) {
+            var next = Object.assign({}, state);
+            next.tokens = (state.tokens || []).map(function (token) {
+              if (!token || String(token.id) !== allyId) return token;
+              var nq = Number(token.q || 0) + 1;
+              var nr = Number(token.r || 0);
+              if (isBlocked(nq, nr)) return token;
+              return Object.assign({}, token, { q: nq, r: nr });
+            });
+            persist(next);
+            return next;
+          });
+        });
+      };
+    }
+
     var uploadMapBtn = document.getElementById('combatUploadMapBtn');
     var uploadMapInput = document.getElementById('combatMapImageInput');
     if (uploadMapBtn && uploadMapInput && !uploadMapBtn._bound) {
@@ -1405,17 +1763,20 @@
     });
 
     var enemies = match.enemies.filter(function (u) { return u && Number(u.hp || 0) > 0; }).map(function (u, idx) {
+      var dread = Math.max(4, Number(u.dread || 6));
       return {
         id: String(u.id || uid('enm')),
         name: String(u.name || ('Enemy ' + (idx + 1))),
         faction: 'monster',
-        hp: Number(u.hp || 8),
-        maxHp: Number(u.maxHp || u.hp || 8),
+        hp: dread * 2,
+        maxHp: dread * 2,
         status: [],
         q: Number(u.position && u.position.q || (idx + 3)),
         r: Number(u.position && u.position.r || 0),
         image: '',
-        size: 1
+        size: 1,
+        dread: dread,
+        deathNumber: dread
       };
     });
 

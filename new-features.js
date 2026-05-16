@@ -12769,6 +12769,29 @@
       : (type === 'body' ? 'Body'
       : (type === 'spirit' ? 'Spirit'
       : (type === 'mind' ? 'Mind' : 'Spell')))))));
+    var mode = 'standard';
+    if (window.heavyAttackData && window.heavyAttackData.type === type) mode = 'heavy';
+    else if (window.fastAttackData && window.fastAttackData.type === type) mode = 'fast';
+    else if (window.enemyManualReactionData && window.enemyManualReactionData.mode === 'arena-enemy-reaction') mode = 'enemy_reaction';
+    else if (window.manualRollData && window.manualRollData.mode === 'surprise-check') mode = 'surprise_check';
+    var statForModifiers = type === 'hack' ? 'control' : (type === 'spell' ? 'mind' : type);
+    var extraLines = [];
+    if (mode === 'heavy') extraLines.push('Heavy attack mode: add +2 damage on hit.');
+    if (mode === 'fast') extraLines.push('Fast attack mode: on success, target becomes Vulnerable for 1 round.');
+    if (mode === 'enemy_reaction') extraLines.push('This is a reaction defense check against an enemy action.');
+    if (mode === 'surprise_check') extraLines.push('Surprise check success grants +2 to attacks this round.');
+    extraLines.push('Enter final totals after applying your active bonuses, penalties, and condition step changes.');
+    var modifierLines = [];
+    if (typeof window.buildManualRollModifierLines === 'function') {
+      modifierLines = window.buildManualRollModifierLines(statForModifiers, actionDie, { extraLines: extraLines }) || [];
+    } else {
+      modifierLines = extraLines;
+    }
+    var modifierHtml = modifierLines.length
+      ? ('<div style="margin-top:.34rem;padding:.34rem .42rem;border:1px solid var(--border2);background:rgba(46,196,182,.05);border-radius:3px;"><div style="font-size:.69rem;color:var(--teal);margin-bottom:.12rem;"><strong>Apply These Modifiers</strong></div>'
+        + modifierLines.map(function(line){ return '<div style="font-size:.69rem;color:var(--text2);line-height:1.45;">- ' + String(line) + '</div>'; }).join('')
+        + '</div>')
+      : '<div style="font-size:.69rem;color:var(--muted2);margin-top:.28rem;">No active modifiers detected.</div>';
 
     var html = '<div style="font-size:.85rem;color:var(--text2);line-height:1.7;">'
       + '<div style="font-family:\'Cinzel\',serif;font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold2);margin-bottom:.4rem;">'
@@ -12778,6 +12801,7 @@
       + '<div style="font-size:.75rem;color:var(--teal);margin-bottom:.15rem;"><strong>Roll Against:</strong></div>'
       + '<div><strong style="color:var(--text2);">' + skillLabel + ' d' + actionDie + '</strong> <span style="color:var(--muted2);">vs</span> <strong style="color:var(--red);">Dread d' + dreadDie + '</strong></div>'
       + '</div>'
+      + modifierHtml
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-bottom:.4rem;">'
       + '<div><label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">' + skillLabel + ' d' + actionDie + '</label><input type="number" id="combatManualActionValue" min="1" placeholder="1+" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;"></div>'
       + '<div><label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Dread d' + dreadDie + '</label><input type="number" id="combatManualDreadValue" min="1" placeholder="1+" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;"></div>'

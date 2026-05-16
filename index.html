@@ -12954,6 +12954,45 @@ function openProvinceEdgeBarrierModal(edge,fromHex,toHex){
     + '</div>';
   openModal('Edge Barrier',html);
 }
+function getManualRollConditionEffects(statKey){
+  var key=String(statKey||'').toLowerCase();
+  var cond=(S&&S.conditions&&typeof S.conditions==='object')?S.conditions:{};
+  var trauma=(S&&S.traumaConditions&&typeof S.traumaConditions==='object')?S.traumaConditions:{};
+  var notes=[];
+  var step=0;
+  if((key==='body'||key==='strike'||key==='shoot')&&cond.empowered){step+=1;notes.push('Empowered: die step up (+1).');}
+  if((key==='body'||key==='strike'||key==='shoot')&&cond.weakened){step-=1;notes.push('Weakened: die step down (-1).');}
+  if((key==='body'||key==='strike'||key==='shoot')&&trauma.weakened){step-=1;notes.push('Trauma Weakened: die step down (-1).');}
+  if((key==='defend')&&cond.protected){step+=1;notes.push('Protected: die step up (+1).');}
+  if((key==='defend')&&cond.vulnerable){step-=1;notes.push('Vulnerable: die step down (-1).');}
+  if((key==='mind'||key==='control')&&cond.focused){step+=1;notes.push('Focused: die step up (+1).');}
+  if((key==='mind'||key==='control')&&cond.distracted){step-=1;notes.push('Distracted: die step down (-1).');}
+  if((key==='mind'||key==='control')&&trauma.distracted){step-=1;notes.push('Trauma Distracted: die step down (-1).');}
+  if((key==='spirit'||key==='lead')&&cond.bolstered){step+=1;notes.push('Bolstered: die step up (+1).');}
+  if((key==='spirit'||key==='lead')&&cond.shaken){step-=1;notes.push('Shaken: die step down (-1).');}
+  if((key==='spirit'||key==='lead')&&trauma.shaken){step-=1;notes.push('Trauma Shaken: die step down (-1).');}
+  if((key==='defend')&&trauma.vulnerable){step-=1;notes.push('Trauma Vulnerable: die step down (-1).');}
+  return {step:step,notes:notes};
+}
+function buildManualRollModifierLines(statKey,actionDie,cfg){
+  var key=String(statKey||'').toLowerCase();
+  var die=Math.max(2,Number(actionDie||4));
+  var opts=cfg&&typeof cfg==='object'?cfg:{};
+  var lines=[];
+  var condFx=getManualRollConditionEffects(key);
+  var baseDie=(S&&S.stats&&typeof S.stats==='object'&&Number(S.stats[key])>0)?Number(S.stats[key]):die;
+  var effectiveDie=(typeof getEffectiveDie==='function')?Number(getEffectiveDie(key)||die):die;
+  var rollMod=(S&&S.rollMod&&typeof S.rollMod==='object')?S.rollMod:{};
+  var advDice=Array.isArray(rollMod.advDice)?rollMod.advDice.filter(function(d){return Number(d)>0;}).map(function(d){return 'Ad'+Number(d);}):[];
+  var flat=Number(rollMod.flat||0);
+  if(Number(baseDie)>0&&Number(baseDie)!==Number(effectiveDie))lines.push('Stat die adjusted by conditions: d'+baseDie+' -> d'+effectiveDie+'.');
+  condFx.notes.forEach(function(n){lines.push(n);});
+  if(advDice.length)lines.push('Roll modifier advantage dice active: '+advDice.join(', ')+' (roll all listed and keep highest before applying flat bonus).');
+  if(flat!==0)lines.push('Roll modifier flat bonus: '+(flat>0?'+':'')+flat+' to your final Action total.');
+  if(Array.isArray(opts.extraLines))opts.extraLines.forEach(function(line){if(line)lines.push(String(line));});
+  return lines;
+}
+window.buildManualRollModifierLines=buildManualRollModifierLines;
 function openProvinceManualCheckPrompt(config){
   if(typeof openModal!=='function')return false;
   const cfg=config&&typeof config==='object'?config:{};
@@ -12964,6 +13003,13 @@ function openProvinceManualCheckPrompt(config){
   const actionDie=Math.max(4,Number(cfg.actionDie||4));
   const dreadDie=Math.max(4,Number(cfg.dreadDie||6));
   const cancelLabel=String(cfg.cancelLabel||'Cancel');
+  const extraLines=Array.isArray(cfg.modifierLines)?cfg.modifierLines:[];
+  const modifierLines=buildManualRollModifierLines(statKey,actionDie,{extraLines:extraLines});
+  const modifierHtml=modifierLines.length
+    ? ('<div style="margin-top:.34rem;padding:.34rem .42rem;border:1px solid var(--border2);background:rgba(46,196,182,.05);border-radius:3px;"><div style="font-size:.69rem;color:var(--teal);margin-bottom:.12rem;"><strong>Apply These Modifiers</strong></div>'
+      + modifierLines.map(function(line){return '<div style="font-size:.69rem;color:var(--text2);line-height:1.45;">- '+line+'</div>';}).join('')
+      + '</div>')
+    : '<div style="font-size:.69rem;color:var(--muted2);margin-top:.28rem;">No active modifiers detected.</div>';
   window._pendingProvinceManualCheck={
     resolver:typeof cfg.onResolve==='function'?cfg.onResolve:null,
     onCancel:typeof cfg.onCancel==='function'?cfg.onCancel:null,
@@ -12974,7 +13020,8 @@ function openProvinceManualCheckPrompt(config){
     + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
     + '<div style="font-family:\'Cinzel\',serif;font-size:.76rem;letter-spacing:.08em;color:var(--gold2);margin-bottom:.24rem;">'+context+'</div>'
     + '<div><strong>'+statLabel+' d'+actionDie+'</strong> vs <strong style="color:var(--red2);">Dread d'+dreadDie+'</strong></div>'
-    + '<div style="font-size:.72rem;color:var(--muted2);margin-top:.14rem;">Enter your rolled values, then compare or choose outcome.</div>'
+    + '<div style="font-size:.72rem;color:var(--muted2);margin-top:.14rem;">Roll physically, apply modifiers listed below, then enter final totals.</div>'
+    + modifierHtml
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.32rem;margin-top:.4rem;">'
     + '<div><div style="font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;">'+statLabel+' d'+actionDie+'</div><input type="number" id="provinceManualActionValue" min="1" max="'+actionDie+'" placeholder="1-'+actionDie+'" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;"></div>'
     + '<div><div style="font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;">Dread d'+dreadDie+'</div><input type="number" id="provinceManualDreadValue" min="1" max="'+dreadDie+'" placeholder="1-'+dreadDie+'" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;"></div>'

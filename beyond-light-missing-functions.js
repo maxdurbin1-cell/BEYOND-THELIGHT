@@ -1217,59 +1217,83 @@ function workJobDay() {
   }
 
   var bodyDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('body') : ((S.stats && S.stats.body) || 4);
+  var resultEl = document.getElementById('workJobResult');
+  var finalizeWorkRoll = function(bodyTotal, dreadTotal, manualFlag) {
+    var success = Number(bodyTotal || 0) >= Number(dreadTotal || 0);
+
+    if (success) {
+      var successBefore = S.successRolls || 0;
+      var pathBefore = S.pathTokens || 0;
+
+      if (typeof changeCredits === 'function') changeCredits(100);
+      else {
+        S.credits = (S.credits || 0) + 100;
+        if (typeof updateCreditsUI === 'function') updateCreditsUI();
+      }
+      if (typeof advanceDay === 'function') advanceDay(1);
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+      else {
+        S.successRolls = (S.successRolls || 0) + 1;
+        var sr = document.getElementById('successRollsVal');
+        if (sr) sr.textContent = S.successRolls;
+      }
+      if (typeof showDccSuccessOutcome === 'function') {
+        showDccSuccessOutcome('body', Math.max(1, Number(bodyTotal || 0) - Number(dreadTotal || 0)), {
+          actionTotal: Number(bodyTotal || 0),
+          dreadTotal: Number(dreadTotal || 0),
+          context: 'Work day check'
+        });
+      }
+
+      var successAfter = S.successRolls || 0;
+      var pathAfter = S.pathTokens || 0;
+      var rollover = pathAfter > pathBefore
+        ? (' (3 successes converted to +1 Path Token: ' + pathBefore + ' -> ' + pathAfter + ')')
+        : (' (Success Rolls: ' + successBefore + ' -> ' + successAfter + ')');
+
+      if (resultEl) {
+        resultEl.innerHTML = '<span style="color:var(--green2);font-weight:700;">SUCCESS ✓</span> Body d' + bodyDie + '=' + Number(bodyTotal || 0) + ' vs Dread d6=' + Number(dreadTotal || 0) + ' -> +100 Credits, +1 Day, +1 Successful Roll.' + rollover + (manualFlag ? ' [manual]' : '');
+      }
+      showNotif('Work complete: +100 Credits, +1 day, and +1 Successful Roll.', 'good');
+    } else {
+      if (resultEl) {
+        resultEl.innerHTML = '<span style="color:var(--red2);font-weight:700;">FAILED ✗</span> Body d' + bodyDie + '=' + Number(bodyTotal || 0) + ' vs Dread d6=' + Number(dreadTotal || 0) + '. No pay.' + (manualFlag ? ' [manual]' : '');
+      }
+      if (typeof showDccFailureOutcome === 'function') {
+        showDccFailureOutcome('body', Math.max(1, Number(dreadTotal || 0) - Number(bodyTotal || 0)), {
+          actionTotal: Number(bodyTotal || 0),
+          dreadTotal: Number(dreadTotal || 0),
+          context: 'Work day check'
+        });
+      }
+      showNotif('Work failed: no Credits earned.', 'warn');
+      if (typeof addTMWOnFail === 'function') addTMWOnFail();
+    }
+  };
+
+  if (typeof isManualRollModeEnabled === 'function' && isManualRollModeEnabled() && typeof openProvinceManualCheckPrompt === 'function') {
+    var extraLines = [
+      'Work payout on success: +100 Credits, advance 1 day, and +1 Successful Roll.',
+      'On failure: no Credits and +1 Teamwork from failure.'
+    ];
+    openProvinceManualCheckPrompt({
+      title: 'Manual Roll - Work Day',
+      context: 'Work (Body vs Dread d6)',
+      statKey: 'body',
+      statLabel: 'Body',
+      actionDie: bodyDie,
+      dreadDie: 6,
+      modifierLines: extraLines,
+      onResolve: function(outcome) {
+        finalizeWorkRoll(Number(outcome && outcome.actionTotal || 0), Number(outcome && outcome.dreadTotal || 0), true);
+      }
+    });
+    return;
+  }
+
   var bodyRoll = explodingRoll(bodyDie);
   var dreadRoll = explodingRoll(6);
-  var success = bodyRoll.total >= dreadRoll.total;
-  var resultEl = document.getElementById('workJobResult');
-
-  if (success) {
-    var successBefore = S.successRolls || 0;
-    var pathBefore = S.pathTokens || 0;
-
-    if (typeof changeCredits === 'function') changeCredits(100);
-    else {
-      S.credits = (S.credits || 0) + 100;
-      if (typeof updateCreditsUI === 'function') updateCreditsUI();
-    }
-    if (typeof advanceDay === 'function') advanceDay(1);
-    if (typeof addSuccessRoll === 'function') addSuccessRoll();
-    else {
-      S.successRolls = (S.successRolls || 0) + 1;
-      var sr = document.getElementById('successRollsVal');
-      if (sr) sr.textContent = S.successRolls;
-    }
-    if (typeof showDccSuccessOutcome === 'function') {
-      showDccSuccessOutcome('body', Math.max(1, bodyRoll.total - dreadRoll.total), {
-        actionTotal: bodyRoll.total,
-        dreadTotal: dreadRoll.total,
-        context: 'Work day check'
-      });
-    }
-
-    var successAfter = S.successRolls || 0;
-    var pathAfter = S.pathTokens || 0;
-    var rollover = pathAfter > pathBefore
-      ? (' (3 successes converted to +1 Path Token: ' + pathBefore + ' -> ' + pathAfter + ')')
-      : (' (Success Rolls: ' + successBefore + ' -> ' + successAfter + ')');
-
-    if (resultEl) {
-      resultEl.innerHTML = '<span style="color:var(--green2);font-weight:700;">SUCCESS ✓</span> Body d' + bodyDie + '=' + bodyRoll.total + ' vs Dread d6=' + dreadRoll.total + ' -> +100 Credits, +1 Day, +1 Successful Roll.' + rollover;
-    }
-    showNotif('Work complete: +100 Credits, +1 day, and +1 Successful Roll.', 'good');
-  } else {
-    if (resultEl) {
-      resultEl.innerHTML = '<span style="color:var(--red2);font-weight:700;">FAILED ✗</span> Body d' + bodyDie + '=' + bodyRoll.total + ' vs Dread d6=' + dreadRoll.total + '. No pay.';
-    }
-    if (typeof showDccFailureOutcome === 'function') {
-      showDccFailureOutcome('body', Math.max(1, dreadRoll.total - bodyRoll.total), {
-        actionTotal: bodyRoll.total,
-        dreadTotal: dreadRoll.total,
-        context: 'Work day check'
-      });
-    }
-    showNotif('Work failed: no Credits earned.', 'warn');
-    if (typeof addTMWOnFail === 'function') addTMWOnFail();
-  }
+  finalizeWorkRoll(bodyRoll.total, dreadRoll.total, false);
 }
 
 function rollOmen() {

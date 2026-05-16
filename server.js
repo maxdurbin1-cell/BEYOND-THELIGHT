@@ -796,6 +796,27 @@ function snapshotCampaign(campaign, requesterToken) {
       })
     : [];
 
+  function canViewerSeeLogEntry(entry) {
+    if (!entry || !entry.meta || typeof entry.meta !== "object") return true;
+    const visibility = String(entry.meta.visibility || "public");
+    if (visibility === "public") return true;
+
+    const viewer = String(requesterToken || "");
+    const source = String(entry.meta.token || "");
+    const isGm = !!(viewer && campaign.gmToken && viewer === campaign.gmToken);
+
+    if (isGm) return true;
+    if (source && viewer && source === viewer) return true;
+    if (visibility === "targeted") {
+      const target = String(entry.meta.targetToken || "");
+      return !!(viewer && target && viewer === target);
+    }
+    if (visibility === "gm") return false;
+    return true;
+  }
+
+  const visibleLog = campaign.log.filter((entry) => canViewerSeeLogEntry(entry));
+
   return {
     code: campaign.code,
     archived: !!campaign.archived,
@@ -834,7 +855,7 @@ function snapshotCampaign(campaign, requesterToken) {
             : []
         }
       : null,
-    log: campaign.log.slice(-80)
+    log: visibleLog.slice(-80)
   };
 }
 
@@ -849,6 +870,15 @@ function emitCampaignState(code) {
 function emitCampaignNotice(campaign, notice) {
   if (!campaign || !notice) return;
   campaign.sessions.forEach((token, socketId) => {
+    if (notice.meta && typeof notice.meta === "object") {
+      const visibility = String(notice.meta.visibility || "public");
+      const viewer = String(token || "");
+      const source = String(notice.meta.token || "");
+      const target = String(notice.meta.targetToken || "");
+      const isGm = !!(campaign.gmToken && viewer && viewer === campaign.gmToken);
+      if (visibility === "gm" && !isGm && viewer !== source) return;
+      if (visibility === "targeted" && !isGm && viewer !== source && viewer !== target) return;
+    }
     io.to(socketId).emit("campaign:notice", notice);
   });
 }
@@ -871,7 +901,8 @@ function addLog(campaign, kind, text, meta) {
     kind: entry.kind,
     text: entry.text,
     at: entry.at,
-    sourceToken: entry.meta && entry.meta.token ? String(entry.meta.token) : ""
+    sourceToken: entry.meta && entry.meta.token ? String(entry.meta.token) : "",
+    meta: entry.meta || null
   });
   schedulePersist();
 }
@@ -2057,11 +2088,43 @@ io.on("connection", (socket) => {
     const token = socket.data.token;
     const member = token ? campaign.participants.get(token) : null;
     const name = member ? member.name : "Player";
+    const senderIsGm = !!(token && campaign.gmToken && token === campaign.gmToken);
 
-    addLog(campaign, "chat", `${name}: ${message}`, {
+    const requestedChannel = String((payload && payload.channel) || "ic").trim().toLowerCase();
+    const channel = ["ic", "ooc", "whisper", "gm", "system"].includes(requestedChannel)
+      ? requestedChannel
+      : "ic";
+    const targetToken = String((payload && payload.targetToken) || "").trim();
+
+    if (channel === "gm" && !senderIsGm) {
+      if (typeof ack === "function") ack({ ok: false, error: "Only GM can send GM-only messages." });
+      return;
+    }
+
+    if (channel === "whisper" && (!targetToken || !campaign.participants.has(targetToken))) {
+      if (typeof ack === "function") ack({ ok: false, error: "Whisper target is invalid." });
+      return;
+    }
+
+    const targetMember = channel === "whisper" && targetToken ? campaign.participants.get(targetToken) : null;
+    const visibility = channel === "whisper" ? "targeted" : (channel === "gm" ? "gm" : "public");
+    const tagged = channel === "ic"
+      ? `${name}: ${message}`
+      : channel === "ooc"
+        ? `[OOC] ${name}: ${message}`
+        : channel === "whisper"
+          ? `[Whisper ${name} -> ${targetMember ? targetMember.name : "Unknown"}] ${message}`
+          : channel === "gm"
+            ? `[GM] ${name}: ${message}`
+            : `[System] ${name}: ${message}`;
+
+    addLog(campaign, "chat", tagged, {
       token: token || "",
       name,
-      message
+      message,
+      channel,
+      targetToken: channel === "whisper" ? targetToken : "",
+      visibility
     });
 
     emitCampaignState(campaign.code);

@@ -5108,23 +5108,30 @@
     return out;
   }
 
-  async function sendChatMessage() {
+  async function sendChatMessage(options) {
     if (!state.socket || !state.code) {
       safeNotif("Join a campaign first.", "warn");
       return;
     }
 
+    var opts = options && typeof options === "object" ? options : null;
     var input = document.getElementById("campaignDockChatInput");
-    var msg = input ? String(input.value || "").trim() : "";
+    var msg = opts && typeof opts.message === "string"
+      ? String(opts.message || "").trim()
+      : (input ? String(input.value || "").trim() : "");
     if (!msg) return;
 
-    var res = await emitWithAck("campaign:chat", { message: msg });
+    var payload = { message: msg };
+    if (opts && opts.channel) payload.channel = String(opts.channel || "").trim().toLowerCase();
+    if (opts && opts.targetToken) payload.targetToken = String(opts.targetToken || "").trim();
+
+    var res = await emitWithAck("campaign:chat", payload);
     if (!res.ok) {
       safeNotif(res.error || "Could not send chat message.", "warn");
       return;
     }
 
-    if (input) input.value = "";
+    if (input && (!opts || (opts && !opts.message))) input.value = "";
   }
 
   async function applyGmEconomyAdjustment() {

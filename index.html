@@ -8732,6 +8732,9 @@ function triggerEnemyActionEvent(){
   var summary='';
   var actionFailed=false;
   var supportsSave=false;
+  var sceneEnemyMod=getLegacyCombatSceneModifier('enemy-action',null);
+  var sceneEnemyModTotal=Number(sceneEnemyMod.total||0);
+  var sceneEnemyModHtml=sceneEnemyModTotal?(' <span style="font-size:.72rem;color:var(--teal);">(Scene '+(sceneEnemyModTotal>=0?'+':'')+sceneEnemyModTotal+')</span>'):'';
 
   if(ev.kind==='defendCheck'){
     supportsSave=true;
@@ -8743,9 +8746,10 @@ function triggerEnemyActionEvent(){
       var coverBonusManual=getCoverDefenseBonusForTier(coverTierManual);
       openManualVsDreadPrompt('Enemy Event: Defend Check',defDieManual,dd,function(successManual,actionTotalManual,dreadTotalManual){
         var targetDDManual=Math.max(1,Number(dreadTotalManual||0)+Number(coverBonusManual||0));
-        var failedManual=Number(actionTotalManual||0)<targetDDManual;
-        var dmgManual=Math.max(1,(targetDDManual-Number(actionTotalManual||0))+(ev.bonus||0));
-        var manualSummary='Defend d'+defDieManual+'='+Number(actionTotalManual||0)+' vs DD'+dd+'='+targetDDManual+' — '+(failedManual?('failed, '+dmgManual+' Stress.'):('blocked.'));
+        var adjustedActionManual=Math.max(0,Number(actionTotalManual||0)+sceneEnemyModTotal);
+        var failedManual=adjustedActionManual<targetDDManual;
+        var dmgManual=Math.max(1,(targetDDManual-adjustedActionManual)+(ev.bonus||0));
+        var manualSummary='Defend d'+defDieManual+'='+adjustedActionManual+' vs DD'+dd+'='+targetDDManual+' — '+(failedManual?('failed, '+dmgManual+' Stress.'):('blocked.'))+sceneEnemyModHtml;
         if(failedManual)changeStress(dmgManual);else applyPassiveDefendSuccessEffects();
         var sourceLabelManual=(S&&S.combat&&S.combat.customEnemyActionSource)?String(S.combat.customEnemyActionSource):'';
         var cadenceManual=Math.max(1,Number((S&&S.combat&&S.combat.customEnemyActionCadence)||1));
@@ -8763,14 +8767,15 @@ function triggerEnemyActionEvent(){
       var playerCoverTier=getSceneCoverTierForZone(getCurrentPlayerZoneLabel());
       var coverBonus=getCoverDefenseBonusForTier(playerCoverTier);
       var targetDD=dr.total+coverBonus;
-      if(pr.total<targetDD){
-        var dmg=Math.max(1,(targetDD-pr.total)+(ev.bonus||0));
+      var adjustedPrTotal=Math.max(0,Number(pr.total||0)+sceneEnemyModTotal);
+      if(adjustedPrTotal<targetDD){
+        var dmg=Math.max(1,(targetDD-adjustedPrTotal)+(ev.bonus||0));
         changeStress(dmg);
         actionFailed=true;
-        summary='Defend d'+defDie+'='+pr.total+' vs DD'+dd+'='+targetDD+' — failed, '+dmg+' Stress.';
+        summary='Defend d'+defDie+'='+adjustedPrTotal+' vs DD'+dd+'='+targetDD+' — failed, '+dmg+' Stress.'+sceneEnemyModHtml;
       }else{
         applyPassiveDefendSuccessEffects();
-        summary='Defend d'+defDie+'='+pr.total+' vs DD'+dd+'='+targetDD+' — blocked.';
+        summary='Defend d'+defDie+'='+adjustedPrTotal+' vs DD'+dd+'='+targetDD+' — blocked.'+sceneEnemyModHtml;
       }
     }
   }else if(ev.kind==='saveCondition'){
@@ -8782,14 +8787,15 @@ function triggerEnemyActionEvent(){
       var saveDieManual=(typeof getEffectiveDie==='function')?getEffectiveDie(saveStatManual):(S.stats[saveStatManual]||4);
       var saveLabelManual=String(saveStatManual||'defend').toUpperCase();
       openManualVsDreadPrompt('Enemy Event: '+saveLabelManual+' Save',saveDieManual,dd,function(successManual,actionTotalManual,dreadTotalManual){
-        var okManual=Number(actionTotalManual||0)>=Number(dreadTotalManual||0);
+        var adjustedActionManual=Math.max(0,Number(actionTotalManual||0)+sceneEnemyModTotal);
+        var okManual=adjustedActionManual>=Number(dreadTotalManual||0);
         if(!okManual){
           actionFailed=true;
           S.conditions[ev.condition]=true;
           if(typeof updateConditionButtons==='function')updateConditionButtons();
           if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
         }
-        var manualSummary=saveLabelManual+' d'+saveDieManual+'='+Number(actionTotalManual||0)+' vs DD'+dd+'='+Number(dreadTotalManual||0)+' — '+(okManual?'saved.':'failed, '+ev.condition+' applied.');
+        var manualSummary=saveLabelManual+' d'+saveDieManual+'='+adjustedActionManual+' vs DD'+dd+'='+Number(dreadTotalManual||0)+' — '+(okManual?'saved.':'failed, '+ev.condition+' applied.')+sceneEnemyModHtml;
         var sourceLabelManual=(S&&S.combat&&S.combat.customEnemyActionSource)?String(S.combat.customEnemyActionSource):'';
         var cadenceManual=Math.max(1,Number((S&&S.combat&&S.combat.customEnemyActionCadence)||1));
         var resManual=document.getElementById('enemyActionResult');
@@ -8804,14 +8810,15 @@ function triggerEnemyActionEvent(){
       var saveStat=normalizeGenericEnemySaveStat(ev.stat);
       var statDie=(typeof getEffectiveDie==='function')?getEffectiveDie(saveStat):(S.stats[saveStat]||4);
       var sr=explodingRoll(statDie,{type:'action',major:true,label:String(saveStat||'Check').toUpperCase()});
-      var ok=sr.total>=dr.total;
+      var adjustedSrTotal=Math.max(0,Number(sr.total||0)+sceneEnemyModTotal);
+      var ok=adjustedSrTotal>=dr.total;
       if(!ok){
         actionFailed=true;
         S.conditions[ev.condition]=true;
         if(typeof updateConditionButtons==='function')updateConditionButtons();
         if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
       }
-      summary=saveStat.toUpperCase()+' d'+statDie+'='+sr.total+' vs DD'+dd+'='+dr.total+' — '+(ok?'saved.':'failed, '+ev.condition+' applied.');
+      summary=saveStat.toUpperCase()+' d'+statDie+'='+adjustedSrTotal+' vs DD'+dd+'='+dr.total+' — '+(ok?'saved.':'failed, '+ev.condition+' applied.')+sceneEnemyModHtml;
     }
   }else if(ev.kind==='directStress'){
     var playerCoverTier2=getSceneCoverTierForZone(getCurrentPlayerZoneLabel());
@@ -8831,12 +8838,13 @@ function triggerEnemyActionEvent(){
     }else if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
       var spiritDieManual=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):(S.stats.spirit||4);
       openManualVsDreadPrompt('Enemy Event: SPIRIT Save',spiritDieManual,dd,function(successManual,actionTotalManual,dreadTotalManual){
-        var okManual=Number(actionTotalManual||0)>=Number(dreadTotalManual||0);
-        var manualSummary='Spirit d'+spiritDieManual+'='+Number(actionTotalManual||0)+' vs DD'+dd+'='+Number(dreadTotalManual||0)+' — resisted radiation leak.';
+        var adjustedActionManual=Math.max(0,Number(actionTotalManual||0)+sceneEnemyModTotal);
+        var okManual=adjustedActionManual>=Number(dreadTotalManual||0);
+        var manualSummary='Spirit d'+spiritDieManual+'='+adjustedActionManual+' vs DD'+dd+'='+Number(dreadTotalManual||0)+' — resisted radiation leak.'+sceneEnemyModHtml;
         if(!okManual){
           var rGainManual=Math.max(5,Number(dreadTotalManual||0)*(ev.scale||6));
           if(typeof changeRads==='function')changeRads(rGainManual);
-          manualSummary='Spirit d'+spiritDieManual+'='+Number(actionTotalManual||0)+' vs DD'+dd+'='+Number(dreadTotalManual||0)+' — failed, +'+rGainManual+' Rads.';
+          manualSummary='Spirit d'+spiritDieManual+'='+adjustedActionManual+' vs DD'+dd+'='+Number(dreadTotalManual||0)+' — failed, +'+rGainManual+' Rads.'+sceneEnemyModHtml;
         }
         var sourceLabelManual=(S&&S.combat&&S.combat.customEnemyActionSource)?String(S.combat.customEnemyActionSource):'';
         var cadenceManual=Math.max(1,Number((S&&S.combat&&S.combat.customEnemyActionCadence)||1));
@@ -8851,13 +8859,14 @@ function triggerEnemyActionEvent(){
     }else{
       var spiritDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):(S.stats.spirit||4);
       var spiritRoll=explodingRoll(spiritDie,{type:'action',major:true,label:'SPIRIT'});
-      if(spiritRoll.total>=dr.total){
-        summary='Spirit d'+spiritDie+'='+spiritRoll.total+' vs DD'+dd+'='+dr.total+' — resisted radiation leak.';
+      var adjustedSpiritTotal=Math.max(0,Number(spiritRoll.total||0)+sceneEnemyModTotal);
+      if(adjustedSpiritTotal>=dr.total){
+        summary='Spirit d'+spiritDie+'='+adjustedSpiritTotal+' vs DD'+dd+'='+dr.total+' — resisted radiation leak.'+sceneEnemyModHtml;
       }else{
         actionFailed=true;
         var rGain=Math.max(5,dr.total*(ev.scale||6));
         if(typeof changeRads==='function')changeRads(rGain);
-        summary='Spirit d'+spiritDie+'='+spiritRoll.total+' vs DD'+dd+'='+dr.total+' — failed, +'+rGain+' Rads.';
+        summary='Spirit d'+spiritDie+'='+adjustedSpiritTotal+' vs DD'+dd+'='+dr.total+' — failed, +'+rGain+' Rads.'+sceneEnemyModHtml;
       }
     }
   }else if(ev.kind==='healthStrike'){
@@ -8873,7 +8882,7 @@ function triggerEnemyActionEvent(){
       summary=getFlavorShortName()+': first '+ev.element+' event ignored this scene.';
     }else{
       if(typeof rollTraumaCheck==='function')rollTraumaCheck();
-      summary='Forced Trauma check triggered.';
+      summary='Forced Trauma check triggered.'+sceneEnemyModHtml;
     }
   }else if(ev.kind==='hack'){
     resolveEnemyHackEvent(actingEnemy);

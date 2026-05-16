@@ -6202,7 +6202,7 @@ function pickNamedEnemyProfile(regionKey){
   var base=pick(pool)||pool[0];
   var hp=Math.max(4,Number(base&&base.health||8));
   var dd=Math.max(4,Number(base&&base.dread||4));
-  var death=Math.max(1,Math.ceil(hp/2));
+  var death=hp;
   return {name:String(base&&base.name||'Wraith'),desc:String(base&&base.desc||'An old hunger prowls this route.'),dread:dd,health:hp,deathNumber:death};
 }
 
@@ -6263,6 +6263,7 @@ function rollWildernessFull(){
 
 window.resolveProvinceShiftWeatherDanger = function(){
   const leadRoll = rollProvinceLeadCheck();
+  const dreadRoll = explodingRoll(8,{type:'dread',major:true,label:'Weather DD8'});
   const success = leadRoll.total >= dreadRoll.total;
   const el = document.getElementById('wildShiftWeatherResult');
   if(el){
@@ -17945,7 +17946,7 @@ function lcPressOn(col,row,idx){
         stress:0,
         maxStress:hp,
         health:hp,
-        deathNumber:Math.max(1,Math.ceil(hp/2)),
+        deathNumber:hp,
         conditions:[]
       });
     }
@@ -18071,7 +18072,7 @@ function showCodexCat(cat,btn){
       <div style="font-size:.82rem;color:var(--muted2);margin-bottom:.65rem;">Death Number is listed as half Health, rounded up. Use it as the quick threshold for when a creature is entering its kill window.</div>
       <div class="codex-grid">
         ${Object.keys(CODEX_BESTIARY).map(region=>`<div class="card"><div class="section-title" style="display:flex;align-items:center;gap:.45rem;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,{name:region==='wtw'?'World That Was':'Bestiary Region'},{size:26}):''}<span>${region==='wtw'?'World That Was':region.charAt(0).toUpperCase()+region.slice(1)}</span></div>
-          ${CODEX_BESTIARY[region].map(entry=>`<div class="hist-entry" style="display:grid;grid-template-columns:auto auto 1fr;gap:.55rem;align-items:center;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,entry,{size:42}):''}<div class="hist-num">${Math.ceil(entry.hp/2)}</div><div class="hist-text"><strong>${entry.name}</strong><br>${entry.desc}<br><span style="color:var(--gold2);">Health ${entry.hp} · Death Number ${Math.ceil(entry.hp/2)}</span></div></div>`).join('')}
+          ${CODEX_BESTIARY[region].map(entry=>`<div class="hist-entry" style="display:grid;grid-template-columns:auto auto 1fr;gap:.55rem;align-items:center;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,entry,{size:42}):''}<div class="hist-num">${entry.hp}</div><div class="hist-text"><strong>${entry.name}</strong><br>${entry.desc}<br><span style="color:var(--gold2);">Health ${entry.hp} · Death Number ${entry.hp}</span></div></div>`).join('')}
         </div>`).join('')}
         <div id="codexBestiaryForgeSlot">${typeof renderCodexBestiaryForgeCard==='function' ? renderCodexBestiaryForgeCard() : '<div class="card"><div class="section-title">Monster Forge</div><div style="font-size:.82rem;color:var(--muted2);">The monster forge is loading.</div></div>'}</div>
       </div>
@@ -18884,7 +18885,7 @@ window.addEventListener('DOMContentLoaded', function() {
         + '<div class="hist-entry" style="display:grid;grid-template-columns:auto auto 1fr;gap:.55rem;align-items:center;">'
           + icon
           + '<div class="hist-num">' + String(m.dread || 4) + '</div>'
-          + '<div class="hist-text"><strong>' + String(m.name || 'Unnamed Horror') + '</strong><br>' + String(m.role || 'Predator') + ' · ' + String(m.region || 'province') + '<br><span style="color:var(--gold2);">Health ' + String(m.health || 8) + ' · Death Number ' + Math.ceil(Number(m.health || 8) / 2) + '</span></div>'
+          + '<div class="hist-text"><strong>' + String(m.name || 'Unnamed Horror') + '</strong><br>' + String(m.role || 'Predator') + ' · ' + String(m.region || 'province') + '<br><span style="color:var(--gold2);">Health ' + String(m.health || 8) + ' · Death Number ' + Number(m.health || 8) + '</span></div>'
         + '</div>'
         + moveCards
         + '<div class="hist-entry" style="display:block;">'

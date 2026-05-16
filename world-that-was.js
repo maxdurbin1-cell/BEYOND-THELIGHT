@@ -2539,7 +2539,7 @@
       const encounterDread = normalizeDreadDie(evt.dread || profile.dread || 8, 8);
       const enemyHealth = Math.max(4, Number(evt.enemyHealth || profile.health || (encounterDread * 2)));
       const enemyName = String(evt.enemyName || profile.name || 'Ash Revenant');
-      const deathNumber = Math.max(1, Math.ceil(enemyHealth / 2));
+      const deathNumber = enemyHealth;
       evt.enemyName = enemyName;
       evt.enemyDesc = evt.enemyDesc || profile.desc || '';
       evt.enemyHealth = enemyHealth;
@@ -2767,7 +2767,7 @@
       const encounterDread = normalizeDreadDie(hex.encounter.dread || profile.dread || 8, 8);
       const enemyHealth = Math.max(4, Number(hex.encounter.enemyHealth || profile.health || (encounterDread * 2)));
       const enemyName = String(hex.encounter.enemyName || profile.name || 'Ash Revenant');
-      const deathNumber = Math.max(1, Math.ceil(enemyHealth / 2));
+      const deathNumber = enemyHealth;
       hex.encounter.enemyName = enemyName;
       hex.encounter.enemyDesc = hex.encounter.enemyDesc || profile.desc || '';
       hex.encounter.enemyHealth = enemyHealth;
@@ -3063,7 +3063,7 @@
       desc: base.desc || base.enemyDesc || 'A dusk-forged hunter draped in static and old oath-runes.',
       dread: normalizeDreadDie(base.dread || 8, 8),
       health: health,
-      deathNumber: Math.max(1, Math.ceil(health / 2))
+      deathNumber: health
     };
     if (typeof window !== 'undefined' && typeof window.pickNamedEnemyProfile === 'function') {
       const picked = window.pickNamedEnemyProfile('world') || {};
@@ -3073,7 +3073,7 @@
         desc: base.desc || base.enemyDesc || picked.desc || seeded.desc,
         dread: normalizeDreadDie(base.dread || picked.dread || seeded.dread, 8),
         health: pickedHealth,
-        deathNumber: Math.max(1, Math.ceil(pickedHealth / 2))
+        deathNumber: pickedHealth
       };
     }
     return seeded;
@@ -3102,7 +3102,7 @@
       names: list,
       enemyName: enemyName,
       enemyDesc: String(cfg.enemyDesc || profile.desc || ''),
-      deathNumber: Math.max(1, Math.ceil(hp / 2))
+      deathNumber: hp
     };
   }
 

@@ -1162,9 +1162,8 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
           <button class="btn btn-sm btn-red" onclick="triggerEnemyActionEvent()">☠ Enemy Action</button>
           <div id="enemyActionResult" style="margin-top:.3rem;font-size:.85rem;"></div>
         </div>
-        <div><span class="sub-label">Escape / Morale</span><br>
+        <div><span class="sub-label">Escape</span><br>
           <button class="btn btn-sm" onclick="attemptFlee()">🏃 Flee</button>
-          <button class="btn btn-sm" onclick="checkEnemyMorale()">⚔ Morale</button>
           <div id="fleeResult" style="margin-top:.3rem;font-size:.85rem;"></div>
         </div>
       </div>
@@ -6570,17 +6569,23 @@ function attemptFlee(){
   if(!S||!S.combat||!S.combat.active){showNotif('Not in combat','warn');return;}
   if((S.combat.actionsLeft||0)<1){showNotif('No actions remaining','warn');return;}
   S.combat.actionsLeft=Math.max(0,(S.combat.actionsLeft||0)-1);
-  var controlDie=Math.ceil(Math.random()*12);
-  var enemyDie=Math.ceil(Math.random()*(S.combat.enemyDread||8));
-  var success=controlDie>=enemyDie;
-  var result=success?'<span style="color:var(--teal);">✓ Escape!</span> +1 TMW':'<span style="color:var(--red2);">✗ Caught!</span> Enemy gains free action';
-  document.getElementById('fleeResult').innerHTML=result;
-  if(success){
-    if(typeof changeCounter==='function')changeCounter('tmw',1);
-    endCombat();
-  }else{
-    S.combat.enemyDefendsThisTurn=Math.max(0,(S.combat.enemyDefendsThisTurn||0)-1);
+  // Manual mode check
+  if(window.settingsSystem && window.settingsSystem.manualRollMode){
+    openModal('Manual Roll — Flee',
+      `<div style=\"font-size:.95rem;color:var(--teal);margin-bottom:.5rem;\">To flee, roll your <strong>Valor Die</strong>. You take that much <strong>Mental Stress</strong> and escape combat.</div>`+
+      `<div style=\"font-size:.85rem;color:var(--muted2);margin-bottom:.5rem;\">If you roll a 4 on a d4, take 4 Mental Stress, etc. <br>Apply the result, then end combat.</div>`+
+      `<button class='btn btn-primary' onclick='closeModal();endCombat();'>Done — End Combat</button>`
+    );
+    document.getElementById('fleeResult').innerHTML = '<span style="color:var(--teal);">Manual: Roll Valor Die, take that much Mental Stress, then escape.</span>';
+    updateCombatUI();
+    return;
   }
+  // Auto mode: roll Valor Die for player
+  var valorDie = getDieValue ? getDieValue('adventure') : 4;
+  var fleeStress = Math.ceil(Math.random() * valorDie);
+  if(typeof changeStress === 'function') changeStress(fleeStress);
+  document.getElementById('fleeResult').innerHTML = `<span style=\"color:var(--teal);\">✓ Escaped!</span> <span style=\"color:var(--red2);\">+${fleeStress} Mental Stress (Valor Die)</span>`;
+  endCombat();
   updateCombatUI();
 }
 function checkEnemyMorale(){

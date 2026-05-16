@@ -418,6 +418,69 @@
     updateUiPanels();
   }
 
+  function resolveSharedSceneModifiers(actionKey, options) {
+    var state = store.getState();
+    var opts = options && typeof options === 'object' ? options : {};
+    var action = String(actionKey || 'strike').toLowerCase();
+    var actor = opts.actorTokenId ? byId(opts.actorTokenId) : null;
+    if (!actor) {
+      actor = byId(state.selectedTokenId)
+        || (state.tokens || []).find(function (token) { return token && token.isPlayer; })
+        || (state.tokens || []).find(function (token) { return token && String(token.faction) === 'player'; })
+        || null;
+    }
+    if (!actor) {
+      return { total: 0, elevation: 0, weather: 0, terrain: 0, summary: '', range: 0, cinematic: 'Engaged' };
+    }
+
+    var target = null;
+    var targetId = opts.targetTokenId || '';
+    if (targetId) target = byId(targetId);
+    if (!target) {
+      var foes = (state.tokens || []).filter(function (token) {
+        return token && String(token.id) !== String(actor.id) && String(token.faction) !== String(actor.faction);
+      });
+      foes.sort(function (a, b) {
+        return hexDistance({ q: actor.q, r: actor.r }, { q: a.q, r: a.r }) - hexDistance({ q: actor.q, r: actor.r }, { q: b.q, r: b.r });
+      });
+      target = foes[0] || null;
+    }
+
+    var actorElev = Number(state.layers.elevation[toKey(actor.q, actor.r)] || 0);
+    var targetElev = target ? Number(state.layers.elevation[toKey(target.q, target.r)] || 0) : actorElev;
+    var elevationMod = 0;
+    if (target) {
+      if (actorElev > targetElev) elevationMod = 1;
+      else if (actorElev < targetElev) elevationMod = -1;
+    }
+
+    var weatherMode = 'movement';
+    if (action === 'shoot' || action === 'ranged') weatherMode = 'ranged';
+    else if (action === 'strike' || action === 'melee') weatherMode = 'melee';
+    var weatherMod = getWeatherModifier(state, weatherMode);
+
+    var terrainMod = 0;
+    var terrain = String(state.layers.terrain[toKey(actor.q, actor.r)] || '');
+    if (terrain === 'difficult terrain') terrainMod -= 1;
+    if (terrain === 'water' && (action === 'strike' || action === 'melee' || action === 'defend')) terrainMod -= 1;
+    if (terrain === 'lava' && action === 'defend') terrainMod -= 1;
+
+    var range = target ? hexDistance({ q: actor.q, r: actor.r }, { q: target.q, r: target.r }) : 0;
+    var total = elevationMod + weatherMod + terrainMod;
+    var summary = 'Scene mods: elevation ' + elevationMod + ', weather ' + weatherMod + ', terrain ' + terrainMod + ' => ' + total;
+    return {
+      total: total,
+      elevation: elevationMod,
+      weather: weatherMod,
+      terrain: terrainMod,
+      range: range,
+      cinematic: hexLabel(range),
+      targetName: target ? String(target.name || 'Target') : '',
+      actorName: String(actor.name || 'Actor'),
+      summary: summary
+    };
+  }
+
   function spawnBestiaryToken(profile, q, r) {
     if (!profile) return;
     store.setState(function (state) {
@@ -1400,5 +1463,9 @@
     setState: store.setState,
     subscribe: store.subscribe,
     addHistory: addHistory
+  };
+
+  window.getCombatSceneSharedModifier = function (actionKey, options) {
+    return resolveSharedSceneModifiers(actionKey, options);
   };
 })();

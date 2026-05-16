@@ -12795,6 +12795,12 @@
     } else {
       modifierLines = extraLines;
     }
+    var sharedSceneMod = (typeof window.getLegacyCombatSceneModifier === 'function')
+      ? window.getLegacyCombatSceneModifier(type, null)
+      : { total: 0, elevation: 0, weather: 0, terrain: 0 };
+    if (Number(sharedSceneMod.total || 0) !== 0 || Number(sharedSceneMod.elevation || 0) !== 0 || Number(sharedSceneMod.weather || 0) !== 0 || Number(sharedSceneMod.terrain || 0) !== 0) {
+      modifierLines.push('Combat Scene Modifiers auto-apply: Elevation ' + (sharedSceneMod.elevation >= 0 ? '+' : '') + sharedSceneMod.elevation + ', Weather ' + (sharedSceneMod.weather >= 0 ? '+' : '') + sharedSceneMod.weather + ', Terrain ' + (sharedSceneMod.terrain >= 0 ? '+' : '') + sharedSceneMod.terrain + ' = ' + (sharedSceneMod.total >= 0 ? '+' : '') + sharedSceneMod.total + '.');
+    }
     var modifierHtml = modifierLines.length
       ? ('<div style="margin-top:.34rem;padding:.34rem .42rem;border:1px solid var(--border2);background:rgba(46,196,182,.05);border-radius:3px;"><div style="font-size:.69rem;color:var(--teal);margin-bottom:.12rem;"><strong>Apply These Modifiers</strong></div>'
         + modifierLines.map(function(line){ return '<div style="font-size:.69rem;color:var(--text2);line-height:1.45;">- ' + String(line) + '</div>'; }).join('')
@@ -12853,8 +12859,12 @@
     else if (window.enemyManualReactionData && window.enemyManualReactionData.mode === 'arena-enemy-reaction') mode = 'enemy_reaction';
     else if (window.manualRollData && window.manualRollData.mode === 'surprise-check') mode = 'surprise_check';
 
-    var success = actionValue >= dreadValue;
-    var diff = Math.max(1, success ? actionValue - dreadValue : dreadValue - actionValue);
+    var sceneMod = (typeof window.getLegacyCombatSceneModifier === 'function')
+      ? window.getLegacyCombatSceneModifier(type, null)
+      : { total: 0, elevation: 0, weather: 0, terrain: 0 };
+    var adjustedActionValue = Math.max(0, Number(actionValue || 0) + Number(sceneMod.total || 0));
+    var success = adjustedActionValue >= dreadValue;
+    var diff = Math.max(1, success ? adjustedActionValue - dreadValue : dreadValue - adjustedActionValue);
     var targetEnemy = (typeof getPrimaryCombatEnemy === 'function') ? getPrimaryCombatEnemy() : null;
     var resultEl = (typeof document !== 'undefined') ? document.getElementById('wayfarerActionResult') : null;
     var label = 'Spell';
@@ -12879,14 +12889,14 @@
         if (enemyId > 0) enemyEntity = S.enemies.find(function(e){ return e && !e.ally && Number(e.id || 0) === enemyId; }) || null;
       }
       if (success) {
-        if (typeof showNotif === 'function') showNotif(actionName + ' blocked: ' + actionValue + ' vs Dread ' + dreadValue + '.', 'good');
-        if (resultEl) resultEl.innerHTML = '<span style="color:var(--teal);">' + actionName + ': ' + actionValue + ' vs Dread ' + dreadValue + ' - Blocked.</span>';
+        if (typeof showNotif === 'function') showNotif(actionName + ' blocked: ' + adjustedActionValue + ' vs Dread ' + dreadValue + '.', 'good');
+        if (resultEl) resultEl.innerHTML = '<span style="color:var(--teal);">' + actionName + ': ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - Blocked.</span>';
       } else {
-        var incoming = Math.max(1, dreadValue - actionValue);
+        var incoming = Math.max(1, dreadValue - adjustedActionValue);
         if (typeof changeStress === 'function') changeStress(incoming);
         if (typeof applyEnemySpecialEffectsToWayfarer === 'function') applyEnemySpecialEffectsToWayfarer({ effects: reactionData.effects || {} }, actionName);
-        if (typeof showNotif === 'function') showNotif(actionName + ' lands: ' + dreadValue + ' vs ' + actionValue + ' for ' + incoming + ' Stress.', 'warn');
-        if (resultEl) resultEl.innerHTML = '<span style="color:var(--red2);">' + actionName + ': ' + actionValue + ' vs Dread ' + dreadValue + ' - Hit for ' + incoming + ' Stress.</span>';
+        if (typeof showNotif === 'function') showNotif(actionName + ' lands: ' + dreadValue + ' vs ' + adjustedActionValue + ' for ' + incoming + ' Stress.', 'warn');
+        if (resultEl) resultEl.innerHTML = '<span style="color:var(--red2);">' + actionName + ': ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - Hit for ' + incoming + ' Stress.</span>';
       }
       if (enemyEntity && typeof finalizeEnemyTurn === 'function') finalizeEnemyTurn(enemyEntity);
       if (typeof updateCombatUI === 'function') updateCombatUI();
@@ -12902,11 +12912,11 @@
       if (success) {
         if (typeof S !== 'undefined' && S && S.combat) S.combat.surpriseBonus = Number(S.combat.surpriseBonus || 0) + 2;
         if (typeof showNotif === 'function') showNotif('Surprise Check succeeded: +2 to attacks this round.', 'good');
-        if (resultEl) resultEl.innerHTML = '<span style="color:var(--teal);">Surprise Check: ' + actionValue + ' vs Dread ' + dreadValue + ' - SUCCESS! +2 attacks this round.</span>';
+        if (resultEl) resultEl.innerHTML = '<span style="color:var(--teal);">Surprise Check: ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - SUCCESS! +2 attacks this round.</span>';
       } else {
         if (typeof addTMWOnFail === 'function') addTMWOnFail('manual-combat-failure');
         if (typeof showNotif === 'function') showNotif('Surprise Check failed: enemy not surprised.', 'warn');
-        if (resultEl) resultEl.innerHTML = '<span style="color:var(--red2);">Surprise Check: ' + actionValue + ' vs Dread ' + dreadValue + ' - FAILED.</span>';
+        if (resultEl) resultEl.innerHTML = '<span style="color:var(--red2);">Surprise Check: ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - FAILED.</span>';
       }
       window.enemyManualReactionData = null;
       window.manualRollData = null;
@@ -12923,26 +12933,32 @@
       if (typeof addSuccessRoll === 'function') addSuccessRoll();
       if (typeof showDccSuccessOutcome === 'function') {
         showDccSuccessOutcome(dccType, diff, {
-          actionTotal: actionValue,
+          actionTotal: adjustedActionValue,
+          actionTotalRaw: actionValue,
+          sceneModifierTotal: Number(sceneMod.total || 0),
+          actionTotalAdjusted: adjustedActionValue,
           dreadTotal: dreadValue,
           context: label + ' vs Enemy Dread (manual roll)'
         });
       }
       if (resultEl) {
-        if (type === 'strike' || type === 'shoot' || type === 'spell' || type === 'hack') resultEl.innerHTML = '<span style="color:var(--teal);">' + label + ': ' + actionValue + ' vs Dread ' + dreadValue + ' - HIT! ' + dmg + ' Health damage.</span>';
-        else resultEl.innerHTML = '<span style="color:var(--teal);">' + label + ': ' + actionValue + ' vs Dread ' + dreadValue + ' - SUCCESS.</span>';
+        if (type === 'strike' || type === 'shoot' || type === 'spell' || type === 'hack') resultEl.innerHTML = '<span style="color:var(--teal);">' + label + ': ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - HIT! ' + dmg + ' Health damage.</span>';
+        else resultEl.innerHTML = '<span style="color:var(--teal);">' + label + ': ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - SUCCESS.</span>';
       }
     } else {
       if (typeof addTMWOnFail === 'function') addTMWOnFail('manual-combat-failure');
       if (typeof showDccFailureOutcome === 'function') {
         showDccFailureOutcome(dccType, diff, {
-          actionTotal: actionValue,
+          actionTotal: adjustedActionValue,
+          actionTotalRaw: actionValue,
+          sceneModifierTotal: Number(sceneMod.total || 0),
+          actionTotalAdjusted: adjustedActionValue,
           dreadTotal: dreadValue,
           context: label + ' vs Enemy Dread (manual roll)'
         });
       }
       if (resultEl) {
-        resultEl.innerHTML = '<span style="color:var(--red2);">' + label + ': ' + actionValue + ' vs Dread ' + dreadValue + ' - FAIL.</span>';
+        resultEl.innerHTML = '<span style="color:var(--red2);">' + label + ': ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - FAIL.</span>';
       }
     }
 

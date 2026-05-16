@@ -6865,10 +6865,12 @@ function executeWayfarerAction(){
     if(S.rollMod&&Number(S.rollMod.flat||0)!==0)flatTotal+=Number(S.rollMod.flat||0);
     if(type2==='shoot'&&getPrimaryEnemyZoneRelative()==='close')flatTotal+=Number(affixBonus.shootCloseBonus||0);
     var enem=getPrimaryCombatEnemy();
+    var sceneHeavyMod=getLegacyCombatSceneModifier(type2,{targetTokenId:enem&&enem.id?String(enem.id):''});
+    flatTotal=Math.max(0,flatTotal+Number(sceneHeavyMod.total||0));
     var dreadRoll=enem?rollEnemyDreadWithEffects(enem,'Enemy DD'):{total:explodingRoll(S.combat.enemyDread||8,{type:'dread',label:'Enemy DD'}).total};
     var hit=flatTotal>dreadRoll.total;
     var dmg=hit?Math.max(1,flatTotal-dreadRoll.total)+2:0;
-    setRes('<span style="color:'+(hit?'var(--teal)':'var(--red2)')+';">Heavy Attack: '+flatTotal+' vs Dread '+dreadRoll.total+' \u2014 '+(hit?'HIT! '+dmg+' Health damage (+2 bonus)':'MISS')+'</span>');
+    setRes('<span style="color:'+(hit?'var(--teal)':'var(--red2)')+';">Heavy Attack: '+flatTotal+' vs Dread '+dreadRoll.total+' \u2014 '+(hit?'HIT! '+dmg+' Health damage (+2 bonus)':'MISS')+'</span>'+(Number(sceneHeavyMod.total||0)?('<span style="font-size:.72rem;color:var(--teal);"> (Scene '+(sceneHeavyMod.total>=0?'+':'')+sceneHeavyMod.total+')</span>'):''));
     if(hit&&enem)applyStressToEnemy(enem,dmg,'Heavy Attack');
     clearConditionOnUse(type2);
     return;
@@ -6903,10 +6905,12 @@ function executeWayfarerAction(){
     var penRoll=explodingRoll(advDie3,{type:'dread',label:'Fast Valor Penalty Die'});
     var total3=Math.max(0,aRoll3.total-penRoll.total);
     var enem3=getPrimaryCombatEnemy();
+    var sceneFastMod=getLegacyCombatSceneModifier(type3,{targetTokenId:enem3&&enem3.id?String(enem3.id):''});
+    total3=Math.max(0,total3+Number(sceneFastMod.total||0));
     var dread3=enem3?rollEnemyDreadWithEffects(enem3,'Enemy DD'):{total:explodingRoll(S.combat.enemyDread||8,{type:'dread',label:'Enemy DD'}).total};
     var hit3=total3>dread3.total;
     var dmg3=hit3?Math.max(1,total3-dread3.total):0;
-    setRes('<span style="color:'+(hit3?'var(--teal)':'var(--red2)')+';">Fast Attack (Free): '+aRoll3.total+'-'+penRoll.total+'='+total3+' vs Dread '+dread3.total+' \u2014 '+(hit3?'HIT! '+dmg3+' Health damage':'MISS')+' - You are Vulnerable next enemy action.</span>');
+    setRes('<span style="color:'+(hit3?'var(--teal)':'var(--red2)')+';">Fast Attack (Free): '+aRoll3.total+'-'+penRoll.total+'='+total3+' vs Dread '+dread3.total+' \u2014 '+(hit3?'HIT! '+dmg3+' Health damage':'MISS')+' - You are Vulnerable next enemy action.</span>'+(Number(sceneFastMod.total||0)?('<span style="font-size:.72rem;color:var(--teal);"> (Scene '+(sceneFastMod.total>=0?'+':'')+sceneFastMod.total+')</span>'):''));
     if(hit3&&enem3)applyStressToEnemy(enem3,dmg3,'Fast Attack');
     if(S&&S.combat)S.combat.fastAttackVulnerable=1;
     if(S&&S.combat)S.combat.fastAttackUsedEncounter=true;
@@ -8401,6 +8405,29 @@ function getCurrentCombatTerrainText(){
   return String(S.combat.sceneOpener.zoneTerrain||'');
 }
 
+function getLegacyCombatSceneModifier(actionKey, options){
+  if(typeof window.getCombatSceneSharedModifier!=='function'){
+    return {total:0,elevation:0,weather:0,terrain:0,summary:''};
+  }
+  try{
+    var payload=window.getCombatSceneSharedModifier(actionKey,options||null);
+    if(!payload||typeof payload!=='object')return {total:0,elevation:0,weather:0,terrain:0,summary:''};
+    payload.total=Number(payload.total||0);
+    payload.elevation=Number(payload.elevation||0);
+    payload.weather=Number(payload.weather||0);
+    payload.terrain=Number(payload.terrain||0);
+    return payload;
+  }catch(_err){
+    return {total:0,elevation:0,weather:0,terrain:0,summary:''};
+  }
+}
+
+function formatLegacySceneModBreakdown(sceneMod){
+  var mod=sceneMod&&typeof sceneMod==='object'?sceneMod:{total:0,elevation:0,weather:0,terrain:0};
+  if(!Number(mod.total||0)&&!Number(mod.elevation||0)&&!Number(mod.weather||0)&&!Number(mod.terrain||0))return '';
+  return ' <span style="font-size:.7rem;color:var(--teal);">(Scene: Elev '+(mod.elevation>=0?'+':'')+mod.elevation+', Weather '+(mod.weather>=0?'+':'')+mod.weather+', Terrain '+(mod.terrain>=0?'+':'')+mod.terrain+')</span>';
+}
+
 function getSceneCoverTierForZone(zoneLabel){
   if(!S||!S.combat||!S.combat.sceneOpener)return 'none';
   var opener=S.combat.sceneOpener;
@@ -9173,9 +9200,10 @@ function rollAttack(type) {
   var augRoll = augDie > 0 ? explodingRoll(augDie,{type:'action',major:true,label:'Augment'}) : null;
   var total = baseTotal + (augRoll ? augRoll.total : 0);
   var radPenalty = (typeof getRadPenaltyForStat === 'function') ? getRadPenaltyForStat(type) : 0;
-  var effectiveTotal = Math.max(0, total - radPenalty);
-
   var targetEnemy=getPrimaryCombatEnemy();
+  var effectiveTotal = Math.max(0, total - radPenalty);
+  var sceneMod=getLegacyCombatSceneModifier(type,{targetTokenId:targetEnemy&&targetEnemy.id?String(targetEnemy.id):''});
+  effectiveTotal=Math.max(0,effectiveTotal+Number(sceneMod.total||0));
   var d = targetEnemy ? rollEnemyDreadWithEffects(targetEnemy,'Enemy DD') : {total:explodingRoll(S.combat.enemyDread,{type:'dread',major:true,label:'Enemy DD'}).total,effectiveDie:S.combat.enemyDread};
   var terrainTxt=getCurrentCombatTerrainText().toLowerCase();
   var terrainPenalty=(type==='shoot'&&/urban alley|storm zone/.test(terrainTxt))?1:0;
@@ -9235,6 +9263,7 @@ function rollAttack(type) {
   if(terrainPenalty>0) breakdown += ' <span style="font-size:.7rem;color:var(--red2);">(-'+terrainPenalty+' Terrain)</span>';
   if(coverBonus>0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(Target Cover +'+coverBonus+')</span>';
   if(coverBlocked) breakdown += ' <span style="font-size:.7rem;color:var(--red2);">(Target Full Cover)</span>';
+  breakdown += formatLegacySceneModBreakdown(sceneMod);
   if(critBoost.triggered) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(Affix Crit +'+critBoost.added+')</span>';
   if(forcedAutoCrit) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(Eternity\'s Edge)</span>';
   
@@ -9359,6 +9388,8 @@ function rollDefend(skipEnemyTurnTick) {
   if(S.combat&&S.combat.sceneDefendBonus)total += Number(S.combat.sceneDefendBonus||0);
   var radPenalty = (typeof getRadPenaltyForStat === 'function') ? getRadPenaltyForStat('defend') : 0;
   var effectiveTotal = Math.max(0, total - radPenalty);
+  var sceneDefMod=getLegacyCombatSceneModifier('defend',null);
+  effectiveTotal=Math.max(0,effectiveTotal+Number(sceneDefMod.total||0));
 
   var d = explodingRoll(S.combat.enemyDread,{type:'dread',major:true,label:'Enemy DD'});
   var success = effectiveTotal >= d.total;
@@ -9373,6 +9404,7 @@ function rollDefend(skipEnemyTurnTick) {
   if(gearAddRolls.length) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(' + gearAddRolls.map(function(rollObj, idx){ return '+d'+gearBonus.addDice[idx]+'='+rollObj.total; }).join(' ') + ')</span>';
   if(S.combat&&S.combat.sceneDefendBonus) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(+AEGIES '+S.combat.sceneDefendBonus+')</span>';
   if(radPenalty > 0) breakdown += ' <span style="font-size:.7rem;color:var(--red2);">(-'+radPenalty+' Rad)</span>';
+  breakdown += formatLegacySceneModBreakdown(sceneDefMod);
   var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d'+augDie+'='+augRoll.total+')</span>' : '';
 
   var defNotes = [];
@@ -9413,9 +9445,11 @@ function rollDefend(skipEnemyTurnTick) {
 function rollTraumaCheck(){
   const a=explodingRoll(S.stats.adventure,{type:'action',major:true,label:'Trauma Save'});
   const d=explodingRoll(S.combat.enemyDread,{type:'dread',major:true,label:'Trauma DD'});
-  const success=a.total>=d.total;
+  var sceneTraumaMod=getLegacyCombatSceneModifier('trauma',null);
+  const adjustedAction=Math.max(0,Number(a.total||0)+Number(sceneTraumaMod.total||0));
+  const success=adjustedAction>=d.total;
   const el=document.getElementById('traumaResult');
-  if(el)el.innerHTML=`<span style="color:var(--teal);">${a.total}</span> vs <span style="color:var(--red);">${d.total}</span> — ${success?'<strong style="color:var(--green2);">No Trauma</strong>':'<strong style="color:var(--red);">+1 Trauma!</strong>'}`;
+  if(el)el.innerHTML=`<span style="color:var(--teal);">${adjustedAction}</span> <span style="font-size:.72rem;color:var(--muted2);">(raw ${a.total}${Number(sceneTraumaMod.total||0)?(', scene '+(sceneTraumaMod.total>=0?'+':'')+sceneTraumaMod.total):''})</span> vs <span style="color:var(--red);">${d.total}</span> — ${success?'<strong style="color:var(--green2);">No Trauma</strong>':'<strong style="color:var(--red);">+1 Trauma!</strong>'}`;
   if(success){
     addSuccessRoll();
   }else{

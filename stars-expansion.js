@@ -17367,16 +17367,16 @@ function renderPlanetExplorationPanel() {
 
 function renderDerelictPanel() {
   const ds = S.starSystem.activeDerelict;
-  const out = document.getElementById('starExplorationDetail');
-  if (!ds || !out) return;
+  if (!ds) return;
   if (typeof ds._currentRoomView !== 'number') ds._currentRoomView = 0;
   const roomIdx = Math.max(0, Math.min(ds.roomList.length - 1, ds._currentRoomView || 0));
   const currentRoom = ds.roomList[roomIdx] || null;
-  out.innerHTML = `
+  const html = `
     <div style="font-size:.75rem;color:var(--gold2);">Derelict Ship</div>
     <div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Type: <strong>${ds.shipType}</strong> · Status: ${ds.status} · Engine: ${ds.engine} · Cause: ${ds.ruinCause}</div>
     <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
       <button class="btn btn-xs btn-teal" onclick="rollDerelictShipModule()">Explore Room</button>
+      <button class="btn btn-xs" onclick="closeModal()">Exit Derelict</button>
     </div>
     <div style="margin-top:.35rem;display:grid;gap:.3rem;">${ds.roomList.length ? `<div style="display:flex;gap:.15rem;flex-wrap:wrap;">${ds.roomList.map((room, idx) => `<button class="btn btn-xs ${idx === roomIdx ? 'btn-teal' : ''}" style="padding:.15rem .3rem;font-size:.65rem;" onclick="S.starSystem.activeDerelict._currentRoomView=${idx};renderDerelictPanel();">R${room.id}${room.completed ? '✓' : ''}</button>`).join('')}</div>
     ${currentRoom ? `<div style="padding:.3rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">
@@ -17388,6 +17388,12 @@ function renderDerelictPanel() {
       ${buildLootActions(currentRoom.loot)}
       <div style="margin-top:.2rem;"><button class="btn btn-xs" onclick="completeDerelictRoom(${currentRoom.id})">${currentRoom.completed ? 'Completed' : 'Mark Completed'}</button></div>
     </div>` : ''}` : '<div style="font-size:.73rem;color:var(--muted2);">No rooms explored yet.</div>'}</div>`;
+  if (typeof openModal === 'function') {
+    openModal('Explore Derelict - Hexcrawl', html);
+  } else {
+    const out = document.getElementById('starExplorationDetail');
+    if (out) out.innerHTML = html;
+  }
 }
 
 function completeDerelictRoom(roomId) {
@@ -18206,17 +18212,46 @@ function performGalaxyObservation(directionKey) {
   const current = getCurrentStarHex();
   if (!current) { showNotif('Select a galaxy hex first.', 'warn'); return; }
   const mindDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('mind') : ((S.stats && S.stats.mind) || 4);
+  const target = getGalaxyHexByDirection(current, directionKey);
+  const finalizeObservation = function (outcome) {
+    const success = !!(outcome && outcome.success);
+    const actionTotal = Number((outcome && outcome.actionTotal) || 0);
+    const dreadTotal = Number((outcome && outcome.dreadTotal) || 0);
+    let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;"><div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">Mind d' + mindDie + '</div><div style="font-size:1.6rem;color:var(--teal);font-family:Rajdhani,sans-serif;font-weight:700;">' + actionTotal + '</div></div><div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">DD6</div><div style="font-size:1.6rem;color:var(--red2);font-family:Rajdhani,sans-serif;font-weight:700;">' + dreadTotal + '</div></div></div>';
+    if (success) {
+      if (target) {
+        if (typeof window.revealMapFogHex === 'function') window.revealMapFogHex('galaxy', String(target.hex.id));
+        if (typeof addSuccessRoll === 'function') addSuccessRoll();
+        html += '<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--green2);font-weight:700;margin-bottom:.25rem;">✓ Observation success (' + target.label + ')</div><div style="padding:.22rem .42rem;border-left:2px solid rgba(201,162,39,.4);"><div style="font-size:.78rem;color:var(--teal);font-weight:700;margin-bottom:.15rem;">Hex ' + target.hex.id + ': ' + (STAR_SIGHTING_COLORS[target.hex.type] ? STAR_SIGHTING_COLORS[target.hex.type].label : target.hex.type) + '</div><div style="font-size:.7rem;color:var(--muted2);">Signal lock established.</div></div></div>';
+      } else {
+        html += '<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">No hex in that direction</div></div>';
+      }
+    } else {
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+      html += '<div style="font-size:.82rem;color:var(--red2);">✗ Observation failed. Sensor noise obscures the signal.</div>';
+    }
+    if (typeof openModal === 'function') openModal('Observe Adjacent Galaxy Hex', html);
+    renderStarSystemMap();
+    updateStarSystemReadouts();
+  };
+
+  if (isGlobalManualRollMode()) {
+    if (typeof closeModal === 'function') closeModal();
+    openGlobalManualActionDreadPrompt({
+      title: 'Manual Roll - Observe Adjacent Galaxy Hex',
+      context: 'Observe Adjacent (' + (target ? target.label : 'Unknown Direction') + ')',
+      statKey: 'mind',
+      statLabel: 'Mind',
+      actionDie: mindDie,
+      dreadDie: 6,
+      onResolve: finalizeObservation
+    });
+    return;
+  }
+
   const action = explodingRoll(mindDie);
   const dread = explodingRoll(6);
-  const success = action.total >= dread.total;
-  const target = getGalaxyHexByDirection(current, directionKey);
-  let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;"><div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">Mind d' + mindDie + '</div><div style="font-size:1.6rem;color:var(--teal);font-family:Rajdhani,sans-serif;font-weight:700;">' + action.total + '</div></div><div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">DD6</div><div style="font-size:1.6rem;color:var(--red2);font-family:Rajdhani,sans-serif;font-weight:700;">' + dread.total + '</div></div></div>';
-  if (success) {
-    if (target) { if (typeof window.revealMapFogHex === 'function') window.revealMapFogHex('galaxy', String(target.hex.id)); if (typeof addSuccessRoll === 'function') addSuccessRoll(); html += '<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--green2);font-weight:700;margin-bottom:.25rem;">✓ Observation success (' + target.label + ')</div><div style="padding:.22rem .42rem;border-left:2px solid rgba(201,162,39,.4);"><div style="font-size:.78rem;color:var(--teal);font-weight:700;margin-bottom:.15rem;">Hex ' + target.hex.id + ': ' + (STAR_SIGHTING_COLORS[target.hex.type] ? STAR_SIGHTING_COLORS[target.hex.type].label : target.hex.type) + '</div><div style="font-size:.7rem;color:var(--muted2);">Signal lock established.</div></div></div>'; } else { html += '<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">No hex in that direction</div></div>'; }
-  } else { if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure'); html += '<div style="font-size:.82rem;color:var(--red2);">✗ Observation failed. Sensor noise obscures the signal.</div>'; }
-  if (typeof openModal === 'function') openModal('Observe Adjacent Galaxy Hex', html);
-  renderStarSystemMap();
-  updateStarSystemReadouts();
+  finalizeObservation({ success: action.total >= dread.total, actionTotal: action.total, dreadTotal: dread.total, manual: false });
 }
 function observeAdjacentGalaxyFromCurrent() {
   ensureStarsState();
@@ -18805,37 +18840,54 @@ function runSystemAnalysisCheck() {
   const hex = getCurrentStarHex();
   if (!hex) return;
 
-  const mindDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('mind') : ((S.stats && S.stats.mind) || 4);
-  const techDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('control') : ((S.stats && S.stats.control) || 4);
-  const die = Math.max(mindDie, techDie);
-  const action = explodingRoll(die);
-  const dread = explodingRoll(8);
-  const success = action.total >= dread.total;
+  const die = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
 
   const el = document.getElementById('starAnalysisResult');
-  if (success) {
-    hex.scanned = true;
-    hex.explored = true;
-    if (window.TrophySystem) window.TrophySystem.check('first_galaxy_hex');
-    if (hex.type === 'planet') {
-      if (window.TrophySystem) window.TrophySystem.check('first_planet');
-      const profile = ensurePlanetProfile(hex);
-      hex.detail = `Planet ${profile.planetName} catalogued. ${profile.planetType} world with ${profile.biome} biome signatures.`;
-    } else if (hex.hiddenOutcome) {
-      hex.type = convertOutcomeToHexType(hex.hiddenOutcome);
-      hex.textureVariant = pickSpaceTextureVariant(hex.type, hex.ring || 'middle');
-      hex.detail = `${hex.hiddenOutcome} detected ahead.`;
-    } else if (!hex.detail) {
-      hex.detail = 'System Analysis confirms stable telemetry in this hex.';
+  const finalize = function (outcome) {
+    const success = !!(outcome && outcome.success);
+    const actionTotal = Number((outcome && outcome.actionTotal) || 0);
+    const dreadTotal = Number((outcome && outcome.dreadTotal) || 0);
+    if (success) {
+      hex.scanned = true;
+      hex.explored = true;
+      if (window.TrophySystem) window.TrophySystem.check('first_galaxy_hex');
+      if (hex.type === 'planet') {
+        if (window.TrophySystem) window.TrophySystem.check('first_planet');
+        const profile = ensurePlanetProfile(hex);
+        hex.detail = `Planet ${profile.planetName} catalogued. ${profile.planetType} world with ${profile.biome} biome signatures.`;
+      } else if (hex.hiddenOutcome) {
+        hex.type = convertOutcomeToHexType(hex.hiddenOutcome);
+        hex.textureVariant = pickSpaceTextureVariant(hex.type, hex.ring || 'middle');
+        hex.detail = `${hex.hiddenOutcome} detected ahead.`;
+      } else if (!hex.detail) {
+        hex.detail = 'System Analysis confirms stable telemetry in this hex.';
+      }
+      if (el) el.innerHTML = `<span style="color:var(--green2);">Success</span>: Lead d${die}=${actionTotal} vs DD8=${dreadTotal}. Hex ${hex.id} fully scanned.`;
+      if (typeof addSuccessRoll === 'function') addSuccessRoll();
+    } else {
+      if (el) el.innerHTML = `<span style="color:var(--red2);">Failure</span>: Lead d${die}=${actionTotal} vs DD8=${dreadTotal}. Data remains noisy.`;
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
     }
-    if (el) el.innerHTML = `<span style="color:var(--green2);">Success</span>: d${die}=${action.total} vs DD8=${dread.total}. Hex ${hex.id} fully scanned.`;
-    if (typeof addSuccessRoll === 'function') addSuccessRoll();
-  } else {
-    if (el) el.innerHTML = `<span style="color:var(--red2);">Failure</span>: d${die}=${action.total} vs DD8=${dread.total}. Data remains noisy.`;
-    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+    updateStarSystemReadouts();
+    renderStarSystemMap();
+  };
+
+  if (isGlobalManualRollMode()) {
+    openGlobalManualActionDreadPrompt({
+      title: 'Manual Roll - Analyze Hex',
+      context: 'Analyze Hex (Lead vs DD8)',
+      statKey: 'lead',
+      statLabel: 'Lead',
+      actionDie: Math.max(4, Number(die || 4)),
+      dreadDie: 8,
+      onResolve: finalize
+    });
+    return;
   }
-  updateStarSystemReadouts();
-  renderStarSystemMap();
+
+  const action = explodingRoll(die);
+  const dread = explodingRoll(8);
+  finalize({ success: action.total >= dread.total, actionTotal: action.total, dreadTotal: dread.total, manual: false });
 }
 
 function rollStarSystemWeather() {
@@ -20329,6 +20381,9 @@ function registerLastSeaHexTravel(hexClicks) {
     return;
   }
   const clicks = Math.max(1, parseInt(hexClicks, 10) || 1);
+  if (typeof window.maybeAdvanceSeaWeatherOnTravel === 'function') {
+    window.maybeAdvanceSeaWeatherOnTravel(clicks, 'sea-hex');
+  }
   advanceDay(clicks * DAYS_PER_WEEK);
 }
 
@@ -20341,6 +20396,9 @@ function registerLastSeaIslandTravel(hexClicks) {
     return;
   }
   const clicks = Math.max(1, parseInt(hexClicks, 10) || 1);
+  if (typeof window.maybeAdvanceSeaWeatherOnTravel === 'function') {
+    window.maybeAdvanceSeaWeatherOnTravel(clicks, 'sea-island');
+  }
   advanceDay(clicks);
 }
 
@@ -20349,6 +20407,146 @@ function getGameDatePhaseText() {
   const d = S.gameDate;
   const range = getCurrentPhaseWindowLabel();
   return `Month ${d.month}, Day ${d.day}, Year ${d.year} — ${getCurrentPhaseLabel()}${range ? ' (' + range + ')' : ''}`;
+}
+
+const LONG_REST_EVENT_TABLE = [
+  'Restless night. Do not gain any benefits from the long rest. Roll to determine a party member this happens to.',
+  'A small rodent wanders through your camp. It seems to be begging you for food.',
+  'A PC starts talking in their sleep. It wakes up another member of the party.',
+  'You hear an owl hooting, but cannot spot its den nearby.',
+  'A ghost appears and asks you for a favor.',
+  'The guard of the camp starts to nod off. Roll Spirit vs DD4 to stay awake.',
+  'You get really hungry. Tomorrow\'s rations are looking delicious.',
+  'You get wrapped up in your own thoughts, reflecting upon decisions made in your past.',
+  'You hear a couple chatting and laughing as they walk by in the night.',
+  'You spot some glowing mushrooms just outside of camp.',
+  'A fire starts nearby. The player can see an orange glow in the sky and embers drifting upward.',
+  'Raccoons (or another rodent) eat all your rations and ruin your favorite spare clothes.',
+  'Random player gets stung by a scorpion/wasp/mosquito for 1 damage.',
+  'Camped on a sinkhole. Roll Valor Die vs DD4. On success, the sinkhole gives way to a deeper site.',
+  'You smell something cooking. A nearby goblin camp roasts a pig and has not noticed you yet.',
+  'The night is particularly cold. A small sleeping creature hides in a tent corner for warmth.',
+  'A bird (or small animal) shows up at camp and refuses to leave.',
+  'Slept on a rock/root/stick. You wake with a sore back for 1d4 hours.',
+  'A spider/scorpion/rodent crawled into a player boot. Check before putting boots on.',
+  'A herd of local animals rushes toward the campsite, clearly spooked by something nearby.',
+  'A vicious storm begins to brew. Raging winds and torrential rain lash the area.',
+  'A nearby fire flickers green for a moment, then subsides.',
+  'Far away, someone screams in the night.',
+  'Silence. Oppressive silence. Is that a good omen?',
+  'A rumble of thunder. The sky is restless.',
+  'Something lies face-down in the dirt nearby. Book, shoe, or bounty note. Your call.',
+  'A local predator lurks nearby and watches the camp intently.',
+  'You wet the bed. No damage, but you smell awful the next day.',
+  'A PC has a nightmare and wakes up screaming.',
+  'A madman is heard nearby: "He is angry, He demands me to please Him!"',
+  'A sleeping party member has bad gas. Roll Spirit vs DD4 or wake up annoyed.',
+  'A small animal approaches. Kindness reveals a wildshaped druid; cruelty reveals a hostile druid.',
+  'Everyone\'s shoes are filled with dirt. No one admits doing it.',
+  'A pixie has replaced all your water with wine.',
+  'A pack of wolves howls nearby, then much farther away minutes later.',
+  'A brown bear (or local large beast) enters camp searching for rations.',
+  'A foraging party spots your camp, decides it is not worth the risk, and moves on.',
+  'You hear a wounded animal in a trap. Roll Valor vs DD4; success reveals a magical intelligent beast.',
+  'Two cultists carrying a bonded sacrifice pass close enough to hear.',
+  'A meteor lands nearby.',
+  'A group of 1d4 wild boar attempts to eat your food stores.',
+  'A solemn procession of hooded figures carrying lanterns passes nearby.',
+  'You see a shooting star.',
+  'The night is very hot and humid. Everyone wakes sticky and uncomfortable.',
+  'The night is very dry. You wake with cracked lips and intense thirst.',
+  'The night is very wet. Clothes and gear are sodden with cold mud.',
+  'A small mammal absconds with 1d4 credits or a small mundane object.',
+  'A check reveals gross growth in waterskins, rendering stored water undrinkable.',
+  'Another adventuring party camps nearby; you hear their celebration and could attempt trade.',
+  'A friendly giant approaches camp and asks for directions.'
+];
+
+function isLongRestPhaseWindow() {
+  const label = String(getCurrentPhaseLabel() || '').toLowerCase();
+  return label === 'evening' || label === 'night';
+}
+
+function updatePhaseLongRestButtonUI() {
+  const btn = document.getElementById('longRestPhaseBtn');
+  if (!btn) return;
+  btn.style.display = isLongRestPhaseWindow() ? '' : 'none';
+}
+
+function applyLongRestBaseRecovery() {
+  if (typeof changeStress === 'function') {
+    changeStress(-999);
+  } else if (typeof clearStress === 'function') {
+    clearStress();
+  }
+  if (typeof clearMentalStress === 'function') {
+    clearMentalStress();
+  } else if (typeof changeMentalStress === 'function') {
+    changeMentalStress(-999);
+  }
+  if (typeof clearAllConditions === 'function') {
+    clearAllConditions();
+  }
+}
+
+function applyLongRestEventConsequences(eventRoll) {
+  const rollValue = Number(eventRoll || 0);
+  if (rollValue === 13) {
+    if (typeof changeStress === 'function') changeStress(1);
+    return 'A party member wakes with a sting: +1 Health damage.';
+  }
+  if (rollValue === 47) {
+    const loss = (typeof roll === 'function') ? roll(4) : (1 + Math.floor(Math.random() * 4));
+    if (typeof changeCredits === 'function') changeCredits(-loss);
+    return 'A small mammal steals ' + loss + ' credits during the night.';
+  }
+  return '';
+}
+
+function endLongRestAtCamp() {
+  const pending = window._pendingLongRestEvent;
+  if (!pending) return;
+  window._pendingLongRestEvent = null;
+
+  if (pending.roll !== 1) {
+    applyLongRestBaseRecovery();
+  }
+  const extra = applyLongRestEventConsequences(pending.roll);
+  advanceDay(1, false);
+  S.gameDate.phase = 0;
+  updateDateUI();
+
+  const summary = pending.roll === 1
+    ? 'Restless night: no long-rest recovery was gained.'
+    : 'Long rest completed: recovery applied.';
+  showNotif(summary + (extra ? ' ' + extra : '') + ' Time advanced to Morning.', pending.roll === 1 ? 'warn' : 'good');
+  if (typeof closeModal === 'function') closeModal();
+}
+
+function takeLongRestAtCamp() {
+  ensureStarsState();
+  if (!isLongRestPhaseWindow()) {
+    showNotif('Long Rest is only available during Evening or Night.', 'warn');
+    return;
+  }
+  const eventRoll = Math.max(1, Math.min(50, (typeof roll === 'function') ? roll(50) : (1 + Math.floor(Math.random() * 50))));
+  const eventText = LONG_REST_EVENT_TABLE[eventRoll - 1] || 'Uneventful night. You recover normally.';
+  window._pendingLongRestEvent = { roll: eventRoll, text: eventText };
+  const benefits = eventRoll === 1
+    ? '<div style="font-size:.78rem;color:var(--red2);margin-top:.24rem;">No recovery benefits this long rest.</div>'
+    : '<div style="font-size:.78rem;color:var(--green2);margin-top:.24rem;">On end: recover damage, clear mental strain, and clear conditions.</div>';
+  const html = ''
+    + '<div style="font-size:.84rem;color:var(--text2);line-height:1.58;">'
+    + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;color:var(--gold2);letter-spacing:.08em;margin-bottom:.2rem;">Long Rest Event</div>'
+    + '<div><strong style="color:var(--text);">d50 Roll: ' + eventRoll + '</strong></div>'
+    + '<div style="margin-top:.25rem;">' + eventText + '</div>'
+    + benefits
+    + '<div style="display:flex;justify-content:flex-end;gap:.3rem;margin-top:.55rem;">'
+    + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
+    + '<button class="btn btn-sm btn-teal" onclick="endLongRestAtCamp()">End Long Rest - Move To Morning</button>'
+    + '</div>'
+    + '</div>';
+  if (typeof openModal === 'function') openModal('Take a Long Rest', html);
 }
 
 function updateDateUI() {
@@ -20381,6 +20579,7 @@ function updateDateUI() {
   if (typeof window.updateFullPhaseClockToggleUI === 'function') {
     window.updateFullPhaseClockToggleUI();
   }
+  updatePhaseLongRestButtonUI();
 }
 
 function removeLegacyHealthLabel() {
@@ -21690,7 +21889,7 @@ function getGalaxySystemPanelMarkup() {
       <div style="padding-top:.45rem;border-top:1px solid var(--border);margin-top:.45rem;">
         <div class="sub-label">Observe Adjacent (System Analysis)</div>
         <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;">
-          <button class="btn btn-xs btn-teal" onclick="runSystemAnalysisCheck()">Analyze Hex (DD8)</button>
+          <button class="btn btn-xs btn-teal" onclick="runSystemAnalysisCheck()">Analyze Hex (Lead vs DD8)</button>
           <button class="btn btn-xs" onclick="runFurtherSystemAnalysis()">Further Analysis (+1 Day)</button>
           <button class="btn btn-xs" onclick="renderRoyalShipLog()" title="View Royal Ship contact history">⚓ Royal Log</button>
         </div>

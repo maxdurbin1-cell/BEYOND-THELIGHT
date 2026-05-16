@@ -2830,7 +2830,7 @@ function consumeVisibleManualRollValue(kind, sides, meta) {
     }
     var tmw = (typeof S !== "undefined" && S) ? Math.max(0, Number(S.tmw || 0)) : 0;
     var dieLabel = (kind === "action" ? "Action" : "Dread") + " d" + die;
-    var promptText = "Manual Roll Mode (GM Prompt)\n"
+    var promptText = "Manual Roll Mode\n"
       + "Roll " + dieLabel + " now and enter the result (1-" + die + ").";
     if (promptLabel) {
       promptText += "\nCheck: " + promptLabel;

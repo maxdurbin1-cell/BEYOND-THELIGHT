@@ -710,6 +710,34 @@
     return ensureSeaWeatherCheck({ ...pick(LAST_SEA_WEATHER[season]) });
   }
 
+  function maybeAdvanceSeaWeatherOnTravel(distance, travelType) {
+    if (!S.lastSea) return false;
+    const weather = ensureSeaWeatherCheck(S.lastSea.weather || rollLastSeaWeather());
+    S.lastSea.weather = weather;
+    if (!weather || (weather.check && !weather.checkResolved)) return false;
+
+    const steps = Math.max(1, Number(distance) || 1);
+    const baseChance = travelType === 'sea-island' ? 0.35 : 0.5;
+    const shiftChance = Math.min(0.85, baseChance + ((steps - 1) * 0.08));
+    if (Math.random() > shiftChance) return false;
+
+    const currentLabel = String(weather.label || '');
+    let next = weather;
+    for (let i = 0; i < 4; i += 1) {
+      const candidate = rollLastSeaWeather();
+      if (!candidate || String(candidate.label || '') !== currentLabel) {
+        next = candidate;
+        break;
+      }
+    }
+    S.lastSea.weather = ensureSeaWeatherCheck(next);
+    showNotif('Sea weather shifts: ' + (S.lastSea.weather && S.lastSea.weather.label ? S.lastSea.weather.label : 'Changing skies') + '.', 'warn');
+    if (typeof renderLastSeaInfo === 'function' && S.lastSea.selected) {
+      renderLastSeaInfo(S.lastSea.selected);
+    }
+    return true;
+  }
+
   function makeSettlementData() {
     return {
       name: `${pick(SETTLEMENT_STYLES)} ${pick(SETTLEMENT_FEATURES)}`,
@@ -5351,6 +5379,7 @@
   window.resolveSeaSkirmishOutcome = resolveSeaSkirmishOutcome;
   window.seaSkirmishAction = seaSkirmishAction;
   window.resolveOpenSeaPerilCheck = resolveOpenSeaPerilCheck;
+  window.maybeAdvanceSeaWeatherOnTravel = maybeAdvanceSeaWeatherOnTravel;
   window.rollSeaSettlementDowntime = rollSeaSettlementDowntime;
   window.resolveSeaSettlementDowntime = resolveSeaSettlementDowntime;
   window.openSeaSettlementMerchant = openSeaSettlementMerchant;

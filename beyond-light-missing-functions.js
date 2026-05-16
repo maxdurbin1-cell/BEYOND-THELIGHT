@@ -390,22 +390,22 @@ function updateDieDisplay(key) {
   if (!el) {
     return;
   }
-  const value = key === "adventure" ? (S.stats.adventure || 4) : getEffectiveDie(key);
+  const value = key === "valor" ? (S.stats.valor || 4) : getEffectiveDie(key);
   let displayText = "d" + value;
 
   // Append weapon/armor bonus hints so the player can see what will be rolled
-  if ((key === 'strike' || key === 'shoot') && typeof parseWeaponBonuses === 'function') {
-    const wb = parseWeaponBonuses(key);
-    if (wb.advDie > 0) displayText += '/Ad' + wb.advDie;
-    else if (wb.flat > 0) displayText += '+' + wb.flat;
-    if (wb.addAdvDie) displayText += '+A.D.';
+    if ((key === 'strike' || key === 'shoot') && typeof parseWeaponBonuses === 'function') {
+      const wb = parseWeaponBonuses(key);
+      if (wb.advDie > 0) displayText += '/Ad' + wb.advDie;
+      else if (wb.flat > 0) displayText += '+' + wb.flat;
+      if (wb.addAdvDie) displayText += '+V.D.';
   } else if (key === 'defend') {
     const armorAdv = typeof parseArmorAdvDie === 'function' ? parseArmorAdvDie() : 0;
     const wpDef = typeof parseWeaponBonuses === 'function' ? parseWeaponBonuses('defend') : {flat:0, advDie:0, addAdvDie:false};
     const advDie = Math.max(armorAdv, wpDef.advDie);
     if (advDie > 0) displayText += '/Ad' + advDie;
     if (wpDef.flat > 0) displayText += '+' + wpDef.flat;
-    if (wpDef.addAdvDie) displayText += '+A.D.';
+    if (wpDef.addAdvDie) displayText += '+V.D.';
   }
   // Flavor / Mutation advantage hints for all stats
   const flB = typeof getFlavorBonus === 'function' ? getFlavorBonus(key) : {advDie:0};
@@ -420,7 +420,7 @@ function updateDieDisplay(key) {
   if (gearBonus.addDice && gearBonus.addDice.length) displayText += '+d' + gearBonus.addDice.join('+d');
   if (gearBonus.flat > 0) displayText += '+' + gearBonus.flat;
   const relicBonusCount = typeof getPermanentAdventureBonusCount === 'function' ? getPermanentAdventureBonusCount(key) : 0;
-  if (relicBonusCount > 0) displayText += '+A.D.' + (relicBonusCount > 1 ? 'x' + relicBonusCount : '');
+  if (relicBonusCount > 0) displayText += '+V.D.' + (relicBonusCount > 1 ? 'x' + relicBonusCount : '');
 
   el.textContent = displayText;
   el.className = dieClass(value);
@@ -445,7 +445,7 @@ function updateMaxStressDisplay() {
 
 function updateAllStatDisplays() {
   STAT_KEYS.forEach(updateDieDisplay);
-  updateDieDisplay("adventure");
+  updateDieDisplay("valor");
   if (typeof ensureBackpackCapacity === 'function') ensureBackpackCapacity();
   if (typeof renderBackpackUI === 'function') renderBackpackUI();
   updateMaxStressDisplay();
@@ -491,23 +491,23 @@ function stepDie(key, delta) {
 }
 
 function quickRollStat(key) {
-  const die = key === "adventure" ? (S.stats.adventure || 4) : getEffectiveDie(key);
+  const die = key === "valor" ? (S.stats.valor || 4) : getEffectiveDie(key);
   const label = key.charAt(0).toUpperCase() + key.slice(1);
 
   // Collect advantage dice from weapons/armor, flavor, mutation, and manual rollMod
-  let advDiceArr = [], flatBonus = 0, addAdvDie = false;
-  if ((key === 'strike' || key === 'shoot') && typeof parseWeaponBonuses === 'function') {
-    const wb = parseWeaponBonuses(key);
-    if (wb.advDie > 0) advDiceArr.push(wb.advDie);
-    flatBonus = wb.flat;
-    addAdvDie = wb.addAdvDie;
+  let advDiceArr = [], flatBonus = 0, addValorDie = false;
+    if ((key === 'strike' || key === 'shoot') && typeof parseWeaponBonuses === 'function') {
+      const wb = parseWeaponBonuses(key);
+      if (wb.advDie > 0) advDiceArr.push(wb.advDie);
+      flatBonus = wb.flat;
+      addValorDie = wb.addAdvDie;
   } else if (key === 'defend') {
     const armorAdv = typeof parseArmorAdvDie === 'function' ? parseArmorAdvDie() : 0;
     const wpDef = typeof parseWeaponBonuses === 'function' ? parseWeaponBonuses('defend') : {flat:0, advDie:0, addAdvDie:false};
     if (armorAdv > 0) advDiceArr.push(armorAdv);
     if (wpDef.advDie > 0) advDiceArr.push(wpDef.advDie);
     flatBonus = wpDef.flat;
-    addAdvDie = wpDef.addAdvDie;
+    addValorDie = wpDef.addAdvDie;
   }
 
   // Personal Flavor / Mutation bonuses — collect their advDice arrays
@@ -539,14 +539,14 @@ function quickRollStat(key) {
   // Holy Shield: add spirit die (Flavor)
   const holyShieldRoll = flB.holyShield ? explodingRoll(S.stats.spirit || 4) : null;
   if (holyShieldRoll) withFlat += holyShieldRoll.total;
-  // +A.D. additive adventure die
-  const adBonus = addAdvDie ? explodingRoll(S.stats.adventure || 4) : null;
-  const withAD = withFlat + (adBonus ? adBonus.total : 0);
+  // +V.D. additive valor die
+  const valorBonus = addValorDie ? explodingRoll(S.stats.valor || 4) : null;
+  const withValor = withFlat + (valorBonus ? valorBonus.total : 0);
   const gearAddRolls = (gearBonus.addDice || []).map(function(dieSize){ return explodingRoll(dieSize); });
   // Augmentation additive
   const augRoll = augDie > 0 ? explodingRoll(augDie) : null;
   const gearAddTotal = gearAddRolls.reduce(function(sum, roll){ return sum + roll.total; }, 0);
-  const total = withAD + gearAddTotal + (augRoll ? augRoll.total : 0);
+  const total = withValor + gearAddTotal + (augRoll ? augRoll.total : 0);
   const radPenalty = (typeof getRadPenaltyForStat === 'function') ? getRadPenaltyForStat(key) : 0;
   const finalTotal = Math.max(0, total - radPenalty);
 
@@ -556,7 +556,7 @@ function quickRollStat(key) {
   if (ra.advRolls.length === 0 && advDiceArr.length === 0) {} // no adv dice, no note needed
   if (flatBonus > 0) details.push('+' + flatBonus + ' (weapon/flavor/mutation/mod)');
   if (holyShieldRoll) details.push('Holy Shield +Spirit d' + (S.stats.spirit||4) + ' = ' + holyShieldRoll.total);
-  if (adBonus) details.push('+A.D. d' + (S.stats.adventure || 4) + ' = ' + adBonus.total + ' (additive)');
+  if (valorBonus) details.push('+V.D. d' + (S.stats.valor || 4) + ' = ' + valorBonus.total + ' (additive)');
   gearAddRolls.forEach(function(rollObj, idx){ details.push('+d' + gearBonus.addDice[idx] + ' gear = ' + rollObj.total); });
   if (augRoll) details.push('+d' + augDie + ' aug = ' + augRoll.total);
   if (radPenalty > 0) details.push('-' + radPenalty + ' Radiation penalty');
@@ -930,7 +930,7 @@ function addTMWOnFail(reason, opts) {
   var failureReason = String(reason || 'failed-roll');
   if (window.teamworkRulesSystem && typeof window.teamworkRulesSystem.onRollFailure === 'function') {
     var result = window.teamworkRulesSystem.onRollFailure('core-fail', {
-      stat: 'adventure',
+      stat: 'valor',
       roll: 0,
       difficulty: 0,
       description: failureReason,
@@ -1428,7 +1428,7 @@ function generateCharacter() {
   assignArray();
   rollBackpack();
   rollAllTraits();
-  S.stats.adventure = pick([4, 6, 8]);
+  S.stats.valor = pick([4, 6, 8]);
   S.credits = rollMulti(6, 2) * 10;
   S.health = 0;
   S.renown = 0;
@@ -1505,7 +1505,7 @@ function clearCharacter(options) {
   S.equipment = { weapon1: "", weapon2: "", armor: "", readied: "" };
   S.backpack = ["", "", "", "", "", ""];
   S.soulArray = [];
-  S.stats = { body: 4, strike: 4, shoot: 4, mind: 4, spirit: 4, defend: 4, control: 4, lead: 4, adventure: 4 };
+  S.stats = { body: 4, strike: 4, shoot: 4, mind: 4, spirit: 4, defend: 4, control: 4, lead: 4, valor: 4 };
   S.traits = {};
   S.augmentations = [];
   S.ownedHacks    = [];

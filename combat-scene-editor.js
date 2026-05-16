@@ -42,6 +42,73 @@
     return 'Distant';
   }
 
+  function slug(name) {
+    return String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  }
+
+  function flattenCodexBestiary() {
+    var out = [];
+    if (typeof NAMED_ENEMY_BESTIARY === 'object' && NAMED_ENEMY_BESTIARY) {
+      Object.keys(NAMED_ENEMY_BESTIARY).forEach(function (region) {
+        var list = NAMED_ENEMY_BESTIARY[region];
+        if (!Array.isArray(list)) return;
+        list.forEach(function (entry) {
+          if (!entry) return;
+          out.push({
+            id: slug(region + '-' + (entry.name || 'beast')),
+            region: String(region),
+            name: String(entry.name || 'Unknown Beast'),
+            desc: String(entry.desc || ''),
+            dread: Math.max(4, Number(entry.dread || 4)),
+            hp: Math.max(1, Number(entry.health || 8)),
+            image: String(entry.image || '')
+          });
+        });
+      });
+    }
+    return out;
+  }
+
+  function hexDistance(a, b) {
+    var aq = Number(a && a.q || 0);
+    var ar = Number(a && a.r || 0);
+    var bq = Number(b && b.q || 0);
+    var br = Number(b && b.r || 0);
+    return Math.max(Math.abs(aq - bq), Math.abs(ar - br), Math.abs((aq + ar) - (bq + br)));
+  }
+
+  function getWeatherModifier(state, mode) {
+    var name = String(state && state.board && state.board.weatherOverlay || 'none');
+    var intensity = Math.max(0, Number(state && state.board && state.board.weatherIntensity || 0));
+    if (name === 'none' || !intensity) return 0;
+    if (mode === 'movement') {
+      if (name === 'rain' || name === 'ash') return -Math.ceil(intensity / 2);
+      if (name === 'storm') return -intensity;
+      if (name === 'fog') return -Math.ceil(intensity / 2);
+    }
+    if (mode === 'ranged') {
+      if (name === 'fog') return -intensity;
+      if (name === 'storm') return -Math.ceil(intensity / 2);
+    }
+    if (mode === 'melee') {
+      if (name === 'rain') return -Math.floor(intensity / 2);
+      if (name === 'ash') return -Math.floor(intensity / 2);
+    }
+    return 0;
+  }
+
+  function isHexRevealed(state, q, r) {
+    if (!state.fog || !state.fog.enabled) return true;
+    var key = toKey(q, r);
+    var visible = !!(state.fog.revealed && state.fog.revealed[key]);
+    var selected = byId(state.selectedTokenId);
+    if (!selected) return visible;
+    var radius = Math.max(0, Number(state.fog.visionRadius || 0));
+    if (!radius) return visible;
+    if (hexDistance({ q: q, r: r }, { q: selected.q, r: selected.r }) <= radius) return true;
+    return visible;
+  }
+
   function toKey(q, r) {
     return String(q) + ',' + String(r);
   }
@@ -96,6 +163,8 @@
       var slim = {
         board: state.board,
         layers: state.layers,
+        fog: state.fog,
+        sceneRules: state.sceneRules,
         tokens: state.tokens,
         initiative: state.initiative,
         actionHistory: state.actionHistory,
@@ -167,6 +236,7 @@
     entering: false,
     activeLayer: 'terrain',
     activeTool: 'select',
+    fogBrush: 'reveal',
     paintValue: 'forest',
     selectedTokenId: '',
     draggingTokenId: '',
@@ -181,17 +251,31 @@
       panX: 640,
       panY: 340,
       background: '',
-      weatherOverlay: 'none'
+      weatherOverlay: 'none',
+      weatherIntensity: 1
+    },
+    fog: {
+      enabled: false,
+      showMask: true,
+      revealMode: 'manual',
+      visionRadius: 3,
+      revealed: {}
+    },
+    sceneRules: {
+      rollMode: 'auto',
+      defaultActionType: 'ranged'
     },
     layers: {
       terrain: {},
       objects: {},
       hazards: {},
+      elevation: {},
       lighting: {},
       weather: {},
       interactives: {},
       spawns: {}
     },
+    codexBestiary: flattenCodexBestiary(),
     tokens: seedFromCurrentCombat(),
     initiative: [],
     actionHistory: ['Combat mode initialized.'],
@@ -259,11 +343,108 @@
         delete next.layers[layer][key];
         addHistory('Cleared ' + layer + ' at ' + key + '.');
       } else if (tool === 'paint') {
-        next.layers[layer][key] = String(state.paintValue || 'forest');
+        if (layer === 'elevation') {
+          next.layers[layer][key] = Number(state.paintValue || 1);
+        } else {
+          next.layers[layer][key] = String(state.paintValue || 'forest');
+        }
       }
       persist(next);
       return next;
     });
+  }
+
+  function applyFogAt(q, r, brush) {
+    store.setState(function (state) {
+      if (!state.fog) return state;
+      var next = Object.assign({}, state);
+      next.fog = Object.assign({}, state.fog);
+      next.fog.revealed = Object.assign({}, state.fog.revealed || {});
+      var key = toKey(q, r);
+      if (String(brush || state.fogBrush) === 'hide') {
+        delete next.fog.revealed[key];
+      } else {
+        next.fog.revealed[key] = true;
+      }
+      persist(next);
+      return next;
+    });
+  }
+
+  function resolveActionForSelectedToken() {
+    var state = store.getState();
+    var actor = byId(state.selectedTokenId);
+    if (!actor) {
+      safeNotif('Select a token first.', 'warn');
+      return;
+    }
+    var actionType = String(state.sceneRules && state.sceneRules.defaultActionType || 'ranged');
+    var base = state.autoRoll ? (Math.floor(Math.random() * 20) + 1) : Number(window.prompt('Manual action roll total (1-20):', '10') || 10);
+    base = Math.max(1, Math.min(20, Number(base || 10)));
+
+    var foes = (state.tokens || []).filter(function (token) {
+      return token && String(token.id) !== String(actor.id) && String(token.faction) !== String(actor.faction);
+    });
+    var target = foes.length ? foes[0] : null;
+    var range = target ? hexDistance({ q: actor.q, r: actor.r }, { q: target.q, r: target.r }) : 0;
+
+    var actorElev = Number(state.layers.elevation[toKey(actor.q, actor.r)] || 0);
+    var targetElev = target ? Number(state.layers.elevation[toKey(target.q, target.r)] || 0) : 0;
+    var elevationMod = 0;
+    if (target) {
+      if (actorElev > targetElev) elevationMod = 1;
+      else if (actorElev < targetElev) elevationMod = -1;
+    }
+
+    var weatherMod = getWeatherModifier(state, actionType === 'melee' ? 'melee' : 'ranged');
+    var terrainMod = 0;
+    var terrain = String(state.layers.terrain[toKey(actor.q, actor.r)] || '');
+    if (terrain === 'difficult terrain') terrainMod = -1;
+    if (terrain === 'water' && actionType === 'melee') terrainMod -= 1;
+    var total = base + elevationMod + weatherMod + terrainMod;
+
+    var summary = (actor.name || 'Token')
+      + ' action [' + actionType + ']'
+      + ' base ' + base
+      + ' + elevation ' + elevationMod
+      + ' + weather ' + weatherMod
+      + ' + terrain ' + terrainMod
+      + ' = ' + total;
+    addHistory(summary);
+    if (target) {
+      var cin = hexLabel(range);
+      addHistory((actor.name || 'Token') + ' targets ' + (target.name || 'Target') + ' at ' + range + ' hexes (' + cin + ').');
+    }
+    updateUiPanels();
+  }
+
+  function spawnBestiaryToken(profile, q, r) {
+    if (!profile) return;
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      var token = {
+        id: uid('bst'),
+        name: String(profile.name || 'Beast'),
+        faction: 'monster',
+        hp: Math.max(1, Number(profile.hp || 8)),
+        maxHp: Math.max(1, Number(profile.hp || 8)),
+        status: [],
+        q: Number(q || 0),
+        r: Number(r || 0),
+        image: String(profile.image || ''),
+        size: Number(profile.size || 1),
+        codexRegion: String(profile.region || 'province'),
+        codexDread: Math.max(4, Number(profile.dread || 4))
+      };
+      next.tokens = (state.tokens || []).concat([token]);
+      next.selectedTokenId = token.id;
+      next.initiative = [];
+      persist(next);
+      return next;
+    });
+    addHistory('Spawned ' + String(profile.name || 'Beast') + ' from Codex bestiary preset.');
+    drawBoard();
+    updateUiPanels();
   }
 
   function moveToken(tokenId, q, r) {
@@ -319,11 +500,16 @@
       + '<div class="combat-chip-row" id="combatLayerRow"></div>'
       + '<div class="combat-label" style="margin-top:.35rem;">Tool</div>'
       + '<div class="combat-chip-row" id="combatToolRow"></div>'
+      + '<div class="combat-label" style="margin-top:.35rem;">Fog of War</div>'
+      + '<div class="combat-chip-row"><button class="combat-chip" id="combatFogToggleBtn">Fog Off</button><button class="combat-chip" id="combatFogBrushBtn">Brush Reveal</button><button class="combat-chip" id="combatFogClearBtn">Clear Fog</button></div>'
+      + '<div class="combat-mini" id="combatFogMeta">Revealed 0 hexes · Vision 3</div>'
       + '<div class="combat-label" style="margin-top:.35rem;">Terrain / Object</div>'
       + '<select class="combat-select" id="combatPaintValue">'
-      + '<option value="forest">forest</option><option value="marsh">marsh</option><option value="crags">crags</option><option value="lava">lava</option><option value="ruins">ruins</option><option value="water">water</option><option value="difficult terrain">difficult terrain</option><option value="obstacle">obstacle</option><option value="trap">trap</option><option value="shrine">shrine</option><option value="turret">turret</option><option value="door">door</option><option value="spawn">spawn</option>'
+      + '<option value="forest">forest</option><option value="marsh">marsh</option><option value="crags">crags</option><option value="lava">lava</option><option value="ruins">ruins</option><option value="water">water</option><option value="difficult terrain">difficult terrain</option><option value="obstacle">obstacle</option><option value="trap">trap</option><option value="shrine">shrine</option><option value="turret">turret</option><option value="door">door</option><option value="spawn">spawn</option><option value="1">elevation +1</option><option value="2">elevation +2</option><option value="3">elevation +3</option>'
       + '</select>'
       + '<div class="combat-mini">Hex editing modes: terrain, objects, hazards, lighting, weather, interactives, spawn points.</div>'
+      + '<div class="combat-label" style="margin-top:.35rem;">Bestiary Drawer</div>'
+      + '<div class="combat-feed" id="combatBestiaryDrawer"></div>'
       + '</div>'
       + '</aside>'
       + '<aside class="combat-floating-panel combat-right-rail" id="combatFeedPanel">'
@@ -340,8 +526,14 @@
       + '<div id="combatSelectedSummary" class="combat-mini">Select a token.</div>'
       + '<div style="display:grid;grid-template-columns:1fr auto auto;gap:.24rem;align-items:end;margin-top:.2rem;">'
       + '<div><div class="combat-label">HP</div><input class="combat-input" id="combatSelectedHp" type="number" min="0"></div>'
+      + '<div><div class="combat-label">Elevation</div><input class="combat-input" id="combatSelectedElevation" type="number" min="0" max="9"></div>'
       + '<button class="btn btn-xs" id="combatSaveTokenBtn">Save</button>'
       + '<button class="btn btn-xs" id="combatUploadTokenBtn">Portrait</button>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.24rem;align-items:end;margin-top:.28rem;">'
+      + '<div><div class="combat-label">Weather</div><select class="combat-select" id="combatWeatherSelect"><option value="none">none</option><option value="rain">rain</option><option value="storm">storm</option><option value="fog">fog</option><option value="ash">ash</option></select></div>'
+      + '<div><div class="combat-label">Intensity</div><input class="combat-input" id="combatWeatherIntensity" type="number" min="0" max="5"></div>'
+      + '<button class="btn btn-xs" id="combatApplyWeatherBtn">Apply Weather</button>'
       + '</div>'
       + '<div style="margin-top:.28rem;border:1px solid rgba(73,201,187,.35);padding:.28rem;background:rgba(73,201,187,.08);">'
       + '<div class="combat-label">Cinematic Distance</div>'
@@ -349,6 +541,7 @@
       + '</div>'
       + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.28rem;">'
       + '<button class="btn btn-xs btn-teal" id="combatActivateCellBtn">Activate Mechanism</button>'
+      + '<button class="btn btn-xs" id="combatResolveActionBtn">Resolve Action</button>'
       + '<button class="btn btn-xs" id="combatZoomInBtn">Zoom +</button>'
       + '<button class="btn btn-xs" id="combatZoomOutBtn">Zoom -</button>'
       + '</div>'
@@ -426,6 +619,7 @@
         var terrain = state.layers.terrain[key] || '';
         var object = state.layers.objects[key] || '';
         var hazard = state.layers.hazards[key] || '';
+        var elevation = Number(state.layers.elevation[key] || 0);
 
         drawHex(ctx, p.x, p.y, size - 1.6);
         ctx.fillStyle = colorForTerrain(terrain);
@@ -442,6 +636,18 @@
           ctx.fillStyle = 'rgba(227,188,94,.92)';
           ctx.beginPath();
           ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        if (elevation > 0) {
+          ctx.fillStyle = 'rgba(201,162,39,.95)';
+          ctx.font = '10px Rajdhani, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('+' + elevation, p.x, p.y + 4);
+        }
+
+        if (state.fog && state.fog.enabled && state.fog.showMask && !isHexRevealed(state, q, r)) {
+          drawHex(ctx, p.x, p.y, size - 1.6);
+          ctx.fillStyle = 'rgba(2,3,7,.74)';
           ctx.fill();
         }
       }
@@ -509,8 +715,8 @@
   function updateUiPanels() {
     var state = ensureInitiative(store.getState());
 
-    var layers = ['terrain', 'objects', 'hazards', 'lighting', 'weather', 'interactives', 'spawns'];
-    var tools = ['select', 'paint', 'erase', 'ruler', 'pan'];
+    var layers = ['terrain', 'objects', 'hazards', 'elevation', 'lighting', 'weather', 'interactives', 'spawns'];
+    var tools = ['select', 'paint', 'erase', 'fog', 'ruler', 'pan'];
 
     var layerRow = document.getElementById('combatLayerRow');
     if (layerRow) {
@@ -540,6 +746,53 @@
       paintSel.onchange = function () { store.setState({ paintValue: String(paintSel.value || 'forest') }); };
     }
 
+    var fogMeta = document.getElementById('combatFogMeta');
+    if (fogMeta) {
+      var revealedCount = Object.keys(state.fog && state.fog.revealed || {}).length;
+      fogMeta.textContent = 'Revealed ' + revealedCount + ' hexes · Vision ' + Number(state.fog && state.fog.visionRadius || 0);
+    }
+
+    var fogToggleBtn = document.getElementById('combatFogToggleBtn');
+    if (fogToggleBtn) {
+      fogToggleBtn.textContent = state.fog && state.fog.enabled ? 'Fog On' : 'Fog Off';
+      fogToggleBtn.className = 'combat-chip ' + (state.fog && state.fog.enabled ? 'on' : '');
+    }
+    var fogBrushBtn = document.getElementById('combatFogBrushBtn');
+    if (fogBrushBtn) {
+      fogBrushBtn.textContent = 'Brush ' + (state.fogBrush === 'hide' ? 'Hide' : 'Reveal');
+      fogBrushBtn.className = 'combat-chip on';
+    }
+
+    var bestiary = document.getElementById('combatBestiaryDrawer');
+    if (bestiary) {
+      var cards = (state.codexBestiary || []).slice(0, 36).map(function (entry) {
+        var shortDesc = String(entry.desc || '').slice(0, 86);
+        return '<div class="combat-feed-line" draggable="true" data-bestiary-id="' + String(entry.id) + '">'
+          + '<strong>' + String(entry.name) + '</strong> · DD' + Number(entry.dread || 4) + ' · HP ' + Number(entry.hp || 8)
+          + '<div class="combat-mini">' + shortDesc + '</div>'
+          + '<button class="btn btn-xs" data-spawn-id="' + String(entry.id) + '">Spawn</button>'
+          + '</div>';
+      }).join('');
+      bestiary.innerHTML = cards || '<div class="combat-mini">No codex bestiary entries found.</div>';
+      Array.prototype.slice.call(bestiary.querySelectorAll('[data-spawn-id]')).forEach(function (btn) {
+        btn.onclick = function () {
+          var id = String(btn.getAttribute('data-spawn-id') || '');
+          var profile = (state.codexBestiary || []).find(function (entry) { return String(entry.id) === id; }) || null;
+          if (!profile) return;
+          var actor = byId(state.selectedTokenId);
+          var q = actor ? Number(actor.q || 0) + 2 : 2;
+          var r = actor ? Number(actor.r || 0) : 0;
+          spawnBestiaryToken(profile, q, r);
+        };
+      });
+      Array.prototype.slice.call(bestiary.querySelectorAll('[data-bestiary-id]')).forEach(function (card) {
+        card.ondragstart = function (ev) {
+          var id = String(card.getAttribute('data-bestiary-id') || '');
+          ev.dataTransfer.setData('text/combat-bestiary-id', id);
+        };
+      });
+    }
+
     var initList = document.getElementById('combatInitiativeList');
     if (initList) {
       initList.innerHTML = (state.initiative || []).map(function (entry, idx) {
@@ -558,6 +811,7 @@
     var selected = byId(state.selectedTokenId);
     var selectedSummary = document.getElementById('combatSelectedSummary');
     var selectedHp = document.getElementById('combatSelectedHp');
+    var selectedElevation = document.getElementById('combatSelectedElevation');
     if (selectedSummary) {
       selectedSummary.textContent = selected
         ? (selected.name + ' · ' + selected.faction + ' · hex ' + toKey(selected.q, selected.r))
@@ -566,6 +820,14 @@
     if (selectedHp) {
       selectedHp.value = selected ? Number(selected.hp || 0) : '';
     }
+    if (selectedElevation) {
+      selectedElevation.value = selected ? Number(state.layers.elevation[toKey(selected.q, selected.r)] || 0) : 0;
+    }
+
+    var weatherSelect = document.getElementById('combatWeatherSelect');
+    var weatherIntensity = document.getElementById('combatWeatherIntensity');
+    if (weatherSelect) weatherSelect.value = String(state.board.weatherOverlay || 'none');
+    if (weatherIntensity) weatherIntensity.value = Number(state.board.weatherIntensity || 0);
 
     var ruler = document.getElementById('combatRulerSummary');
     if (ruler) {
@@ -610,6 +872,13 @@
 
       if (state.activeTool === 'paint' || state.activeTool === 'erase') {
         paintAt(ax.q, ax.r);
+        drawBoard();
+        updateUiPanels();
+        return;
+      }
+
+      if (state.activeTool === 'fog') {
+        applyFogAt(ax.q, ax.r, state.fogBrush);
         drawBoard();
         updateUiPanels();
         return;
@@ -691,6 +960,23 @@
       drawBoard();
       updateUiPanels();
     }, { passive: false });
+
+    canvas.addEventListener('dragover', function (ev) {
+      ev.preventDefault();
+    });
+
+    canvas.addEventListener('drop', function (ev) {
+      ev.preventDefault();
+      var id = String(ev.dataTransfer.getData('text/combat-bestiary-id') || '');
+      if (!id) return;
+      var state = store.getState();
+      var profile = (state.codexBestiary || []).find(function (entry) { return String(entry.id) === id; }) || null;
+      if (!profile) return;
+      var rect = canvas.getBoundingClientRect();
+      var size = Number(state.board.size || 42) * Number(state.board.zoom || 1);
+      var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, state.board.panX, state.board.panY);
+      spawnBestiaryToken(profile, ax.q, ax.r);
+    });
   }
 
   function bindDragPanels() {
@@ -770,13 +1056,21 @@
       saveToken._bound = true;
       saveToken.onclick = function () {
         var hpInput = document.getElementById('combatSelectedHp');
+        var elevationInput = document.getElementById('combatSelectedElevation');
         var hp = Math.max(0, Number(hpInput && hpInput.value || 0));
+        var elevation = Math.max(0, Number(elevationInput && elevationInput.value || 0));
         store.setState(function (state) {
           var next = Object.assign({}, state);
           next.tokens = (state.tokens || []).map(function (token) {
             if (!token || String(token.id) !== String(state.selectedTokenId || '')) return token;
             return Object.assign({}, token, { hp: hp, maxHp: Math.max(hp, Number(token.maxHp || hp)) });
           });
+          var selected = byId(state.selectedTokenId);
+          if (selected) {
+            next.layers = Object.assign({}, state.layers);
+            next.layers.elevation = Object.assign({}, state.layers.elevation);
+            next.layers.elevation[toKey(selected.q, selected.r)] = elevation;
+          }
           persist(next);
           return next;
         });
@@ -827,6 +1121,74 @@
         if (interactive) addHistory((token.name || 'Token') + ' activates ' + interactive + ' at ' + key + '.');
         else addHistory('No interactive object on current hex.');
         updateUiPanels();
+      };
+    }
+
+    var fogToggle = document.getElementById('combatFogToggleBtn');
+    if (fogToggle && !fogToggle._bound) {
+      fogToggle._bound = true;
+      fogToggle.onclick = function () {
+        store.setState(function (state) {
+          var next = Object.assign({}, state);
+          next.fog = Object.assign({}, state.fog, { enabled: !state.fog.enabled });
+          persist(next);
+          return next;
+        });
+        drawBoard();
+        updateUiPanels();
+      };
+    }
+
+    var fogBrush = document.getElementById('combatFogBrushBtn');
+    if (fogBrush && !fogBrush._bound) {
+      fogBrush._bound = true;
+      fogBrush.onclick = function () {
+        store.setState({ fogBrush: store.getState().fogBrush === 'hide' ? 'reveal' : 'hide' });
+        updateUiPanels();
+      };
+    }
+
+    var fogClear = document.getElementById('combatFogClearBtn');
+    if (fogClear && !fogClear._bound) {
+      fogClear._bound = true;
+      fogClear.onclick = function () {
+        store.setState(function (state) {
+          var next = Object.assign({}, state);
+          next.fog = Object.assign({}, state.fog, { revealed: {} });
+          persist(next);
+          return next;
+        });
+        addHistory('Fog reveal map cleared.');
+        drawBoard();
+        updateUiPanels();
+      };
+    }
+
+    var applyWeather = document.getElementById('combatApplyWeatherBtn');
+    if (applyWeather && !applyWeather._bound) {
+      applyWeather._bound = true;
+      applyWeather.onclick = function () {
+        var weatherSelect = document.getElementById('combatWeatherSelect');
+        var weatherIntensity = document.getElementById('combatWeatherIntensity');
+        var weather = String(weatherSelect && weatherSelect.value || 'none');
+        var intensity = Math.max(0, Math.min(5, Number(weatherIntensity && weatherIntensity.value || 0)));
+        store.setState(function (state) {
+          var next = Object.assign({}, state);
+          next.board = Object.assign({}, state.board, { weatherOverlay: weather, weatherIntensity: intensity });
+          persist(next);
+          return next;
+        });
+        addHistory('Weather set to ' + weather + ' (intensity ' + intensity + ').');
+        drawBoard();
+        updateUiPanels();
+      };
+    }
+
+    var resolveAction = document.getElementById('combatResolveActionBtn');
+    if (resolveAction && !resolveAction._bound) {
+      resolveAction._bound = true;
+      resolveAction.onclick = function () {
+        resolveActionForSelectedToken();
       };
     }
 

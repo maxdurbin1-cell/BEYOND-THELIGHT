@@ -655,7 +655,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
       <div id="statRows"></div>
       <div style="margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--border);">
         <div class="stat-row">
-          <div><div class="stat-label">Adventure Die</div><div class="stat-sub">Trauma checks & Peril</div></div>
+          <div><div class="stat-label">Valor Die</div><div class="stat-sub">Trauma checks & Peril</div></div>
           <div class="stat-controls"><button class="step-btn" onclick="stepDie('adventure',-1)">−</button><span class="stat-die" id="die-adventure" onclick="quickRollStat('adventure')" style="cursor:pointer;">d4</span><button class="step-btn" onclick="stepDie('adventure',1)">+</button></div>
         </div>
       </div>
@@ -1116,10 +1116,10 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
             <option value="">— Choose Action —</option>
             <option value="standard_strike">Standard Attack (Strike) — 1 Action</option>
             <option value="standard_shoot">Standard Attack (Shoot) — 1 Action</option>
-            <option value="heavy_strike">Heavy Attack (Strike) — 2 Actions · +Adv Die</option>
-            <option value="heavy_shoot">Heavy Attack (Shoot) — 2 Actions · +Adv Die</option>
-            <option value="fast_strike">Fast Attack (Strike) — Free · Penalty Adv Die</option>
-            <option value="fast_shoot">Fast Attack (Shoot) — Free · Penalty Adv Die</option>
+            <option value="heavy_strike">Heavy Attack (Strike) — 2 Actions · +Valor Die</option>
+            <option value="heavy_shoot">Heavy Attack (Shoot) — 2 Actions · +Valor Die</option>
+            <option value="fast_strike">Fast Attack (Strike) — Free · -Valor Die</option>
+            <option value="fast_shoot">Fast Attack (Shoot) — Free · -Valor Die</option>
             <option value="stance_agg">Stance: Aggressive — 1 Action (+1 Strike/Shoot, −1 Defend)</option>
             <option value="stance_def">Stance: Defensive — 1 Action (+1 Defend, −1 Strike/Shoot)</option>
             <option value="switch">Switch Weapon — 1 Action</option>
@@ -6202,7 +6202,7 @@ function pickNamedEnemyProfile(regionKey){
   var base=pick(pool)||pool[0];
   var hp=Math.max(4,Number(base&&base.health||8));
   var dd=Math.max(4,Number(base&&base.dread||4));
-  var death=hp;
+  var death=Math.max(1,Math.ceil(hp/2));
   return {name:String(base&&base.name||'Wraith'),desc:String(base&&base.desc||'An old hunger prowls this route.'),dread:dd,health:hp,deathNumber:death};
 }
 
@@ -6847,7 +6847,7 @@ function executeWayfarerAction(){
     if(type2==='shoot'&&mods.indexOf('Smart Aim')>=0) advDiceArr.push(stepUp(die));
     if(S.rollMod && Array.isArray(S.rollMod.advDice)) advDiceArr = advDiceArr.concat(S.rollMod.advDice);
     var ra = rollWithAdvantage(die, advDiceArr, {type:'action',major:true,label:'Heavy '+(type2==='strike'?'Strike':'Shoot')});
-    var advRoll=explodingRoll(advDie,{type:'action',label:'Heavy Adv Bonus'});
+    var advRoll=explodingRoll(advDie,{type:'action',label:'Heavy Valor Bonus'});
     var flatTotal=ra.total+advRoll.total;
     if(S.rollMod&&Number(S.rollMod.flat||0)!==0)flatTotal+=Number(S.rollMod.flat||0);
     if(type2==='shoot'&&getPrimaryEnemyZoneRelative()==='close')flatTotal+=Number(affixBonus.shootCloseBonus||0);
@@ -6887,7 +6887,7 @@ function executeWayfarerAction(){
     
     var die3 = getEffectiveCombatDie(type3);
     var aRoll3=explodingRoll(die3,{type:'action',major:true,label:'Fast '+type3});
-    var penRoll=explodingRoll(advDie3,{type:'dread',label:'Fast Penalty Die'});
+    var penRoll=explodingRoll(advDie3,{type:'dread',label:'Fast Valor Penalty Die'});
     var total3=Math.max(0,aRoll3.total-penRoll.total);
     var enem3=getPrimaryCombatEnemy();
     var dread3=enem3?rollEnemyDreadWithEffects(enem3,'Enemy DD'):{total:explodingRoll(S.combat.enemyDread||8,{type:'dread',label:'Enemy DD'}).total};
@@ -7456,7 +7456,25 @@ function rollEnemyDreadWithEffects(enemy,label){
 function applyStressToEnemy(enemy, stress, source){
   if(!enemy)return;
   var dmg=Math.max(1,parseInt(stress,10)||1);
-  enemy.stress=Math.min(enemy.maxStress||dmg,(enemy.stress||0)+dmg);
+  var wasUntouched=Number(enemy.stress||0)<=0;
+  var deathNumber=Math.max(0,Number(enemy.deathNumber||0));
+  var muted=!!enemy.deathNumberMuted;
+  var deathMode='';
+
+  if(wasUntouched&&deathNumber>0&&!muted){
+    if(dmg>=deathNumber){
+      enemy.stress=Number(enemy.maxStress||dmg);
+      enemy.deathNumberTriggered=true;
+      deathMode='instant';
+    }else{
+      enemy.deathNumberMuted=true;
+      enemy.stress=Math.min(enemy.maxStress||dmg,(enemy.stress||0)+dmg);
+      deathMode='muted';
+    }
+  }else{
+    enemy.stress=Math.min(enemy.maxStress||dmg,(enemy.stress||0)+dmg);
+  }
+
   if(enemy.stress>=(enemy.maxStress||enemy.stress)){
     var defeated=enemy.name;
     S.enemies=(S.enemies||[]).filter(function(entry){return entry!==enemy;});
@@ -7469,11 +7487,13 @@ function applyStressToEnemy(enemy, stress, source){
     }
     var next=getPrimaryCombatEnemy();
     var nextText=next?(' Next target: '+next.name+'.'):'';
-    showNotif(defeated+' eliminated!'+nextText,'good');
+    var deathText=deathMode==='instant'?' Death Number hit: instant kill.':'';
+    showNotif(defeated+' eliminated!'+deathText+nextText,'good');
     maybeDropAfflictionCureItem(defeated);
     promptConsumeAfterEnemyDefeat(defeated);
   }else if(source){
-    showNotif(source+' dealt '+dmg+' Stress to '+enemy.name+'.','good');
+    var note=deathMode==='muted'?' Death Number muted; defeat now requires full Health depletion.':'';
+    showNotif(source+' dealt '+dmg+' Stress to '+enemy.name+'.'+note,'good');
   }
   if(typeof renderEnemies==='function')renderEnemies();
   if(typeof renderQP==='function')renderQP('combat');
@@ -22608,9 +22628,67 @@ window.addEventListener('DOMContentLoaded', function() {
       showNotif('This weather is not dangerous.', 'info');
       return;
     }
+
+    const itemFlags=getProvinceNarrativeItemFlags();
+    if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
+      const leadDie=(typeof getEffectiveDie==='function'?getEffectiveDie('lead'):((S.stats&&S.stats.lead)||6));
+      openProvinceManualCheckPrompt({
+        title:'Manual Roll Mode - Weather in the Province',
+        context:'Weather in the Province - Lead vs DD8'+(itemFlags.compass?' (+2 Compass bonus)':''),
+        statKey:'lead',
+        statLabel:'Lead',
+        actionDie:leadDie,
+        dreadDie:8,
+        onResolve:function(outcome){
+          const resultEl=document.getElementById(`weather-result-${col}-${row}`);
+          let leadTotal=Number((outcome&&outcome.actionTotal)||0);
+          const dreadTotal=Number((outcome&&outcome.dreadTotal)||8);
+          if(itemFlags.compass)leadTotal+=2;
+          const success=leadTotal>=dreadTotal;
+          const bgColor=success?'rgba(46,196,182,.08)':'rgba(200,50,50,.08)';
+          const borderColor=success?'rgba(46,196,182,.35)':'rgba(200,50,50,.35)';
+          const textColor=success?'var(--green2)':'var(--red2)';
+          const passageText=success?'✓ Safe Passage':'✗ Dangerous Conditions';
+          const weatherStress=itemFlags.torch?0:1;
+          const outcomeText=success
+            ?'You navigate the hazardous weather safely and gain +Empowered.'
+            :('You remain in this hex, '+(weatherStress?'+1 Mental Stress, ':'')+'and lose 1 Phase.');
+          const notes=[];
+          if(itemFlags.compass)notes.push('Compass +2');
+          if(itemFlags.torch&&!success)notes.push('Torch reduced weather stress by 1');
+
+          if(resultEl){
+            resultEl.innerHTML='<div style="background:'+bgColor+'; border:1px solid '+borderColor+'; padding:.4rem .5rem; border-radius:4px;">'
+              + '<div style="font-family:Cinzel,serif; font-size:.65rem; letter-spacing:.08em; color:'+textColor+'; text-transform:uppercase; margin-bottom:.2rem;">'+passageText+'</div>'
+              + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:.3rem; font-size:.75rem; margin-bottom:.2rem;">'
+              + '<div style="text-align:center;"><div style="color:var(--muted2); font-size:.65rem;">Your Lead</div><div style="font-family:Rajdhani,sans-serif; font-size:1.4rem; font-weight:700; color:var(--teal);">'+leadTotal+'</div></div>'
+              + '<div style="text-align:center;"><div style="color:var(--muted2); font-size:.65rem;">Dread Roll</div><div style="font-family:Rajdhani,sans-serif; font-size:1.4rem; font-weight:700; color:var(--red);">'+dreadTotal+'</div></div>'
+              + '</div>'
+              + (notes.length?('<div style="font-size:.72rem; color:var(--gold2); margin-bottom:.2rem;">Bonuses: '+notes.join(' · ')+'</div>'):'')
+              + '<div style="font-size:.75rem; color:var(--text2);">'+outcomeText+'</div>'
+              + '</div>';
+          }
+
+          if(success){
+            if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('lead',Math.max(1,leadTotal-dreadTotal),{actionTotal:leadTotal,dreadTotal:dreadTotal,context:'Province rough weather'});
+            if(typeof addSuccessRoll==='function')addSuccessRoll();
+            if(typeof toggleCond==='function')toggleCond('empowered');
+            if(itemFlags.factionItem&&typeof changeCounter==='function')changeCounter('renown',1);
+            showNotif('Weather check passed: Lead '+leadTotal+' vs DD8 '+dreadTotal+'. Safe passage secured. [manual]', 'good');
+          }else{
+            if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('lead',Math.max(1,dreadTotal-leadTotal),{actionTotal:leadTotal,dreadTotal:dreadTotal,context:'Province rough weather'});
+            if(weatherStress&&typeof changeMentalStress==='function')changeMentalStress(weatherStress);
+            if(typeof addTMWOnFail==='function')addTMWOnFail('province-weather-failure');
+            advanceProvincePhasePenalty(1);
+            showNotif('Weather check failed: Lead '+leadTotal+' vs DD8 '+dreadTotal+'. '+(weatherStress?'+1 Mental Stress, ':'')+'lose 1 Phase and remain in hex. [manual]', 'warn');
+          }
+        }
+      });
+      return;
+    }
+
     const leadRoll = rollProvinceLeadCheck();
     const dreadRoll = explodingRoll(8,{type:'dread',major:true,label:'Weather DD8'});
-    const itemFlags=getProvinceNarrativeItemFlags();
     const success = leadRoll.total >= dreadRoll.total;
     const bgColor = success ? 'rgba(46,196,182,.08)' : 'rgba(200,50,50,.08)';
     const borderColor = success ? 'rgba(46,196,182,.35)' : 'rgba(200,50,50,.35)';

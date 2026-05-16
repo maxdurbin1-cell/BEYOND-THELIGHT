@@ -2539,7 +2539,7 @@
       const encounterDread = normalizeDreadDie(evt.dread || profile.dread || 8, 8);
       const enemyHealth = Math.max(4, Number(evt.enemyHealth || profile.health || (encounterDread * 2)));
       const enemyName = String(evt.enemyName || profile.name || 'Ash Revenant');
-      const deathNumber = enemyHealth;
+      const deathNumber = Math.max(1, Math.ceil(enemyHealth / 2));
       evt.enemyName = enemyName;
       evt.enemyDesc = evt.enemyDesc || profile.desc || '';
       evt.enemyHealth = enemyHealth;
@@ -2767,7 +2767,7 @@
       const encounterDread = normalizeDreadDie(hex.encounter.dread || profile.dread || 8, 8);
       const enemyHealth = Math.max(4, Number(hex.encounter.enemyHealth || profile.health || (encounterDread * 2)));
       const enemyName = String(hex.encounter.enemyName || profile.name || 'Ash Revenant');
-      const deathNumber = enemyHealth;
+      const deathNumber = Math.max(1, Math.ceil(enemyHealth / 2));
       hex.encounter.enemyName = enemyName;
       hex.encounter.enemyDesc = hex.encounter.enemyDesc || profile.desc || '';
       hex.encounter.enemyHealth = enemyHealth;
@@ -3063,7 +3063,7 @@
       desc: base.desc || base.enemyDesc || 'A dusk-forged hunter draped in static and old oath-runes.',
       dread: normalizeDreadDie(base.dread || 8, 8),
       health: health,
-      deathNumber: health
+      deathNumber: Math.max(1, Math.ceil(health / 2))
     };
     if (typeof window !== 'undefined' && typeof window.pickNamedEnemyProfile === 'function') {
       const picked = window.pickNamedEnemyProfile('world') || {};
@@ -3073,7 +3073,7 @@
         desc: base.desc || base.enemyDesc || picked.desc || seeded.desc,
         dread: normalizeDreadDie(base.dread || picked.dread || seeded.dread, 8),
         health: pickedHealth,
-        deathNumber: pickedHealth
+        deathNumber: Math.max(1, Math.ceil(pickedHealth / 2))
       };
     }
     return seeded;
@@ -3102,7 +3102,7 @@
       names: list,
       enemyName: enemyName,
       enemyDesc: String(cfg.enemyDesc || profile.desc || ''),
-      deathNumber: hp
+      deathNumber: Math.max(1, Math.ceil(hp / 2))
     };
   }
 
@@ -3620,7 +3620,7 @@
     const eventDread = normalizeDreadDie(evt.dread || 8, 8);
     const eventEnemyName = String(evt.enemyName || 'Ash Revenant');
     const eventEnemyHealth = Math.max(4, Number(evt.enemyHealth || (eventDread * 2)));
-    const eventDeathNumber = Math.max(1, Math.ceil(eventEnemyHealth / 2));
+    const eventDeathNumber = Math.max(1, Number(evt.deathNumber || Math.ceil(eventEnemyHealth / 2)));
     const eventCheck = evt.mode === "combat"
       ? ("<strong>Combat Encounter:</strong> " + (evt.enemies || 2) + " " + eventEnemyName + ((evt.enemies || 2) > 1 ? "s" : "") + " (DD" + eventDread + " | " + eventEnemyHealth + " HP each | Death Number " + eventDeathNumber + ")")
       : ("<strong>Check:</strong> Valor d" + getActionDie("valor") + " vs DD" + eventDread);
@@ -3631,7 +3631,7 @@
       : "";
     const encounterSummary = hex.encounter
       ? (hex.encounter.mode === "combat"
-        ? ((hex.encounter.enemies || 2) + " " + String(hex.encounter.enemyName || 'Ash Revenant') + ((hex.encounter.enemies || 2) > 1 ? "s" : "") + " (DD" + normalizeDreadDie(hex.encounter.dread || 8, 8) + " | " + (hex.encounter.enemyHealth || 16) + " HP each | Death Number " + Math.max(1, Math.ceil(Number(hex.encounter.enemyHealth || 16) / 2)) + ")" + (hex.encounter.enemyDesc ? "<br><em>" + hex.encounter.enemyDesc + "</em>" : ""))
+        ? ((hex.encounter.enemies || 2) + " " + String(hex.encounter.enemyName || 'Ash Revenant') + ((hex.encounter.enemies || 2) > 1 ? "s" : "") + " (DD" + normalizeDreadDie(hex.encounter.dread || 8, 8) + " | " + (hex.encounter.enemyHealth || 16) + " HP each | Death Number " + Math.max(1, Number(hex.encounter.deathNumber || Math.ceil(Number(hex.encounter.enemyHealth || 16) / 2))) + ")" + (hex.encounter.enemyDesc ? "<br><em>" + hex.encounter.enemyDesc + "</em>" : ""))
         : (hex.encounter.mode === "wayfarer"
           ? "Social encounter (no action check required)."
           : (statLabel(hex.encounter.stat || "valor") + " vs DD" + normalizeDreadDie(hex.encounter.dread || 8, 8))))

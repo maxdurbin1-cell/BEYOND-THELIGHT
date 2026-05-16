@@ -3189,6 +3189,47 @@
     var weatherBonus = applyCrucibleExpeditionFlavorRollBonus(match, getCrucibleExpeditionPlayer(match), 'lead', 'weather');
     if (weatherBonus) action.total = Number(action.total || 0) + weatherBonus;
     var success = Number(action.total || 0) >= Number(dread.total || 0);
+
+    // Barrier-style modal for manual roll
+    if (typeof openModal === 'function') {
+      var html = '<div style="font-size:.92rem;color:var(--text2);line-height:1.6;">'
+        + '<div style="font-family:Cinzel,serif;font-size:.8rem;letter-spacing:.08em;color:var(--gold2);margin-bottom:.18rem;">Manual Weather Check</div>'
+        + '<div style="margin-bottom:.18rem;"><strong>Lead d' + leadDie + '</strong> vs <strong style="color:var(--red2);">Dread d6</strong></div>'
+        + '<div style="font-size:.8rem;color:var(--muted2);margin-bottom:.18rem;">Enter your physical dice results below. Apply all bonuses and modifiers as per the rules. +A.D. means add the Adventure Die result to your main roll. Advantage means roll extra dice and take the best.</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.32rem;margin-bottom:.2rem;">'
+        + '<div><div style="font-size:.7rem;color:var(--muted2);margin-bottom:.12rem;">Lead d' + leadDie + '</div>'
+        + '<input type="number" id="weatherManualActionValue" min="1" max="' + leadDie + '" placeholder="1-' + leadDie + '" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;"></div>'
+        + '<div><div style="font-size:.7rem;color:var(--muted2);margin-bottom:.12rem;">Dread d6</div>'
+        + '<input type="number" id="weatherManualDreadValue" min="1" max="6" placeholder="1-6" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;"></div>'
+        + '</div>'
+        + '<div style="display:flex;gap:.26rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.32rem;">'
+        + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
+        + '<button class="btn btn-sm btn-primary" onclick="window.resolveWeatherManualRoll()">Resolve</button>'
+        + '</div>'
+        + '</div>';
+      openModal('Manual Weather Check', html);
+      window.resolveWeatherManualRoll = function () {
+        var actionInput = document.getElementById('weatherManualActionValue');
+        var dreadInput = document.getElementById('weatherManualDreadValue');
+        var actionValue = parseInt(actionInput && actionInput.value, 10);
+        var dreadValue = parseInt(dreadInput && dreadInput.value, 10);
+        if (!Number.isFinite(actionValue) || !Number.isFinite(dreadValue)) {
+          alert('Please enter valid dice results for both Lead and Dread.');
+          return;
+        }
+        var resultHtml = '<div style="font-size:.92rem;color:var(--text2);line-height:1.6;">'
+          + '<div style="font-family:Cinzel,serif;font-size:.8rem;letter-spacing:.08em;color:var(--gold2);margin-bottom:.18rem;">Weather Check Result</div>'
+          + '<div style="margin-bottom:.18rem;"><strong>' + actionValue + '</strong> vs <strong style="color:var(--red2);">' + dreadValue + '</strong></div>'
+          + '<div style="font-size:.8rem;color:var(--muted2);margin-bottom:.18rem;">' + (actionValue >= dreadValue ? 'Success! You withstand the weather.' : 'Failure. Suffer the weather consequences.') + '</div>'
+          + '<div style="display:flex;gap:.26rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.32rem;">'
+          + '<button class="btn btn-sm btn-primary" onclick="closeModal()">OK</button>'
+          + '</div>'
+          + '</div>';
+        openModal('Weather Check Result', resultHtml);
+      };
+      return success;
+    }
+    // fallback: legacy notif if modal not available
     if (!success) {
       var diff = Math.max(1, Number(dread.total || 0) - Number(action.total || 0));
       if (typeof changeMentalStress === 'function') changeMentalStress(diff);

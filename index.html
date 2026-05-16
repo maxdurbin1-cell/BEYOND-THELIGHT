@@ -57,8 +57,10 @@ setTimeout(function() {
 <link rel="stylesheet" href="./ttrpg-ui-overhaul.css">
 <link rel="stylesheet" href="./faction-intro-system.css" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="./settings-system.css" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="./combat-scene-editor.css" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="./faction-intro-system.css"></noscript>
 <noscript><link rel="stylesheet" href="./settings-system.css"></noscript>
+<noscript><link rel="stylesheet" href="./combat-scene-editor.css"></noscript>
 <style>
 /* ── ACCESSIBILITY ── */
 .skip-link{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:9999;background:var(--surface);color:var(--gold);font-family:'Cinzel',serif;font-size:.75rem;letter-spacing:.1em;padding:.6rem 1rem;border:1px solid var(--gold);text-transform:uppercase;text-decoration:none;}
@@ -1039,6 +1041,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
       <div class="section-title">Combat Scene</div>
       <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.65rem;">
         <button class="btn btn-primary" onclick="startCombat()">▶ Start Scene</button>
+        <button class="btn btn-teal" onclick="if(window.openCombatSceneEditorFromExpedition){openCombatSceneEditorFromExpedition();}else if(window.openCombatSceneEditor){openCombatSceneEditor();}">Enter Combat Mode</button>
         <button class="btn" onclick="nextRound()">Next Round</button>
         <button class="btn btn-red btn-sm" onclick="endCombat()">End Scene</button>
       </div>
@@ -23415,6 +23418,7 @@ window.addEventListener('DOMContentLoaded', function() {
 <script defer src="./colosseum-gate-system.js"></script>
 <script defer src="/socket.io/socket.io.js"></script>
 <script defer src="./campaign-system.js"></script>
+<script defer src="./combat-scene-editor.js"></script>
 
 </body>
 </html>

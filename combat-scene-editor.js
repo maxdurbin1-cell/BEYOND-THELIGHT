@@ -1281,7 +1281,7 @@
       + '<input id="combatMapImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatTokenImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatImportSceneInput" type="file" accept="application/json,.json" style="display:none;">'
-      + '<div class="combat-canvas-wrap" id="combatCanvasWrap"><canvas id="combatSceneCanvas"></canvas><input id="combatBubbleInlineInput" type="text" style="display:none;position:absolute;z-index:8;min-width:54px;height:20px;padding:0 .25rem;border:1px solid rgba(227,188,94,.8);background:rgba(4,6,12,.96);color:#fff;font-size:.72rem;"></div>'
+      + '<div class="combat-canvas-wrap" id="combatCanvasWrap"><canvas id="combatSceneCanvas"></canvas><input id="combatBubbleInlineInput" type="text" style="display:none;position:absolute;z-index:8;min-width:54px;height:20px;padding:0 .25rem;border:1px solid rgba(227,188,94,.8);background:rgba(4,6,12,.96);color:#fff;font-size:.72rem;"><div id="combatLootPopupCard" style="display:none;position:absolute;z-index:9;min-width:240px;max-width:300px;border:1px solid rgba(227,188,94,.65);background:rgba(5,8,16,.98);box-shadow:0 12px 28px rgba(0,0,0,.45);padding:.45rem .5rem;border-radius:10px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:.35rem;"><div id="combatLootPopupTitle" style="font:600 .83rem Rajdhani,sans-serif;color:var(--combat-accent-2);">Body Loot</div><button class="btn btn-xs" id="combatLootCloseBtn" style="padding:.08rem .3rem;">X</button></div><div id="combatLootPopupMeta" class="combat-mini" style="margin:.18rem 0 .28rem 0;"></div><div id="combatLootPopupList" style="display:grid;gap:.2rem;max-height:180px;overflow:auto;padding-right:.1rem;"></div><div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.34rem;"><button class="btn btn-xs" id="combatLootTakeSelectedBtn">Take Selected</button><button class="btn btn-xs" id="combatLootTakeAllBtn">Take All</button></div></div></div>'
       + '<aside class="combat-floating-panel combat-left-tools combat-editor-only" id="combatToolsPanel">'
       + '<div class="combat-panel-header" data-drag="tools" onclick="togglePanel(\'combatToolsPanel\')">Combat Scene <span style="float:right;font-size:.7rem;cursor:pointer;">◀</span></div>'
       + '<div class="combat-panel-body">'
@@ -1562,6 +1562,125 @@
     input.dataset.tokenId = '';
     input.dataset.statKey = '';
     input.dataset.current = '';
+  }
+
+  function formatLootItemLabel(item) {
+    if (typeof item === 'string') return item;
+    if (!item || typeof item !== 'object') return String(item || 'Unknown Item');
+    if (item.name) return String(item.name);
+    if (item.id) return String(item.id);
+    return String(item.label || 'Unknown Item');
+  }
+
+  function closeLootPopup() {
+    var card = document.getElementById('combatLootPopupCard');
+    if (!card) return;
+    card.style.display = 'none';
+    card.dataset.tokenId = '';
+  }
+
+  function renderLootPopupForToken(tokenId) {
+    var card = document.getElementById('combatLootPopupCard');
+    var title = document.getElementById('combatLootPopupTitle');
+    var meta = document.getElementById('combatLootPopupMeta');
+    var listEl = document.getElementById('combatLootPopupList');
+    var takeAllBtn = document.getElementById('combatLootTakeAllBtn');
+    var takeSelectedBtn = document.getElementById('combatLootTakeSelectedBtn');
+    if (!card || !title || !meta || !listEl || !takeAllBtn || !takeSelectedBtn) return false;
+    var state = store.getState();
+    var token = byId(tokenId);
+    var drop = getLootDropForToken(state, tokenId);
+    var items = drop && Array.isArray(drop.items) ? drop.items : [];
+    if (!token || !drop || drop.claimed || !items.length) {
+      closeLootPopup();
+      return false;
+    }
+    title.textContent = String(token.name || 'Body') + ' Loot';
+    meta.textContent = 'Hex ' + toKey(token.q, token.r) + ' \u00b7 ' + items.length + ' item' + (items.length === 1 ? '' : 's') + ' remaining';
+    listEl.innerHTML = items.map(function (item, idx) {
+      var label = formatLootItemLabel(item).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return '<label style="display:flex;align-items:center;gap:.35rem;padding:.12rem .14rem;border:1px solid rgba(255,255,255,.08);border-radius:6px;">'
+        + '<input type="checkbox" data-loot-idx="' + idx + '">'
+        + '<span style="font:.8rem Rajdhani,sans-serif;color:#f7f7f7;">' + label + '</span>'
+        + '</label>';
+    }).join('');
+    takeAllBtn.disabled = !items.length;
+    takeSelectedBtn.disabled = !items.length;
+    card.dataset.tokenId = String(tokenId || '');
+    return true;
+  }
+
+  function openLootPopupForToken(tokenId, anchorX, anchorY) {
+    var card = document.getElementById('combatLootPopupCard');
+    var wrap = document.getElementById('combatCanvasWrap');
+    if (!card || !wrap) return;
+    if (!renderLootPopupForToken(tokenId)) return;
+    card.style.display = 'block';
+    var fallbackX = Math.round(wrap.clientWidth / 2);
+    var fallbackY = Math.round(wrap.clientHeight / 2);
+    var x = typeof anchorX === 'number' ? anchorX : fallbackX;
+    var y = typeof anchorY === 'number' ? anchorY : fallbackY;
+    var cw = Math.max(220, Number(card.offsetWidth || 260));
+    var ch = Math.max(120, Number(card.offsetHeight || 220));
+    var left = Math.min(Math.max(8, x + 14), Math.max(8, wrap.clientWidth - cw - 8));
+    var top = Math.min(Math.max(8, y + 14), Math.max(8, wrap.clientHeight - ch - 8));
+    card.style.left = left + 'px';
+    card.style.top = top + 'px';
+  }
+
+  function takeLootFromTokenDrop(tokenId, selectedIndexes, sourceLabel) {
+    var state = store.getState();
+    var token = byId(tokenId);
+    var drop = token ? getLootDropForToken(state, tokenId) : null;
+    if (!token || !drop || drop.claimed) {
+      safeNotif('No loot available on this body.', 'warn');
+      closeLootPopup();
+      return 0;
+    }
+    var items = Array.isArray(drop.items) ? drop.items.slice() : [];
+    if (!items.length) {
+      safeNotif('No loot available on this body.', 'warn');
+      closeLootPopup();
+      return 0;
+    }
+    var rawIndexes = Array.isArray(selectedIndexes) ? selectedIndexes.slice() : items.map(function (_row, idx) { return idx; });
+    var unique = {};
+    var indexes = rawIndexes.map(function (idx) { return Number(idx); }).filter(function (idx) {
+      return Number.isFinite(idx) && idx >= 0 && idx < items.length && !unique[idx] && (unique[idx] = true);
+    }).sort(function (a, b) { return a - b; });
+    if (!indexes.length) {
+      safeNotif('Pick at least one loot item.', 'warn');
+      return 0;
+    }
+    var selectedItems = indexes.map(function (idx) { return items[idx]; });
+    selectedItems.forEach(function (item) {
+      if (typeof window.addToBackpack === 'function') {
+        try { window.addToBackpack(item); } catch (_err) {}
+      }
+    });
+    var kept = items.filter(function (_item, idx) { return indexes.indexOf(idx) < 0; });
+    store.setState(function (inner) {
+      var next = Object.assign({}, inner);
+      var rules = ensureLootDrops(inner);
+      var key = String(tokenId);
+      var row = rules.lootDrops[key] || null;
+      if (row) {
+        row.items = kept;
+        row.claimed = !kept.length;
+        rules.lootDrops[key] = row;
+      }
+      next.sceneRules = rules;
+      persist(next);
+      return next;
+    });
+    var pulledLabels = selectedItems.map(formatLootItemLabel);
+    addHistory((sourceLabel || 'Loot') + ': ' + String(token.name || 'body') + ' -> ' + pulledLabels.join(', ') + '.');
+    safeNotif('Collected ' + selectedItems.length + ' loot item' + (selectedItems.length === 1 ? '' : 's') + '.', 'good');
+    drawBoard();
+    updateUiPanels();
+    if (kept.length) renderLootPopupForToken(tokenId);
+    else closeLootPopup();
+    return selectedItems.length;
   }
 
   var backgroundCache = { src: '', img: null };
@@ -2563,6 +2682,12 @@
       var canvasX = ev.clientX - rect.left;
       var canvasY = ev.clientY - rect.top;
       var ax = pixelToAxial(canvasX, canvasY, size, board.panX, board.panY);
+      var lootCard = document.getElementById('combatLootPopupCard');
+      if (lootCard && lootCard.style.display !== 'none') {
+        var cardRect = lootCard.getBoundingClientRect();
+        var inCard = ev.clientX >= cardRect.left && ev.clientX <= cardRect.right && ev.clientY >= cardRect.top && ev.clientY <= cardRect.bottom;
+        if (!inCard) closeLootPopup();
+      }
       var bubbleHit = bubbleHotspots.find(function (spot) {
         return canvasX >= spot.x && canvasX <= spot.x + spot.w && canvasY >= spot.y && canvasY <= spot.y + spot.h;
       }) || null;
@@ -2581,6 +2706,17 @@
       }
       var clickedToken = nearestTokenAt(ax.q, ax.r);
 
+      if (clickedToken && isTokenDead(clickedToken) && state.activeTool === 'select') {
+        var corpseDrop = getLootDropForToken(state, clickedToken.id);
+        if (corpseDrop && !corpseDrop.claimed && Array.isArray(corpseDrop.items) && corpseDrop.items.length) {
+          store.setState({ selectedTokenId: clickedToken.id, draggingTokenId: '' });
+          openLootPopupForToken(clickedToken.id, canvasX, canvasY);
+          updateUiPanels();
+          drawBoard();
+          return;
+        }
+      }
+
       if (state.activeTool === 'pan' || ev.button === 1) {
         store.setState({ mouse: { panning: true, lastX: ev.clientX, lastY: ev.clientY } });
         return;
@@ -2588,6 +2724,7 @@
 
       if (clickedToken && state.activeTool !== 'paint' && state.activeTool !== 'erase') {
         store.setState({ selectedTokenId: clickedToken.id, draggingTokenId: clickedToken.id });
+        closeLootPopup();
         if (String(clickedToken.faction || '') === 'monster' && typeof window.setCombatFocusEnemy === 'function') {
           var focusId = Number(clickedToken.sourceEnemyId || clickedToken.id || 0);
           if (focusId > 0) {
@@ -3506,26 +3643,46 @@
           safeNotif('No loot available on this body.', 'warn');
           return;
         }
-        var list = Array.isArray(drop.items) ? drop.items : [];
-        list.forEach(function (item) {
-          if (typeof window.addToBackpack === 'function') {
-            try { window.addToBackpack(item); } catch (_err) {}
-          }
-        });
-        store.setState(function (state) {
-          var next = Object.assign({}, state);
-          var rules = ensureLootDrops(state);
-          var row = rules.lootDrops[String(token.id)] || null;
-          if (row) row.claimed = true;
-          rules.lootDrops[String(token.id)] = row;
-          next.sceneRules = rules;
-          persist(next);
-          return next;
-        });
-        addHistory('Looted ' + String(token.name || 'body') + ': ' + list.join(', ') + '.');
-        safeNotif('Loot collected from body.', 'good');
-        drawBoard();
-        updateUiPanels();
+        var board = st.board || {};
+        var size = Number(board.size || 42) * Number(board.zoom || 1);
+        var pos = axialToPixel(Number(token.q || 0), Number(token.r || 0), size, Number(board.panX || 0), Number(board.panY || 0));
+        openLootPopupForToken(token.id, pos.x, pos.y);
+      };
+    }
+
+    var lootCloseBtn = document.getElementById('combatLootCloseBtn');
+    if (lootCloseBtn && !lootCloseBtn._bound) {
+      lootCloseBtn._bound = true;
+      lootCloseBtn.onclick = function () { closeLootPopup(); };
+    }
+
+    var lootTakeAllBtn = document.getElementById('combatLootTakeAllBtn');
+    if (lootTakeAllBtn && !lootTakeAllBtn._bound) {
+      lootTakeAllBtn._bound = true;
+      lootTakeAllBtn.onclick = function () {
+        var card = document.getElementById('combatLootPopupCard');
+        var tokenId = String(card && card.dataset.tokenId || '');
+        if (!tokenId) {
+          safeNotif('Open a body loot card first.', 'warn');
+          return;
+        }
+        takeLootFromTokenDrop(tokenId, null, 'Take All');
+      };
+    }
+
+    var lootTakeSelectedBtn = document.getElementById('combatLootTakeSelectedBtn');
+    if (lootTakeSelectedBtn && !lootTakeSelectedBtn._bound) {
+      lootTakeSelectedBtn._bound = true;
+      lootTakeSelectedBtn.onclick = function () {
+        var card = document.getElementById('combatLootPopupCard');
+        var tokenId = String(card && card.dataset.tokenId || '');
+        if (!tokenId) {
+          safeNotif('Open a body loot card first.', 'warn');
+          return;
+        }
+        var checks = card ? Array.prototype.slice.call(card.querySelectorAll('input[data-loot-idx]:checked')) : [];
+        var indexes = checks.map(function (node) { return Number(node.getAttribute('data-loot-idx')); });
+        takeLootFromTokenDrop(tokenId, indexes, 'Take Selected');
       };
     }
 

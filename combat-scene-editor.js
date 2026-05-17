@@ -616,20 +616,20 @@
       + '</div>'
       + '<div class="combat-topbar">'
       + '<div>'
-      + '<div class="combat-topbar-title">Combat Scene Editor</div>'
-      + '<div class="combat-mini" id="combatTopMeta">Hex Battlefield Active</div>'
+      + '<div class="combat-topbar-title">Combat Scene</div>'
+      + '<div class="combat-mini" id="combatTopMeta">No active scene.</div>'
       + '</div>'
       + '<div style="display:flex;gap:.28rem;align-items:center;">'
       + '<button class="btn btn-xs" id="combatUploadMapBtn">Upload Battlemap</button>'
-      + '<button class="btn btn-xs" id="combatAddTokenBtn">+ Token</button>'
-      + '<button class="btn btn-xs btn-red" id="combatCloseBtn">Exit Combat Mode</button>'
+      + '<button class="btn btn-xs" id="combatAddTokenBtn">+ Add Enemy</button>'
+      + '<button class="btn btn-xs btn-red" id="combatCloseBtn">End Scene</button>'
       + '</div>'
       + '</div>'
       + '<input id="combatMapImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatTokenImageInput" type="file" accept="image/*" style="display:none;">'
       + '<div class="combat-canvas-wrap"><canvas id="combatSceneCanvas"></canvas></div>'
       + '<aside class="combat-floating-panel combat-left-tools" id="combatToolsPanel">'
-      + '<div class="combat-panel-header" data-drag="tools">Terrain Tools</div>'
+      + '<div class="combat-panel-header" data-drag="tools">Combat Scene</div>'
       + '<div class="combat-panel-body">'
       + '<div class="combat-label">Layer</div>'
       + '<div class="combat-chip-row" id="combatLayerRow"></div>'
@@ -648,7 +648,7 @@
       + '</div>'
       + '</aside>'
       + '<aside class="combat-floating-panel combat-right-rail" id="combatFeedPanel">'
-      + '<div class="combat-panel-header" data-drag="feed">Initiative + Action Feed</div>'
+      + '<div class="combat-panel-header" data-drag="feed">Roll Checks</div>'
       + '<div class="combat-panel-body">'
       + '<div id="combatInitiativeList"></div>'
       + '<div style="display:flex;gap:.24rem;margin-top:.26rem;"><button class="btn btn-xs" id="combatNextTurnBtn">Next Turn</button><button class="btn btn-xs" id="combatRollModeBtn">Auto Roll</button></div>'
@@ -657,15 +657,15 @@
       + '<div id="combatSceneOpenerSummary" class="combat-mini">No opener active.</div>'
       + '</div>'
       + '<div class="combat-action-block">'
-      + '<div class="combat-label">Live Combat Tab Feed</div>'
+      + '<div class="combat-label">Roll Checks</div>'
       + '<div id="combatLegacyStatusMirror" class="combat-result-mirror">Status bridge idle.</div>'
       + '<div id="combatLegacyRollModMirror" class="combat-result-mirror">Roll modifiers: none.</div>'
       + '<div id="combatLegacyActionInfoMirror" class="combat-result-mirror">Wayfarer action details appear here.</div>'
       + '<div id="combatLegacyFlavorMirror" class="combat-result-mirror"></div>'
       + '<div class="combat-feed" id="combatLegacyRowsMirror"></div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">'
-      + '<button class="btn btn-xs" id="combatOpenUtilityPromptBtn">Item/Hack/Flavor Prompt</button>'
-      + '<button class="btn btn-xs" id="combatOpenFlavorActionBtn">Use Flavor Action</button>'
+      + '<button class="btn btn-xs" id="combatOpenUtilityPromptBtn">Use Item / Hack / Spell / Flavor</button>'
+      + '<button class="btn btn-xs" id="combatOpenFlavorActionBtn">Use Personal Flavor</button>'
       + '</div>'
       + '</div>'
       + '<div class="combat-action-block">'
@@ -674,27 +674,27 @@
       + '<div class="combat-feed" id="combatEnemyLedgerFeed"></div>'
       + '</div>'
       + '<div class="combat-action-block">'
-      + '<div class="combat-label">Combat Commands</div>'
+      + '<div class="combat-label">Direct Roll (Strike / Shoot)</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.22rem;margin-top:.22rem;">'
-      + '<button class="btn btn-xs" id="combatCmdStrikeBtn">Strike</button>'
-      + '<button class="btn btn-xs" id="combatCmdShootBtn">Shoot</button>'
-      + '<button class="btn btn-xs" id="combatCmdDefendBtn">Defend</button>'
-      + '<button class="btn btn-xs" id="combatCmdTraumaBtn">Trauma</button>'
-      + '<button class="btn btn-xs" id="combatCmdEnemyBtn">Enemy Turn</button>'
+      + '<button class="btn btn-xs" id="combatCmdStrikeBtn">⚄ Roll Strike</button>'
+      + '<button class="btn btn-xs" id="combatCmdShootBtn">⚄ Roll Shoot</button>'
+      + '<button class="btn btn-xs" id="combatCmdDefendBtn">⚄ Roll Defend</button>'
+      + '<button class="btn btn-xs" id="combatCmdTraumaBtn">⚄ Trauma Check</button>'
+      + '<button class="btn btn-xs" id="combatCmdEnemyBtn">☠ Enemy Action</button>'
       + '<button class="btn btn-xs" id="combatCmdFlowBtn">Enemy Flow</button>'
       + '</div>'
       + '<div style="margin-top:.22rem;">'
-      + '<div class="combat-label">Wayfarer Action</div>'
+      + '<div class="combat-label">⚔ Wayfarer Action</div>'
       + '<select class="combat-select" id="combatWayfarerActionSel">'
-      + '<option value="">Select action</option>'
+      + '<option value="">— Choose Action —</option>'
       + '</select>'
       + '<div id="combatWayfarerContext" class="combat-mini" style="margin-top:.14rem;">Actions and wording mirror Combat Tab rules.</div>'
-      + '<button class="btn btn-xs" id="combatCmdWayfarerBtn" style="margin-top:.18rem;">Execute Wayfarer Action</button>'
+      + '<button class="btn btn-xs" id="combatCmdWayfarerBtn" style="margin-top:.18rem;">⚄ Execute</button>'
       + '</div>'
       + '<div id="combatLegacyResultMirror" class="combat-result-mirror">Legacy combat output mirrors here.</div>'
       + '</div>'
       + '<div class="combat-action-block">'
-      + '<div class="combat-label">Wayfarer Options & Rules</div>'
+      + '<div class="combat-label">⚔ Wayfarer Action</div>'
       + '<div id="combatWayfarerRulesTable" style="margin-top:.22rem;"></div>'
       + '</div>'
       + '<div class="combat-action-block">'
@@ -712,7 +712,7 @@
       + '</div>'
       + '</aside>'
       + '<aside class="combat-floating-panel combat-bottom-actions" id="combatActionsPanel">'
-      + '<div class="combat-panel-header" data-drag="actions">Action Panel + Distance Translator</div>'
+      + '<div class="combat-panel-header" data-drag="actions">Roll Checks</div>'
       + '<div class="combat-panel-body">'
       + '<div id="combatSelectedSummary" class="combat-mini">Select a token.</div>'
       + '<div style="display:grid;grid-template-columns:1fr auto auto;gap:.24rem;align-items:end;margin-top:.2rem;">'
@@ -1075,7 +1075,8 @@
 
     var topMeta = document.getElementById('combatTopMeta');
     if (topMeta) {
-      topMeta.textContent = 'Tokens ' + (state.tokens || []).length + ' · Hexes ' + (state.board.cols * 2) + 'x' + (state.board.rows * 2);
+      var combatStatusText = stripHtml((document.getElementById('combatStatus') || {}).textContent || '');
+      topMeta.textContent = combatStatusText || 'No active scene.';
     }
 
     var opener = document.getElementById('combatSceneOpenerSummary');
@@ -1409,7 +1410,14 @@
     var closeBtn = document.getElementById('combatCloseBtn');
     if (closeBtn && !closeBtn._bound) {
       closeBtn._bound = true;
-      closeBtn.onclick = function () { closeOverlay(); };
+      closeBtn.onclick = function () {
+        try {
+          if (window.S && window.S.combat && window.S.combat.active && typeof window.endCombat === 'function') {
+            window.endCombat();
+          }
+        } catch (_err) {}
+        closeOverlay();
+      };
     }
 
     var nextTurn = document.getElementById('combatNextTurnBtn');

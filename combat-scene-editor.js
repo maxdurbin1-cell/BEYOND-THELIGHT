@@ -725,6 +725,60 @@
     };
   }
 
+  function buildCharacterSheetCombatSummary(targetTokenId) {
+    var token = byId(targetTokenId);
+    var stats = window.S && window.S.stats ? window.S.stats : {};
+    var strikeDie = Number(stats.strike || 4);
+    var shootDie = Number(stats.shoot || 4);
+    var defendDie = Number(stats.defend || 4);
+    var controlDie = Number(stats.control || 4);
+    var tmw = Math.max(0, Number(window.S && window.S.tmw || 0));
+    var health = Math.max(0, Number(window.S && window.S.health || 0));
+    var maxHealth = Math.max(0, Number(window.S && window.S.maxHealth || 8));
+    var flavor = String(window.S && window.S.flavor || '').trim();
+
+    var affix = (typeof window.getEquippedAffixCombatBonuses === 'function') ? window.getEquippedAffixCombatBonuses() : {};
+    var wpStrike = (typeof window.parseWeaponBonuses === 'function') ? window.parseWeaponBonuses('strike') : { flat: 0, advDie: 0 };
+    var wpShoot = (typeof window.parseWeaponBonuses === 'function') ? window.parseWeaponBonuses('shoot') : { flat: 0, advDie: 0 };
+    var flStrike = (typeof window.getFlavorBonus === 'function') ? window.getFlavorBonus('strike') : { flat: 0, advDice: [] };
+    var flShoot = (typeof window.getFlavorBonus === 'function') ? window.getFlavorBonus('shoot') : { flat: 0, advDice: [] };
+    var mtStrike = (typeof window.getMutationBonus === 'function') ? window.getMutationBonus('strike') : { flat: 0, advDice: [] };
+    var mtShoot = (typeof window.getMutationBonus === 'function') ? window.getMutationBonus('shoot') : { flat: 0, advDice: [] };
+    var rollMod = window.S && window.S.rollMod ? window.S.rollMod : { flat: 0, advDice: [] };
+
+    var strikeFlat = Number(wpStrike.flat || 0) + Number(flStrike.flat || 0) + Number(mtStrike.flat || 0) + Number(rollMod.flat || 0);
+    var shootFlat = Number(wpShoot.flat || 0) + Number(flShoot.flat || 0) + Number(mtShoot.flat || 0) + Number(rollMod.flat || 0);
+    if (Number(affix && affix.strikeFlat || 0)) strikeFlat += Number(affix.strikeFlat || 0);
+    if (Number(affix && affix.shootFlat || 0)) shootFlat += Number(affix.shootFlat || 0);
+
+    var strikeAdv = [];
+    var shootAdv = [];
+    strikeAdv = strikeAdv.concat((flStrike && flStrike.advDice) || []).concat((mtStrike && mtStrike.advDice) || []);
+    shootAdv = shootAdv.concat((flShoot && flShoot.advDice) || []).concat((mtShoot && mtShoot.advDice) || []);
+    if (Number(wpStrike && wpStrike.advDie || 0) > 0) strikeAdv.push(Number(wpStrike.advDie));
+    if (Number(wpShoot && wpShoot.advDie || 0) > 0) shootAdv.push(Number(wpShoot.advDie));
+    if (Array.isArray(rollMod && rollMod.advDice)) {
+      strikeAdv = strikeAdv.concat(rollMod.advDice);
+      shootAdv = shootAdv.concat(rollMod.advDice);
+    }
+
+    var lines = [];
+    lines.push('Your Actions: ' + Math.max(0, Number(window.S && window.S.combat && window.S.combat.actionsLeft || 0)) + '/' + Math.max(1, Number(window.S && window.S.combat && window.S.combat.maxActions || 3)) + ' · Health: ' + health + '/' + maxHealth + ' · TMW: ' + tmw);
+    lines.push('Dice: Strike d' + strikeDie + ' · Shoot d' + shootDie + ' · Defend d' + defendDie + ' · Control d' + controlDie);
+    lines.push('Strike math: ' + (strikeFlat >= 0 ? '+' : '') + strikeFlat + ' flat' + (strikeAdv.length ? (' · Advantage ' + strikeAdv.map(function (v) { return 'd' + v; }).join(', ')) : ''));
+    lines.push('Shoot math: ' + (shootFlat >= 0 ? '+' : '') + shootFlat + ' flat' + (shootAdv.length ? (' · Advantage ' + shootAdv.map(function (v) { return 'd' + v; }).join(', ')) : ''));
+    lines.push('Flavor: ' + (flavor || 'None selected') + (token ? (' · Token: ' + String(token.name || 'Token')) : ''));
+    return lines;
+  }
+
+  function canActionReachTarget(actionValue, range) {
+    var v = String(actionValue || '').toLowerCase();
+    if (!v) return true;
+    if (v.indexOf('strike') >= 0) return Number(range || 0) <= 1;
+    if (v.indexOf('shoot') >= 0) return Number(range || 0) <= 3;
+    return true;
+  }
+
   function spawnBestiaryToken(profile, q, r) {
     if (!profile) return;
     store.setState(function (state) {
@@ -829,6 +883,7 @@
       + '<div class="combat-mini" id="combatTopMeta">No active scene. | Turn: <span id="combatTurnDisplay">Awaiting start</span></div>'
       + '</div>'
       + '<div style="display:flex;gap:.28rem;align-items:center;">'
+      + '<button class="btn btn-xs btn-primary" id="combatStartSceneBtn">Start Scene</button>'
       + '<button class="btn btn-xs" id="combatPlayModeBtn">Play View</button>'
       + '<button class="btn btn-xs" id="combatAddWayfarerBtn" title="Add Wayfarer to board">+ Wayfarer</button>'
       + '<button class="btn btn-xs combat-editor-only" id="combatUploadMapBtn">Upload Battlemap</button>'
@@ -935,7 +990,24 @@
       + '<aside class="combat-floating-panel combat-bottom-actions" id="combatActionsPanel">'
       + '<div class="combat-panel-header" data-drag="actions" onclick="togglePanel(\'combatActionsPanel\')">Token Actions <span style="float:right;font-size:.7rem;cursor:pointer;">◀</span></div>'
       + '<div class="combat-panel-body">'
+      + '<div class="combat-action-block">'
+      + '<div class="combat-label">Scene Snapshot</div>'
+      + '<div id="combatSceneStatusGrid" class="combat-feed"></div>'
+      + '</div>'
       + '<div id="combatSelectedSummary" class="combat-mini">Select a token.</div>'
+      + '<div class="combat-action-block" style="margin-top:.2rem;">'
+      + '<div class="combat-label">Token Strategy</div>'
+      + '<div id="combatTokenSheetMirror" class="combat-result-mirror">Select a token to load Character Sheet context.</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.24rem;margin-top:.2rem;">'
+      + '<div><div class="combat-label">Target Enemy</div><select class="combat-select" id="combatTokenTargetSel"><option value="">Closest hostile</option></select></div>'
+      + '<div><div class="combat-label">Token Action</div><select class="combat-select" id="combatTokenActionSel"><option value="">Choose action</option></select></div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.2rem;">'
+      + '<button class="btn btn-xs" id="combatTokenExecuteActionBtn">Execute</button>'
+      + '<button class="btn btn-xs" id="combatTokenEnemyActionBtn">Enemy Action</button>'
+      + '</div>'
+      + '<div id="combatTokenActionHelp" class="combat-mini" style="margin-top:.2rem;">No combat roll yet.</div>'
+      + '</div>'
       + '<div style="display:grid;grid-template-columns:1fr auto auto;gap:.24rem;align-items:end;margin-top:.2rem;">'
       + '<div><div class="combat-label">HP</div><input class="combat-input" id="combatSelectedHp" type="number" min="0"></div>'
       + '<div><div class="combat-label">Elevation</div><input class="combat-input" id="combatSelectedElevation" type="number" min="0" max="9"></div>'
@@ -1645,6 +1717,112 @@
       topMeta.textContent = combatStatusText || 'No active scene.';
     }
 
+    var startSceneBtn = document.getElementById('combatStartSceneBtn');
+    if (startSceneBtn) {
+      var sceneActive = !!(window.S && window.S.combat && window.S.combat.active);
+      startSceneBtn.textContent = sceneActive ? 'Scene Active' : 'Start Scene';
+      startSceneBtn.disabled = sceneActive;
+      startSceneBtn.style.opacity = sceneActive ? '0.55' : '1';
+    }
+
+    var statusGrid = document.getElementById('combatSceneStatusGrid');
+    if (statusGrid) {
+      var playerActionsNow = Math.max(0, Number(window.S && window.S.combat && window.S.combat.actionsLeft || 0));
+      var playerActionsMax = Math.max(playerActionsNow, Number(window.S && window.S.combat && window.S.combat.maxActions || 3));
+      var hpNow = Math.max(0, Number(window.S && window.S.health || 0));
+      var hpMax = Math.max(0, Number(window.S && window.S.maxHealth || 8));
+      var tmwNow = Math.max(0, Number(window.S && window.S.tmw || 0));
+      var alliesCount = (state.tokens || []).filter(function (token) { return token && String(token.faction) === 'player' && !token.isPlayer; }).length;
+      var enemiesCount = (state.tokens || []).filter(function (token) { return token && String(token.faction) === 'monster'; }).length;
+      var activeEntryNow = state.initiative && state.initiative[state.initiativeIndex] || null;
+      var activeTokenNow = activeEntryNow ? byId(activeEntryNow.tokenId) : null;
+      var enemyPool = activeTokenNow && String(activeTokenNow.faction) === 'monster'
+        ? Math.max(0, Number(state.teamActions && state.teamActions[activeTokenNow.id] || 0))
+        : Math.max(0, enemiesCount ? 1 : 0);
+      var dreadDie = Math.max(4, Number(window.S && window.S.combat && window.S.combat.enemyDread || 8));
+      var sceneLabel = (window.S && window.S.combat && window.S.combat.active) ? ('Round ' + Math.max(1, Number(window.S.combat.round || state.round || 1))) : 'Scene Not Started';
+      statusGrid.innerHTML = ''
+        + '<div class="combat-feed-line">Your Actions: <strong style="color:var(--combat-accent-2);">' + playerActionsNow + '/' + playerActionsMax + '</strong></div>'
+        + '<div class="combat-feed-line">Health: <strong style="color:var(--combat-accent-2);">' + hpNow + '/' + hpMax + '</strong></div>'
+        + '<div class="combat-feed-line">TMW: <strong style="color:var(--combat-accent-2);">' + tmwNow + '</strong></div>'
+        + '<div class="combat-feed-line">Ally Actions: <strong style="color:var(--combat-accent-2);">' + alliesCount + '</strong></div>'
+        + '<div class="combat-feed-line">Enemy Actions: <strong style="color:var(--combat-accent-2);">' + enemyPool + '/' + Math.max(enemyPool, enemiesCount ? 1 : 0) + '</strong></div>'
+        + '<div class="combat-feed-line">Dread: <strong style="color:var(--combat-accent-2);">d' + dreadDie + '</strong></div>'
+        + '<div class="combat-feed-line">' + sceneLabel + '</div>';
+    }
+
+    var tokenSheetMirror = document.getElementById('combatTokenSheetMirror');
+    if (tokenSheetMirror) {
+      if (!selected) {
+        tokenSheetMirror.textContent = 'Select a token to load Character Sheet context.';
+      } else if (selected.isPlayer || String(selected.faction) === 'player') {
+        tokenSheetMirror.innerHTML = buildCharacterSheetCombatSummary(selected.id).map(function (line) {
+          return '<div class="combat-feed-line">' + String(line) + '</div>';
+        }).join('');
+      } else {
+        tokenSheetMirror.innerHTML = ''
+          + '<div class="combat-feed-line">Combatant Name: ' + String(selected.name || 'Enemy') + '</div>'
+          + '<div class="combat-feed-line">Dread Die: d' + Math.max(4, Number(selected.dread || selected.codexDread || 6)) + '</div>'
+          + '<div class="combat-feed-line">Health: ' + Math.max(0, Number(selected.hp || 0)) + '/' + Math.max(1, Number(selected.maxHp || selected.hp || 1)) + '</div>';
+      }
+    }
+
+    var tokenTargetSel = document.getElementById('combatTokenTargetSel');
+    var tokenActionSel = document.getElementById('combatTokenActionSel');
+    var tokenActionHelp = document.getElementById('combatTokenActionHelp');
+    if (tokenTargetSel) {
+      var actorToken = byId(state.selectedTokenId);
+      var hostiles = actorToken ? (state.tokens || []).filter(function (token) {
+        return token && String(token.id) !== String(actorToken.id) && String(token.faction) !== String(actorToken.faction);
+      }) : [];
+      hostiles.sort(function (a, b) {
+        return hexDistance({ q: actorToken && actorToken.q || 0, r: actorToken && actorToken.r || 0 }, { q: a.q, r: a.r }) - hexDistance({ q: actorToken && actorToken.q || 0, r: actorToken && actorToken.r || 0 }, { q: b.q, r: b.r });
+      });
+      var prevTarget = String(tokenTargetSel.value || '');
+      tokenTargetSel.innerHTML = hostiles.length
+        ? hostiles.map(function (t) {
+          var dist = actorToken ? hexDistance({ q: actorToken.q, r: actorToken.r }, { q: t.q, r: t.r }) : 0;
+          return '<option value="' + String(t.id) + '">' + String(t.name || 'Hostile') + ' · ' + hexLabel(dist) + ' (' + dist + 'h)</option>';
+        }).join('')
+        : '<option value="">Closest hostile</option>';
+      var exists = Array.prototype.slice.call(tokenTargetSel.options || []).some(function (opt) { return String(opt.value || '') === prevTarget; });
+      if (exists) tokenTargetSel.value = prevTarget;
+    }
+    if (tokenActionSel) {
+      var mirroredSel = document.getElementById('combatWayfarerActionSel');
+      var actor = byId(state.selectedTokenId);
+      var previous = String(tokenActionSel.value || '');
+      if (actor && (actor.isPlayer || String(actor.faction) === 'player') && mirroredSel) {
+        tokenActionSel.innerHTML = Array.prototype.slice.call(mirroredSel.options || []).map(function (opt) {
+          var val = String(opt.value || '');
+          return '<option value="' + val + '">' + String(opt.textContent || '') + '</option>';
+        }).join('');
+      } else if (actor && String(actor.faction) === 'monster') {
+        tokenActionSel.innerHTML = '<option value="enemy_action">Enemy Action</option><option value="enemy_flow">Enemy Flow</option>';
+      } else {
+        tokenActionSel.innerHTML = '<option value="">Choose action</option>';
+      }
+      var stillExists = Array.prototype.slice.call(tokenActionSel.options || []).some(function (opt) { return String(opt.value || '') === previous; });
+      if (stillExists) tokenActionSel.value = previous;
+    }
+    if (tokenActionHelp) {
+      var selectedTargetId = String(tokenTargetSel && tokenTargetSel.value || '');
+      var actorNow = byId(state.selectedTokenId);
+      var targetNow = selectedTargetId ? byId(selectedTargetId) : null;
+      var selectedAction = String(tokenActionSel && tokenActionSel.value || '');
+      if (actorNow && targetNow && selectedAction) {
+        var distNow = hexDistance({ q: actorNow.q, r: actorNow.r }, { q: targetNow.q, r: targetNow.r });
+        var reachable = canActionReachTarget(selectedAction, distNow);
+        tokenActionHelp.textContent = 'Target ' + String(targetNow.name || 'Enemy') + ' · ' + hexLabel(distNow) + ' (' + distNow + 'h) · ' + (reachable ? 'In range' : 'Out of range for this action') + '.';
+      } else if (actorNow && (actorNow.isPlayer || String(actorNow.faction) === 'player')) {
+        tokenActionHelp.textContent = 'Quick Actions: choose target + action, then Execute.';
+      } else if (actorNow && String(actorNow.faction) === 'monster') {
+        tokenActionHelp.textContent = 'Roster Action: run enemy behavior from the selected token.';
+      } else {
+        tokenActionHelp.textContent = 'No combat roll yet.';
+      }
+    }
+
     var opener = document.getElementById('combatSceneOpenerSummary');
     if (opener) {
       var so = window.S && window.S.combat && window.S.combat.sceneOpener ? window.S.combat.sceneOpener : null;
@@ -2031,6 +2209,24 @@
   }
 
   function bindStaticControls() {
+    var startSceneBtn = document.getElementById('combatStartSceneBtn');
+    if (startSceneBtn && !startSceneBtn._bound) {
+      startSceneBtn._bound = true;
+      startSceneBtn.onclick = function () {
+        if (window.S && window.S.combat && window.S.combat.active) {
+          safeNotif('Scene is already active.', 'info');
+          return;
+        }
+        if (typeof window.startCombat === 'function') {
+          try { window.startCombat(); } catch (_err) {}
+          addHistory('Scene started from Combat Mode.');
+          updateUiPanels();
+          return;
+        }
+        safeNotif('Start Scene is unavailable right now.', 'warn');
+      };
+    }
+
     var closeBtn = document.getElementById('combatCloseBtn');
     if (closeBtn && !closeBtn._bound) {
       closeBtn._bound = true;
@@ -2448,6 +2644,58 @@
         var actionLabel = selectedOpt ? String(selectedOpt.textContent || val) : val;
         addHistory('Wayfarer action executed (Combat Tab rules): ' + actionLabel + '.');
         updateUiPanels();
+      };
+    }
+
+    var tokenExecuteBtn = document.getElementById('combatTokenExecuteActionBtn');
+    if (tokenExecuteBtn && !tokenExecuteBtn._bound) {
+      tokenExecuteBtn._bound = true;
+      tokenExecuteBtn.onclick = function () {
+        var tokenActionSel = document.getElementById('combatTokenActionSel');
+        var tokenTargetSel = document.getElementById('combatTokenTargetSel');
+        var actionVal = String(tokenActionSel && tokenActionSel.value || '');
+        var targetVal = String(tokenTargetSel && tokenTargetSel.value || '');
+        var actor = byId(store.getState().selectedTokenId);
+        if (!actor) {
+          safeNotif('Select a token first.', 'warn');
+          return;
+        }
+        if (String(actor.faction) === 'monster') {
+          if (actionVal === 'enemy_flow') runLegacyAction('flow');
+          else runLegacyAction('enemy');
+          return;
+        }
+        if (!actionVal) {
+          safeNotif('Choose a token action first.', 'warn');
+          return;
+        }
+        if (targetVal) {
+          var target = byId(targetVal);
+          if (target && actor) {
+            var dist = hexDistance({ q: actor.q, r: actor.r }, { q: target.q, r: target.r });
+            if (!canActionReachTarget(actionVal, dist)) {
+              safeNotif('Target is out of range for this action.', 'warn');
+              return;
+            }
+          }
+        }
+        var wayfarerSel = document.getElementById('combatWayfarerActionSel');
+        if (wayfarerSel) wayfarerSel.value = actionVal;
+        var execBtn = document.getElementById('combatCmdWayfarerBtn');
+        if (execBtn && typeof execBtn.onclick === 'function') execBtn.onclick();
+      };
+    }
+
+    var tokenEnemyBtn = document.getElementById('combatTokenEnemyActionBtn');
+    if (tokenEnemyBtn && !tokenEnemyBtn._bound) {
+      tokenEnemyBtn._bound = true;
+      tokenEnemyBtn.onclick = function () {
+        var actor = byId(store.getState().selectedTokenId);
+        if (!actor || String(actor.faction) !== 'monster') {
+          safeNotif('Select an enemy token to use enemy actions.', 'warn');
+          return;
+        }
+        runLegacyAction('enemy');
       };
     }
 

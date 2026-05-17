@@ -15433,8 +15433,9 @@ function buildTravelScenePanelHtml(hex){
     : '<div style="font-size:.72rem;color:var(--muted2);">No NPC tokens seeded yet.</div>';
 
   const tagLabelHtml = active&&active.tag ? '<span style="font-size:.72rem;color:var(--muted2);margin-left:.5rem;">['+escapeHtmlLite(active.tag)+']</span>' : '';
-  return '<div class="npc-block" style="margin-bottom:.45rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);">'
-    + '<div class="nb-label" style="color:var(--teal);">🎬 Travel Scene'+tagLabelHtml+'</div>'
+  return '<details class="npc-block" style="margin-bottom:.45rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);" open>'
+    + '<summary class="nb-label" style="color:var(--teal);cursor:pointer;list-style:none;">🎬 Travel Scene'+tagLabelHtml+'</summary>'
+    + '<div style="margin-top:.28rem;">'
     + '<div style="font-size:.76rem;color:var(--text2);line-height:1.55;margin-bottom:.35rem;">Create or load a scene at this hex, attach an image, seed NPC tokens, then launch directly into Combat Mode.</div>'
     + '<div style="display:grid;grid-template-columns:1fr auto auto;gap:.25rem;">'
       + '<input id="travelSceneName-'+col+'-'+row+'" type="text" maxlength="60" placeholder="Scene name (ruins ambush, convoy hit...)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.26rem .36rem;font-size:.74rem;border-radius:3px;">'
@@ -15532,7 +15533,8 @@ function buildTravelScenePanelHtml(hex){
       + '<div style="font-size:.68rem;color:var(--muted2);">Quick NPC Templates</div>'
       + '<div style="margin-top:.2rem;">'+npcRows+'</div>'
     + '</div>'
-  + '</div>';
+    + '</div>'
+  + '</details>';
 }
 
 // ── RENDER HEX INFO ──────────────────────────────────────────────────────────

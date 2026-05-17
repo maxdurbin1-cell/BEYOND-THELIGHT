@@ -261,6 +261,70 @@
     }
   }
 
+  function normalizeBoard(board) {
+    var source = board && typeof board === 'object' ? board : {}
+    ;
+    return {
+      cols: Math.max(1, Math.min(60, Number(source.cols || 22))),
+      rows: Math.max(1, Math.min(60, Number(source.rows || 16))),
+      size: Math.max(24, Math.min(80, Number(source.size || 42))),
+      zoom: Math.max(0.4, Math.min(3, Number(source.zoom || 1))),
+      panX: Number.isFinite(Number(source.panX)) ? Number(source.panX) : 640,
+      panY: Number.isFinite(Number(source.panY)) ? Number(source.panY) : 340,
+      background: String(source.background || ''),
+      weatherOverlay: String(source.weatherOverlay || 'none'),
+      weatherIntensity: Math.max(0, Math.min(10, Number(source.weatherIntensity || 1)))
+    };
+  }
+
+  function normalizeCombatSceneState(state) {
+    var next = Object.assign({}, state || {});
+    next.board = normalizeBoard(next.board);
+    next.layers = Object.assign({
+      terrain: {},
+      objects: {},
+      hazards: {},
+      elevation: {},
+      lighting: {},
+      wallSegments: {},
+      weather: {},
+      interactives: {},
+      spawns: {}
+    }, next.layers && typeof next.layers === 'object' ? next.layers : {});
+    next.layers.terrain = Object.assign({}, next.layers.terrain || {});
+    next.layers.objects = Object.assign({}, next.layers.objects || {});
+    next.layers.hazards = Object.assign({}, next.layers.hazards || {});
+    next.layers.elevation = Object.assign({}, next.layers.elevation || {});
+    next.layers.lighting = Object.assign({}, next.layers.lighting || {});
+    next.layers.wallSegments = Object.assign({}, next.layers.wallSegments || {});
+    next.layers.weather = Object.assign({}, next.layers.weather || {});
+    next.layers.interactives = Object.assign({}, next.layers.interactives || {});
+    next.layers.spawns = Object.assign({}, next.layers.spawns || {});
+    next.fog = Object.assign({
+      enabled: false,
+      showMask: true,
+      revealMode: 'manual',
+      visionRadius: 3,
+      revealed: {},
+      revealOrder: {},
+      revealSeq: 0,
+      revealStep: 0
+    }, next.fog && typeof next.fog === 'object' ? next.fog : {});
+    next.fog.revealed = Object.assign({}, next.fog.revealed || {});
+    next.fog.revealOrder = Object.assign({}, next.fog.revealOrder || {});
+    next.sceneRules = Object.assign({ rollMode: 'auto', defaultActionType: 'ranged' }, next.sceneRules && typeof next.sceneRules === 'object' ? next.sceneRules : {});
+    next.tokens = Array.isArray(next.tokens) ? next.tokens : [];
+    next.initiative = Array.isArray(next.initiative) ? next.initiative : [];
+    next.actionHistory = Array.isArray(next.actionHistory) ? next.actionHistory : [];
+    next.collapsedPanels = Object.assign({}, next.collapsedPanels || {});
+    next.panelPos = Object.assign({
+      tools: { x: 14, y: 58 },
+      feed: { x: 980, y: 58 },
+      actions: { x: 290, y: 560 }
+    }, next.panelPos && typeof next.panelPos === 'object' ? next.panelPos : {});
+    return next;
+  }
+
   function makeSceneSnapshot(state) {
     return {
       board: clone(state.board || {}),
@@ -374,7 +438,7 @@
     return tokens.length ? tokens : defaultTokens();
   }
 
-  var persisted = loadPersisted();
+  var persisted = normalizeCombatSceneState(loadPersisted());
   var store = createStore(Object.assign({
     open: false,
     entering: false,
@@ -1215,7 +1279,7 @@
     ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
 
     var state = ensureInitiative(store.getState());
-    var board = state.board;
+    var board = normalizeBoard(state.board);
 
     ctx.clearRect(0, 0, rect.width, rect.height);
 
@@ -1435,7 +1499,7 @@
   }
 
   function updateUiPanels() {
-    var state = ensureActionBudgetMap(ensureInitiative(store.getState()));
+    var state = ensureActionBudgetMap(ensureInitiative(normalizeCombatSceneState(store.getState())));
     var root = document.getElementById('combatModeOverlay');
     if (root) {
       if (state.playMode) root.classList.add('play-mode');
@@ -3076,7 +3140,7 @@
 
     if (seed && typeof seed === 'object') {
       store.setState(function (state) {
-        var next = Object.assign({}, state);
+        var next = normalizeCombatSceneState(Object.assign({}, state));
         if (seed.id) {
           next.activeSceneId = String(seed.id);
         }
@@ -3105,7 +3169,7 @@
           next.sceneRules = Object.assign({}, next.sceneRules, seed.sceneRules);
         }
         if (seed.board && typeof seed.board === 'object') {
-          next.board = Object.assign({}, next.board, seed.board);
+          next.board = normalizeBoard(Object.assign({}, next.board, seed.board));
         }
         persist(next);
         return next;
@@ -3113,6 +3177,14 @@
     }
 
     store.setState({ open: true, entering: true });
+    var splash = document.getElementById('combatEntrySplash');
+    if (splash) {
+      splash.classList.remove('hidden');
+      setTimeout(function () {
+        splash.classList.add('hidden');
+        store.setState({ entering: false });
+      }, 900);
+    }
     store.setState(function (state) {
       var activeCombat = !!(window.S && window.S.combat && window.S.combat.active);
       var next = Object.assign({}, state, { playMode: activeCombat ? true : !!state.playMode });
@@ -3121,16 +3193,12 @@
     });
     root.classList.add('open');
     setPanelPositions();
-    updateUiPanels();
-    drawBoard();
-
-    var splash = document.getElementById('combatEntrySplash');
-    if (splash) {
-      splash.classList.remove('hidden');
-      setTimeout(function () {
-        splash.classList.add('hidden');
-        store.setState({ entering: false });
-      }, 900);
+    try {
+      updateUiPanels();
+      drawBoard();
+    } catch (_err) {
+      store.setState({ entering: false });
+      safeNotif('Combat scene opened with a fallback state because the saved scene data was invalid.', 'warn');
     }
 
     addHistory('Entering encounter. Combat mode online.');

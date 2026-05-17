@@ -531,10 +531,36 @@
   function defaultTokens() {
     var portrait = (window.S && window.S.identityForge && window.S.identityForge.media && window.S.identityForge.media.portrait) || '';
     var name = (window.S && window.S.name) || 'Wayfarer';
+    var defendDie = Math.max(4, Number(window.S && window.S.stats && window.S.stats.defend || 6));
+    var hpFromDefend = Math.max(1, defendDie * 2);
     return [
-      { id: uid('pc'), name: String(name), faction: 'player', hp: 12, maxHp: 12, status: [], q: 0, r: 0, image: portrait, size: 1, isPlayer: true },
+      { id: uid('pc'), name: String(name), faction: 'player', hp: hpFromDefend, maxHp: hpFromDefend, status: [], q: 0, r: 0, image: portrait, size: 1, isPlayer: true },
       { id: uid('mob'), name: 'Ghoul Ravager', faction: 'monster', hp: 10, maxHp: 10, status: [], q: 3, r: 0, image: '', size: 1 }
     ];
+  }
+
+  function canonicalWayfarerName() {
+    return String(window.S && window.S.name || 'Wayfarer').trim() || 'Wayfarer';
+  }
+
+  function getWayfarerMaxHpByRules() {
+    var defendDie = Math.max(4, Number(window.S && window.S.stats && window.S.stats.defend || 6));
+    return Math.max(1, defendDie * 2);
+  }
+
+  function normalizeTokenActionBudgetToken(token) {
+    return !!(token && !token.isPlayer && (String(token.faction) === 'player' || String(token.faction) === 'monster'));
+  }
+
+  function buildTurnOrder(tokens) {
+    var list = Array.isArray(tokens) ? tokens.filter(Boolean) : [];
+    var wayfarers = list.filter(function (t) { return !!t.isPlayer; });
+    var allies = list.filter(function (t) { return !t.isPlayer && String(t.faction) === 'player'; });
+    var enemies = list.filter(function (t) { return String(t.faction) === 'monster'; });
+    var merged = wayfarers.concat(allies).concat(enemies);
+    return merged.map(function (token, idx) {
+      return { tokenId: token.id, name: token.name, init: Math.max(1, 100 - idx) };
+    });
   }
 
   function seedFromCurrentCombat() {
@@ -574,7 +600,7 @@
           r: allied ? 2 : 0,
           image: '',
           size: 1,
-          isPlayer: allied && idx === 0,
+          isPlayer: false,
           dread: dread,
           deathNumber: dread,
           sourceEnemyId: Number(enemy.id || 0)
@@ -657,11 +683,14 @@
   }, persisted || {}));
 
   function ensureInitiative(state) {
-    if (!Array.isArray(state.initiative) || !state.initiative.length) {
-      state.initiative = state.tokens.map(function (token, idx) {
-        return { tokenId: token.id, name: token.name, init: Math.max(1, 20 - idx) };
-      }).sort(function (a, b) { return Number(b.init || 0) - Number(a.init || 0); });
-    }
+    var expected = buildTurnOrder(state.tokens || []);
+    var current = Array.isArray(state.initiative) ? state.initiative : [];
+    var sameSize = current.length === expected.length;
+    var sameOrder = sameSize && current.every(function (row, idx) {
+      return row && String(row.tokenId || '') === String(expected[idx] && expected[idx].tokenId || '');
+    });
+    if (!sameOrder) state.initiative = expected;
+    if (Number(state.initiativeIndex || 0) >= state.initiative.length) state.initiativeIndex = 0;
     return state;
   }
 
@@ -678,21 +707,16 @@
   function ensureActionBudgetMap(state) {
     var next = Object.assign({}, state);
     var map = Object.assign({}, state.teamActions || {});
-    if (!isCampaignModeActive()) {
-      (state.tokens || []).forEach(function (token) {
-        if (!token) return;
-        if (String(token.faction) === 'player' || String(token.faction) === 'monster') {
-          if (typeof map[token.id] !== 'number') map[token.id] = 2;
-        }
-      });
-    }
+    (state.tokens || []).forEach(function (token) {
+      if (!normalizeTokenActionBudgetToken(token)) return;
+      if (typeof map[token.id] !== 'number') map[token.id] = 2;
+    });
     next.teamActions = map;
     return next;
   }
 
   function spendUnitAction(tokenId) {
     var state = store.getState();
-    if (isCampaignModeActive()) return true;
     var available = Number(state.teamActions && state.teamActions[tokenId] || 0);
     if (available <= 0) return false;
     store.setState(function (inner) {
@@ -781,6 +805,50 @@
       return false;
     });
     return found;
+  }
+
+  function parseSkillRangeMax(skill) {
+    var rangeMap = { engaged: 1, close: 2, nearby: 4, far: 99 };
+    var ranges = Array.isArray(skill && skill.range) ? skill.range : [];
+    return ranges.reduce(function (mx, r) {
+      return Math.max(mx, rangeMap[String(r || '').toLowerCase()] || 1);
+    }, 1);
+  }
+
+  function getEnemySkillOptionsForToken(actor, target) {
+    var profile = actor ? getEnemyProfileByName(actor.name) : null;
+    if (!profile || !Array.isArray(profile.skills)) return [];
+    var dist = (actor && target) ? hexDistance({ q: actor.q, r: actor.r }, { q: target.q, r: target.r }) : null;
+    return profile.skills.map(function (skill, idx) {
+      var maxR = parseSkillRangeMax(skill);
+      var inRange = dist === null ? true : dist <= maxR;
+      return {
+        idx: idx,
+        id: 'enemy_skill:' + idx,
+        name: String(skill && skill.name || ('Skill ' + (idx + 1))),
+        skill: skill,
+        maxRange: maxR,
+        inRange: inRange,
+        rangeLabel: Array.isArray(skill && skill.range) && skill.range.length ? skill.range.join('/') : 'engaged'
+      };
+    });
+  }
+
+  function parseDefendAdvantageCount() {
+    var count = 0;
+    var armor = String(window.S && window.S.equipment && window.S.equipment.armor || '').toLowerCase();
+    if (armor && armor.indexOf('advantage') >= 0 && armor.indexOf('defend') >= 0) count += 1;
+    var affix = (typeof window.getEquippedAffixCombatBonuses === 'function') ? window.getEquippedAffixCombatBonuses() : null;
+    if (affix) {
+      if (Number(affix.defendAdv || 0) > 0) count += Number(affix.defendAdv || 0);
+      if (Array.isArray(affix.defendAdvDice) && affix.defendAdvDice.length) count += affix.defendAdvDice.length;
+    }
+    return Math.max(0, Math.floor(count));
+  }
+
+  function rollDie(sides) {
+    var s = Math.max(2, Number(sides || 6));
+    return 1 + Math.floor(Math.random() * s);
   }
 
   function parseStressFromText(text, fallback) {
@@ -1339,7 +1407,6 @@
       + '</div>'
       + '<div style="display:flex;gap:.24rem;margin-top:.26rem;">'
       + '<button class="btn btn-xs" id="combatCmdEnemyBtn">☠ Enemy Action</button>'
-      + '<button class="btn btn-xs" id="combatCmdFlowBtn">Enemy Flow</button>'
       + '<button class="btn btn-xs" id="combatCmdDefendBtn">Roll Defend</button>'
       + '<button class="btn btn-xs" id="combatCmdTraumaBtn">Trauma</button>'
       + '</div>'
@@ -2117,10 +2184,20 @@
       var wayfarers = (state.tokens || []).filter(function (token) { return token && token.isPlayer; });
       var allies = (state.tokens || []).filter(function (token) { return token && String(token.faction) === 'player' && !token.isPlayer; });
       var enemies = (state.tokens || []).filter(function (token) { return token && String(token.faction) === 'monster'; });
+      var activeRowInit = state.initiative && state.initiative[state.initiativeIndex] || null;
+      var activeIdInit = String(activeRowInit && activeRowInit.tokenId || '');
+      function tokenActionsLeft(token) {
+        if (!token) return 0;
+        if (token.isPlayer) return Math.max(0, Number(window.S && window.S.combat && window.S.combat.actionsLeft || 0));
+        return Math.max(0, Number(state.teamActions && state.teamActions[token.id] || 0));
+      }
       function lane(label, list, color) {
         if (!list.length) return '';
         return '<div class="combat-feed-line"><strong style="color:' + color + ';">' + label + ':</strong> '
-          + list.map(function (t) { return String(t.name || 'Unit'); }).join(', ')
+          + list.map(function (t) {
+            var turnTag = String(t.id) === activeIdInit ? ' [TURN]' : '';
+            return String(t.name || 'Unit') + ' (' + tokenActionsLeft(t) + 'A)' + turnTag;
+          }).join(', ')
           + '</div>';
       }
       initList.innerHTML = ''
@@ -2146,8 +2223,13 @@
     if (selectedSummary) {
       var selectedDread = selected ? Math.max(4, Number(selected.dread || selected.codexDread || 0)) : 0;
       var selectedDeath = selected ? Math.max(1, Number(selected.deathNumber || selectedDread || 0)) : 0;
+      var selectedActions = selected
+        ? (selected.isPlayer
+          ? Math.max(0, Number(window.S && window.S.combat && window.S.combat.actionsLeft || 0))
+          : Math.max(0, Number(state.teamActions && state.teamActions[selected.id] || 0)))
+        : 0;
       selectedSummary.textContent = selected
-        ? (selected.name + ' · ' + selected.faction + ' · hex ' + toKey(selected.q, selected.r) + (selectedDread ? (' · DD d' + selectedDread + ' · DN ' + selectedDeath) : ''))
+        ? (selected.name + ' · ' + selected.faction + ' · ' + selectedActions + 'A · hex ' + toKey(selected.q, selected.r) + (selectedDread ? (' · DD d' + selectedDread + ' · DN ' + selectedDeath) : ''))
         : 'Select a token.';
     }
     if (selectedHp) {
@@ -2249,13 +2331,13 @@
       else btn.title = '';
     });
 
-    var enemyActionIds = ['combatCmdEnemyBtn', 'combatCmdFlowBtn'];
+    var enemyActionIds = ['combatCmdEnemyBtn'];
     enemyActionIds.forEach(function (id) {
       var btn = document.getElementById(id);
       if (!btn) return;
-      btn.disabled = playerTurn;
-      btn.style.opacity = playerTurn ? '0.45' : '1';
-      if (playerTurn) btn.title = 'Enemy actions are disabled during player turns.';
+      btn.disabled = false;
+      btn.style.opacity = playerTurn ? '0.72' : '1';
+      if (playerTurn) btn.title = 'Not enemy turn yet. Clicking shows guidance.';
       else btn.title = '';
     });
 
@@ -2365,6 +2447,7 @@
 
     var tokenTargetSel = document.getElementById('combatTokenTargetSel');
     var tokenActionSel = document.getElementById('combatTokenActionSel');
+    var tokenEnemyBtn = document.getElementById('combatTokenEnemyActionBtn');
     var tokenCoverSel = document.getElementById('combatTargetCoverOverrideSel');
     var lootBodyBtn = document.getElementById('combatLootBodyBtn');
     var placeLootBtn = document.getElementById('combatPlaceLootBtn');
@@ -2405,7 +2488,14 @@
           return '<option value="' + val + '">' + String(opt.textContent || '') + '</option>';
         }).join('');
       } else if (actor && String(actor.faction) === 'monster') {
-        tokenActionSel.innerHTML = '<option value="enemy_action">Enemy Action</option><option value="enemy_flow">Enemy Flow</option>';
+        var targetForSkills = String(tokenTargetSel && tokenTargetSel.value || '') ? byId(String(tokenTargetSel.value || '')) : null;
+        var skillOpts = getEnemySkillOptionsForToken(actor, targetForSkills);
+        var baseOpt = '<option value="enemy_action">Basic Enemy Action</option>';
+        var extra = skillOpts.map(function (entry) {
+          var suffix = entry.inRange ? ' \u00b7 In Range' : ' \u00b7 Out of Range';
+          return '<option value="' + entry.id + '">' + entry.name + ' [' + entry.rangeLabel + ']' + suffix + '</option>';
+        }).join('');
+        tokenActionSel.innerHTML = baseOpt + extra;
       } else {
         tokenActionSel.innerHTML = '<option value="">Choose action</option>';
       }
@@ -2443,10 +2533,23 @@
         }
         tokenActionHelp.textContent = actionCtxLines.join(' | ');
       } else if (actorNow && String(actorNow.faction) === 'monster') {
-        tokenActionHelp.textContent = 'Roster Action: run enemy behavior from the selected token.';
+        var targetForEnemy = selectedTargetId ? byId(selectedTargetId) : null;
+        var skillState = getEnemySkillOptionsForToken(actorNow, targetForEnemy);
+        if (skillState.length) {
+          var inRangeCount = skillState.filter(function (s) { return s.inRange; }).length;
+          tokenActionHelp.textContent = 'Enemy skills: ' + inRangeCount + '/' + skillState.length + ' in range. Enemy rolls Dread vs target Defend.';
+        } else {
+          tokenActionHelp.textContent = 'No unique enemy skills found. Uses Basic Enemy Action (Dread vs Defend).';
+        }
       } else {
         tokenActionHelp.textContent = 'No combat roll yet.';
       }
+    }
+
+    if (tokenEnemyBtn) {
+      var selectedTokenForButton = byId(state.selectedTokenId);
+      var showEnemyBtn = !(selectedTokenForButton && String(selectedTokenForButton.faction) === 'monster');
+      tokenEnemyBtn.style.display = showEnemyBtn ? '' : 'none';
     }
 
     if (lootBodyBtn) {
@@ -2491,10 +2594,10 @@
         if (activeScn && activeScn.sceneOpener) so = activeScn.sceneOpener;
       }
       if (so) {
-        var zone = String(so.zone || 'Unknown');
-        var cover = String(so.cover || 'none');
-        var react = String(so.enemyReaction || 'Unknown');
-        var activity = String(so.enemyActivity || 'Unknown');
+        var zone = String(so.zone || so.zoneTerrain || so.terrain || 'Unknown');
+        var cover = String(so.cover || so.coverDesc || so.coverTier || 'none');
+        var react = String(so.enemyReaction || so.reaction || so.enemyIntent || 'Unknown');
+        var activity = String(so.enemyActivity || so.activity || so.enemyMove || 'Unknown');
         opener.textContent = '🎬 ' + zone + ' · ' + cover + ' · ' + react + ' · ' + activity;
       } else {
         opener.textContent = 'No opener active.';
@@ -2604,7 +2707,17 @@
         activeCycle = Math.max(activeCycle, Number(k || 1));
       });
       var activeCount = grouped[activeCycle] || 0;
-      enemyLedgerMeta.textContent = 'Cycle ' + activeCycle + ' spend events: ' + activeCount + ' · total logged: ' + spendRows.length;
+      var alliesWithActions = (state.tokens || []).filter(function (t) {
+        return t && !t.isPlayer && String(t.faction) === 'player';
+      }).map(function (t) {
+        return String(t.name || 'Ally') + ' ' + Math.max(0, Number(state.teamActions && state.teamActions[t.id] || 0)) + 'A';
+      });
+      var enemiesWithActions = (state.tokens || []).filter(function (t) {
+        return t && String(t.faction) === 'monster';
+      }).map(function (t) {
+        return String(t.name || 'Enemy') + ' ' + Math.max(0, Number(state.teamActions && state.teamActions[t.id] || 0)) + 'A';
+      });
+      enemyLedgerMeta.textContent = 'Turn Actions · Allies: ' + (alliesWithActions.join(', ') || 'none') + ' · Enemies: ' + (enemiesWithActions.join(', ') || 'none') + ' · ledger events ' + spendRows.length + ' (cycle ' + activeCycle + ': ' + activeCount + ')';
       var lines = entries.slice(-18).reverse().map(function (entry) {
         if (!entry) return '';
         var kind = String(entry.kind || 'event');
@@ -2629,18 +2742,16 @@
 
     var allySel = document.getElementById('combatAllySelect');
     if (allySel) {
-      var allies = (state.tokens || []).filter(function (token) { return token && String(token.faction) === 'player'; });
+      var allies = (state.tokens || []).filter(function (token) { return token && !token.isPlayer && String(token.faction) === 'player'; });
       allySel.innerHTML = allies.map(function (ally) {
-        var left = Number(state.teamActions && state.teamActions[ally.id] || (isCampaignModeActive() ? 0 : 2));
-        return '<option value="' + String(ally.id) + '">' + String(ally.name || 'Ally') + (isCampaignModeActive() ? '' : (' · actions ' + left)) + '</option>';
+        var left = Math.max(0, Number(state.teamActions && state.teamActions[ally.id] || 0));
+        return '<option value="' + String(ally.id) + '">' + String(ally.name || 'Ally') + ' · actions ' + left + '</option>';
       }).join('');
     }
 
     var allyBudget = document.getElementById('combatAllyBudgetMeta');
     if (allyBudget) {
-      allyBudget.textContent = isCampaignModeActive()
-        ? 'Campaign mode active: standard campaign action economy.'
-        : '2 actions each ally/enemy. Actions refresh on Next Turn.';
+      allyBudget.textContent = 'Turn order: Wayfarer -> Allies -> Enemy. Allies and enemies have 2 actions per token each turn.';
     }
   }
 
@@ -2924,9 +3035,20 @@
     return Object.keys(set).sort(function (a, b) { return a.localeCompare(b); });
   }
 
-  function executeEnemyTokenAction(actor, target) {
-    if (!actor || isTokenDead(actor)) return;
+  function executeEnemyTokenAction(actor, target, actionId) {
+    if (!actor || isTokenDead(actor)) {
+      safeNotif('No valid enemy token selected.', 'warn');
+      return false;
+    }
     var state = store.getState();
+    if (!isSceneActive()) {
+      safeNotif('Start Scene before running enemy actions.', 'warn');
+      return false;
+    }
+    if (!isTokenTurnActive(state, actor.id)) {
+      safeNotif('It is not this enemy token\'s turn.', 'warn');
+      return false;
+    }
     var foe = target || null;
     if (!foe || isTokenDead(foe) || String(foe.faction) === String(actor.faction)) {
       var foes = (state.tokens || []).filter(function (row) {
@@ -2939,34 +3061,81 @@
     }
     if (!foe) {
       addHistory((actor.name || 'Enemy') + ' has no living target.');
-      return;
+      return false;
     }
     var dist = hexDistance({ q: actor.q, r: actor.r }, { q: foe.q, r: foe.r });
-    var profile = getEnemyProfileByName(actor.name);
-    var skill = null;
-    if (profile && Array.isArray(profile.skills) && profile.skills.length) {
-      var rangeMap = { engaged: 1, close: 2, nearby: 4, far: 99 };
-      var usable = profile.skills.filter(function (row) {
-        var maxR = (row.range || []).reduce(function (mx, r) { return Math.max(mx, rangeMap[String(r || '').toLowerCase()] || 1); }, 1);
-        return dist <= maxR;
-      });
-      if (usable.length) {
-        skill = usable[Math.floor(Math.random() * usable.length)];
+    var skills = getEnemySkillOptionsForToken(actor, foe);
+    var selected = null;
+    if (actionId && String(actionId).indexOf('enemy_skill:') === 0) {
+      var idx = Number(String(actionId).split(':')[1]);
+      selected = skills.find(function (row) { return Number(row.idx) === idx; }) || null;
+      if (selected && !selected.inRange) {
+        addHistory((actor.name || 'Enemy') + ' tried ' + selected.name + ' but target is out of range.');
+        safeNotif('Selected enemy skill is out of range.', 'warn');
+        updateUiPanels();
+        return false;
       }
     }
-    var baseDamage = Math.max(1, Math.ceil(Number(actor.dread || actor.codexDread || 6) / 3));
-    var damage = baseDamage;
-    if (skill) {
-      damage = parseStressFromText(skill.onFail || skill.desc || '', baseDamage);
-      addHistory((actor.name || 'Enemy') + ' uses ' + String(skill.name || 'enemy skill') + ' at ' + hexLabel(dist) + ' against ' + String(foe.name || 'target') + '.');
-      var notifEl = document.getElementById('combatLastNotification');
-      if (notifEl) notifEl.textContent = (actor.name || 'Enemy') + ': ' + String(skill.name || 'Skill') + ' · ' + String(skill.onFail || 'Effect applies');
-    } else {
-      addHistory((actor.name || 'Enemy') + ' uses basic attack at ' + hexLabel(dist) + ' against ' + String(foe.name || 'target') + '.');
+    if (!selected) {
+      var inRange = skills.filter(function (row) { return !!row.inRange; });
+      selected = inRange[0] || null;
     }
-    applyDamageToToken(foe.id, damage, actor.name || 'Enemy');
+
+    if (!spendUnitAction(actor.id)) {
+      safeNotif(String(actor.name || 'Enemy') + ' has no actions remaining this turn.', 'warn');
+      return false;
+    }
+
+    var dreadDie = Math.max(4, Number(actor.dread || actor.codexDread || 6));
+    var defendDie = Math.max(4, Number(foe && foe.isPlayer ? (window.S && window.S.stats && window.S.stats.defend || 6) : (foe.defend || foe.dread || 6)));
+    var enemyRoll = rollDie(dreadDie);
+    var defendRolls = [rollDie(defendDie)];
+    if (foe && foe.isPlayer) {
+      var defendAdv = parseDefendAdvantageCount();
+      for (var advIdx = 0; advIdx < defendAdv; advIdx++) defendRolls.push(rollDie(defendDie));
+    }
+    var defendRoll = defendRolls.reduce(function (mx, val) { return Math.max(mx, val); }, 0);
+    var margin = enemyRoll - defendRoll;
+    var hit = margin > 0;
+    var stress = 0;
+    if (hit) {
+      if (selected && selected.skill) {
+        var onFail = String(selected.skill.onFail || selected.skill.desc || '');
+        if (/difference\s*\+\s*1/i.test(onFail)) stress = Math.max(1, margin + 1);
+        else stress = Math.max(1, parseStressFromText(onFail, margin));
+      } else {
+        stress = Math.max(1, margin);
+      }
+      applyDamageToToken(foe.id, stress, actor.name || 'Enemy');
+      if (selected && selected.skill && /distracted/i.test(String(selected.skill.onFail || ''))) {
+        store.setState(function (inner) {
+          var next = Object.assign({}, inner);
+          next.tokens = (inner.tokens || []).map(function (row) {
+            if (!row || String(row.id) !== String(foe.id)) return row;
+            var statuses = Array.isArray(row.status) ? row.status.slice() : [];
+            if (statuses.indexOf('distracted') < 0) statuses.push('distracted');
+            return Object.assign({}, row, { status: statuses });
+          });
+          persist(next);
+          return next;
+        });
+      }
+    } else {
+      stress = 0;
+    }
+
+    var actionName = selected ? selected.name : 'Basic Attack';
+    addHistory((actor.name || 'Enemy') + ' uses ' + actionName + ' at ' + hexLabel(dist)
+      + ' · Dread d' + dreadDie + ' rolled ' + enemyRoll
+      + ' vs ' + String(foe.name || 'target') + ' Defend d' + defendDie + ' rolled ' + defendRoll
+      + (hit ? (' -> HIT for ' + stress + ' Stress.') : ' -> resisted.'));
+    var notifEl = document.getElementById('combatLastNotification');
+    if (notifEl) {
+      notifEl.textContent = (actor.name || 'Enemy') + ' ' + (hit ? ('hit for ' + stress + ' stress') : 'was resisted') + ' · actions left ' + Math.max(0, Number(store.getState().teamActions && store.getState().teamActions[actor.id] || 0));
+    }
     drawBoard();
     updateUiPanels();
+    return true;
   }
 
   function bindStaticControls() {
@@ -3141,13 +3310,11 @@
           var nextRound = Number(state.round || 1);
           if (idx === 0 && size > 0) nextRound += 1;
           var next = Object.assign({}, state, { initiativeIndex: idx, currentTurnIndex: idx, round: nextRound });
-          if (!isCampaignModeActive()) {
-            next.teamActions = {};
-            (state.tokens || []).forEach(function (token) {
-              if (!token) return;
-              if (String(token.faction) === 'player' || String(token.faction) === 'monster') next.teamActions[token.id] = 2;
-            });
-          }
+          next.teamActions = {};
+          (state.tokens || []).forEach(function (token) {
+            if (!normalizeTokenActionBudgetToken(token)) return;
+            next.teamActions[token.id] = 2;
+          });
           persist(next);
           return next;
         });
@@ -3457,18 +3624,27 @@
     function runLegacyAction(kind) {
       var stateBefore = store.getState();
       var selectedActor = byId(stateBefore.selectedTokenId);
-      if ((kind === 'enemy' || kind === 'flow') && selectedActor && String(selectedActor.faction) === 'monster') {
+      if (kind === 'enemy' && selectedActor && String(selectedActor.faction) === 'monster') {
         var tokenTargetSelEnemy = document.getElementById('combatTokenTargetSel');
         var tIdEnemy = String(tokenTargetSelEnemy && tokenTargetSelEnemy.value || '');
         var targetEnemy = tIdEnemy ? byId(tIdEnemy) : null;
-        executeEnemyTokenAction(selectedActor, targetEnemy);
+        var tokenActionSelEnemy = document.getElementById('combatTokenActionSel');
+        var selectedEnemyAction = String(tokenActionSelEnemy && tokenActionSelEnemy.value || 'enemy_action');
+        executeEnemyTokenAction(selectedActor, targetEnemy, selectedEnemyAction);
         return;
       }
-      if (kind === 'enemy' || kind === 'flow') {
+      if (kind === 'enemy') {
         var activeRow = stateBefore.initiative && stateBefore.initiative[stateBefore.initiativeIndex] || null;
         var activeActor = activeRow ? byId(activeRow.tokenId) : null;
         if (activeActor && String(activeActor.faction) === 'monster') {
-          executeEnemyTokenAction(activeActor, null);
+          executeEnemyTokenAction(activeActor, null, 'enemy_action');
+          return;
+        }
+        var firstEnemy = (stateBefore.tokens || []).find(function (row) {
+          return row && String(row.faction) === 'monster' && !isTokenDead(row);
+        }) || null;
+        if (firstEnemy) {
+          safeNotif('Not enemy turn yet. Advance initiative to Enemy lane.', 'warn');
           return;
         }
       }
@@ -3478,14 +3654,13 @@
         else if (kind === 'defend' && typeof window.rollDefend === 'function') window.rollDefend();
         else if (kind === 'trauma' && typeof window.rollTraumaCheck === 'function') window.rollTraumaCheck();
         else if (kind === 'enemy' && typeof window.doEnemyTurn === 'function') window.doEnemyTurn();
-        else if (kind === 'flow' && typeof window.triggerEnemyActionEvent === 'function') window.triggerEnemyActionEvent();
       } catch (_err) {}
       tryApplyLegacyDamageToTokens(kind);
       updateUiPanels();
     }
 
     function tryApplyLegacyDamageToTokens(kind) {
-      var el = (kind === 'enemy' || kind === 'flow')
+      var el = (kind === 'enemy')
         ? document.getElementById('enemyActionResult')
         : document.getElementById('attackResult');
       if (!el) return;
@@ -3493,12 +3668,13 @@
       var match = text.match(/HIT!\s*(\d+)\s*Stress/i) || text.match(/(\d+)\s*Stress/i);
       if (!match) return;
       var damage = Math.max(1, parseInt(match[1], 10));
+      var isCrit = /crit/i.test(text);
       var state = store.getState();
       var tokenTargetSel = document.getElementById('combatTokenTargetSel');
       var targetId = String(tokenTargetSel && tokenTargetSel.value || '');
       var target = targetId ? byId(targetId) : null;
       if (!target) {
-        if (kind === 'enemy' || kind === 'flow') {
+        if (kind === 'enemy') {
           var players = (state.tokens || []).filter(function (t) { return t && !isTokenDead(t) && String(t.faction) === 'player'; });
           players.sort(function (a, b) { return Number(a.hp || 0) - Number(b.hp || 0); });
           target = players[0] || null;
@@ -3512,9 +3688,12 @@
         }
       }
       if (!target) return;
-      var newHp = applyDamageToToken(target.id, damage, kind === 'enemy' || kind === 'flow' ? 'Enemy Action' : 'Player Action');
+      var deathNumber = Math.max(1, Number(target.deathNumber || target.dread || target.codexDread || 6));
+      var lethal = isCrit || damage >= deathNumber;
+      var dealt = lethal ? Math.max(0, Number(target.hp || 0)) : damage;
+      var newHp = applyDamageToToken(target.id, dealt, kind === 'enemy' ? 'Enemy Action' : 'Player Action');
       var notifEl = document.getElementById('combatLastNotification');
-      if (notifEl) notifEl.textContent = String(target.name || 'Enemy') + ' takes ' + damage + ' stress · HP: ' + newHp;
+      if (notifEl) notifEl.textContent = String(target.name || 'Enemy') + ' takes ' + dealt + ' stress' + (lethal ? ' · Instant kill' : '') + ' · HP: ' + newHp;
       drawBoard();
     }
 
@@ -3546,12 +3725,6 @@
     if (cmdEnemy && !cmdEnemy._bound) {
       cmdEnemy._bound = true;
       cmdEnemy.onclick = function () { runLegacyAction('enemy'); };
-    }
-
-    var cmdFlow = document.getElementById('combatCmdFlowBtn');
-    if (cmdFlow && !cmdFlow._bound) {
-      cmdFlow._bound = true;
-      cmdFlow.onclick = function () { runLegacyAction('flow'); };
     }
 
     var cmdWayfarer = document.getElementById('combatCmdWayfarerBtn');
@@ -3591,7 +3764,7 @@
         }
         if (String(actor.faction) === 'monster') {
           var directTarget = targetVal ? byId(targetVal) : null;
-          executeEnemyTokenAction(actor, directTarget);
+          executeEnemyTokenAction(actor, directTarget, actionVal || 'enemy_action');
           return;
         }
         if (!actionVal) {
@@ -3624,7 +3797,7 @@
           safeNotif('Select an enemy token to use enemy actions.', 'warn');
           return;
         }
-        executeEnemyTokenAction(actor, null);
+        executeEnemyTokenAction(actor, null, 'enemy_action');
       };
     }
 
@@ -3946,14 +4119,15 @@
         }
         store.setState(function (state) {
           var next = Object.assign({}, state);
-          var wayfarerName = (window.S && window.S.name) || 'Wayfarer';
+          var wayfarerName = canonicalWayfarerName();
+          var maxHpByRules = getWayfarerMaxHpByRules();
           var portrait = (window.S && window.S.identityForge && window.S.identityForge.media && window.S.identityForge.media.portrait) || '';
           var t = {
             id: uid('player'),
             name: wayfarerName,
             faction: 'player',
-            hp: 12,
-            maxHp: 12,
+            hp: maxHpByRules,
+            maxHp: maxHpByRules,
             status: [],
             q: 0,
             r: 0,

@@ -249,6 +249,7 @@
     paintValue: 'forest',
     selectedTokenId: '',
     draggingTokenId: '',
+    playMode: true,
     autoRoll: true,
     initiativeIndex: 0,
     ruler: { active: false, start: null, end: null, distance: 0, label: 'Engaged' },
@@ -621,15 +622,16 @@
       + '<div class="combat-mini" id="combatTopMeta">No active scene.</div>'
       + '</div>'
       + '<div style="display:flex;gap:.28rem;align-items:center;">'
-      + '<button class="btn btn-xs" id="combatUploadMapBtn">Upload Battlemap</button>'
-      + '<button class="btn btn-xs" id="combatAddTokenBtn">+ Add Enemy</button>'
+      + '<button class="btn btn-xs" id="combatPlayModeBtn">Play View</button>'
+      + '<button class="btn btn-xs combat-editor-only" id="combatUploadMapBtn">Upload Battlemap</button>'
+      + '<button class="btn btn-xs combat-editor-only" id="combatAddTokenBtn">+ Add Enemy</button>'
       + '<button class="btn btn-xs btn-red" id="combatCloseBtn">End Scene</button>'
       + '</div>'
       + '</div>'
       + '<input id="combatMapImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatTokenImageInput" type="file" accept="image/*" style="display:none;">'
       + '<div class="combat-canvas-wrap"><canvas id="combatSceneCanvas"></canvas></div>'
-      + '<aside class="combat-floating-panel combat-left-tools" id="combatToolsPanel">'
+      + '<aside class="combat-floating-panel combat-left-tools combat-editor-only" id="combatToolsPanel">'
       + '<div class="combat-panel-header" data-drag="tools">Combat Scene</div>'
       + '<div class="combat-panel-body">'
       + '<div class="combat-label">Layer</div>'
@@ -721,6 +723,7 @@
       + '<div><div class="combat-label">Elevation</div><input class="combat-input" id="combatSelectedElevation" type="number" min="0" max="9"></div>'
       + '<button class="btn btn-xs" id="combatSaveTokenBtn">Save</button>'
       + '<button class="btn btn-xs" id="combatUploadTokenBtn">Portrait</button>'
+      + '<button class="btn btn-xs btn-red" id="combatDeleteTokenBtn">Delete Selected</button>'
       + '</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.24rem;align-items:end;margin-top:.28rem;">'
       + '<div><div class="combat-label">Weather</div><select class="combat-select" id="combatWeatherSelect"><option value="none">none</option><option value="rain">rain</option><option value="storm">storm</option><option value="fog">fog</option><option value="ash">ash</option></select></div>'
@@ -905,6 +908,17 @@
 
   function updateUiPanels() {
     var state = ensureActionBudgetMap(ensureInitiative(store.getState()));
+    var root = document.getElementById('combatModeOverlay');
+    if (root) {
+      if (state.playMode) root.classList.add('play-mode');
+      else root.classList.remove('play-mode');
+    }
+
+    var playModeBtn = document.getElementById('combatPlayModeBtn');
+    if (playModeBtn) {
+      playModeBtn.textContent = state.playMode ? 'Play View' : 'Build View';
+      playModeBtn.className = state.playMode ? 'btn btn-xs btn-teal' : 'btn btn-xs';
+    }
 
     var layers = ['terrain', 'objects', 'hazards', 'elevation', 'lighting', 'weather', 'interactives', 'spawns'];
     var tools = ['select', 'paint', 'erase', 'fog', 'ruler', 'pan'];
@@ -1136,7 +1150,7 @@
 
     var mirror = document.getElementById('combatLegacyResultMirror');
     if (mirror) {
-      var ids = ['attackResult', 'defendResult', 'traumaResult', 'enemyEventResult', 'wayfarerActionResult'];
+      var ids = ['attackResult', 'defendResult', 'traumaResult', 'enemyActionResult', 'wayfarerActionResult'];
       var text = '';
       for (var ii = 0; ii < ids.length; ii++) {
         var node = document.getElementById(ids[ii]);
@@ -1451,6 +1465,19 @@
       };
     }
 
+    var playModeBtn = document.getElementById('combatPlayModeBtn');
+    if (playModeBtn && !playModeBtn._bound) {
+      playModeBtn._bound = true;
+      playModeBtn.onclick = function () {
+        store.setState(function (state) {
+          var next = Object.assign({}, state, { playMode: !state.playMode });
+          persist(next);
+          return next;
+        });
+        updateUiPanels();
+      };
+    }
+
     var nextTurn = document.getElementById('combatNextTurnBtn');
     if (nextTurn && !nextTurn._bound) {
       nextTurn._bound = true;
@@ -1514,6 +1541,40 @@
         });
         addHistory('Updated HP for selected token.');
         drawBoard();
+      };
+    }
+
+    var deleteTokenBtn = document.getElementById('combatDeleteTokenBtn');
+    if (deleteTokenBtn && !deleteTokenBtn._bound) {
+      deleteTokenBtn._bound = true;
+      deleteTokenBtn.onclick = function () {
+        var state = store.getState();
+        var token = byId(state.selectedTokenId);
+        if (!token) return;
+        if (!window.confirm('Delete ' + String(token.name || 'selected token') + ' from this scene?')) return;
+        store.setState(function (inner) {
+          var next = Object.assign({}, inner);
+          next.tokens = (inner.tokens || []).filter(function (t) { return t && String(t.id) !== String(token.id); });
+          next.selectedTokenId = '';
+          next.initiative = [];
+          persist(next);
+          return next;
+        });
+        if (window.S && Array.isArray(window.S.enemies)) {
+          var sourceId = Number(token.sourceEnemyId || token.id || 0);
+          if (sourceId > 0) {
+            window.S.enemies = window.S.enemies.filter(function (e) { return !e || Number(e.id) !== sourceId; });
+            if (typeof window.renderEnemies === 'function') {
+              try { window.renderEnemies(); } catch (_err) {}
+            }
+            if (typeof window.updateCombatUI === 'function') {
+              try { window.updateCombatUI(); } catch (_err2) {}
+            }
+          }
+        }
+        addHistory('Deleted token: ' + String(token.name || 'Token') + '.');
+        drawBoard();
+        updateUiPanels();
       };
     }
 
@@ -1929,6 +1990,12 @@
     }
 
     store.setState({ open: true, entering: true });
+    store.setState(function (state) {
+      var activeCombat = !!(window.S && window.S.combat && window.S.combat.active);
+      var next = Object.assign({}, state, { playMode: activeCombat ? true : !!state.playMode });
+      persist(next);
+      return next;
+    });
     root.classList.add('open');
     setPanelPositions();
     updateUiPanels();

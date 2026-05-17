@@ -26,6 +26,10 @@
   display: block;
 }
 
+.combat-mode-overlay.play-mode .combat-editor-only {
+  display: none !important;
+}
+
 .combat-entry-splash {
   position: absolute;
   inset: 0;

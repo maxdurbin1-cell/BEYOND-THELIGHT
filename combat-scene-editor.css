@@ -129,6 +129,16 @@
   letter-spacing: 0.13em;
   text-transform: uppercase;
   color: var(--combat-accent);
+  user-select: none;
+}
+
+.combat-floating-panel.collapsed .combat-panel-header {
+  cursor: pointer;
+  border-bottom: none;
+}
+
+.combat-floating-panel.collapsed .combat-panel-body {
+  display: none;
 }
 
 .combat-panel-body {

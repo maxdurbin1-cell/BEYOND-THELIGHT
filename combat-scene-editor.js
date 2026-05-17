@@ -33,6 +33,17 @@
     };
   }
 
+  function togglePanel(panelId) {
+    var panel = document.getElementById(panelId);
+    if (!panel) return;
+    panel.classList.toggle('collapsed');
+    store.setState(function (state) {
+      var collapsed = state.collapsedPanels || {};
+      collapsed[panelId] = !collapsed[panelId];
+      return { collapsedPanels: collapsed };
+    });
+  }
+
   function hexLabel(distance) {
     var d = Math.max(0, Number(distance || 0));
     if (d <= 1) return 'Engaged';
@@ -252,6 +263,11 @@
     playMode: true,
     autoRoll: true,
     initiativeIndex: 0,
+    round: 1,
+    currentTurnIndex: 0,
+    collapsedPanels: { 'combatActionsPanel': false, 'combatEnemyLedger': true, 'combatWayfarerRulesPanel': true },
+    scenes: [{ id: 'scene-1', name: 'Main Scene', isActive: true }],
+    activeSceneId: 'scene-1',
     ruler: { active: false, start: null, end: null, distance: 0, label: 'Engaged' },
     board: {
       cols: 22,
@@ -618,11 +634,12 @@
       + '</div>'
       + '<div class="combat-topbar">'
       + '<div>'
-      + '<div class="combat-topbar-title">Combat Scene</div>'
-      + '<div class="combat-mini" id="combatTopMeta">No active scene.</div>'
+      + '<div class="combat-topbar-title">Combat Scene · Round <span id="combatRoundDisplay">1</span></div>'
+      + '<div class="combat-mini" id="combatTopMeta">No active scene. | Turn: <span id="combatTurnDisplay">Awaiting start</span></div>'
       + '</div>'
       + '<div style="display:flex;gap:.28rem;align-items:center;">'
       + '<button class="btn btn-xs" id="combatPlayModeBtn">Play View</button>'
+      + '<button class="btn btn-xs" id="combatAddWayfarerBtn" title="Add Wayfarer to board">+ Wayfarer</button>'
       + '<button class="btn btn-xs combat-editor-only" id="combatUploadMapBtn">Upload Battlemap</button>'
       + '<button class="btn btn-xs combat-editor-only" id="combatAddTokenBtn">+ Add Enemy</button>'
       + '<button class="btn btn-xs btn-red" id="combatCloseBtn">End Scene</button>'
@@ -651,7 +668,7 @@
       + '</div>'
       + '</aside>'
       + '<aside class="combat-floating-panel combat-right-rail" id="combatFeedPanel">'
-      + '<div class="combat-panel-header" data-drag="feed">Roll Checks</div>'
+      + '<div class="combat-panel-header" data-drag="feed" onclick="togglePanel(\'combatFeedPanel\')">Roll Checks <span style="float:right;font-size:.7rem;cursor:pointer;">◀</span></div>'
       + '<div class="combat-panel-body">'
       + '<div id="combatInitiativeList"></div>'
       + '<div style="display:flex;gap:.24rem;margin-top:.26rem;"><button class="btn btn-xs" id="combatNextTurnBtn">Next Turn</button><button class="btn btn-xs" id="combatRollModeBtn">Auto Roll</button></div>'
@@ -715,7 +732,7 @@
       + '</div>'
       + '</aside>'
       + '<aside class="combat-floating-panel combat-bottom-actions" id="combatActionsPanel">'
-      + '<div class="combat-panel-header" data-drag="actions">Roll Checks</div>'
+      + '<div class="combat-panel-header" data-drag="actions" onclick="togglePanel(\'combatActionsPanel\')">Token Actions <span style="float:right;font-size:.7rem;cursor:pointer;">◀</span></div>'
       + '<div class="combat-panel-body">'
       + '<div id="combatSelectedSummary" class="combat-mini">Select a token.</div>'
       + '<div style="display:grid;grid-template-columns:1fr auto auto;gap:.24rem;align-items:end;margin-top:.2rem;">'
@@ -912,6 +929,20 @@
     if (root) {
       if (state.playMode) root.classList.add('play-mode');
       else root.classList.remove('play-mode');
+    }
+
+    // Update round and turn display
+    var roundDisplay = document.getElementById('combatRoundDisplay');
+    if (roundDisplay) roundDisplay.textContent = String(Math.max(1, Number(state.round || 1)));
+
+    var turnDisplay = document.getElementById('combatTurnDisplay');
+    if (turnDisplay) {
+      var current = state.initiative && state.initiative[state.currentTurnIndex] || null;
+      if (current) {
+        turnDisplay.textContent = current.name || 'Awaiting start';
+      } else {
+        turnDisplay.textContent = 'Awaiting start';
+      }
     }
 
     var playModeBtn = document.getElementById('combatPlayModeBtn');
@@ -1957,6 +1988,45 @@
           return next;
         });
         addHistory('Summon token added to the scene.');
+        updateUiPanels();
+        drawBoard();
+      };
+    }
+
+    var addWayfarerBtn = document.getElementById('combatAddWayfarerBtn');
+    if (addWayfarerBtn && !addWayfarerBtn._bound) {
+      addWayfarerBtn._bound = true;
+      addWayfarerBtn.onclick = function () {
+        var state = store.getState();
+        var existing = (state.tokens || []).find(function (t) { return t && t.isPlayer; });
+        if (existing) {
+          safeNotif('Wayfarer already on board at ' + toKey(existing.q, existing.r) + '.', 'warn');
+          return;
+        }
+        store.setState(function (state) {
+          var next = Object.assign({}, state);
+          var wayfarerName = (window.S && window.S.name) || 'Wayfarer';
+          var portrait = (window.S && window.S.identityForge && window.S.identityForge.media && window.S.identityForge.media.portrait) || '';
+          var t = {
+            id: uid('player'),
+            name: wayfarerName,
+            faction: 'player',
+            hp: 12,
+            maxHp: 12,
+            status: [],
+            q: 0,
+            r: 0,
+            image: portrait,
+            size: 1,
+            isPlayer: true
+          };
+          next.tokens = (state.tokens || []).concat([t]);
+          next.selectedTokenId = t.id;
+          next.initiative = [];
+          persist(next);
+          return next;
+        });
+        addHistory('Wayfarer placed on the board (Engaged zone).');
         updateUiPanels();
         drawBoard();
       };

@@ -6226,40 +6226,220 @@ function refreshArmorSlotMeta() {
 
 const NAMED_ENEMY_BESTIARY = {
   province: [
-    { name: 'Vine Horror', desc: 'A knot of thorned roots wearing antlers and old bones.', dread: 4, health: 8 },
-    { name: 'Wailing Mummy', desc: 'Bandages whisper with trapped voices from forgotten tomb roads.', dread: 6, health: 12 },
-    { name: 'Bigmouth Imp', desc: 'Bigmouth Imps resemble living stone statues with wide, jar-like mouths.', dread: 4, health: 8 },
-    { name: 'Griffin Marauder', desc: 'A scarred sky-predator that stoops low and tears through pack lines.', dread: 6, health: 12 }
+    { name: 'Vine Horror', desc: 'A knot of thorned roots wearing antlers and old bones.', dread: 4, health: 8,
+      skills: [
+        { name: 'Entangling Grasp', desc: 'Root tendrils seize and hold.', save: 'body', range: ['engaged','close'], onFail: 'Restrained — cannot move next turn.' },
+        { name: 'Thorn Barrage', desc: 'A volley of razor thorns fans outward.', save: 'defend', range: ['engaged','close','nearby'], onFail: 'Take 2 Stress.' }
+      ]
+    },
+    { name: 'Wailing Mummy', desc: 'Bandages whisper with trapped voices from forgotten tomb roads.', dread: 6, health: 12,
+      skills: [
+        { name: 'Wail of Terror', desc: 'A shriek that rattles the living soul.', save: 'spirit', range: ['engaged','close','nearby'], onFail: 'Mental Stress +equal to difference +1.' },
+        { name: 'Bandage Wrap', desc: 'Ancient wrappings constrict in a heartbeat.', save: 'body', range: ['engaged'], onFail: 'Grappled — lose 1 Action next turn.' }
+      ]
+    },
+    { name: 'Bigmouth Imp', desc: 'Bigmouth Imps resemble living stone statues with wide, jar-like mouths.', dread: 4, health: 8,
+      skills: [
+        { name: 'Stone Spit', desc: 'Hurls shards of calcified saliva.', save: 'defend', range: ['close','nearby'], onFail: 'Take 2 Stress.' },
+        { name: 'Crushing Bite', desc: 'Wide jaw clamps shut with horrific force.', save: 'body', range: ['engaged'], onFail: 'Take 3 Stress.' }
+      ]
+    },
+    { name: 'Griffin Marauder', desc: 'A scarred sky-predator that stoops low and tears through pack lines.', dread: 6, health: 12,
+      skills: [
+        { name: 'Dive Strike', desc: 'Plunges from height with talons locked.', save: 'defend', range: ['engaged','close','nearby'], onFail: 'Take 3 Stress.' },
+        { name: 'Wing Buffet', desc: 'A powerful wing-sweep scatters the line.', save: 'body', range: ['engaged','close'], onFail: 'Knocked back 1 zone.' }
+      ]
+    },
+    { name: 'Wolf', desc: 'A pack hunter with grey haunches and amber eyes that catch firelight.', dread: 4, health: 8,
+      skills: [
+        { name: 'Pack Lunge', desc: 'Coordinated tackle from flanking angles.', save: 'body', range: ['engaged','close'], onFail: 'Knocked prone — Defend -1 next turn.' },
+        { name: 'Throat Lock', desc: 'Jaws close on the neck, refusing to release.', save: 'body', range: ['engaged'], onFail: 'Grappled — take 1 Stress per turn until freed.' }
+      ]
+    },
+    { name: 'Bandit', desc: 'A desperate road raider in mismatched kit who strikes fast and retreats.', dread: 4, health: 8,
+      skills: [
+        { name: 'Ambush Strike', desc: 'Rushes from cover with surprise momentum.', save: 'defend', range: ['engaged','close'], onFail: 'Take 2 Stress + lose Initiative next round.' },
+        { name: 'Throw Dust', desc: 'Flings grit and ash into eyes.', save: 'body', range: ['engaged','close'], onFail: '-1 to next Strike or Shoot.' }
+      ]
+    },
+    { name: 'Noble Guard', desc: 'Armored retainer in house colors with ranked soldier training.', dread: 6, health: 12,
+      skills: [
+        { name: 'Formation Strike', desc: 'Disciplined thrust backed by shield pressure.', save: 'defend', range: ['engaged'], onFail: 'Take 3 Stress + pushed back 1 zone.' },
+        { name: 'Noble Command', desc: 'A rallying shout that stiffens nearby allies.', save: 'spirit', range: ['engaged','close','nearby'], onFail: 'All hostile allies gain +1 to their next roll.' }
+      ]
+    },
+    { name: 'Skeleton Warrior', desc: 'A reanimated soldier in rusted plate that does not stop when hurt.', dread: 6, health: 12,
+      skills: [
+        { name: 'Rattling Charge', desc: 'Screaming rush of clattering bone and corroded steel.', save: 'defend', range: ['engaged','close'], onFail: 'Take 2 Stress + Terror check (Spirit vs Dread).' },
+        { name: 'Bone Shield', desc: 'Assembles a barrier of interlocked ribs.', save: 'strike', range: ['engaged'], onFail: 'Next Strike against it automatically misses.' }
+      ]
+    }
   ],
   lostcity: [
-    { name: 'Umbral Shifter', desc: 'A silhouette that blinks between angles where light should hold.', dread: 8, health: 16 },
-    { name: 'Wraith Hunter', desc: 'A long-limbed stalker that listens before it kills.', dread: 8, health: 16 },
-    { name: 'Ash Slime', desc: 'A tar-black ooze that remembers the heat of the old city.', dread: 6, health: 12 },
-    { name: 'Ruin Marauder', desc: 'An armored scavenger-knight with a jaw of welded scrap.', dread: 6, health: 12 }
+    { name: 'Umbral Shifter', desc: 'A silhouette that blinks between angles where light should hold.', dread: 8, health: 16,
+      skills: [
+        { name: 'Blink Strike', desc: 'Vanishes and reappears inside guard range.', save: 'defend', range: ['engaged','close'], onFail: 'Take 4 Stress. Cannot target Shifter again this round.' },
+        { name: 'Shadow Form', desc: 'Merges with ambient shadow — all light passes through.', save: 'control', range: ['nearby','far'], onFail: 'Next attack against it misses automatically.' }
+      ]
+    },
+    { name: 'Wraith Hunter', desc: 'A long-limbed stalker that listens before it kills.', dread: 8, health: 16,
+      skills: [
+        { name: 'Death Stare', desc: 'Fixes empty eyes on you — the soul recoils.', save: 'spirit', range: ['close','nearby'], onFail: 'Mental Stress +3.' },
+        { name: 'Long Grab', desc: 'Elongated limbs snap out further than reason allows.', save: 'body', range: ['engaged','close'], onFail: 'Grappled — take 2 Stress each turn until escaped.' }
+      ]
+    },
+    { name: 'Ash Slime', desc: 'A tar-black ooze that remembers the heat of the old city.', dread: 6, health: 12,
+      skills: [
+        { name: 'Acid Splash', desc: 'Corrosive residue arcs onto nearby targets.', save: 'body', range: ['engaged','close'], onFail: 'Take 2 Stress + armor penalty -1 this scene.' },
+        { name: 'Engulf', desc: 'The mass surrounds and traps with crushing weight.', save: 'body', range: ['engaged'], onFail: 'Trapped — lose 1 Action, take 1 Stress each turn.' }
+      ]
+    },
+    { name: 'Ruin Marauder', desc: 'An armored scavenger-knight with a jaw of welded scrap.', dread: 6, health: 12,
+      skills: [
+        { name: 'Suppressive Burst', desc: 'Incoming fire hammers your position.', save: 'defend', range: ['engaged','close','nearby','far'], onFail: 'Mental Stress equal to the difference +1.' },
+        { name: 'Shield Slam', desc: 'Charges with iron shoulder mass.', save: 'body', range: ['engaged'], onFail: 'Pushed back 1 zone + take 2 Stress.' }
+      ]
+    },
+    { name: 'Cultist', desc: 'A hollow-eyed fanatic who bleeds for belief and fights without fear.', dread: 6, health: 12,
+      skills: [
+        { name: 'Fanatical Rush', desc: 'Screaming charge ignoring personal injury.', save: 'defend', range: ['engaged','close'], onFail: 'Take 3 Stress.' },
+        { name: 'Blind Sacrifice', desc: 'Detonates a carried relic — friend or foe.', save: 'body', range: ['engaged','close','nearby'], onFail: 'Take 2 Stress, all others in zone take 1 Stress.' }
+      ]
+    }
   ],
   sea: [
-    { name: 'Drowned Hunter', desc: 'A salt-black predator that rises between swells with hooked hands.', dread: 4, health: 8 },
-    { name: 'Keel Wraith', desc: 'A drowned revenant clinging to barnacled timbers.', dread: 6, health: 12 },
-    { name: 'Reef Griffin', desc: 'A storm-winged behemoth that nests in broken lighthouse crowns.', dread: 8, health: 16 },
-    { name: 'Maelstrom Slime', desc: 'A translucent tide-ooze that strips metal to lace.', dread: 6, health: 12 }
+    { name: 'Drowned Hunter', desc: 'A salt-black predator that rises between swells with hooked hands.', dread: 4, health: 8,
+      skills: [
+        { name: 'Hooked Pull', desc: 'Curved claws drag targets into the water.', save: 'body', range: ['engaged','close'], onFail: 'Dragged 1 zone closer + take 1 Stress.' },
+        { name: 'Drown Hold', desc: 'Grips and forces a target beneath the surface.', save: 'body', range: ['engaged'], onFail: 'Grappled — lose 1 Action, take 1 Stress each turn.' }
+      ]
+    },
+    { name: 'Keel Wraith', desc: 'A drowned revenant clinging to barnacled timbers.', dread: 6, health: 12,
+      skills: [
+        { name: 'Spectral Chill', desc: 'Cold emanates from the wraith, numbing the will.', save: 'spirit', range: ['engaged','close'], onFail: '-1 to all rolls until end of next turn.' },
+        { name: 'Barnacle Lash', desc: 'Razor-edged arm rakes through flesh.', save: 'defend', range: ['engaged'], onFail: 'Take 3 Stress.' }
+      ]
+    },
+    { name: 'Reef Griffin', desc: 'A storm-winged behemoth that nests in broken lighthouse crowns.', dread: 8, health: 16,
+      skills: [
+        { name: 'Storm Talon', desc: 'Sweeps down with electrified claws.', save: 'defend', range: ['engaged','close','nearby'], onFail: 'Take 5 Stress.' },
+        { name: 'Tidal Screech', desc: 'A sonic blast that disorients across the whole field.', save: 'spirit', range: ['engaged','close','nearby','far'], onFail: 'Mental Stress +2.' }
+      ]
+    },
+    { name: 'Maelstrom Slime', desc: 'A translucent tide-ooze that strips metal to lace.', dread: 6, health: 12,
+      skills: [
+        { name: 'Acid Wave', desc: 'A rolling front of corrosive fluid.', save: 'body', range: ['engaged','close','nearby'], onFail: 'Armor degraded — lose Armor Advantage Die this scene.' },
+        { name: 'Tide Surge', desc: 'Surges forward with hydraulic force.', save: 'body', range: ['engaged'], onFail: 'Pushed 2 zones + take 2 Stress.' }
+      ]
+    },
+    { name: 'Pirate', desc: 'A cutthroat mariner in salt-crusted leathers who fights dirty.', dread: 6, health: 12,
+      skills: [
+        { name: 'Blunderbuss Volley', desc: 'Wide-spread shot at close range.', save: 'defend', range: ['engaged','close','nearby'], onFail: 'Take 3 Stress.' },
+        { name: 'Boarding Hook', desc: 'Throw and yank to close the distance.', save: 'body', range: ['close','nearby'], onFail: 'Dragged into Engaged range + lose 1 Action.' }
+      ]
+    }
   ],
   world: [
-    { name: 'Neon Wraith', desc: 'A city-haunt stitched from static and old surveillance light.', dread: 8, health: 16 },
-    { name: 'Iron Marauder', desc: 'A war-born brute in broken riot plating.', dread: 8, health: 16 },
-    { name: 'Grave Hunter', desc: 'A rail-side tracker with a mask of polished bone.', dread: 6, health: 12 },
-    { name: 'Tunnel Slime', desc: 'A chemical ooze that pulses beneath undercity grates.', dread: 6, health: 12 }
+    { name: 'Neon Wraith', desc: 'A city-haunt stitched from static and old surveillance light.', dread: 8, health: 16,
+      skills: [
+        { name: 'Static Surge', desc: 'Overloads local electronics and nervous systems.', save: 'control', range: ['engaged','close','nearby'], onFail: 'Hacks and tech items disabled until next turn.' },
+        { name: 'Phase Strike', desc: 'Passes through cover and armored layers.', save: 'defend', range: ['engaged'], onFail: 'Take 4 Stress, ignores all Cover bonuses.' }
+      ]
+    },
+    { name: 'Iron Marauder', desc: 'A war-born brute in broken riot plating.', dread: 8, health: 16,
+      skills: [
+        { name: 'Suppressive Burst', desc: 'Incoming fire hammers your position.', save: 'defend', range: ['engaged','close','nearby','far'], onFail: 'Mental Stress equal to the difference +1.' },
+        { name: 'Riot Charge', desc: 'Full momentum crash behind a riot shield.', save: 'body', range: ['engaged','close'], onFail: 'Knocked prone + take 3 Stress.' }
+      ]
+    },
+    { name: 'Grave Hunter', desc: 'A rail-side tracker with a mask of polished bone.', dread: 6, health: 12,
+      skills: [
+        { name: 'Ambush Strike', desc: 'Drops from shadow when the target is off-guard.', save: 'defend', range: ['engaged','close'], onFail: 'Take 3 Stress + surprise: lose 1 Action.' },
+        { name: 'Bone Mask Terror', desc: 'The hollow face causes involuntary fear response.', save: 'spirit', range: ['nearby'], onFail: 'Mental Stress +2.' }
+      ]
+    },
+    { name: 'Tunnel Slime', desc: 'A chemical ooze that pulses beneath undercity grates.', dread: 6, health: 12,
+      skills: [
+        { name: 'Rad Leak', desc: 'Irradiated coolant vents into your lane.', save: 'spirit', range: ['nearby','far'], onFail: 'Gain Radiation equal to the difference, minimum 1.' },
+        { name: 'Chemical Spray', desc: 'Caustic compound sprays on contact.', save: 'body', range: ['engaged','close'], onFail: 'Take 2 Stress + -1 Body checks this scene.' }
+      ]
+    },
+    { name: 'Cultist', desc: 'A hollow-eyed fanatic who bleeds for belief and fights without fear.', dread: 6, health: 12,
+      skills: [
+        { name: 'Fanatical Rush', desc: 'Screaming charge ignoring personal injury.', save: 'defend', range: ['engaged','close'], onFail: 'Take 3 Stress.' },
+        { name: 'Blind Sacrifice', desc: 'Detonates a carried relic in desperation.', save: 'body', range: ['engaged','close','nearby'], onFail: 'Take 2 Stress. All in zone take 1 Stress.' }
+      ]
+    },
+    { name: 'Mech Drone', desc: 'A repurposed work-chassis refit for violence with industrial claws.', dread: 8, health: 16,
+      skills: [
+        { name: 'Hydraulic Slam', desc: 'Piston-driven arm strike with crushing force.', save: 'body', range: ['engaged'], onFail: 'Take 4 Stress + knocked prone.' },
+        { name: 'Targeting Beam', desc: 'Locks a laser designator on one target.', save: 'control', range: ['close','nearby','far'], onFail: 'Next attack against you gains Advantage Die.' }
+      ]
+    }
   ],
   planet: [
-    { name: 'Umbral Griffin', desc: 'A six-eyed apex flier that hunts by echo and heat.', dread: 8, health: 16 },
-    { name: 'Spore Wraith', desc: 'A drifting fungal specter that seeps through cracked visors.', dread: 8, health: 16 },
-    { name: 'Crater Hunter', desc: 'A low-slung predator armored in obsidian ridges.', dread: 6, health: 12 },
-    { name: 'Glass Slime', desc: 'A mirror-slick organism that reflects false terrain.', dread: 6, health: 12 }
+    { name: 'Umbral Griffin', desc: 'A six-eyed apex flier that hunts by echo and heat.', dread: 8, health: 16,
+      skills: [
+        { name: 'Echo Hunt', desc: 'Uses echolocation to strip away concealment.', save: 'control', range: ['nearby','far'], onFail: 'Cannot hide or reposition freely this round.' },
+        { name: 'Heat Dive', desc: 'Locks onto thermal signature for a deadly strike.', save: 'defend', range: ['engaged','close','nearby'], onFail: 'Take 5 Stress.' }
+      ]
+    },
+    { name: 'Spore Wraith', desc: 'A drifting fungal specter that seeps through cracked visors.', dread: 8, health: 16,
+      skills: [
+        { name: 'Spore Cloud', desc: 'Releases a concentrated burst of toxic spores.', save: 'body', range: ['engaged','close','nearby'], onFail: 'Radiation +2.' },
+        { name: 'Visor Breach', desc: 'Fungal tendrils force through helmet seals.', save: 'control', range: ['engaged'], onFail: '-2 to all rolls this turn.' }
+      ]
+    },
+    { name: 'Crater Hunter', desc: 'A low-slung predator armored in obsidian ridges.', dread: 6, health: 12,
+      skills: [
+        { name: 'Ridge Charge', desc: 'Sprints low with armored shoulders leading.', save: 'body', range: ['engaged','close'], onFail: 'Take 3 Stress + pushed 1 zone.' },
+        { name: 'Stone Spine Burst', desc: 'Spines erupt from back in a wide cone.', save: 'defend', range: ['close','nearby'], onFail: 'Take 2 Stress.' }
+      ]
+    },
+    { name: 'Glass Slime', desc: 'A mirror-slick organism that reflects false terrain.', dread: 6, health: 12,
+      skills: [
+        { name: 'Mirror Trap', desc: 'Refraction causes target to see a false image and attack it.', save: 'control', range: ['engaged','close'], onFail: 'Confused — your attack targets an ally instead.' },
+        { name: 'Refraction', desc: 'Bends incoming light, misdirecting ranged fire.', save: 'defend', range: ['nearby'], onFail: 'Take 2 Stress from misdirected return shot.' }
+      ]
+    },
+    { name: 'Shadow Hound', desc: 'A six-limbed predator that melts into low shadows between attacks.', dread: 6, health: 12,
+      skills: [
+        { name: 'Shadow Lunge', desc: 'Emerges from shade with terrifying acceleration.', save: 'defend', range: ['engaged','close','nearby'], onFail: 'Take 3 Stress. Cannot retaliate this turn.' },
+        { name: 'Scent Lock', desc: 'Tracks by pheromone signature — impossible to lose.', save: 'body', range: ['nearby','far'], onFail: 'Cannot disengage or flee this scene without a Spirit check.' }
+      ]
+    }
   ],
   galaxy: [
-    { name: 'Void Wraith', desc: 'A pressureless ghost-form that boards through sealed hulls.', dread: 10, health: 20 },
-    { name: 'Star Marauder', desc: 'A boarding reaver wrapped in insulated war-cloth.', dread: 8, health: 16 },
-    { name: 'Signal Hunter', desc: 'A predatory drone-pack keyed to distress frequencies.', dread: 8, health: 16 },
-    { name: 'Nebula Slime', desc: 'An ionized ooze that nests in dead conduits.', dread: 6, health: 12 }
+    { name: 'Void Wraith', desc: 'A pressureless ghost-form that boards through sealed hulls.', dread: 10, health: 20,
+      skills: [
+        { name: 'Hull Breach', desc: 'Phases through armor and causes explosive decompression trauma.', save: 'control', range: ['engaged','close'], onFail: 'Lose 1 Action + Radiation 1.' },
+        { name: 'Phase Terror', desc: 'Manifests half-inside a target, triggering primal terror.', save: 'spirit', range: ['engaged','close','nearby'], onFail: 'Mental Stress +4.' }
+      ]
+    },
+    { name: 'Star Marauder', desc: 'A boarding reaver wrapped in insulated war-cloth.', dread: 8, health: 16,
+      skills: [
+        { name: 'Suppressive Burst', desc: 'Incoming fire hammers your position.', save: 'defend', range: ['engaged','close','nearby','far'], onFail: 'Mental Stress equal to the difference +1.' },
+        { name: 'Boarding Charge', desc: 'Full-speed charge with magnetic grapple.', save: 'body', range: ['engaged','close'], onFail: 'Grappled + take 3 Stress.' }
+      ]
+    },
+    { name: 'Signal Hunter', desc: 'A predatory drone-pack keyed to distress frequencies.', dread: 8, health: 16,
+      skills: [
+        { name: 'Lock Frequency', desc: 'Jams comms and tech on a targeted wavelength.', save: 'control', range: ['nearby','far'], onFail: 'Cannot use hacks or tech items next turn.' },
+        { name: 'Swarm Strike', desc: 'Multiple drones converge from different vectors.', save: 'defend', range: ['engaged','close','nearby'], onFail: 'Take 4 Stress.' }
+      ]
+    },
+    { name: 'Nebula Slime', desc: 'An ionized ooze that nests in dead conduits.', dread: 6, health: 12,
+      skills: [
+        { name: 'Ion Blast', desc: 'Discharges stored static in a directed arc.', save: 'control', range: ['engaged','close','nearby'], onFail: 'Tech items disabled until end of scene.' },
+        { name: 'Conductive Slick', desc: 'Coats the floor — contact transmits a shock.', save: 'body', range: ['engaged','close'], onFail: 'Take 2 Stress + slowed.' }
+      ]
+    },
+    { name: 'Mech Drone', desc: 'A repurposed work-chassis refit for violence with industrial claws.', dread: 8, health: 16,
+      skills: [
+        { name: 'Hydraulic Slam', desc: 'Piston-driven arm strike with crushing force.', save: 'body', range: ['engaged'], onFail: 'Take 4 Stress + knocked prone.' },
+        { name: 'Targeting Beam', desc: 'Locks a laser designator on one target.', save: 'control', range: ['close','nearby','far'], onFail: 'Next attack against you gains Advantage Die.' }
+      ]
+    }
   ]
 };
 
@@ -15433,7 +15613,7 @@ function buildTravelScenePanelHtml(hex){
     : '<div style="font-size:.72rem;color:var(--muted2);">No NPC tokens seeded yet.</div>';
 
   const tagLabelHtml = active&&active.tag ? '<span style="font-size:.72rem;color:var(--muted2);margin-left:.5rem;">['+escapeHtmlLite(active.tag)+']</span>' : '';
-  return '<details class="npc-block" style="margin-bottom:.45rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);" open>'
+  return '<details class="npc-block" style="margin-bottom:.45rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);">'
     + '<summary class="nb-label" style="color:var(--teal);cursor:pointer;list-style:none;">🎬 Travel Scene'+tagLabelHtml+'</summary>'
     + '<div style="margin-top:.28rem;">'
     + '<div style="font-size:.76rem;color:var(--text2);line-height:1.55;margin-bottom:.35rem;">Create or load a scene at this hex, attach an image, seed NPC tokens, then launch directly into Combat Mode.</div>'
@@ -15447,7 +15627,6 @@ function buildTravelScenePanelHtml(hex){
       + '<button class="btn btn-xs" onclick="loadTravelSceneAtHex('+col+','+row+')">Load</button>'
     + '</div>'
     + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem;">'
-      + '<button class="btn btn-xs btn-teal" onclick="triggerTravelSceneImageUpload('+col+','+row+')">Upload Scene Image</button>'
       + '<button class="btn btn-xs btn-primary" onclick="launchTravelSceneToCombat('+col+','+row+')">Launch Into Combat Mode</button>'
     + '</div>'
     + sceneMgmtHtml

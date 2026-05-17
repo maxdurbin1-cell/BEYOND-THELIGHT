@@ -768,6 +768,11 @@
     lines.push('Strike math: ' + (strikeFlat >= 0 ? '+' : '') + strikeFlat + ' flat' + (strikeAdv.length ? (' · Advantage ' + strikeAdv.map(function (v) { return 'd' + v; }).join(', ')) : ''));
     lines.push('Shoot math: ' + (shootFlat >= 0 ? '+' : '') + shootFlat + ' flat' + (shootAdv.length ? (' · Advantage ' + shootAdv.map(function (v) { return 'd' + v; }).join(', ')) : ''));
     lines.push('Flavor: ' + (flavor || 'None selected') + (token ? (' · Token: ' + String(token.name || 'Token')) : ''));
+    var equip = window.S && window.S.equipment ? window.S.equipment : {};
+    var w1 = String(equip.weapon1 || '').trim();
+    var w2 = String(equip.weapon2 || '').trim();
+    var armor = String(equip.armor || '').trim();
+    lines.push('Weapon: ' + (w1 || 'None') + (w2 ? (' · Off-hand: ' + w2) : '') + ' · Armor: ' + (armor || 'None'));
     return lines;
   }
 
@@ -933,58 +938,44 @@
       + '<div id="combatSceneOpenerSummary" class="combat-mini">No opener active.</div>'
       + '</div>'
       + '<div class="combat-action-block">'
-      + '<div class="combat-label">Roll Checks</div>'
+      + '<div class="combat-label">Last Roll</div>'
+      + '<div id="combatLegacyResultMirror" class="combat-result-mirror" style="font-size:.82rem;line-height:1.5;">Roll results appear here.</div>'
+      + '<div id="combatLastNotification" class="combat-result-mirror" style="margin-top:.2rem;font-size:.78rem;color:var(--teal);"></div>'
+      + '</div>'
+      + '<div class="combat-action-block">'
+      + '<div class="combat-label">Roll Context</div>'
       + '<div id="combatLegacyStatusMirror" class="combat-result-mirror">Status bridge idle.</div>'
       + '<div id="combatLegacyRollModMirror" class="combat-result-mirror">Roll modifiers: none.</div>'
-      + '<div id="combatLegacyActionInfoMirror" class="combat-result-mirror">Wayfarer action details appear here.</div>'
+      + '<div id="combatLegacyActionInfoMirror" class="combat-result-mirror">Action details appear here.</div>'
       + '<div id="combatLegacyFlavorMirror" class="combat-result-mirror"></div>'
       + '<div class="combat-feed" id="combatLegacyRowsMirror"></div>'
-      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">'
-      + '<button class="btn btn-xs" id="combatOpenUtilityPromptBtn">Use Item / Hack / Spell / Flavor</button>'
-      + '<button class="btn btn-xs" id="combatOpenFlavorActionBtn">Use Personal Flavor</button>'
-      + '</div>'
-      + '</div>'
       + '<div class="combat-action-block">'
       + '<div class="combat-label">Enemy Budget Ledger</div>'
       + '<div id="combatEnemyLedgerMeta" class="combat-result-mirror">Awaiting enemy actions...</div>'
       + '<div class="combat-feed" id="combatEnemyLedgerFeed"></div>'
       + '</div>'
-      + '<div class="combat-action-block">'
-      + '<div class="combat-label">Direct Roll (Strike / Shoot)</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.22rem;margin-top:.22rem;">'
-      + '<button class="btn btn-xs" id="combatCmdStrikeBtn">⚄ Roll Strike</button>'
-      + '<button class="btn btn-xs" id="combatCmdShootBtn">⚄ Roll Shoot</button>'
-      + '<button class="btn btn-xs" id="combatCmdDefendBtn">⚄ Roll Defend</button>'
-      + '<button class="btn btn-xs" id="combatCmdTraumaBtn">⚄ Trauma Check</button>'
+      + '<div style="display:flex;gap:.24rem;margin-top:.26rem;">'
       + '<button class="btn btn-xs" id="combatCmdEnemyBtn">☠ Enemy Action</button>'
       + '<button class="btn btn-xs" id="combatCmdFlowBtn">Enemy Flow</button>'
+      + '<button class="btn btn-xs" id="combatCmdDefendBtn">Roll Defend</button>'
+      + '<button class="btn btn-xs" id="combatCmdTraumaBtn">Trauma</button>'
       + '</div>'
-      + '<div style="margin-top:.22rem;">'
-      + '<div class="combat-label">⚔ Wayfarer Action</div>'
-      + '<select class="combat-select" id="combatWayfarerActionSel">'
-      + '<option value="">— Choose Action —</option>'
-      + '</select>'
-      + '<div id="combatWayfarerContext" class="combat-mini" style="margin-top:.14rem;">Actions and wording mirror Combat Tab rules.</div>'
-      + '<button class="btn btn-xs" id="combatCmdWayfarerBtn" style="margin-top:.18rem;">⚄ Execute</button>'
-      + '</div>'
-      + '<div id="combatLegacyResultMirror" class="combat-result-mirror">Legacy combat output mirrors here.</div>'
-      + '</div>'
-      + '<div class="combat-action-block">'
-      + '<div class="combat-label">⚔ Wayfarer Action</div>'
-      + '<div id="combatWayfarerRulesTable" style="margin-top:.22rem;"></div>'
-      + '</div>'
-      + '<div class="combat-action-block">'
-      + '<div class="combat-label">Ally Actions</div>'
-      + '<div class="combat-mini" id="combatAllyBudgetMeta">2 actions each ally/enemy (non-campaign).</div>'
-      + '<select class="combat-select" id="combatAllySelect" style="margin-top:.2rem;"></select>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.22rem;margin-top:.2rem;">'
+      + '<div style="display:none;">'
+      + '<select class="combat-select" id="combatWayfarerActionSel"><option value="">— Choose Action —</option></select>'
+      + '<div id="combatWayfarerContext" class="combat-mini"></div>'
+      + '<button class="btn btn-xs" id="combatCmdWayfarerBtn">Execute</button>'
+      + '<button class="btn btn-xs" id="combatCmdStrikeBtn">Roll Strike</button>'
+      + '<button class="btn btn-xs" id="combatCmdShootBtn">Roll Shoot</button>'
+      + '<button class="btn btn-xs" id="combatOpenUtilityPromptBtn">Use Item</button>'
+      + '<button class="btn btn-xs" id="combatOpenFlavorActionBtn">Use Flavor</button>'
+      + '<select class="combat-select" id="combatAllySelect"></select>'
+      + '<div id="combatAllyBudgetMeta"></div>'
       + '<button class="btn btn-xs" id="combatAllyDefendBtn">Defend Ally</button>'
       + '<button class="btn btn-xs" id="combatAllySupportBtn">Support Ally</button>'
       + '<button class="btn btn-xs" id="combatAllyAttackBtn">Attack Enemy</button>'
       + '<button class="btn btn-xs" id="combatAllyMoveBtn">Move</button>'
       + '</div>'
-      + '</div>'
-      + '<div class="combat-feed" id="combatFeedLog"></div>'
+      + '<div class="combat-feed" id="combatFeedLog" style="margin-top:.3rem;"></div>'
       + '</div>'
       + '</aside>'
       + '<aside class="combat-floating-panel combat-bottom-actions" id="combatActionsPanel">'
@@ -1765,6 +1756,34 @@
           + '<div class="combat-feed-line">Dread Die: d' + Math.max(4, Number(selected.dread || selected.codexDread || 6)) + '</div>'
           + '<div class="combat-feed-line">Health: ' + Math.max(0, Number(selected.hp || 0)) + '/' + Math.max(1, Number(selected.maxHp || selected.hp || 1)) + '</div>';
       }
+      // Append unique monster skills if available
+      var enemyProfile = typeof window.getNamedEnemyProfileByName === 'function' ? window.getNamedEnemyProfileByName(selected && selected.name) : null;
+      if (!enemyProfile && selected && selected.name) {
+        // fallback: search NAMED_ENEMY_BESTIARY directly
+        var allBest = typeof window.NAMED_ENEMY_BESTIARY !== 'undefined' ? window.NAMED_ENEMY_BESTIARY : null;
+        if (allBest) {
+          Object.keys(allBest).some(function (k) {
+            var found = (allBest[k] || []).find(function (e) { return e && String(e.name).toLowerCase() === String(selected.name).toLowerCase(); });
+            if (found) { enemyProfile = found; return true; }
+            return false;
+          });
+        }
+      }
+      if (!selected.isPlayer && String(selected.faction) !== 'player' && enemyProfile && Array.isArray(enemyProfile.skills) && enemyProfile.skills.length) {
+        var tknSheetState = store.getState();
+        var actorForDist = byId(tknSheetState.selectedTokenId) || (tknSheetState.tokens || []).find(function (t) { return t && (t.isPlayer || String(t.faction) === 'player'); });
+        var distToActor = actorForDist ? hexDistance({ q: selected.q, r: selected.r }, { q: actorForDist.q, r: actorForDist.r }) : 999;
+        var HEX_RANGE_MAP = { 'engaged': 1, 'close': 2, 'nearby': 4, 'far': 99 };
+        var skillLines = enemyProfile.skills.map(function (sk) {
+          var maxSkillRange = (sk.range || []).reduce(function (max, r) { return Math.max(max, HEX_RANGE_MAP[r] || 1); }, 0);
+          var inRange = distToActor <= maxSkillRange;
+          return '<div class="combat-feed-line" style="color:' + (inRange ? 'var(--accent-2)' : 'var(--muted2)') + ';">'
+            + '⚡ ' + String(sk.name) + ' [' + (sk.range || []).join('/') + '] — ' + (inRange ? '✓ In Range' : '✗ Out of range → defaults to Strike/Shoot')
+            + '</div>'
+            + '<div class="combat-feed-line" style="font-size:.72rem;color:var(--muted2);padding-left:.5rem;">' + String(sk.desc) + ' · On fail: ' + String(sk.onFail) + '</div>';
+        }).join('');
+        tokenSheetMirror.innerHTML += '<div style="margin-top:.3rem;border-top:1px solid var(--border2);padding-top:.25rem;">' + skillLines + '</div>';
+      }
     }
 
     var tokenTargetSel = document.getElementById('combatTokenTargetSel');
@@ -1815,7 +1834,25 @@
         var reachable = canActionReachTarget(selectedAction, distNow);
         tokenActionHelp.textContent = 'Target ' + String(targetNow.name || 'Enemy') + ' · ' + hexLabel(distNow) + ' (' + distNow + 'h) · ' + (reachable ? 'In range' : 'Out of range for this action') + '.';
       } else if (actorNow && (actorNow.isPlayer || String(actorNow.faction) === 'player')) {
-        tokenActionHelp.textContent = 'Quick Actions: choose target + action, then Execute.';
+        var actionCtxLines = [];
+        var selAct = String(tokenActionSel && tokenActionSel.value || '');
+        var equip2 = window.S && window.S.equipment ? window.S.equipment : {};
+        if (selAct.indexOf('personal_flavor') >= 0 || selAct.indexOf('flavor') >= 0) {
+          var fl2 = String(window.S && window.S.flavor || 'None selected');
+          actionCtxLines.push('Personal Flavor: ' + fl2);
+        } else if (selAct.indexOf('use_item') >= 0 || selAct.indexOf('item') >= 0 || selAct.indexOf('hack') >= 0 || selAct.indexOf('spell') >= 0) {
+          var w1c = String(equip2.weapon1 || '').trim();
+          var w2c = String(equip2.weapon2 || '').trim();
+          var arc = String(equip2.armor || '').trim();
+          actionCtxLines.push('Equipped — Weapon: ' + (w1c || 'None') + (w2c ? ' · Off-hand: ' + w2c : '') + ' · Armor: ' + (arc || 'None'));
+          var items2 = window.S && window.S.items ? window.S.items : (window.S && window.S.backpack ? window.S.backpack : null);
+          if (items2 && Array.isArray(items2) && items2.length) {
+            actionCtxLines.push('Backpack: ' + items2.slice(0, 3).map(function (it) { return String(it && (it.name || it) || ''); }).filter(Boolean).join(', ') + (items2.length > 3 ? ' +more' : ''));
+          }
+        } else {
+          actionCtxLines.push('Quick Actions: choose target + action, then Execute.');
+        }
+        tokenActionHelp.textContent = actionCtxLines.join(' | ');
       } else if (actorNow && String(actorNow.faction) === 'monster') {
         tokenActionHelp.textContent = 'Roster Action: run enemy behavior from the selected token.';
       } else {
@@ -1826,12 +1863,18 @@
     var opener = document.getElementById('combatSceneOpenerSummary');
     if (opener) {
       var so = window.S && window.S.combat && window.S.combat.sceneOpener ? window.S.combat.sceneOpener : null;
+      if (!so) {
+        var csState = store.getState();
+        var activeScId = csState && csState.activeSceneId;
+        var activeScn = activeScId && Array.isArray(csState.scenes) ? csState.scenes.find(function (sc) { return sc && sc.id === activeScId; }) : null;
+        if (activeScn && activeScn.sceneOpener) so = activeScn.sceneOpener;
+      }
       if (so) {
         var zone = String(so.zone || 'Unknown');
         var cover = String(so.cover || 'none');
         var react = String(so.enemyReaction || 'Unknown');
         var activity = String(so.enemyActivity || 'Unknown');
-        opener.textContent = 'Zone: ' + zone + ' · Cover: ' + cover + ' · Enemy Reaction: ' + react + ' · Enemy Activity: ' + activity + ' · Rad zones +10 unless protected.';
+        opener.textContent = '🎬 ' + zone + ' · ' + cover + ' · ' + react + ' · ' + activity;
       } else {
         opener.textContent = 'No opener active.';
       }
@@ -2586,7 +2629,46 @@
         else if (kind === 'enemy' && typeof window.doEnemyTurn === 'function') window.doEnemyTurn();
         else if (kind === 'flow' && typeof window.triggerEnemyActionEvent === 'function') window.triggerEnemyActionEvent();
       } catch (_err) {}
+      tryApplyLegacyDamageToTokens(kind);
       updateUiPanels();
+    }
+
+    function tryApplyLegacyDamageToTokens(kind) {
+      if (kind !== 'strike' && kind !== 'shoot') return;
+      var el = document.getElementById('attackResult');
+      if (!el) return;
+      var text = el.textContent || el.innerText || '';
+      var match = text.match(/HIT!\s*(\d+)\s*Stress/i);
+      if (!match) return;
+      var damage = Math.max(1, parseInt(match[1], 10));
+      var state = store.getState();
+      var tokenTargetSel = document.getElementById('combatTokenTargetSel');
+      var targetId = String(tokenTargetSel && tokenTargetSel.value || '');
+      var target = targetId ? byId(targetId) : null;
+      if (!target) {
+        var actor = byId(state.selectedTokenId) || (state.tokens || []).find(function (t) { return t && t.isPlayer; });
+        var enemies = (state.tokens || []).filter(function (t) { return t && String(t.faction) === 'monster' && Number(t.hp || 0) > 0; });
+        if (actor && enemies.length) {
+          enemies.sort(function (a, b) { return hexDistance({ q: actor.q, r: actor.r }, { q: a.q, r: a.r }) - hexDistance({ q: actor.q, r: actor.r }, { q: b.q, r: b.r }); });
+          target = enemies[0];
+        }
+      }
+      if (!target) return;
+      var prevHp = Math.max(0, Number(target.hp || 0));
+      var newHp = Math.max(0, prevHp - damage);
+      store.setState(function (inner) {
+        var next = Object.assign({}, inner);
+        next.tokens = (inner.tokens || []).map(function (t) {
+          if (!t || String(t.id) !== String(target.id)) return t;
+          return Object.assign({}, t, { hp: newHp });
+        });
+        persist(next);
+        return next;
+      });
+      addHistory('Combat Scene: ' + String(target.name || 'Enemy') + ' HP reduced by ' + damage + ' → now ' + newHp + '.');
+      var notifEl = document.getElementById('combatLastNotification');
+      if (notifEl) notifEl.textContent = String(target.name || 'Enemy') + ' takes ' + damage + ' stress · HP: ' + newHp;
+      drawBoard();
     }
 
     var cmdStrike = document.getElementById('combatCmdStrikeBtn');
@@ -2661,6 +2743,42 @@
           return;
         }
         if (String(actor.faction) === 'monster') {
+          if (actionVal === 'enemy_flow') runLegacyAction('flow');
+          else runLegacyAction('enemy');
+          return;
+        }
+        // monster unique skill logging
+        if (String(actor.faction) === 'monster') {
+          var monProfile = null;
+          var allBestiary = typeof window.NAMED_ENEMY_BESTIARY !== 'undefined' ? window.NAMED_ENEMY_BESTIARY : null;
+          if (allBestiary && actor.name) {
+            Object.keys(allBestiary).some(function (k) {
+              var f2 = (allBestiary[k] || []).find(function (e) { return e && String(e.name).toLowerCase() === String(actor.name).toLowerCase(); });
+              if (f2) { monProfile = f2; return true; }
+              return false;
+            });
+          }
+          if (monProfile && Array.isArray(monProfile.skills) && monProfile.skills.length) {
+            var tokenTargetSel2 = document.getElementById('combatTokenTargetSel');
+            var tId2 = String(tokenTargetSel2 && tokenTargetSel2.value || '');
+            var tToken2 = tId2 ? byId(tId2) : null;
+            var HEX_RANGE_MAP2 = { 'engaged': 1, 'close': 2, 'nearby': 4, 'far': 99 };
+            var usedSkill = null;
+            if (tToken2) {
+              var dist2 = hexDistance({ q: actor.q, r: actor.r }, { q: tToken2.q, r: tToken2.r });
+              usedSkill = monProfile.skills.find(function (sk) {
+                var maxR = (sk.range || []).reduce(function (mx, r) { return Math.max(mx, HEX_RANGE_MAP2[r] || 1); }, 0);
+                return dist2 <= maxR;
+              });
+            }
+            if (usedSkill) {
+              addHistory(String(actor.name) + ' uses unique skill: ' + usedSkill.name + ' — ' + usedSkill.desc);
+              var notifEl2 = document.getElementById('combatLastNotification');
+              if (notifEl2) notifEl2.textContent = actor.name + ': ' + usedSkill.name + ' · Save: ' + usedSkill.save + ' · On fail: ' + usedSkill.onFail;
+            } else {
+              addHistory(String(actor.name) + ' is out of range for unique skills — defaults to Strike/Shoot.');
+            }
+          }
           if (actionVal === 'enemy_flow') runLegacyAction('flow');
           else runLegacyAction('enemy');
           return;
@@ -3112,6 +3230,25 @@
     var state = store.getState();
     var scenes = Array.isArray(state && state.scenes) ? state.scenes.slice() : [];
     
+    var ZONE_TABLE = ['Clear Ground','Debris Field','Urban Alley','Dark Interior','Elevated Position','Flooded Zone','Trench Line','Open Field','Fortified Cover','Storm Zone'];
+    var REACTION_TABLE = ['Aggressive','Aggressive','Aggressive','Cautious','Cautious','Fearful','Fearful','Neutral','Flanking','Ambush'];
+    var ACTIVITY_TABLE = ['Patrolling','Holding Position','Pursuing','Retreating','Looting or scavenging','Setting Trap'];
+    var zoneRoll = Math.floor(Math.random() * 10);
+    var coverRoll = Math.floor(Math.random() * 4 + 1) + Math.floor(Math.random() * 20 + 1);
+    var reactionRoll = Math.floor(Math.random() * 10);
+    var activityRoll = Math.floor(Math.random() * 6);
+    var coverLabel = coverRoll <= 9 ? 'No Cover' : coverRoll <= 14 ? 'Light Cover (+1 Defend)' : coverRoll <= 19 ? 'Medium Cover (+2 Defend)' : coverRoll <= 24 ? 'Heavy Cover (+2 Defend, Blocked Sight)' : 'Full Cover';
+    var sceneOpener = {
+      zone: ZONE_TABLE[zoneRoll],
+      zoneDie: zoneRoll + 1,
+      cover: coverLabel,
+      coverDie: coverRoll,
+      enemyReaction: REACTION_TABLE[reactionRoll],
+      reactionDie: reactionRoll + 1,
+      enemyActivity: ACTIVITY_TABLE[activityRoll],
+      activityDie: activityRoll + 1
+    };
+
     var newScene = {
       id: sceneId,
       name: 'New Scene ' + (scenes.length + 1),
@@ -3123,7 +3260,8 @@
       sceneRules: clone((state && state.sceneRules) || {}),
       tokens: clone((state && state.tokens) || []),
       initiative: clone((state && state.initiative) || []),
-      actionHistory: []
+      actionHistory: [],
+      sceneOpener: sceneOpener
     };
     
     scenes.push(newScene);
@@ -3135,7 +3273,10 @@
     window._currentSceneEditId = sceneId;
     renderScenesList();
     showSceneBuilder(sceneId);
-    safeNotif('Scene created: ' + newScene.name);
+    var openerSummary = '🎬 ' + sceneOpener.zone + ' · ' + sceneOpener.cover + ' · ' + sceneOpener.enemyReaction + ' · ' + sceneOpener.enemyActivity;
+    safeNotif('Scene created: ' + newScene.name + ' — ' + openerSummary);
+    var openerEl = document.getElementById('combatSceneOpenerSummary');
+    if (openerEl) openerEl.textContent = openerSummary;
   };
 
   function renderScenesList() {

@@ -874,6 +874,52 @@
     return src + ' · Range: ' + rangeTxt.toLowerCase();
   }
 
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function enemySkillCardHtml(entry, actorName, dreadDie, targetName, tacticText) {
+    if (!entry || !entry.skill) return '';
+    var skill = entry.skill;
+    var title = escapeHtml(String(skill.name || 'Enemy Skill'));
+    var saveTxt = escapeHtml(String(skill.save || 'Defend'));
+    var rangeTxt = escapeHtml(skillRangeVerbatim(skill));
+    var rollTxt = escapeHtml(saveTxt + ' vs Dread d' + Number(dreadDie || 6));
+    var failTxt = escapeHtml(String(skill.onFail || 'Apply effect.'));
+    var successTxt = escapeHtml(String(skill.onSuccess || 'Resist the effect.'));
+    var sourceTxt = escapeHtml(skillSourceVerbatim(skill));
+    var actorTxt = escapeHtml(String(actorName || 'Enemy'));
+    var targetTxt = escapeHtml(String(targetName || 'Target'));
+    var stateBadge = entry.inRange
+      ? '<span style="font-size:.68rem;color:#57d69b;">In Range</span>'
+      : '<span style="font-size:.68rem;color:#e59b73;">Out of Range</span>';
+    var tacticRow = tacticText
+      ? ('<div style="margin-top:.22rem;font-size:.72rem;color:var(--muted2);"><strong style="color:var(--combat-accent-2);">Tactic:</strong> ' + escapeHtml(String(tacticText || '')) + '</div>')
+      : '';
+    return ''
+      + '<div style="margin-top:.18rem;border:1px solid rgba(227,188,94,.35);background:rgba(9,13,24,.92);padding:.38rem .44rem;border-radius:8px;">'
+      + '<div style="display:flex;justify-content:space-between;gap:.35rem;align-items:baseline;">'
+      + '<div style="font-size:.84rem;font-weight:700;color:var(--combat-accent-2);">' + title + '</div>'
+      + stateBadge
+      + '</div>'
+      + '<div style="font-size:.72rem;color:var(--text2);margin-top:.2rem;">'
+      + '<div><strong>Save:</strong> ' + saveTxt + '</div>'
+      + '<div><strong>Range:</strong> ' + rangeTxt + '</div>'
+      + '<div><strong>Roll:</strong> ' + rollTxt + '</div>'
+      + '<div><strong>On Fail:</strong> ' + failTxt + '</div>'
+      + '<div><strong>On Success:</strong> ' + successTxt + '</div>'
+      + '<div><strong>Source:</strong> ' + sourceTxt + '</div>'
+      + '</div>'
+      + tacticRow
+      + '<div style="margin-top:.18rem;font-size:.68rem;color:var(--muted2);">' + actorTxt + ' targeting ' + targetTxt + '</div>'
+      + '</div>';
+  }
+
   function pushEnemySkillNarration(actor, skill, dreadDie) {
     if (!actor || !skill) return;
     addHistory(String(actor.name || 'Enemy') + ' uses ' + String(skill.name || 'Enemy Skill'));
@@ -2552,21 +2598,33 @@
       if (actorNow && String(actorNow.faction) === 'monster') {
         var targetForEnemy = selectedTargetId ? byId(selectedTargetId) : null;
         var skillState = getEnemySkillOptionsForToken(actorNow, targetForEnemy);
+        var enemyProfileForHelp = getEnemyProfileByName(actorNow.name);
+        var tacticText = enemyProfileForHelp && enemyProfileForHelp.tactic ? String(enemyProfileForHelp.tactic) : '';
         var chosen = null;
         if (selectedAction.indexOf('enemy_skill:') === 0) {
           var chosenIdx = Number(selectedAction.split(':')[1]);
           chosen = skillState.find(function (s) { return Number(s.idx) === chosenIdx; }) || null;
         }
         if (chosen && chosen.skill) {
-          tokenActionHelp.textContent = 'Save: ' + String(chosen.skill.save || 'Defend')
-            + ' · Range: ' + skillRangeVerbatim(chosen.skill)
-            + ' · On Fail: ' + String(chosen.skill.onFail || 'Apply effect.')
-            + ' · On Success: ' + String(chosen.skill.onSuccess || 'Resist the effect.')
-            + ' · Source: ' + skillSourceVerbatim(chosen.skill)
-            + (chosen.inRange ? '' : ' · Out of Range');
+          tokenActionHelp.innerHTML = enemySkillCardHtml(
+            chosen,
+            actorNow.name,
+            Math.max(4, Number(actorNow.dread || actorNow.codexDread || 6)),
+            targetForEnemy && targetForEnemy.name || 'Target',
+            tacticText
+          );
         } else if (skillState.length) {
           var inRangeCount = skillState.filter(function (s) { return s.inRange; }).length;
-          tokenActionHelp.textContent = 'Enemy skills: ' + inRangeCount + '/' + skillState.length + ' in range. Enemy rolls Dread vs target Defend.';
+          var preview = skillState.slice(0, 3).map(function (entry) {
+            return enemySkillCardHtml(
+              entry,
+              actorNow.name,
+              Math.max(4, Number(actorNow.dread || actorNow.codexDread || 6)),
+              targetForEnemy && targetForEnemy.name || 'Target',
+              ''
+            );
+          }).join('');
+          tokenActionHelp.innerHTML = '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.15rem;">Enemy skills in range: ' + inRangeCount + '/' + skillState.length + ' (select one in Token Action).</div>' + preview;
         } else {
           tokenActionHelp.textContent = 'No unique enemy skills found. Uses Basic Enemy Action (Dread vs Defend).';
         }

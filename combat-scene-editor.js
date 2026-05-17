@@ -1,6 +1,13 @@
 (function () {
   var KEY = 'btl-combat-scene-editor-v1';
+  var RECOVERY_KEY = KEY + '-recovery';
+  var RECOVERY_MAX = 3;
+  var RECOVERY_MIN_INTERVAL_MS = 4000;
   var SQRT3 = Math.sqrt(3);
+  var lastRecoveryPersistAt = 0;
+  var lastRecoveryHash = '';
+  var campaignSceneSyncTimer = null;
+  var lastCampaignSceneSyncHash = '';
 
   function safeNotif(msg, tone) {
     if (typeof window.showNotif === 'function') window.showNotif(msg, tone || 'info');
@@ -253,12 +260,91 @@
   function loadPersisted() {
     try {
       var raw = localStorage.getItem(KEY);
-      if (!raw) return null;
+      if (!raw) return loadLatestRecoverySnapshot();
       var parsed = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' ? parsed : null;
+      if (parsed && typeof parsed === 'object') return parsed;
+      return loadLatestRecoverySnapshot();
     } catch (_err) {
-      return null;
+      return loadLatestRecoverySnapshot();
     }
+  }
+
+  function loadRecoveryStack() {
+    try {
+      var raw = localStorage.getItem(RECOVERY_KEY);
+      if (!raw) return [];
+      var parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_err) {
+      return [];
+    }
+  }
+
+  function loadLatestRecoverySnapshot() {
+    var stack = loadRecoveryStack();
+    if (!stack.length) return null;
+    var latest = stack[stack.length - 1];
+    if (!latest || !latest.data || typeof latest.data !== 'object') return null;
+    return latest.data;
+  }
+
+  function writeRecoverySnapshot(slim) {
+    if (!slim || typeof slim !== 'object') return;
+    var now = Date.now();
+    if (now - lastRecoveryPersistAt < RECOVERY_MIN_INTERVAL_MS) return;
+    var hash = '';
+    try {
+      hash = JSON.stringify(slim);
+    } catch (_err) {
+      return;
+    }
+    if (!hash || hash === lastRecoveryHash) return;
+    var stack = loadRecoveryStack();
+    stack.push({ at: now, data: slim });
+    while (stack.length > RECOVERY_MAX) stack.shift();
+    try {
+      localStorage.setItem(RECOVERY_KEY, JSON.stringify(stack));
+      lastRecoveryPersistAt = now;
+      lastRecoveryHash = hash;
+    } catch (_err) {}
+  }
+
+  function queueCampaignCombatSceneSync(reason) {
+    if (!window || !window.campaignSystem) return;
+    if (typeof window.campaignSystem.getState !== 'function') return;
+    if (typeof window.campaignSystem.syncSharedPatch !== 'function') return;
+    if (campaignSceneSyncTimer) clearTimeout(campaignSceneSyncTimer);
+    campaignSceneSyncTimer = setTimeout(function () {
+      campaignSceneSyncTimer = null;
+      var cs = null;
+      try {
+        cs = window.campaignSystem.getState();
+      } catch (_err) {
+        return;
+      }
+      if (!cs || cs.role !== 'gm' || !cs.connected || !cs.code) return;
+      var scene = {
+        combat: deepCloneJson(window.S && window.S.combat || {}) || {},
+        enemies: Array.isArray(window.S && window.S.enemies) ? (deepCloneJson(window.S.enemies) || []) : [],
+        naval: (window.S && window.S.naval && typeof window.S.naval === 'object') ? (deepCloneJson(window.S.naval) || null) : null,
+        caravan: (window.S && window.S.caravan && typeof window.S.caravan === 'object') ? (deepCloneJson(window.S.caravan) || null) : null,
+        combatMap: (window.S && window.S.combatMap && typeof window.S.combatMap === 'object') ? (deepCloneJson(window.S.combatMap) || null) : null,
+        combatAugState: (window.S && window.S.combatAugState && typeof window.S.combatAugState === 'object') ? (deepCloneJson(window.S.combatAugState) || null) : null,
+        sceneEditor: (window.S && window.S.combat && window.S.combat.sceneEditor && typeof window.S.combat.sceneEditor === 'object')
+          ? (deepCloneJson(window.S.combat.sceneEditor) || null)
+          : null
+      };
+      var hash = '';
+      try {
+        hash = JSON.stringify(scene);
+      } catch (_err2) {
+        return;
+      }
+      if (!hash || hash === lastCampaignSceneSyncHash) return;
+      lastCampaignSceneSyncHash = hash;
+      var out = window.campaignSystem.syncSharedPatch({ combatScene: scene }, String(reason || 'combat-scene-editor-sync'));
+      if (out && typeof out.catch === 'function') out.catch(function () {});
+    }, 220);
   }
 
   function normalizeBoard(board) {
@@ -356,29 +442,63 @@
 
   function persist(state) {
     var synced = withActiveSceneSnapshot(state);
+    var slim = {
+      board: synced.board,
+      layers: synced.layers,
+      fog: synced.fog,
+      sceneRules: synced.sceneRules,
+      tokens: synced.tokens,
+      initiative: synced.initiative,
+      actionHistory: synced.actionHistory,
+      panelPos: synced.panelPos,
+      autoRoll: synced.autoRoll,
+      round: synced.round,
+      initiativeIndex: synced.initiativeIndex,
+      currentTurnIndex: synced.currentTurnIndex,
+      collapsedPanels: synced.collapsedPanels,
+      scenes: synced.scenes,
+      activeSceneId: synced.activeSceneId
+    };
     try {
-      var slim = {
-        board: synced.board,
-        layers: synced.layers,
-        fog: synced.fog,
-        sceneRules: synced.sceneRules,
-        tokens: synced.tokens,
-        initiative: synced.initiative,
-        actionHistory: synced.actionHistory,
-        panelPos: synced.panelPos,
-        autoRoll: synced.autoRoll,
-        round: synced.round,
-        initiativeIndex: synced.initiativeIndex,
-        currentTurnIndex: synced.currentTurnIndex,
-        collapsedPanels: synced.collapsedPanels,
-        scenes: synced.scenes,
-        activeSceneId: synced.activeSceneId
-      };
       localStorage.setItem(KEY, JSON.stringify(slim));
     } catch (_err) {}
-    if (window.S && window.S.combat) {
+    writeRecoverySnapshot(slim);
+    if (window.S) {
+      if (!window.S.combat || typeof window.S.combat !== 'object') window.S.combat = {};
       window.S.combat.sceneEditor = clone(synced);
+      queueCampaignCombatSceneSync('combat-scene-editor-persist');
     }
+  }
+
+  function actionModeFor(action) {
+    var value = String(action || '').toLowerCase();
+    if (value === 'strike' || value === 'melee') return 'melee';
+    if (value === 'shoot' || value === 'ranged') return 'ranged';
+    return 'utility';
+  }
+
+  function coverPenaltyForTarget(state, actor, target, action) {
+    if (!state || !actor || !target) return 0;
+    if (actionModeFor(action) === 'melee') return 0;
+    var key = toKey(target.q, target.r);
+    var terrain = String(state.layers && state.layers.terrain && state.layers.terrain[key] || '').toLowerCase();
+    var object = String(state.layers && state.layers.objects && state.layers.objects[key] || '').toLowerCase();
+    var cover = 0;
+    if (object === 'obstacle' || object === 'door' || object === 'turret') cover += 2;
+    if (terrain === 'forest' || terrain === 'ruins' || terrain === 'crags' || terrain === 'marsh') cover += 1;
+    var actorElev = Number(state.layers && state.layers.elevation && state.layers.elevation[toKey(actor.q, actor.r)] || 0);
+    var targetElev = Number(state.layers && state.layers.elevation && state.layers.elevation[key] || 0);
+    if (actorElev > targetElev && cover > 0) cover -= 1;
+    var range = hexDistance({ q: actor.q, r: actor.r }, { q: target.q, r: target.r });
+    if (range <= 1 && cover > 0) cover -= 1;
+    return -Math.max(0, cover);
+  }
+
+  function losModifierForAction(state, actor, target, action) {
+    if (!state || !actor || !target) return { blocked: false, mod: 0 };
+    if (actionModeFor(action) !== 'ranged') return { blocked: false, mod: 0 };
+    var blocked = isSightBlocked(state, { q: Number(actor.q || 0), r: Number(actor.r || 0) }, { q: Number(target.q || 0), r: Number(target.r || 0) });
+    return { blocked: blocked, mod: blocked ? -4 : 0 };
   }
 
   function defaultTokens() {
@@ -687,13 +807,21 @@
     var terrain = String(state.layers.terrain[toKey(actor.q, actor.r)] || '');
     if (terrain === 'difficult terrain') terrainMod = -1;
     if (terrain === 'water' && actionType === 'melee') terrainMod -= 1;
+    var coverMod = target ? coverPenaltyForTarget(state, actor, target, actionType) : 0;
+    var los = target ? losModifierForAction(state, actor, target, actionType) : { blocked: false, mod: 0 };
+    var losMod = Number(los.mod || 0);
     var supportBonus = Math.max(0, Number(state.sceneRules && state.sceneRules.supportBonus || 0));
-    var total = base + elevationMod + weatherMod + terrainMod + supportBonus;
-    var summary = (actor.name || 'Token') + ' action [' + actionType + '] base ' + base + ' + elevation ' + elevationMod + ' + weather ' + weatherMod + ' + terrain ' + terrainMod + ' + support ' + supportBonus + ' = ' + total;
+    var total = base + elevationMod + weatherMod + terrainMod + coverMod + losMod + supportBonus;
+    var summary = (actor.name || 'Token') + ' action [' + actionType + '] base ' + base + ' + elevation ' + elevationMod + ' + weather ' + weatherMod + ' + terrain ' + terrainMod + ' + cover ' + coverMod + ' + los ' + losMod + ' + support ' + supportBonus + ' = ' + total;
     addHistory(summary);
     if (target) {
       var cin = hexLabel(range);
       var targetDread = Math.max(4, Number(target.dread || target.codexDread || 6));
+      if (los.blocked && actionModeFor(actionType) === 'ranged') {
+        addHistory((actor.name || 'Token') + ' cannot land a ranged hit on ' + (target.name || 'Target') + ': line of sight blocked.');
+        updateUiPanels();
+        return;
+      }
       var hit = total >= targetDread;
       if (hit) {
         var damage = Math.max(1, total - targetDread);
@@ -772,15 +900,21 @@
     if (terrain === 'difficult terrain') terrainMod -= 1;
     if (terrain === 'water' && (action === 'strike' || action === 'melee' || action === 'defend')) terrainMod -= 1;
     if (terrain === 'lava' && action === 'defend') terrainMod -= 1;
+    var coverMod = target ? coverPenaltyForTarget(state, actor, target, action) : 0;
+    var los = target ? losModifierForAction(state, actor, target, action) : { blocked: false, mod: 0 };
+    var losMod = Number(los.mod || 0);
 
     var range = target ? hexDistance({ q: actor.q, r: actor.r }, { q: target.q, r: target.r }) : 0;
-    var total = elevationMod + weatherMod + terrainMod;
-    var summary = 'Scene mods: elevation ' + elevationMod + ', weather ' + weatherMod + ', terrain ' + terrainMod + ' => ' + total;
+    var total = elevationMod + weatherMod + terrainMod + coverMod + losMod;
+    var summary = 'Scene mods: elevation ' + elevationMod + ', weather ' + weatherMod + ', terrain ' + terrainMod + ', cover ' + coverMod + ', los ' + losMod + ' => ' + total;
     return {
       total: total,
       elevation: elevationMod,
       weather: weatherMod,
       terrain: terrainMod,
+      cover: coverMod,
+      los: losMod,
+      losBlocked: !!los.blocked,
       range: range,
       cinematic: hexLabel(range),
       targetName: target ? String(target.name || 'Target') : '',
@@ -955,6 +1089,9 @@
       + '<button class="btn btn-xs btn-primary" id="combatStartSceneBtn">Start Scene</button>'
       + '<button class="btn btn-xs" id="combatPlayModeBtn">Play View</button>'
       + '<button class="btn btn-xs" id="combatAddWayfarerBtn" title="Add Wayfarer to board">+ Wayfarer</button>'
+      + '<button class="btn btn-xs combat-editor-only" id="combatExportSceneBtn">Export</button>'
+      + '<button class="btn btn-xs combat-editor-only" id="combatImportSceneBtn">Import</button>'
+      + '<button class="btn btn-xs combat-editor-only" id="combatRecoverSceneBtn">Recover</button>'
       + '<button class="btn btn-xs combat-editor-only" id="combatUploadMapBtn">Upload Battlemap</button>'
       + '<button class="btn btn-xs combat-editor-only" id="combatAddTokenBtn">+ Add Enemy</button>'
       + '<button class="btn btn-xs btn-red" id="combatCloseBtn">End Scene</button>'
@@ -962,6 +1099,7 @@
       + '</div>'
       + '<input id="combatMapImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatTokenImageInput" type="file" accept="image/*" style="display:none;">'
+      + '<input id="combatImportSceneInput" type="file" accept="application/json,.json" style="display:none;">'
       + '<div class="combat-canvas-wrap" id="combatCanvasWrap"><canvas id="combatSceneCanvas"></canvas><input id="combatBubbleInlineInput" type="text" style="display:none;position:absolute;z-index:8;min-width:54px;height:20px;padding:0 .25rem;border:1px solid rgba(227,188,94,.8);background:rgba(4,6,12,.96);color:#fff;font-size:.72rem;"></div>'
       + '<aside class="combat-floating-panel combat-left-tools combat-editor-only" id="combatToolsPanel">'
       + '<div class="combat-panel-header" data-drag="tools" onclick="togglePanel(\'combatToolsPanel\')">Combat Scene <span style="float:right;font-size:.7rem;cursor:pointer;">◀</span></div>'
@@ -2316,6 +2454,95 @@
   }
 
   function bindStaticControls() {
+    function applyImportedSceneSnapshot(payload) {
+      var source = payload && typeof payload === 'object' ? payload : {};
+      var imported = source.schema && source.state && typeof source.state === 'object' ? source.state : source;
+      store.setState(function (state) {
+        var next = normalizeCombatSceneState(Object.assign({}, state, imported));
+        persist(next);
+        return next;
+      });
+      addHistory('Scene snapshot imported.');
+      drawBoard();
+      updateUiPanels();
+    }
+
+    var exportSceneBtn = document.getElementById('combatExportSceneBtn');
+    if (exportSceneBtn && !exportSceneBtn._bound) {
+      exportSceneBtn._bound = true;
+      exportSceneBtn.onclick = function () {
+        var state = store.getState();
+        var payload = {
+          schema: 'btl-combat-scene-v1',
+          exportedAt: Date.now(),
+          state: {
+            board: clone(state.board || {}),
+            layers: clone(state.layers || {}),
+            fog: clone(state.fog || {}),
+            sceneRules: clone(state.sceneRules || {}),
+            tokens: clone(state.tokens || []),
+            initiative: clone(state.initiative || []),
+            actionHistory: clone((state.actionHistory || []).slice(0, 200)),
+            scenes: clone(state.scenes || []),
+            activeSceneId: String(state.activeSceneId || ''),
+            panelPos: clone(state.panelPos || {}),
+            collapsedPanels: clone(state.collapsedPanels || {}),
+            round: Number(state.round || 1),
+            initiativeIndex: Number(state.initiativeIndex || 0),
+            currentTurnIndex: Number(state.currentTurnIndex || 0),
+            autoRoll: !!state.autoRoll
+          }
+        };
+        var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'combat-scene-' + Date.now() + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        safeNotif('Combat scene exported.', 'good');
+      };
+    }
+
+    var importSceneBtn = document.getElementById('combatImportSceneBtn');
+    var importSceneInput = document.getElementById('combatImportSceneInput');
+    if (importSceneBtn && importSceneInput && !importSceneBtn._bound) {
+      importSceneBtn._bound = true;
+      importSceneBtn.onclick = function () { importSceneInput.click(); };
+      importSceneInput.onchange = function () {
+        var file = importSceneInput.files && importSceneInput.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function () {
+          try {
+            var parsed = JSON.parse(String(reader.result || '{}'));
+            applyImportedSceneSnapshot(parsed);
+            safeNotif('Combat scene import complete.', 'good');
+          } catch (_err) {
+            safeNotif('Combat scene import failed: invalid JSON.', 'warn');
+          }
+        };
+        reader.readAsText(file);
+        importSceneInput.value = '';
+      };
+    }
+
+    var recoverSceneBtn = document.getElementById('combatRecoverSceneBtn');
+    if (recoverSceneBtn && !recoverSceneBtn._bound) {
+      recoverSceneBtn._bound = true;
+      recoverSceneBtn.onclick = function () {
+        var latest = loadLatestRecoverySnapshot();
+        if (!latest) {
+          safeNotif('No autosave recovery snapshot available yet.', 'warn');
+          return;
+        }
+        applyImportedSceneSnapshot(latest);
+        safeNotif('Recovered combat scene from autosave backup.', 'good');
+      };
+    }
+
     var startSceneBtn = document.getElementById('combatStartSceneBtn');
     if (startSceneBtn && !startSceneBtn._bound) {
       startSceneBtn._bound = true;

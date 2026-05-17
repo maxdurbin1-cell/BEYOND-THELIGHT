@@ -122,8 +122,7 @@
     partyStash: true,
     characterInventories: true,
     economyLedger: true,
-    readyCheck: true,
-    combatScene: true
+    readyCheck: true
   };
 
   function safeNotif(msg, kind) {
@@ -622,19 +621,6 @@
     Object.keys(patch).forEach(function (key) {
       if (!PLAYER_SHARED_PATCH_KEYS[key]) return;
       if ((key === "provinceMap" || key === "campaignCombat") && (!patch[key] || typeof patch[key] !== "object")) return;
-      if (key === "combatScene") {
-        var scenePatch = patch.combatScene && typeof patch.combatScene === "object" ? patch.combatScene : null;
-        if (!scenePatch) return;
-        sanitized.combatScene = {
-          combat: deepCloneJson(scenePatch.combat || {}) || {},
-          enemies: Array.isArray(scenePatch.enemies) ? (deepCloneJson(scenePatch.enemies) || []) : [],
-          naval: (scenePatch.naval && typeof scenePatch.naval === "object") ? (deepCloneJson(scenePatch.naval) || null) : null,
-          caravan: (scenePatch.caravan && typeof scenePatch.caravan === "object") ? (deepCloneJson(scenePatch.caravan) || null) : null,
-          combatMap: (scenePatch.combatMap && typeof scenePatch.combatMap === "object") ? (deepCloneJson(scenePatch.combatMap) || null) : null,
-          combatAugState: (scenePatch.combatAugState && typeof scenePatch.combatAugState === "object") ? (deepCloneJson(scenePatch.combatAugState) || null) : null
-        };
-        return;
-      }
       if (key === "readyCheck") {
         var readyPatch = patch.readyCheck && typeof patch.readyCheck === "object" ? patch.readyCheck : null;
         var response = readyPatch && readyPatch.response && typeof readyPatch.response === "object" ? readyPatch.response : null;
@@ -682,14 +668,19 @@
   }
 
   function collectCombatSceneState() {
-    if (typeof window.S === "undefined" || !window.S) return { combat: {}, enemies: [], naval: null, caravan: null, combatMap: null, combatAugState: null };
+    if (typeof window.S === "undefined" || !window.S) {
+      return { combat: {}, enemies: [], naval: null, caravan: null, combatMap: null, combatAugState: null, sceneEditor: null };
+    }
     return {
       combat: deepCloneJson(window.S.combat || {}) || {},
       enemies: Array.isArray(window.S.enemies) ? (deepCloneJson(window.S.enemies) || []) : [],
       naval: window.S.naval ? (deepCloneJson(window.S.naval) || null) : null,
       caravan: window.S.caravan ? (deepCloneJson(window.S.caravan) || null) : null,
       combatMap: (window.S.combatMap && typeof window.S.combatMap === "object") ? (deepCloneJson(window.S.combatMap) || null) : null,
-      combatAugState: (window.S.combatAugState && typeof window.S.combatAugState === "object") ? (deepCloneJson(window.S.combatAugState) || null) : null
+      combatAugState: (window.S.combatAugState && typeof window.S.combatAugState === "object") ? (deepCloneJson(window.S.combatAugState) || null) : null,
+      sceneEditor: (window.S.combat && window.S.combat.sceneEditor && typeof window.S.combat.sceneEditor === "object")
+        ? (deepCloneJson(window.S.combat.sceneEditor) || null)
+        : null
     };
   }
 
@@ -1452,9 +1443,20 @@
         if (sharedState.combatScene.combatAugState && typeof sharedState.combatScene.combatAugState === "object") {
           window.S.combatAugState = deepCloneJson(sharedState.combatScene.combatAugState) || window.S.combatAugState || null;
         }
+        if (sharedState.combatScene.sceneEditor && typeof sharedState.combatScene.sceneEditor === "object") {
+          window.S.combat.sceneEditor = deepCloneJson(sharedState.combatScene.sceneEditor) || null;
+        }
         state.lastCombatSceneHash = hashCombatSceneState(sharedState.combatScene);
         var current = getCampaignSharedState() || {};
-        current.combatScene = deepCloneJson(sharedState.combatScene) || { combat: {}, enemies: [], naval: null, caravan: null, combatMap: null, combatAugState: null };
+        current.combatScene = deepCloneJson(sharedState.combatScene) || {
+          combat: {},
+          enemies: [],
+          naval: null,
+          caravan: null,
+          combatMap: null,
+          combatAugState: null,
+          sceneEditor: null
+        };
       }
       if (sharedState.gmSettings && typeof sharedState.gmSettings === "object") {
         var current = getCampaignSharedState() || {};

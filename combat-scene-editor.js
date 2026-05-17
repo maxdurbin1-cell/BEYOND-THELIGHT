@@ -121,11 +121,20 @@
     if (!state.fog || !state.fog.enabled) return true;
     var key = toKey(q, r);
     var visible = !!(state.fog.revealed && state.fog.revealed[key]);
+    if (String(state.fog.revealMode || 'manual') === 'ordered') {
+      var order = Number(state.fog.revealOrder && state.fog.revealOrder[key] || 0);
+      var step = Math.max(0, Number(state.fog.revealStep || 0));
+      if (order > 0 && order <= step) visible = true;
+    }
     var selected = byId(state.selectedTokenId);
     if (!selected) return visible;
     var radius = Math.max(0, Number(state.fog.visionRadius || 0));
     if (!radius) return visible;
-    if (hexDistance({ q: q, r: r }, { q: selected.q, r: selected.r }) <= radius) return true;
+    var inVision = hexDistance({ q: q, r: r }, { q: selected.q, r: selected.r }) <= radius;
+    if (inVision && String(state.fog.revealMode || 'manual') === 'los') {
+      return !isSightBlocked(state, { q: Number(selected.q || 0), r: Number(selected.r || 0) }, { q: q, r: r }) || visible;
+    }
+    if (inVision && String(state.fog.revealMode || 'manual') !== 'ordered') return true;
     return visible;
   }
 
@@ -165,6 +174,35 @@
     else rz = -rx - ry;
 
     return { q: rx, r: rz };
+  }
+
+  function axialLerp(a, b, t) {
+    return {
+      q: Number(a.q || 0) + (Number(b.q || 0) - Number(a.q || 0)) * t,
+      r: Number(a.r || 0) + (Number(b.r || 0) - Number(a.r || 0)) * t
+    };
+  }
+
+  function axialLine(a, b) {
+    var dist = Math.max(1, hexDistance(a, b));
+    var out = [];
+    for (var i = 0; i <= dist; i++) {
+      var t = i / dist;
+      var lerped = axialLerp(a, b, t);
+      out.push(cubeRound(lerped.q, lerped.r));
+    }
+    return out;
+  }
+
+  function isSightBlocked(state, fromHex, toHex) {
+    if (!state || !state.layers || !state.layers.lighting) return false;
+    var line = axialLine(fromHex, toHex);
+    for (var i = 1; i < line.length - 1; i++) {
+      var key = toKey(line[i].q, line[i].r);
+      var mark = String(state.layers.lighting[key] || '').toLowerCase();
+      if (mark === 'wall' || mark === 'vision-blocker' || mark === 'opaque') return true;
+    }
+    return false;
   }
 
   function loadPersisted() {
@@ -326,7 +364,10 @@
       showMask: true,
       revealMode: 'manual',
       visionRadius: 3,
-      revealed: {}
+      revealed: {},
+      revealOrder: {},
+      revealSeq: 0,
+      revealStep: 0
     },
     sceneRules: {
       rollMode: 'auto',
@@ -352,7 +393,8 @@
       feed: { x: 980, y: 58 },
       actions: { x: 290, y: 560 }
     },
-    mouse: { panning: false, lastX: 0, lastY: 0 }
+    mouse: { panning: false, lastX: 0, lastY: 0 },
+    ping: null
   }, persisted || {}));
 
   function ensureInitiative(state) {
@@ -468,11 +510,20 @@
       var next = Object.assign({}, state);
       next.fog = Object.assign({}, state.fog);
       next.fog.revealed = Object.assign({}, state.fog.revealed || {});
+      next.fog.revealOrder = Object.assign({}, state.fog.revealOrder || {});
       var key = toKey(q, r);
       if (String(brush || state.fogBrush) === 'hide') {
         delete next.fog.revealed[key];
+        delete next.fog.revealOrder[key];
       } else {
         next.fog.revealed[key] = true;
+        if (String(next.fog.revealMode || 'manual') === 'ordered') {
+          next.fog.revealSeq = Math.max(0, Number(state.fog.revealSeq || 0)) + 1;
+          next.fog.revealOrder[key] = next.fog.revealSeq;
+          if (Number(next.fog.revealStep || 0) < next.fog.revealSeq) {
+            next.fog.revealStep = next.fog.revealSeq;
+          }
+        }
       }
       persist(next);
       return next;
@@ -732,12 +783,22 @@
       + '<div class="combat-chip-row" id="combatLayerRow"></div>'
       + '<div class="combat-label" style="margin-top:.35rem;">Tool</div>'
       + '<div class="combat-chip-row" id="combatToolRow"></div>'
+      + '<div class="combat-label" style="margin-top:.35rem;">VTT Toolbar</div>'
+      + '<div class="combat-chip-row">'
+      + '<button class="combat-chip" id="combatToolbarRulerBtn">Ruler</button>'
+      + '<button class="combat-chip" id="combatToolbarPanBtn">Pan</button>'
+      + '<button class="combat-chip" id="combatToolbarPingBtn">Ping</button>'
+      + '<button class="combat-chip" id="combatToolbarZoomInBtn">Zoom+</button>'
+      + '<button class="combat-chip" id="combatToolbarZoomOutBtn">Zoom-</button>'
+      + '<button class="combat-chip" id="combatToolbarZoomResetBtn">100%</button>'
+      + '</div>'
       + '<div class="combat-label" style="margin-top:.35rem;">Fog of War</div>'
       + '<div class="combat-chip-row"><button class="combat-chip" id="combatFogToggleBtn">Fog Off</button><button class="combat-chip" id="combatFogBrushBtn">Brush Reveal</button><button class="combat-chip" id="combatFogClearBtn">Clear Fog</button></div>'
+      + '<div class="combat-chip-row" style="margin-top:.2rem;"><button class="combat-chip" id="combatFogModeBtn">Mode: Manual</button><button class="combat-chip" id="combatFogAdvanceBtn">Advance Reveal</button><button class="combat-chip" id="combatFogResetOrderBtn">Reset Order</button></div>'
       + '<div class="combat-mini" id="combatFogMeta">Revealed 0 hexes · Vision 3</div>'
       + '<div class="combat-label" style="margin-top:.35rem;">Terrain / Object</div>'
       + '<select class="combat-select" id="combatPaintValue">'
-      + '<option value="forest">forest</option><option value="marsh">marsh</option><option value="crags">crags</option><option value="lava">lava</option><option value="ruins">ruins</option><option value="water">water</option><option value="difficult terrain">difficult terrain</option><option value="obstacle">obstacle</option><option value="trap">trap</option><option value="shrine">shrine</option><option value="turret">turret</option><option value="door">door</option><option value="spawn">spawn</option><option value="1">elevation +1</option><option value="2">elevation +2</option><option value="3">elevation +3</option>'
+      + '<option value="forest">forest</option><option value="marsh">marsh</option><option value="crags">crags</option><option value="lava">lava</option><option value="ruins">ruins</option><option value="water">water</option><option value="difficult terrain">difficult terrain</option><option value="obstacle">obstacle</option><option value="trap">trap</option><option value="shrine">shrine</option><option value="turret">turret</option><option value="door">door</option><option value="spawn">spawn</option><option value="wall">wall</option><option value="vision-blocker">vision-blocker</option><option value="1">elevation +1</option><option value="2">elevation +2</option><option value="3">elevation +3</option>'
       + '</select>'
       + '<div class="combat-mini">Hex editing modes: terrain, objects, hazards, lighting, weather, interactives, spawn points.</div>'
       + '<div class="combat-label" style="margin-top:.35rem;">Bestiary Drawer</div>'
@@ -865,7 +926,78 @@
     return map[n] || 'rgba(255,255,255,.02)';
   }
 
+  function parseQuickEditValue(current, raw) {
+    var txt = String(raw || '').trim();
+    if (!txt) return null;
+    if (/^[+-]\d+$/.test(txt)) return Math.max(0, Number(current || 0) + Number(txt));
+    if (/^\d+$/.test(txt)) return Math.max(0, Number(txt));
+    return null;
+  }
+
+  function applyTokenQuickEdit(tokenId, statKey, rawValue) {
+    var state = store.getState();
+    var token = (state.tokens || []).find(function (entry) { return entry && String(entry.id) === String(tokenId); }) || null;
+    if (!token) return;
+    var current = Number(token[statKey] || 0);
+    var nextVal = parseQuickEditValue(current, rawValue);
+    if (nextVal === null) {
+      safeNotif('Invalid value. Use a number like 12 or delta like -5.', 'warn');
+      return;
+    }
+    store.setState(function (inner) {
+      var next = Object.assign({}, inner);
+      next.tokens = (inner.tokens || []).map(function (entry) {
+        if (!entry || String(entry.id) !== String(tokenId)) return entry;
+        var updated = Object.assign({}, entry);
+        updated[statKey] = nextVal;
+        if (statKey === 'hp') updated.maxHp = Math.max(Number(updated.maxHp || 0), nextVal);
+        if (statKey === 'dread' && Number(updated.deathNumber || 0) < nextVal) updated.deathNumber = nextVal;
+        return updated;
+      });
+      persist(next);
+      return next;
+    });
+    addHistory((token.name || 'Token') + ' ' + statKey.toUpperCase() + ' set to ' + nextVal + '.');
+    drawBoard();
+    updateUiPanels();
+  }
+
+  function placeTablePing(q, r, sourceLabel) {
+    store.setState(function (state) {
+      var next = Object.assign({}, state, {
+        ping: {
+          q: Number(q || 0),
+          r: Number(r || 0),
+          at: Date.now(),
+          source: String(sourceLabel || 'table')
+        }
+      });
+      persist(next);
+      return next;
+    });
+    addHistory('Ping placed at ' + toKey(q, r) + '.');
+    safeNotif('Ping sent to tabletop.', 'info');
+    (function animatePing() {
+      var st = store.getState();
+      var ping = st && st.ping;
+      if (!ping) return;
+      var age = Date.now() - Number(ping.at || 0);
+      if (age > 1200) {
+        store.setState(function (state) {
+          var next = Object.assign({}, state, { ping: null });
+          persist(next);
+          return next;
+        });
+        drawBoard();
+        return;
+      }
+      drawBoard();
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(animatePing);
+    })();
+  }
+
   var backgroundCache = { src: '', img: null };
+  var bubbleHotspots = [];
 
   function drawBackground(ctx, board) {
     var src = String(board && board.background || '');
@@ -912,6 +1044,7 @@
   function drawGridAndTokens(ctx, state, w, h) {
     var board = state.board;
     var size = Number(board.size || 42) * Number(board.zoom || 1);
+    bubbleHotspots = [];
     for (var r = -board.rows; r <= board.rows; r++) {
       for (var q = -board.cols; q <= board.cols; q++) {
         var p = axialToPixel(q, r, size, board.panX, board.panY);
@@ -921,6 +1054,7 @@
         var terrain = state.layers.terrain[key] || '';
         var object = state.layers.objects[key] || '';
         var hazard = state.layers.hazards[key] || '';
+        var lighting = String(state.layers.lighting[key] || '');
         var elevation = Number(state.layers.elevation[key] || 0);
 
         drawHex(ctx, p.x, p.y, size - 1.6);
@@ -945,6 +1079,30 @@
           ctx.font = '10px Rajdhani, sans-serif';
           ctx.textAlign = 'center';
           ctx.fillText('+' + elevation, p.x, p.y + 4);
+        }
+
+        if (lighting === 'wall' || lighting === 'vision-blocker') {
+          ctx.save();
+          ctx.strokeStyle = lighting === 'wall' ? 'rgba(255,94,94,.95)' : 'rgba(122,88,210,.95)';
+          ctx.lineWidth = 2.4;
+          drawHex(ctx, p.x, p.y, size - 5.5);
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(0,0,0,.65)';
+          ctx.fillRect(p.x - 10, p.y - 8, 20, 16);
+          ctx.fillStyle = '#fff';
+          ctx.font = '10px Rajdhani, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(lighting === 'wall' ? 'W' : 'VB', p.x, p.y + 3);
+          ctx.restore();
+        }
+
+        if (state.fog && String(state.fog.revealMode || 'manual') === 'ordered' && state.fog.revealOrder && state.fog.revealOrder[key]) {
+          ctx.save();
+          ctx.fillStyle = 'rgba(73,201,187,.95)';
+          ctx.font = '10px Rajdhani, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(String(state.fog.revealOrder[key]), p.x, p.y - 10);
+          ctx.restore();
         }
 
         if (state.fog && state.fog.enabled && state.fog.showMask && !isHexRevealed(state, q, r)) {
@@ -986,6 +1144,39 @@
       ctx.fillText(String(token.name || 'Token'), p.x, p.y - radius - 8);
       ctx.fillStyle = 'rgba(230,230,230,.95)';
       ctx.fillText('HP ' + Number(token.hp || 0) + '/' + Number(token.maxHp || token.hp || 0), p.x, p.y + radius + 12);
+
+      // Quick-edit bubbles above token. Click bubble to edit with absolute or +/- delta.
+      var bubbleY = p.y - radius - 34;
+      var bubbles = [
+        { key: 'hp', label: 'HP ' + Number(token.hp || 0), color: 'rgba(47,154,144,.88)' }
+      ];
+      if (String(token.faction) === 'monster') {
+        bubbles.push({ key: 'dread', label: 'DD ' + Math.max(4, Number(token.dread || token.codexDread || 6)), color: 'rgba(208,83,83,.88)' });
+        bubbles.push({ key: 'deathNumber', label: 'DN ' + Math.max(1, Number(token.deathNumber || token.dread || 6)), color: 'rgba(227,188,94,.88)' });
+      }
+      var bw = 52;
+      var bh = 16;
+      var gap = 4;
+      var totalW = bubbles.length * bw + (bubbles.length - 1) * gap;
+      var sx = p.x - totalW / 2;
+      bubbles.forEach(function (b, idx) {
+        var bx = sx + idx * (bw + gap);
+        ctx.save();
+        ctx.fillStyle = b.color;
+        ctx.strokeStyle = 'rgba(255,255,255,.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(bx, bubbleY, bw, bh, 7);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px Rajdhani, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(b.label, bx + bw / 2, bubbleY + bh - 5);
+        ctx.restore();
+        bubbleHotspots.push({ tokenId: String(token.id), statKey: String(b.key), x: bx, y: bubbleY, w: bw, h: bh });
+      });
+
       ctx.restore();
     });
 
@@ -1001,6 +1192,26 @@
       ctx.fillStyle = 'rgba(73,201,187,.96)';
       ctx.font = '12px Rajdhani, sans-serif';
       ctx.fillText(String(state.ruler.distance) + ' hexes · ' + state.ruler.label, (s.x + e.x) / 2, (s.y + e.y) / 2 - 8);
+    }
+
+    if (state.ping && typeof state.ping === 'object') {
+      var pingAge = Date.now() - Number(state.ping.at || 0);
+      if (pingAge <= 1200) {
+        var center = axialToPixel(Number(state.ping.q || 0), Number(state.ping.r || 0), size, board.panX, board.panY);
+        var t = pingAge / 1200;
+        var radiusPulse = 8 + t * 60;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(73,201,187,' + (1 - t) + ')';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, radiusPulse, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(227,188,94,' + (1 - t) + ')';
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     }
   }
 
@@ -1051,7 +1262,7 @@
     }
 
     var layers = ['terrain', 'objects', 'hazards', 'elevation', 'lighting', 'weather', 'interactives', 'spawns'];
-    var tools = ['select', 'paint', 'erase', 'fog', 'ruler', 'pan'];
+    var tools = ['select', 'paint', 'erase', 'fog', 'ruler', 'pan', 'ping'];
 
     var layerRow = document.getElementById('combatLayerRow');
     if (layerRow) {
@@ -1084,7 +1295,9 @@
     var fogMeta = document.getElementById('combatFogMeta');
     if (fogMeta) {
       var revealedCount = Object.keys(state.fog && state.fog.revealed || {}).length;
-      fogMeta.textContent = 'Revealed ' + revealedCount + ' hexes · Vision ' + Number(state.fog && state.fog.visionRadius || 0);
+      var mode = String(state.fog && state.fog.revealMode || 'manual');
+      var step = Math.max(0, Number(state.fog && state.fog.revealStep || 0));
+      fogMeta.textContent = 'Revealed ' + revealedCount + ' hexes · Vision ' + Number(state.fog && state.fog.visionRadius || 0) + ' · Mode ' + mode + (mode === 'ordered' ? (' · Step ' + step) : '');
     }
 
     var fogToggleBtn = document.getElementById('combatFogToggleBtn');
@@ -1096,6 +1309,11 @@
     if (fogBrushBtn) {
       fogBrushBtn.textContent = 'Brush ' + (state.fogBrush === 'hide' ? 'Hide' : 'Reveal');
       fogBrushBtn.className = 'combat-chip on';
+    }
+    var fogModeBtn = document.getElementById('combatFogModeBtn');
+    if (fogModeBtn) {
+      var modeLabel = String(state.fog && state.fog.revealMode || 'manual');
+      fogModeBtn.textContent = 'Mode: ' + modeLabel.charAt(0).toUpperCase() + modeLabel.slice(1);
     }
 
     var bestiary = document.getElementById('combatBestiaryDrawer');
@@ -1442,13 +1660,42 @@
     var canvas = document.getElementById('combatSceneCanvas');
     if (!canvas || canvas._boundCombatEditor) return;
     canvas._boundCombatEditor = true;
+    var pingHoldTimer = null;
+
+    function clearPingHold() {
+      if (pingHoldTimer) {
+        clearTimeout(pingHoldTimer);
+        pingHoldTimer = null;
+      }
+    }
 
     canvas.addEventListener('mousedown', function (ev) {
       var state = store.getState();
       var rect = canvas.getBoundingClientRect();
       var board = state.board;
       var size = Number(board.size || 42) * Number(board.zoom || 1);
-      var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, board.panX, board.panY);
+      var canvasX = ev.clientX - rect.left;
+      var canvasY = ev.clientY - rect.top;
+      var ax = pixelToAxial(canvasX, canvasY, size, board.panX, board.panY);
+      var bubbleHit = bubbleHotspots.find(function (spot) {
+        return canvasX >= spot.x && canvasX <= spot.x + spot.w && canvasY >= spot.y && canvasY <= spot.y + spot.h;
+      }) || null;
+      if (bubbleHit) {
+        var token = byId(bubbleHit.tokenId);
+        if (!token) return;
+        var currentVal = Number(token[bubbleHit.statKey] || 0);
+        var promptLabel = bubbleHit.statKey === 'deathNumber' ? 'Death Number' : bubbleHit.statKey.toUpperCase();
+        var raw = window.prompt('Set ' + promptLabel + ' for ' + (token.name || 'token') + ' (number or +/- delta):', String(currentVal));
+        if (raw !== null) applyTokenQuickEdit(bubbleHit.tokenId, bubbleHit.statKey, raw);
+        return;
+      }
+
+      clearPingHold();
+
+      if (state.activeTool === 'ping') {
+        placeTablePing(ax.q, ax.r, 'tool');
+        return;
+      }
       var clickedToken = nearestTokenAt(ax.q, ax.r);
 
       if (state.activeTool === 'pan' || ev.button === 1) {
@@ -1490,12 +1737,20 @@
         store.setState({ ruler: { active: true, start: start, end: { q: ax.q, r: ax.r }, distance: dist, label: hexLabel(dist) } });
         drawBoard();
         updateUiPanels();
+        return;
+      }
+
+      if (ev.button === 0) {
+        pingHoldTimer = setTimeout(function () {
+          placeTablePing(ax.q, ax.r, 'hold');
+        }, 360);
       }
     });
 
     canvas.addEventListener('mousemove', function (ev) {
       var state = store.getState();
       if (state.mouse && state.mouse.panning) {
+        clearPingHold();
         var dx = ev.clientX - Number(state.mouse.lastX || 0);
         var dy = ev.clientY - Number(state.mouse.lastY || 0);
         store.setState(function (prev) {
@@ -1510,6 +1765,7 @@
       }
 
       if (state.draggingTokenId) {
+        clearPingHold();
         var rect = canvas.getBoundingClientRect();
         var board = state.board;
         var size = Number(board.size || 42) * Number(board.zoom || 1);
@@ -1534,6 +1790,7 @@
     });
 
     function stopDrag() {
+      clearPingHold();
       var state = store.getState();
       if (state.mouse && state.mouse.panning) {
         store.setState({ mouse: { panning: false, lastX: 0, lastY: 0 } });
@@ -1754,6 +2011,7 @@
           return next;
         });
         drawBoard();
+        updateUiPanels();
       };
     }
 
@@ -1769,6 +2027,69 @@
           return next;
         });
         drawBoard();
+        updateUiPanels();
+      };
+    }
+
+    function setToolMode(mode) {
+      store.setState({ activeTool: String(mode || 'select') });
+      updateUiPanels();
+    }
+
+    function changeZoom(delta) {
+      store.setState(function (state) {
+        var z = Math.max(0.5, Math.min(2.3, Number(state.board.zoom || 1) + Number(delta || 0)));
+        var next = Object.assign({}, state);
+        next.board = Object.assign({}, state.board, { zoom: z });
+        persist(next);
+        return next;
+      });
+      drawBoard();
+      updateUiPanels();
+    }
+
+    var toolbarRulerBtn = document.getElementById('combatToolbarRulerBtn');
+    if (toolbarRulerBtn && !toolbarRulerBtn._bound) {
+      toolbarRulerBtn._bound = true;
+      toolbarRulerBtn.onclick = function () { setToolMode('ruler'); };
+    }
+
+    var toolbarPanBtn = document.getElementById('combatToolbarPanBtn');
+    if (toolbarPanBtn && !toolbarPanBtn._bound) {
+      toolbarPanBtn._bound = true;
+      toolbarPanBtn.onclick = function () { setToolMode('pan'); };
+    }
+
+    var toolbarPingBtn = document.getElementById('combatToolbarPingBtn');
+    if (toolbarPingBtn && !toolbarPingBtn._bound) {
+      toolbarPingBtn._bound = true;
+      toolbarPingBtn.onclick = function () { setToolMode('ping'); };
+    }
+
+    var toolbarZoomInBtn = document.getElementById('combatToolbarZoomInBtn');
+    if (toolbarZoomInBtn && !toolbarZoomInBtn._bound) {
+      toolbarZoomInBtn._bound = true;
+      toolbarZoomInBtn.onclick = function () { changeZoom(0.1); };
+    }
+
+    var toolbarZoomOutBtn = document.getElementById('combatToolbarZoomOutBtn');
+    if (toolbarZoomOutBtn && !toolbarZoomOutBtn._bound) {
+      toolbarZoomOutBtn._bound = true;
+      toolbarZoomOutBtn.onclick = function () { changeZoom(-0.1); };
+    }
+
+    var toolbarZoomResetBtn = document.getElementById('combatToolbarZoomResetBtn');
+    if (toolbarZoomResetBtn && !toolbarZoomResetBtn._bound) {
+      toolbarZoomResetBtn._bound = true;
+      toolbarZoomResetBtn.onclick = function () {
+        store.setState(function (state) {
+          var next = Object.assign({}, state);
+          next.board = Object.assign({}, state.board, { zoom: 1 });
+          persist(next);
+          return next;
+        });
+        drawBoard();
+        updateUiPanels();
       };
     }
 
@@ -1817,11 +2138,63 @@
       fogClear.onclick = function () {
         store.setState(function (state) {
           var next = Object.assign({}, state);
-          next.fog = Object.assign({}, state.fog, { revealed: {} });
+          next.fog = Object.assign({}, state.fog, { revealed: {}, revealOrder: {}, revealSeq: 0, revealStep: 0 });
           persist(next);
           return next;
         });
         addHistory('Fog reveal map cleared.');
+        drawBoard();
+        updateUiPanels();
+      };
+    }
+
+    var fogModeBtn = document.getElementById('combatFogModeBtn');
+    if (fogModeBtn && !fogModeBtn._bound) {
+      fogModeBtn._bound = true;
+      fogModeBtn.onclick = function () {
+        store.setState(function (state) {
+          var modes = ['manual', 'los', 'ordered'];
+          var current = String(state.fog && state.fog.revealMode || 'manual');
+          var idx = modes.indexOf(current);
+          var nextMode = modes[(idx + 1) % modes.length];
+          var next = Object.assign({}, state);
+          next.fog = Object.assign({}, state.fog, { revealMode: nextMode });
+          persist(next);
+          return next;
+        });
+        drawBoard();
+        updateUiPanels();
+      };
+    }
+
+    var fogAdvanceBtn = document.getElementById('combatFogAdvanceBtn');
+    if (fogAdvanceBtn && !fogAdvanceBtn._bound) {
+      fogAdvanceBtn._bound = true;
+      fogAdvanceBtn.onclick = function () {
+        store.setState(function (state) {
+          if (String(state.fog && state.fog.revealMode || 'manual') !== 'ordered') return state;
+          var maxSeq = Math.max(0, Number(state.fog && state.fog.revealSeq || 0));
+          var step = Math.max(0, Number(state.fog && state.fog.revealStep || 0));
+          var next = Object.assign({}, state);
+          next.fog = Object.assign({}, state.fog, { revealStep: Math.min(maxSeq, step + 1) });
+          persist(next);
+          return next;
+        });
+        drawBoard();
+        updateUiPanels();
+      };
+    }
+
+    var fogResetOrderBtn = document.getElementById('combatFogResetOrderBtn');
+    if (fogResetOrderBtn && !fogResetOrderBtn._bound) {
+      fogResetOrderBtn._bound = true;
+      fogResetOrderBtn.onclick = function () {
+        store.setState(function (state) {
+          var next = Object.assign({}, state);
+          next.fog = Object.assign({}, state.fog, { revealOrder: {}, revealSeq: 0, revealStep: 0 });
+          persist(next);
+          return next;
+        });
         drawBoard();
         updateUiPanels();
       };

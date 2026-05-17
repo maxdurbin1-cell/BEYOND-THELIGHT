@@ -1933,14 +1933,10 @@
       else btn.title = '';
     });
 
-    var topMeta = document.getElementById('combatTopMeta');
-    if (topMeta) {
-      var combatStatusText = stripHtml((document.getElementById('combatStatus') || {}).textContent || '');
-      topMeta.textContent = combatStatusText || 'No active scene.';
-    }
     var syncBadge = document.getElementById('combatSharedSyncBadge');
     if (syncBadge) {
       var badgeText = 'Sync Local';
+      var badgeClass = 'sync-aging';
       if (window.campaignSystem && typeof window.campaignSystem.getSyncStatus === 'function') {
         var syncStatus = null;
         var sharedState = null;
@@ -1955,8 +1951,12 @@
         var ageSec = at ? Math.max(0, Math.floor((Date.now() - at) / 1000)) : 0;
         var freshness = at ? (ageSec <= 12 ? 'fresh' : (ageSec <= 30 ? 'aging' : 'stale')) : 'unknown';
         badgeText = 'Sync v' + version + ' · ' + by + ' · ' + formatClockTime(at) + ' · ' + freshness;
+        badgeClass = freshness === 'fresh' ? 'sync-fresh' : (freshness === 'stale' ? 'sync-stale' : 'sync-aging');
+      } else {
+        badgeClass = 'sync-aging';
       }
       syncBadge.textContent = badgeText;
+      syncBadge.className = badgeClass;
     }
 
     var startSceneBtn = document.getElementById('combatStartSceneBtn');

@@ -153,6 +153,36 @@
   margin-top: 0.2rem;
 }
 
+#combatSharedSyncBadge {
+  display: inline-block;
+  margin-left: 0.25rem;
+  padding: 0.04rem 0.36rem;
+  border: 1px solid rgba(159, 167, 188, 0.36);
+  border-radius: 999px;
+  background: rgba(159, 167, 188, 0.12);
+  color: #cfd5e6;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+#combatSharedSyncBadge.sync-fresh {
+  border-color: rgba(73, 201, 187, 0.65);
+  background: rgba(73, 201, 187, 0.16);
+  color: #7ef3e1;
+}
+
+#combatSharedSyncBadge.sync-aging {
+  border-color: rgba(227, 188, 94, 0.68);
+  background: rgba(227, 188, 94, 0.16);
+  color: #ffd688;
+}
+
+#combatSharedSyncBadge.sync-stale {
+  border-color: rgba(208, 83, 83, 0.7);
+  background: rgba(208, 83, 83, 0.16);
+  color: #ff9b9b;
+}
+
 .combat-chip-row {
   display: flex;
   gap: 0.22rem;

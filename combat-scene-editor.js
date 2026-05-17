@@ -36,10 +36,10 @@
   function hexLabel(distance) {
     var d = Math.max(0, Number(distance || 0));
     if (d <= 1) return 'Engaged';
-    if (d <= 2) return 'Close';
-    if (d <= 3) return 'Near';
-    if (d <= 4) return 'Far';
-    return 'Distant';
+    if (d === 2) return 'Close';
+    if (d === 3) return 'Nearby';
+    if (d === 4) return 'Far';
+    return 'Out of Range';
   }
 
   function slug(name) {
@@ -230,7 +230,8 @@
           size: 1,
           isPlayer: allied && idx === 0,
           dread: dread,
-          deathNumber: dread
+          deathNumber: dread,
+          sourceEnemyId: Number(enemy.id || 0)
         };
       });
     }
@@ -732,7 +733,6 @@
       + '</div>'
       + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.28rem;">'
       + '<button class="btn btn-xs btn-teal" id="combatActivateCellBtn">Activate Mechanism</button>'
-      + '<button class="btn btn-xs" id="combatResolveActionBtn">Resolve Action</button>'
       + '<button class="btn btn-xs" id="combatZoomInBtn">Zoom +</button>'
       + '<button class="btn btn-xs" id="combatZoomOutBtn">Zoom -</button>'
       + '</div>'
@@ -986,10 +986,22 @@
 
     var initList = document.getElementById('combatInitiativeList');
     if (initList) {
-      initList.innerHTML = (state.initiative || []).map(function (entry, idx) {
-        var active = idx === Number(state.initiativeIndex || 0) ? ' style="color:var(--combat-accent-2);"' : '';
-        return '<div class="combat-feed-line"' + active + '>' + String(entry.name || 'Combatant') + ' · Init ' + Number(entry.init || 0) + '</div>';
-      }).join('');
+      var wayfarers = (state.tokens || []).filter(function (token) { return token && token.isPlayer; });
+      var allies = (state.tokens || []).filter(function (token) { return token && String(token.faction) === 'player' && !token.isPlayer; });
+      var enemies = (state.tokens || []).filter(function (token) { return token && String(token.faction) === 'monster'; });
+      function lane(label, list, color) {
+        if (!list.length) return '';
+        return '<div class="combat-feed-line"><strong style="color:' + color + ';">' + label + ':</strong> '
+          + list.map(function (t) { return String(t.name || 'Unit'); }).join(', ')
+          + '</div>';
+      }
+      initList.innerHTML = ''
+        + lane('Wayfarer', wayfarers, 'var(--combat-accent-2)')
+        + lane('Ally', allies, 'var(--combat-text)')
+        + lane('Enemy', enemies, 'var(--combat-danger)');
+      if (!String(initList.innerHTML || '').trim()) {
+        initList.innerHTML = '<div class="combat-feed-line">No combatants tracked.</div>';
+      }
     }
 
     var log = document.getElementById('combatFeedLog');
@@ -1061,8 +1073,23 @@
       } catch (_err) {}
       var relLabel = rel ? (rel.charAt(0).toUpperCase() + rel.slice(1)) : 'Unknown';
       var actionsLeft = (window.S && window.S.combat) ? Math.max(0, Number(window.S.combat.actionsLeft || 0)) : 0;
+      var selectedPlayer = (state.tokens || []).find(function (t) { return t && t.isPlayer; }) || (state.tokens || []).find(function (t) { return t && String(t.faction) === 'player'; }) || null;
+      var focusedToken = null;
       if (focusEnemy) {
-        ruler.textContent = String(focusEnemy.name || 'Focused Enemy') + ' · ' + relLabel + ' · Actions Left ' + actionsLeft;
+        focusedToken = (state.tokens || []).find(function (t) {
+          return t && String(t.faction) === 'monster' && (
+            Number(t.sourceEnemyId || 0) === Number(focusEnemy.id || 0)
+            || String(t.name || '') === String(focusEnemy.name || '')
+          );
+        }) || null;
+      }
+      var hexBand = '';
+      if (selectedPlayer && focusedToken) {
+        var hexDist = hexDistance({ q: selectedPlayer.q, r: selectedPlayer.r }, { q: focusedToken.q, r: focusedToken.r });
+        hexBand = hexLabel(hexDist) + ' (' + hexDist + ' hex' + (hexDist === 1 ? '' : 'es') + ')';
+      }
+      if (focusEnemy) {
+        ruler.textContent = String(focusEnemy.name || 'Focused Enemy') + ' · ' + (hexBand || relLabel) + ' · Actions Left ' + actionsLeft;
       } else if (state.ruler && state.ruler.distance) {
         ruler.textContent = state.ruler.distance + ' Hexes · ' + state.ruler.label;
       } else {
@@ -1142,7 +1169,8 @@
           if (d) distanceInfo = 'Distance: ' + d.charAt(0).toUpperCase() + d.slice(1) + '.';
         }
       } catch (_err) {}
-      actionInfoMirror.textContent = (distanceInfo ? (distanceInfo + ' ') : '') + (actionInfo || 'Wayfarer action details appear here.');
+      var strikeShootRule = 'Strike: Engaged unless modifiers. Shoot: Nearby unless weapon/modifier/flavor overrides.';
+      actionInfoMirror.textContent = (distanceInfo ? (distanceInfo + ' ') : '') + (actionInfo || 'Wayfarer action details appear here.') + ' ' + strikeShootRule;
     }
 
     var flavorMirror = document.getElementById('combatLegacyFlavorMirror');
@@ -1171,7 +1199,7 @@
         if (!value) return '';
         return '<div class="combat-feed-line"><strong style="color:var(--combat-accent);">' + entry.label + ':</strong> ' + value + '</div>';
       }).filter(Boolean).join('');
-      rowsMirror.innerHTML = rowsHtml || '<div class="combat-feed-line">No recent legacy combat rows.</div>';
+      rowsMirror.innerHTML = rowsHtml || '<div class="combat-feed-line">No recent roll outputs yet.</div>';
     }
 
     var enemyLedgerMeta = document.getElementById('combatEnemyLedgerMeta');
@@ -1256,7 +1284,10 @@
       if (clickedToken && state.activeTool !== 'paint' && state.activeTool !== 'erase') {
         store.setState({ selectedTokenId: clickedToken.id, draggingTokenId: clickedToken.id });
         if (String(clickedToken.faction || '') === 'monster' && typeof window.setCombatFocusEnemy === 'function') {
-          try { window.setCombatFocusEnemy(Number(clickedToken.id || 0)); } catch (_err) {}
+          var focusId = Number(clickedToken.sourceEnemyId || clickedToken.id || 0);
+          if (focusId > 0) {
+            try { window.setCombatFocusEnemy(focusId); } catch (_err) {}
+          }
         }
         updateUiPanels();
         drawBoard();
@@ -1588,14 +1619,6 @@
         addHistory('Weather set to ' + weather + ' (intensity ' + intensity + ').');
         drawBoard();
         updateUiPanels();
-      };
-    }
-
-    var resolveAction = document.getElementById('combatResolveActionBtn');
-    if (resolveAction && !resolveAction._bound) {
-      resolveAction._bound = true;
-      resolveAction.onclick = function () {
-        resolveActionForSelectedToken();
       };
     }
 

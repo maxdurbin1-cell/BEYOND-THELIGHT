@@ -2635,7 +2635,7 @@ if(typeof SHOP_DATA==='object'&&SHOP_DATA&&Array.isArray(SHOP_DATA.remedies)){
 }
 const STAT_NAMES=['Body','Strike','Shoot','Mind','Spirit','Defend','Control','Lead'];
 const STAT_SUBS=['Power / Athletics','Melee Attack','Ranged Attack','Lore / Notice','Convince / Heal','Block / Evade','Stealth / Finesse','Tactics / Inspire'];
-let S={name:'',career:'',background:'',age:'',characterYears:25,omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},equipmentLayers:{under:'',over:'',suit:''},gearState:{oxygenHours:0,radAbsorbUsed:0,radAbsorbCap:0},environmentContext:{temperature:'',vacuum:false,irradiated:false},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0},nightMode:false,fullPhaseClock:false,darkAfflictions:{vampirism:{active:false,corruption:0,lastFedStamp:''},wolfism:{active:false,corruption:0,lastFedStamp:''}},customContent:{affixes:[],items:[],builderAffixes:[]},backstory:{origin:'',upbringing:'',hometown:'',faction:'',rival:'',connection:'',earlyCareer:'',earlyBackground:'',lifeEvent:'',notes:'',provinceMarkers:{}}};
+let S={name:'',career:'',background:'',age:'',characterYears:25,omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},equipmentLayers:{under:'',over:'',suit:''},gearState:{oxygenHours:0,radAbsorbUsed:0,radAbsorbCap:0},environmentContext:{temperature:'',vacuum:false,irradiated:false},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0},nightMode:false,fullPhaseClock:false,darkAfflictions:{vampirism:{active:false,corruption:0,lastFedStamp:''},wolfism:{active:false,corruption:0,lastFedStamp:''}},customContent:{affixes:[],items:[],builderAffixes:[]},backstory:{origin:'',upbringing:'',hometown:'',faction:'',rival:'',connection:'',earlyCareer:'',earlyBackground:'',lifeEvent:'',notes:'',provinceMarkers:{}},travelScenes:{byHex:{},activeSceneId:'',seq:1}};
 let hexNotes={};
 
 const BACKSTORY_TABLES={
@@ -15028,6 +15028,298 @@ function renderHexMap(){
   compassArrow.textContent='↑';compassGroup.appendChild(compassArrow);
   svg.appendChild(compassGroup);
 }
+
+function ensureTravelSceneState(){
+  if(!S||typeof S!=='object')return {byHex:{},activeSceneId:'',seq:1};
+  if(!S.travelScenes||typeof S.travelScenes!=='object')S.travelScenes={};
+  const ts=S.travelScenes;
+  if(!ts.byHex||typeof ts.byHex!=='object')ts.byHex={};
+  if(typeof ts.activeSceneId!=='string')ts.activeSceneId='';
+  if(typeof ts.seq!=='number'||!isFinite(ts.seq)||ts.seq<1)ts.seq=1;
+  return ts;
+}
+
+function travelSceneHexKey(col,row){
+  return String(col)+','+String(row);
+}
+
+function getTravelScenesForHex(col,row,create){
+  const ts=ensureTravelSceneState();
+  const key=travelSceneHexKey(col,row);
+  if(!Array.isArray(ts.byHex[key])){
+    if(create)ts.byHex[key]=[];
+    else return [];
+  }
+  return ts.byHex[key];
+}
+
+function findTravelSceneById(sceneId){
+  const target=String(sceneId||'');
+  if(!target)return null;
+  const ts=ensureTravelSceneState();
+  const keys=Object.keys(ts.byHex||{});
+  for(let i=0;i<keys.length;i++){
+    const list=Array.isArray(ts.byHex[keys[i]])?ts.byHex[keys[i]]:[];
+    for(let j=0;j<list.length;j++){
+      const row=list[j];
+      if(row&&String(row.id||'')===target)return row;
+    }
+  }
+  return null;
+}
+
+function getActiveTravelSceneForHex(col,row){
+  const ts=ensureTravelSceneState();
+  const list=getTravelScenesForHex(col,row,false);
+  if(!list.length)return null;
+  const active=list.find(function(scene){ return scene&&String(scene.id||'')===String(ts.activeSceneId||''); })||null;
+  return active||list[0]||null;
+}
+
+function touchTravelScene(scene){
+  if(!scene||typeof scene!=='object')return;
+  scene.updatedAt=Date.now();
+}
+
+function rerenderTravelSceneHex(col,row){
+  if(!selectedHex)return;
+  if(Number(selectedHex.col)!==Number(col)||Number(selectedHex.row)!==Number(row))return;
+  if(typeof renderHexInfo==='function')renderHexInfo(selectedHex);
+}
+
+function createTravelSceneAtHex(col,row){
+  const list=getTravelScenesForHex(col,row,true);
+  const ts=ensureTravelSceneState();
+  const nameInput=document.getElementById('travelSceneName-'+String(col)+'-'+String(row));
+  const rawName=nameInput?String(nameInput.value||'').trim():'';
+  const sceneName=rawName||('Scene '+String(ts.seq));
+  const id='travel-scene-'+Date.now().toString(36)+'-'+Math.floor(Math.random()*9999).toString(36);
+  const scene={
+    id:id,
+    name:sceneName,
+    hexKey:travelSceneHexKey(col,row),
+    image:'',
+    npcs:[],
+    createdAt:Date.now(),
+    updatedAt:Date.now()
+  };
+  list.push(scene);
+  ts.activeSceneId=id;
+  ts.seq=Math.max(1,Number(ts.seq||1))+1;
+  if(nameInput)nameInput.value='';
+  rerenderTravelSceneHex(col,row);
+  if(typeof showNotif==='function')showNotif('Scene created: '+sceneName+'.','good');
+}
+
+function loadTravelSceneAtHex(col,row){
+  const sel=document.getElementById('travelSceneSelect-'+String(col)+'-'+String(row));
+  const sceneId=sel?String(sel.value||''):'';
+  const scene=findTravelSceneById(sceneId);
+  if(!scene){
+    if(typeof showNotif==='function')showNotif('Select a scene to load first.','warn');
+    return;
+  }
+  const ts=ensureTravelSceneState();
+  ts.activeSceneId=String(scene.id||'');
+  rerenderTravelSceneHex(col,row);
+  if(typeof showNotif==='function')showNotif('Scene loaded: '+String(scene.name||'Scene')+'.','good');
+}
+
+function triggerTravelSceneImageUpload(col,row){
+  const active=getActiveTravelSceneForHex(col,row);
+  if(!active){
+    if(typeof showNotif==='function')showNotif('Create a scene first before uploading an image.','warn');
+    return;
+  }
+  const input=document.getElementById('travelSceneImageInput-'+String(col)+'-'+String(row));
+  if(!input)return;
+  input.setAttribute('data-scene-id',String(active.id||''));
+  input.click();
+}
+
+function handleTravelSceneImageUpload(input,col,row){
+  const file=input&&input.files&&input.files[0];
+  const sceneId=input?String(input.getAttribute('data-scene-id')||''):'';
+  const scene=findTravelSceneById(sceneId);
+  if(!file||!scene){
+    if(input)input.value='';
+    return;
+  }
+  if(typeof readFileAsDataUrl!=='function'){
+    if(typeof showNotif==='function')showNotif('Image upload helper is unavailable right now.','warn');
+    input.value='';
+    return;
+  }
+  readFileAsDataUrl(file,function(url){
+    scene.image=String(url||'');
+    touchTravelScene(scene);
+    rerenderTravelSceneHex(col,row);
+    if(typeof showNotif==='function')showNotif('Scene image attached.','good');
+  });
+  input.value='';
+}
+
+function addTravelSceneNpc(col,row){
+  const scene=getActiveTravelSceneForHex(col,row);
+  if(!scene){
+    if(typeof showNotif==='function')showNotif('Create and load a scene first.','warn');
+    return;
+  }
+  if(!Array.isArray(scene.npcs))scene.npcs=[];
+  const nameInput=document.getElementById('travelSceneNpcName-'+String(col)+'-'+String(row));
+  const dreadSel=document.getElementById('travelSceneNpcDread-'+String(col)+'-'+String(row));
+  const countInput=document.getElementById('travelSceneNpcCount-'+String(col)+'-'+String(row));
+  const baseName=nameInput?String(nameInput.value||'').trim():'Hostile';
+  const name=baseName||'Hostile';
+  const dread=Math.max(4,Number(dreadSel&&dreadSel.value||6));
+  const count=Math.max(1,Math.min(8,Number(countInput&&countInput.value||1)||1));
+  for(let i=0;i<count;i++){
+    scene.npcs.push({
+      id:'scene-npc-'+Date.now().toString(36)+'-'+Math.floor(Math.random()*9999).toString(36)+'-'+String(i),
+      name:count>1?(name+' '+String(i+1)):name,
+      dread:dread,
+      hp:dread*2,
+      image:''
+    });
+  }
+  touchTravelScene(scene);
+  if(nameInput)nameInput.value='';
+  if(countInput)countInput.value='1';
+  rerenderTravelSceneHex(col,row);
+  if(typeof showNotif==='function')showNotif(String(count)+' NPC token'+(count===1?'':'s')+' seeded for scene launch.','good');
+}
+
+function removeTravelSceneNpc(col,row,npcId){
+  const scene=getActiveTravelSceneForHex(col,row);
+  if(!scene||!Array.isArray(scene.npcs))return;
+  scene.npcs=scene.npcs.filter(function(npc){ return npc&&String(npc.id||'')!==String(npcId||''); });
+  touchTravelScene(scene);
+  rerenderTravelSceneHex(col,row);
+}
+
+function buildTravelSceneCombatSeed(scene){
+  const seed={tokens:[],history:[],board:{}};
+  const portrait=(S&&S.identityForge&&S.identityForge.media&&S.identityForge.media.portrait)?String(S.identityForge.media.portrait):'';
+  const wayfarerName=String((S&&S.name)||'Wayfarer');
+  seed.tokens.push({
+    id:'scene-wayfarer-'+Date.now().toString(36),
+    name:wayfarerName,
+    faction:'player',
+    hp:12,
+    maxHp:12,
+    status:[],
+    q:0,
+    r:0,
+    image:portrait,
+    size:1,
+    isPlayer:true
+  });
+  const npcs=Array.isArray(scene&&scene.npcs)?scene.npcs:[];
+  npcs.forEach(function(npc,idx){
+    const dread=Math.max(4,Number(npc&&npc.dread||6));
+    seed.tokens.push({
+      id:String(npc&&npc.id||('scene-enemy-'+idx)),
+      name:String(npc&&npc.name||('Hostile '+String(idx+1))),
+      faction:'monster',
+      hp:Math.max(1,Number(npc&&npc.hp||dread*2)),
+      maxHp:Math.max(1,Number(npc&&npc.hp||dread*2)),
+      status:[],
+      q:3+(idx%4),
+      r:Math.floor(idx/4),
+      image:String(npc&&npc.image||''),
+      size:1,
+      dread:dread,
+      deathNumber:dread
+    });
+  });
+  if(scene&&scene.image){
+    seed.board.background=String(scene.image);
+  }
+  seed.history=['Travel scene loaded: '+String(scene&&scene.name||'Untitled Scene')+'.', 'NPC tokens seeded: '+String(npcs.length)+'.'];
+  return seed;
+}
+
+function launchTravelSceneToCombat(col,row){
+  const scene=getActiveTravelSceneForHex(col,row);
+  if(!scene){
+    if(typeof showNotif==='function')showNotif('Create or load a scene before launching.','warn');
+    return;
+  }
+  const seed=buildTravelSceneCombatSeed(scene);
+  if(typeof window.openCombatSceneEditor==='function'){
+    window.openCombatSceneEditor(seed);
+    if(typeof showNotif==='function')showNotif('Launching Combat Mode from Travel Scene: '+String(scene.name||'Scene')+'.','good');
+  }else if(typeof showNotif==='function'){
+    showNotif('Combat Mode is unavailable.','warn');
+  }
+}
+
+function buildTravelScenePanelHtml(hex){
+  if(!hex)return '';
+  const col=Number(hex.col||0);
+  const row=Number(hex.row||0);
+  const list=getTravelScenesForHex(col,row,false);
+  const ts=ensureTravelSceneState();
+  const active=list.find(function(scene){ return scene&&String(scene.id||'')===String(ts.activeSceneId||''); })||list[0]||null;
+  if(active&&String(ts.activeSceneId||'')!==String(active.id||''))ts.activeSceneId=String(active.id||'');
+  const imagePreview=(active&&active.image)
+    ? ('<div style="margin-top:.3rem;"><img src="'+String(active.image)+'" alt="Scene image" style="width:100%;max-height:120px;object-fit:cover;border:1px solid var(--border2);border-radius:4px;"></div>')
+    : '<div style="margin-top:.3rem;font-size:.72rem;color:var(--muted2);">No scene image attached yet.</div>';
+  const options=list.length
+    ? list.map(function(scene){
+      if(!scene)return '';
+      const sid=String(scene.id||'');
+      const selected=active&&String(active.id||'')===sid?' selected':'';
+      return '<option value="'+sid+'"'+selected+'>'+escapeHtmlLite(String(scene.name||'Scene'))+'</option>';
+    }).join('')
+    : '<option value="">No scenes yet</option>';
+  const npcs=(active&&Array.isArray(active.npcs))?active.npcs:[];
+  const npcRows=npcs.length
+    ? npcs.map(function(npc){
+      if(!npc)return '';
+      const npcId=String(npc.id||'');
+      const npcName=escapeHtmlLite(String(npc.name||'Hostile'));
+      const dread=Math.max(4,Number(npc.dread||6));
+      const hp=Math.max(1,Number(npc.hp||dread*2));
+      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:.25rem;padding:.16rem 0;border-bottom:1px solid rgba(255,255,255,.05);">'
+        + '<span style="font-size:.74rem;color:var(--text2);">'+npcName+' · DD'+dread+' · '+hp+' HP</span>'
+        + '<button class="btn btn-xs btn-red" onclick="removeTravelSceneNpc('+col+','+row+',\''+npcId+'\')">Remove</button>'
+      + '</div>';
+    }).join('')
+    : '<div style="font-size:.72rem;color:var(--muted2);">No NPC tokens seeded yet.</div>';
+
+  return '<div class="npc-block" style="margin-bottom:.45rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);">'
+    + '<div class="nb-label" style="color:var(--teal);">🎬 Travel Scene</div>'
+    + '<div style="font-size:.76rem;color:var(--text2);line-height:1.55;margin-bottom:.35rem;">Create or load a scene at this hex, attach an image, seed NPC tokens, then launch directly into Combat Mode.</div>'
+    + '<div style="display:grid;grid-template-columns:1fr auto;gap:.25rem;">'
+      + '<input id="travelSceneName-'+col+'-'+row+'" type="text" maxlength="60" placeholder="Scene name (ruins ambush, convoy hit...)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.26rem .36rem;font-size:.74rem;border-radius:3px;">'
+      + '<button class="btn btn-xs btn-primary" onclick="createTravelSceneAtHex('+col+','+row+')">Create</button>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr auto;gap:.25rem;margin-top:.3rem;">'
+      + '<select id="travelSceneSelect-'+col+'-'+row+'" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.26rem .32rem;font-size:.74rem;border-radius:3px;">'+options+'</select>'
+      + '<button class="btn btn-xs" onclick="loadTravelSceneAtHex('+col+','+row+')">Load</button>'
+    + '</div>'
+    + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem;">'
+      + '<button class="btn btn-xs btn-teal" onclick="triggerTravelSceneImageUpload('+col+','+row+')">Upload Scene Image</button>'
+      + '<button class="btn btn-xs btn-primary" onclick="launchTravelSceneToCombat('+col+','+row+')">Launch Into Combat Mode</button>'
+    + '</div>'
+    + '<input id="travelSceneImageInput-'+col+'-'+row+'" data-scene-id="'+(active?String(active.id||''):'')+'" type="file" accept="image/*" style="display:none;" onchange="handleTravelSceneImageUpload(this,'+col+','+row+')">'
+    + imagePreview
+    + '<div style="margin-top:.38rem;padding-top:.34rem;border-top:1px solid rgba(46,196,182,.28);">'
+      + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.22rem;">NPC Token Seeding</div>'
+      + '<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:.22rem;align-items:center;">'
+        + '<input id="travelSceneNpcName-'+col+'-'+row+'" type="text" maxlength="40" placeholder="NPC / Enemy name" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.22rem .32rem;font-size:.72rem;border-radius:3px;">'
+        + '<select id="travelSceneNpcDread-'+col+'-'+row+'" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.22rem .26rem;font-size:.72rem;border-radius:3px;">'
+          + '<option value="4">DD4</option><option value="6" selected>DD6</option><option value="8">DD8</option><option value="10">DD10</option><option value="12">DD12</option><option value="20">DD20</option>'
+        + '</select>'
+        + '<input id="travelSceneNpcCount-'+col+'-'+row+'" type="number" min="1" max="8" value="1" title="Count" style="width:3rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.22rem .2rem;font-size:.72rem;border-radius:3px;">'
+        + '<button class="btn btn-xs btn-teal" onclick="addTravelSceneNpc('+col+','+row+')">Seed NPC</button>'
+      + '</div>'
+      + '<div style="margin-top:.26rem;">'+npcRows+'</div>'
+    + '</div>'
+  + '</div>';
+}
+
 // ── RENDER HEX INFO ──────────────────────────────────────────────────────────
 function renderHexInfo(hex){
   const c=document.getElementById('hexInfo');if(!c)return;
@@ -15063,6 +15355,7 @@ function renderHexInfo(hex){
   if(hex.type==='dwelling'||hex.type==='temple'||hex.type==='holding'||hex.type==='seat'||hex.type==='trade'||hex.type==='gate'){
     html+=`<div style="margin-bottom:.35rem;"><button class="btn btn-xs btn-teal" onclick="revealProvinceRumorHex(${hex.col},${hex.row})">🗺 Ask Locals (Reveal Random Hex)</button></div>`;
   }
+  html+=buildTravelScenePanelHtml(hex);
 
   if(d.theosFlavor&&d.theosFlavor.detail){
     html+=`<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(126,215,255,.35);background:rgba(126,215,255,.06);">

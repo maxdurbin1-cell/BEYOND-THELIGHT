@@ -1984,6 +1984,9 @@
         if (seed.layers && typeof seed.layers === 'object') {
           next.layers = Object.assign({}, next.layers, seed.layers);
         }
+        if (seed.board && typeof seed.board === 'object') {
+          next.board = Object.assign({}, next.board, seed.board);
+        }
         persist(next);
         return next;
       });

@@ -11531,6 +11531,10 @@
         if (window.TrophySystem && typeof window.TrophySystem.renderTab === 'function') {
           window.TrophySystem.renderTab();
         }
+      } else if (tabId === "scenes") {
+        if (typeof window.renderScenesTabOnOpen === 'function') {
+          window.renderScenesTabOnOpen();
+        }
       }
       return out;
     };

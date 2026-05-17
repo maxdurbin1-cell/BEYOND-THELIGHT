@@ -2172,6 +2172,204 @@
     wireStartCombatHook();
   }
 
+  // Scenes Tab Functions
+  window._currentSceneEditId = null;
+
+  window.createNewCombatScene = function () {
+    var sceneId = uid('scene');
+    var state = store.getState();
+    var scenes = Array.isArray(state && state.scenes) ? state.scenes.slice() : [];
+    
+    var newScene = {
+      id: sceneId,
+      name: 'New Scene ' + (scenes.length + 1),
+      isActive: scenes.length === 0,
+      createdAt: Date.now(),
+      board: {
+        width: 15,
+        height: 15,
+        tokens: [],
+        terrain: {},
+        fogOfWar: {}
+      }
+    };
+    
+    scenes.push(newScene);
+    store.setState({
+      scenes: scenes,
+      activeSceneId: sceneId
+    });
+    
+    window._currentSceneEditId = sceneId;
+    renderScenesList();
+    showSceneBuilder(sceneId);
+    safeNotif('Scene created: ' + newScene.name);
+  };
+
+  function renderScenesList() {
+    var listEl = document.getElementById('scenesList');
+    if (!listEl) return;
+    
+    var state = store.getState();
+    var scenes = Array.isArray(state && state.scenes) ? state.scenes : [];
+    
+    if (scenes.length === 0) {
+      listEl.innerHTML = '<div style="font-size:.75rem;color:var(--muted2);text-align:center;padding:.8rem;">No scenes yet. Create one to begin.</div>';
+      return;
+    }
+    
+    listEl.innerHTML = scenes.map(function (scene) {
+      var isActive = scene.id === window._currentSceneEditId;
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem .5rem;background:' + (isActive ? 'rgba(73,201,187,.1);border:1px solid var(--accent-2)' : 'transparent;border:1px solid var(--border2)') + ';border-radius:3px;cursor:pointer;" onclick="window.selectScene(\'' + String(scene.id).replace(/'/g, "\\'") + '\')">'
+        + '<div>'
+        + '<div style="font-size:.78rem;color:var(--text);">' + (scene.name || 'Unnamed Scene') + '</div>'
+        + '<div style="font-size:.65rem;color:var(--muted);margin-top:.1rem;">' + (scene.board && scene.board.width ? (scene.board.width + 'x' + scene.board.height + ' board') : 'No board') + '</div>'
+        + '</div>'
+        + '<button class="btn btn-xs" style="margin-left:.3rem;" onclick="event.stopPropagation();window.deleteScene(\'' + String(scene.id).replace(/'/g, "\\'") + '\')" title="Delete scene">✕</button>'
+        + '</div>';
+    }).join('');
+  }
+
+  window.selectScene = function (sceneId) {
+    window._currentSceneEditId = sceneId;
+    renderScenesList();
+    showSceneBuilder(sceneId);
+  };
+
+  function showSceneBuilder(sceneId) {
+    var state = store.getState();
+    var scenes = Array.isArray(state && state.scenes) ? state.scenes : [];
+    var scene = scenes.find(function (s) { return s.id === sceneId; });
+    
+    if (!scene) return;
+    
+    var builderEl = document.getElementById('sceneBuilderPanel');
+    if (!builderEl) return;
+    
+    builderEl.style.display = 'block';
+    document.getElementById('sceneEditName').textContent = scene.name;
+    document.getElementById('sceneEditNameInput').value = scene.name;
+    
+    if (scene.board) {
+      var sizeStr = (scene.board.width || 15) + 'x' + (scene.board.height || 15);
+      var sizeSelect = document.getElementById('sceneMapSize');
+      if (sizeSelect) {
+        if (sizeStr === '10x10') sizeSelect.value = '10x10';
+        else if (sizeStr === '15x15') sizeSelect.value = '15x15';
+        else if (sizeStr === '20x20') sizeSelect.value = '20x20';
+        else sizeSelect.value = 'custom';
+      }
+      
+      var fogEl = document.getElementById('sceneFogOfWar');
+      if (fogEl) fogEl.checked = (scene.board && scene.board.fogOfWar && Object.keys(scene.board.fogOfWar).length > 0);
+    }
+  }
+
+  window.closeSceneBuilder = function () {
+    var builderEl = document.getElementById('sceneBuilderPanel');
+    if (builderEl) builderEl.style.display = 'none';
+    window._currentSceneEditId = null;
+    renderScenesList();
+  };
+
+  window.setupSceneTemplate = function (template) {
+    if (!window._currentSceneEditId) return;
+    
+    var state = store.getState();
+    var scenes = Array.isArray(state && state.scenes) ? state.scenes.slice() : [];
+    var sceneIdx = scenes.findIndex(function (s) { return s.id === window._currentSceneEditId; });
+    
+    if (sceneIdx < 0) return;
+    
+    var scene = clone(scenes[sceneIdx]);
+    
+    var templateConfigs = {
+      'empty': { width: 10, height: 10, terrain: {}, fogOfWar: {} },
+      'urban': { width: 15, height: 15, terrain: { 'building-1': { type: 'building', q: 5, r: 5 }, 'building-2': { type: 'building', q: 8, r: 8 } }, fogOfWar: {} },
+      'wilderness': { width: 15, height: 15, terrain: { 'forest-1': { type: 'forest', q: 3, r: 3 }, 'hill-1': { type: 'hill', q: 10, r: 7 } }, fogOfWar: {} },
+      'dungeon': { width: 15, height: 15, terrain: { 'wall-1': { type: 'wall', q: 5, r: 5 }, 'trap-1': { type: 'trap', q: 8, r: 5 } }, fogOfWar: {} }
+    };
+    
+    var config = templateConfigs[template];
+    if (!config) return;
+    
+    if (!scene.board) scene.board = {};
+    scene.board.width = config.width;
+    scene.board.height = config.height;
+    scene.board.terrain = config.terrain;
+    scene.board.fogOfWar = config.fogOfWar;
+    
+    scenes[sceneIdx] = scene;
+    store.setState({ scenes: scenes });
+    showSceneBuilder(window._currentSceneEditId);
+    safeNotif('Scene template applied: ' + template, 'success');
+  };
+
+  window.launchCombatModeWithScene = function () {
+    if (!window._currentSceneEditId) return;
+    
+    var state = store.getState();
+    var scenes = Array.isArray(state && state.scenes) ? state.scenes : [];
+    var scene = scenes.find(function (s) { return s.id === window._currentSceneEditId; });
+    
+    if (!scene) return;
+    
+    // Update scene name from input
+    var nameInput = document.getElementById('sceneEditNameInput');
+    if (nameInput && nameInput.value) {
+      scene.name = nameInput.value;
+    }
+    
+    // Load scene board state and open combat mode
+    if (typeof window.openCombatSceneEditor === 'function') {
+      window.openCombatSceneEditor(scene);
+      safeNotif('Loaded scene: ' + scene.name);
+    }
+  };
+
+  window.deleteScene = function (sceneId) {
+    if (!confirm('Delete this scene? This cannot be undone.')) return;
+    
+    var state = store.getState();
+    var scenes = Array.isArray(state && state.scenes) ? state.scenes.slice() : [];
+    var idx = scenes.findIndex(function (s) { return s.id === sceneId; });
+    
+    if (idx < 0) return;
+    
+    scenes.splice(idx, 1);
+    
+    var newActiveId = sceneId === state.activeSceneId && scenes.length > 0 ? scenes[0].id : (state.activeSceneId === sceneId ? null : state.activeSceneId);
+    
+    store.setState({
+      scenes: scenes,
+      activeSceneId: newActiveId
+    });
+    
+    if (window._currentSceneEditId === sceneId) {
+      window.closeSceneBuilder();
+    } else {
+      renderScenesList();
+    }
+    
+    safeNotif('Scene deleted');
+  };
+
+  window.deleteCurrentScene = function () {
+    if (window._currentSceneEditId) {
+      window.deleteScene(window._currentSceneEditId);
+    }
+  };
+
+  // Render scenes list on page load or tab switch
+  window.renderScenesTabOnOpen = function () {
+    renderScenesList();
+    
+    // Subscribe to store changes to keep UI in sync
+    store.subscribe(function (state) {
+      renderScenesList();
+    });
+  };
+
   window.CombatSceneStore = {
     getState: store.getState,
     setState: store.setState,

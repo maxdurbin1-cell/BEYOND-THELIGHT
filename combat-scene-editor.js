@@ -176,6 +176,32 @@
     return { q: rx, r: rz };
   }
 
+  function WALL_DIRECTIONS() {
+    return [
+      { key: 'e', dq: 1, dr: 0, edge: [0, 1] },
+      { key: 'ne', dq: 1, dr: -1, edge: [5, 0] },
+      { key: 'nw', dq: 0, dr: -1, edge: [4, 5] },
+      { key: 'w', dq: -1, dr: 0, edge: [3, 4] },
+      { key: 'sw', dq: -1, dr: 1, edge: [2, 3] },
+      { key: 'se', dq: 0, dr: 1, edge: [1, 2] }
+    ];
+  }
+
+  function oppositeWallDirection(key) {
+    var map = { e: 'w', ne: 'sw', nw: 'se', w: 'e', sw: 'ne', se: 'nw' };
+    return map[String(key || '')] || '';
+  }
+
+  function wallDirectionBetween(a, b) {
+    var dq = Number(b && b.q || 0) - Number(a && a.q || 0);
+    var dr = Number(b && b.r || 0) - Number(a && a.r || 0);
+    var dirs = WALL_DIRECTIONS();
+    for (var i = 0; i < dirs.length; i++) {
+      if (dirs[i].dq === dq && dirs[i].dr === dr) return dirs[i].key;
+    }
+    return '';
+  }
+
   function axialLerp(a, b, t) {
     return {
       q: Number(a.q || 0) + (Number(b.q || 0) - Number(a.q || 0)) * t,
@@ -194,13 +220,32 @@
     return out;
   }
 
+  function hasSegmentWallBetween(state, fromHex, toHex) {
+    var dir = wallDirectionBetween(fromHex, toHex);
+    if (!dir) return false;
+    var segs = state && state.layers && state.layers.wallSegments ? state.layers.wallSegments : {};
+    var aKey = toKey(fromHex.q, fromHex.r);
+    var bKey = toKey(toHex.q, toHex.r);
+    var aSeg = segs[aKey] || {};
+    var bSeg = segs[bKey] || {};
+    if (aSeg[dir]) return true;
+    var opp = oppositeWallDirection(dir);
+    if (opp && bSeg[opp]) return true;
+    return false;
+  }
+
   function isSightBlocked(state, fromHex, toHex) {
-    if (!state || !state.layers || !state.layers.lighting) return false;
+    if (!state || !state.layers) return false;
     var line = axialLine(fromHex, toHex);
-    for (var i = 1; i < line.length - 1; i++) {
-      var key = toKey(line[i].q, line[i].r);
-      var mark = String(state.layers.lighting[key] || '').toLowerCase();
-      if (mark === 'wall' || mark === 'vision-blocker' || mark === 'opaque') return true;
+    for (var i = 1; i < line.length; i++) {
+      var prev = line[i - 1];
+      var cur = line[i];
+      if (hasSegmentWallBetween(state, prev, cur)) return true;
+      if (i < line.length - 1) {
+        var key = toKey(cur.q, cur.r);
+        var mark = String(state.layers.lighting && state.layers.lighting[key] || '').toLowerCase();
+        if (mark === 'wall' || mark === 'vision-blocker' || mark === 'opaque') return true;
+      }
     }
     return false;
   }
@@ -379,6 +424,7 @@
       hazards: {},
       elevation: {},
       lighting: {},
+      wallSegments: {},
       weather: {},
       interactives: {},
       spawns: {}
@@ -488,15 +534,32 @@
       var next = Object.assign({}, state);
       next.layers = Object.assign({}, state.layers);
       next.layers[layer] = Object.assign({}, state.layers[layer]);
+      next.layers.wallSegments = Object.assign({}, state.layers.wallSegments || {});
       var key = toKey(q, r);
+      var paint = String(state.paintValue || 'forest');
       if (tool === 'erase') {
-        delete next.layers[layer][key];
-        addHistory('Cleared ' + layer + ' at ' + key + '.');
+        if (layer === 'lighting' && /^wall-seg-/.test(paint)) {
+          var segKey = paint.replace('wall-seg-', '');
+          var wallMap = Object.assign({}, next.layers.wallSegments[key] || {});
+          delete wallMap[segKey];
+          if (Object.keys(wallMap).length) next.layers.wallSegments[key] = wallMap;
+          else delete next.layers.wallSegments[key];
+          addHistory('Removed wall segment ' + segKey + ' at ' + key + '.');
+        } else {
+          delete next.layers[layer][key];
+          if (layer === 'lighting') delete next.layers.wallSegments[key];
+          addHistory('Cleared ' + layer + ' at ' + key + '.');
+        }
       } else if (tool === 'paint') {
         if (layer === 'elevation') {
           next.layers[layer][key] = Number(state.paintValue || 1);
+        } else if (layer === 'lighting' && /^wall-seg-/.test(paint)) {
+          var seg = paint.replace('wall-seg-', '');
+          var map = Object.assign({}, next.layers.wallSegments[key] || {});
+          map[seg] = true;
+          next.layers.wallSegments[key] = map;
         } else {
-          next.layers[layer][key] = String(state.paintValue || 'forest');
+          next.layers[layer][key] = paint;
         }
       }
       persist(next);
@@ -775,7 +838,7 @@
       + '</div>'
       + '<input id="combatMapImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatTokenImageInput" type="file" accept="image/*" style="display:none;">'
-      + '<div class="combat-canvas-wrap"><canvas id="combatSceneCanvas"></canvas></div>'
+      + '<div class="combat-canvas-wrap" id="combatCanvasWrap"><canvas id="combatSceneCanvas"></canvas><input id="combatBubbleInlineInput" type="text" style="display:none;position:absolute;z-index:8;min-width:54px;height:20px;padding:0 .25rem;border:1px solid rgba(227,188,94,.8);background:rgba(4,6,12,.96);color:#fff;font-size:.72rem;"></div>'
       + '<aside class="combat-floating-panel combat-left-tools combat-editor-only" id="combatToolsPanel">'
       + '<div class="combat-panel-header" data-drag="tools" onclick="togglePanel(\'combatToolsPanel\')">Combat Scene <span style="float:right;font-size:.7rem;cursor:pointer;">◀</span></div>'
       + '<div class="combat-panel-body">'
@@ -798,7 +861,7 @@
       + '<div class="combat-mini" id="combatFogMeta">Revealed 0 hexes · Vision 3</div>'
       + '<div class="combat-label" style="margin-top:.35rem;">Terrain / Object</div>'
       + '<select class="combat-select" id="combatPaintValue">'
-      + '<option value="forest">forest</option><option value="marsh">marsh</option><option value="crags">crags</option><option value="lava">lava</option><option value="ruins">ruins</option><option value="water">water</option><option value="difficult terrain">difficult terrain</option><option value="obstacle">obstacle</option><option value="trap">trap</option><option value="shrine">shrine</option><option value="turret">turret</option><option value="door">door</option><option value="spawn">spawn</option><option value="wall">wall</option><option value="vision-blocker">vision-blocker</option><option value="1">elevation +1</option><option value="2">elevation +2</option><option value="3">elevation +3</option>'
+      + '<option value="forest">forest</option><option value="marsh">marsh</option><option value="crags">crags</option><option value="lava">lava</option><option value="ruins">ruins</option><option value="water">water</option><option value="difficult terrain">difficult terrain</option><option value="obstacle">obstacle</option><option value="trap">trap</option><option value="shrine">shrine</option><option value="turret">turret</option><option value="door">door</option><option value="spawn">spawn</option><option value="wall">wall</option><option value="vision-blocker">vision-blocker</option><option value="wall-seg-e">wall-seg-e</option><option value="wall-seg-ne">wall-seg-ne</option><option value="wall-seg-nw">wall-seg-nw</option><option value="wall-seg-w">wall-seg-w</option><option value="wall-seg-sw">wall-seg-sw</option><option value="wall-seg-se">wall-seg-se</option><option value="1">elevation +1</option><option value="2">elevation +2</option><option value="3">elevation +3</option>'
       + '</select>'
       + '<div class="combat-mini">Hex editing modes: terrain, objects, hazards, lighting, weather, interactives, spawn points.</div>'
       + '<div class="combat-label" style="margin-top:.35rem;">Bestiary Drawer</div>'
@@ -937,12 +1000,12 @@
   function applyTokenQuickEdit(tokenId, statKey, rawValue) {
     var state = store.getState();
     var token = (state.tokens || []).find(function (entry) { return entry && String(entry.id) === String(tokenId); }) || null;
-    if (!token) return;
+    if (!token) return false;
     var current = Number(token[statKey] || 0);
     var nextVal = parseQuickEditValue(current, rawValue);
     if (nextVal === null) {
       safeNotif('Invalid value. Use a number like 12 or delta like -5.', 'warn');
-      return;
+      return false;
     }
     store.setState(function (inner) {
       var next = Object.assign({}, inner);
@@ -960,23 +1023,49 @@
     addHistory((token.name || 'Token') + ' ' + statKey.toUpperCase() + ' set to ' + nextVal + '.');
     drawBoard();
     updateUiPanels();
+    return true;
+  }
+
+  function currentPingIdentity() {
+    return String(window.S && window.S.name || 'Wayfarer').trim() || 'Wayfarer';
+  }
+
+  function colorForPingIdentity(identity) {
+    var palette = ['#49c9bb', '#e3bc5e', '#d05353', '#6aa8ff', '#9bdb5a', '#ff8a5b', '#c690ff'];
+    var src = String(identity || 'table');
+    var h = 0;
+    for (var i = 0; i < src.length; i++) h = (h * 31 + src.charCodeAt(i)) >>> 0;
+    return palette[h % palette.length];
+  }
+
+  function hexToRgb(hex) {
+    var clean = String(hex || '').replace('#', '');
+    if (clean.length !== 6) return { r: 73, g: 201, b: 187 };
+    return {
+      r: parseInt(clean.slice(0, 2), 16),
+      g: parseInt(clean.slice(2, 4), 16),
+      b: parseInt(clean.slice(4, 6), 16)
+    };
   }
 
   function placeTablePing(q, r, sourceLabel) {
+    var identity = String(sourceLabel || currentPingIdentity());
+    var color = colorForPingIdentity(identity);
     store.setState(function (state) {
       var next = Object.assign({}, state, {
         ping: {
           q: Number(q || 0),
           r: Number(r || 0),
           at: Date.now(),
-          source: String(sourceLabel || 'table')
+          source: identity,
+          color: color
         }
       });
       persist(next);
       return next;
     });
-    addHistory('Ping placed at ' + toKey(q, r) + '.');
-    safeNotif('Ping sent to tabletop.', 'info');
+    addHistory('Ping placed at ' + toKey(q, r) + ' by ' + identity + '.');
+    safeNotif(identity + ' pinged tabletop.', 'info');
     (function animatePing() {
       var st = store.getState();
       var ping = st && st.ping;
@@ -994,6 +1083,36 @@
       drawBoard();
       if (typeof requestAnimationFrame === 'function') requestAnimationFrame(animatePing);
     })();
+  }
+
+  function showInlineBubbleEditor(hit, token, canvas) {
+    var input = document.getElementById('combatBubbleInlineInput');
+    if (!input || !hit || !token) return;
+    input.dataset.tokenId = String(hit.tokenId);
+    input.dataset.statKey = String(hit.statKey);
+    input.dataset.current = String(token[hit.statKey] || 0);
+    input.style.display = 'block';
+    input.style.left = Math.round(hit.cx - (hit.w / 2)) + 'px';
+    input.style.top = Math.round(hit.cy - 10) + 'px';
+    input.value = String(token[hit.statKey] || 0);
+    input.select();
+    input.focus();
+  }
+
+  function hideInlineBubbleEditor(commit) {
+    var input = document.getElementById('combatBubbleInlineInput');
+    if (!input || input.style.display === 'none') return;
+    if (commit) {
+      var tokenId = String(input.dataset.tokenId || '');
+      var statKey = String(input.dataset.statKey || '');
+      var raw = String(input.value || '');
+      if (tokenId && statKey) applyTokenQuickEdit(tokenId, statKey, raw);
+    }
+    input.style.display = 'none';
+    input.value = '';
+    input.dataset.tokenId = '';
+    input.dataset.statKey = '';
+    input.dataset.current = '';
   }
 
   var backgroundCache = { src: '', img: null };
@@ -1096,6 +1215,32 @@
           ctx.restore();
         }
 
+        var segMap = state.layers.wallSegments && state.layers.wallSegments[key] || null;
+        if (segMap && typeof segMap === 'object') {
+          var corners = [];
+          for (var ci = 0; ci < 6; ci++) {
+            var angle = Math.PI / 180 * (60 * ci - 30);
+            corners.push({ x: p.x + (size - 3) * Math.cos(angle), y: p.y + (size - 3) * Math.sin(angle) });
+          }
+          var edgeMap = {
+            e: [0, 1], se: [1, 2], sw: [2, 3], w: [3, 4], nw: [4, 5], ne: [5, 0]
+          };
+          Object.keys(segMap).forEach(function (k) {
+            if (!segMap[k] || !edgeMap[k]) return;
+            var pair = edgeMap[k];
+            var a = corners[pair[0]];
+            var b = corners[pair[1]];
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255,94,94,.98)';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+            ctx.restore();
+          });
+        }
+
         if (state.fog && String(state.fog.revealMode || 'manual') === 'ordered' && state.fog.revealOrder && state.fog.revealOrder[key]) {
           ctx.save();
           ctx.fillStyle = 'rgba(73,201,187,.95)';
@@ -1174,7 +1319,7 @@
         ctx.textAlign = 'center';
         ctx.fillText(b.label, bx + bw / 2, bubbleY + bh - 5);
         ctx.restore();
-        bubbleHotspots.push({ tokenId: String(token.id), statKey: String(b.key), x: bx, y: bubbleY, w: bw, h: bh });
+        bubbleHotspots.push({ tokenId: String(token.id), statKey: String(b.key), x: bx, y: bubbleY, w: bw, h: bh, cx: bx + (bw / 2), cy: bubbleY + (bh / 2) });
       });
 
       ctx.restore();
@@ -1201,12 +1346,13 @@
         var t = pingAge / 1200;
         var radiusPulse = 8 + t * 60;
         ctx.save();
-        ctx.strokeStyle = 'rgba(73,201,187,' + (1 - t) + ')';
+        var rgb = hexToRgb(state.ping.color || '#49c9bb');
+        ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (1 - t) + ')';
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(center.x, center.y, radiusPulse, 0, Math.PI * 2);
         ctx.stroke();
-        ctx.fillStyle = 'rgba(227,188,94,' + (1 - t) + ')';
+        ctx.fillStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (1 - t) + ')';
         ctx.beginPath();
         ctx.arc(center.x, center.y, 5, 0, Math.PI * 2);
         ctx.fill();
@@ -1669,6 +1815,23 @@
       }
     }
 
+    var inlineInput = document.getElementById('combatBubbleInlineInput');
+    if (inlineInput && !inlineInput._bound) {
+      inlineInput._bound = true;
+      inlineInput.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') {
+          hideInlineBubbleEditor(true);
+          ev.preventDefault();
+        } else if (ev.key === 'Escape') {
+          hideInlineBubbleEditor(false);
+          ev.preventDefault();
+        }
+      });
+      inlineInput.addEventListener('blur', function () {
+        hideInlineBubbleEditor(true);
+      });
+    }
+
     canvas.addEventListener('mousedown', function (ev) {
       var state = store.getState();
       var rect = canvas.getBoundingClientRect();
@@ -1683,17 +1846,14 @@
       if (bubbleHit) {
         var token = byId(bubbleHit.tokenId);
         if (!token) return;
-        var currentVal = Number(token[bubbleHit.statKey] || 0);
-        var promptLabel = bubbleHit.statKey === 'deathNumber' ? 'Death Number' : bubbleHit.statKey.toUpperCase();
-        var raw = window.prompt('Set ' + promptLabel + ' for ' + (token.name || 'token') + ' (number or +/- delta):', String(currentVal));
-        if (raw !== null) applyTokenQuickEdit(bubbleHit.tokenId, bubbleHit.statKey, raw);
+        showInlineBubbleEditor(bubbleHit, token, canvas);
         return;
       }
 
       clearPingHold();
 
       if (state.activeTool === 'ping') {
-        placeTablePing(ax.q, ax.r, 'tool');
+        placeTablePing(ax.q, ax.r, currentPingIdentity());
         return;
       }
       var clickedToken = nearestTokenAt(ax.q, ax.r);
@@ -1742,7 +1902,7 @@
 
       if (ev.button === 0) {
         pingHoldTimer = setTimeout(function () {
-          placeTablePing(ax.q, ax.r, 'hold');
+          placeTablePing(ax.q, ax.r, currentPingIdentity());
         }, 360);
       }
     });
@@ -1791,6 +1951,7 @@
 
     function stopDrag() {
       clearPingHold();
+      hideInlineBubbleEditor(false);
       var state = store.getState();
       if (state.mouse && state.mouse.panning) {
         store.setState({ mouse: { panning: false, lastX: 0, lastY: 0 } });
@@ -2952,5 +3113,11 @@
 
   window.getCombatSceneSharedModifier = function (actionKey, options) {
     return resolveSharedSceneModifiers(actionKey, options);
+  };
+
+  window.sendCombatTablePing = function (identity, q, r) {
+    var qq = Number(q || 0);
+    var rr = Number(r || 0);
+    placeTablePing(qq, rr, String(identity || currentPingIdentity()));
   };
 })();

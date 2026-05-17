@@ -627,7 +627,9 @@
     },
     sceneRules: {
       rollMode: 'auto',
-      defaultActionType: 'ranged'
+      defaultActionType: 'ranged',
+      targetCoverOverrides: {},
+      lootDrops: {}
     },
     layers: {
       terrain: {},
@@ -715,6 +717,153 @@
   function byId(id) {
     var state = store.getState();
     return (state.tokens || []).find(function (t) { return t && String(t.id) === String(id); }) || null;
+  }
+
+  function isTokenDead(token) {
+    return !!(token && (token.dead || Number(token.hp || 0) <= 0));
+  }
+
+  function isSceneActive() {
+    return !!(window.S && window.S.combat && window.S.combat.active);
+  }
+
+  function isGmController() {
+    try {
+      if (window.campaignSystem && typeof window.campaignSystem.getState === 'function') {
+        var cs = window.campaignSystem.getState();
+        if (cs && cs.code) return String(cs.role || '') === 'gm';
+      }
+    } catch (_err) {}
+    return true;
+  }
+
+  function ensureLootDrops(state) {
+    var rules = Object.assign({}, state.sceneRules || {});
+    rules.lootDrops = Object.assign({}, rules.lootDrops || {});
+    return rules;
+  }
+
+  function getLootDropForToken(state, tokenId) {
+    if (!state || !state.sceneRules || !state.sceneRules.lootDrops) return null;
+    var drop = state.sceneRules.lootDrops[String(tokenId)];
+    return drop && typeof drop === 'object' ? drop : null;
+  }
+
+  function isTokenTurnActive(state, tokenId) {
+    if (!state || !Array.isArray(state.initiative) || !state.initiative.length) return false;
+    var active = state.initiative[Math.max(0, Number(state.initiativeIndex || 0))] || null;
+    return !!(active && String(active.tokenId || '') === String(tokenId || ''));
+  }
+
+  function getMovementActionsAvailable(state, token) {
+    if (!state || !token) return 0;
+    if (!isSceneActive() || !state.playMode) return 0;
+    if (!isTokenTurnActive(state, token.id)) return 0;
+    if (isTokenDead(token)) return 0;
+    if (token.isPlayer || String(token.faction || '') === 'player') {
+      return Math.max(0, Number(window.S && window.S.combat && window.S.combat.actionsLeft || 0));
+    }
+    return Math.max(0, Number(state.teamActions && state.teamActions[token.id] || 0));
+  }
+
+  function getEnemyProfileByName(name) {
+    if (!name || typeof window.NAMED_ENEMY_BESTIARY === 'undefined' || !window.NAMED_ENEMY_BESTIARY) return null;
+    var bestiary = window.NAMED_ENEMY_BESTIARY;
+    var needle = String(name || '').toLowerCase();
+    var found = null;
+    Object.keys(bestiary).some(function (region) {
+      var list = Array.isArray(bestiary[region]) ? bestiary[region] : [];
+      var row = list.find(function (entry) { return entry && String(entry.name || '').toLowerCase() === needle; });
+      if (row) {
+        found = row;
+        return true;
+      }
+      return false;
+    });
+    return found;
+  }
+
+  function parseStressFromText(text, fallback) {
+    var src = String(text || '');
+    var m = src.match(/take\s*(\d+)\s*stress/i) || src.match(/(\d+)\s*stress/i);
+    if (!m) return Math.max(1, Number(fallback || 1));
+    return Math.max(1, Number(m[1] || fallback || 1));
+  }
+
+  function ensureLootDropForToken(token, reason) {
+    if (!token) return;
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      var rules = ensureLootDrops(state);
+      var key = String(token.id || '');
+      if (!rules.lootDrops[key]) {
+        var dread = Math.max(1, Number(token.dread || token.codexDread || 4));
+        var items = [];
+        if (String(token.faction || '') === 'monster') {
+          items.push('Credits x' + String(10 * dread));
+          items.push(String(token.name || 'Enemy') + ' Trophy');
+        } else {
+          items.push(String(token.name || 'Wayfarer') + ' Kit');
+        }
+        rules.lootDrops[key] = {
+          id: uid('loot'),
+          tokenId: key,
+          tokenName: String(token.name || 'Token'),
+          q: Number(token.q || 0),
+          r: Number(token.r || 0),
+          items: items,
+          claimed: false,
+          droppedAt: Date.now(),
+          reason: String(reason || 'defeated')
+        };
+      }
+      next.sceneRules = rules;
+      persist(next);
+      return next;
+    });
+  }
+
+  function markTokenAsDead(tokenId, reason) {
+    var token = byId(tokenId);
+    if (!token) return;
+    if (isTokenDead(token) && getLootDropForToken(store.getState(), tokenId)) return;
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      next.tokens = (state.tokens || []).map(function (row) {
+        if (!row || String(row.id) !== String(tokenId)) return row;
+        return Object.assign({}, row, { hp: 0, dead: true });
+      });
+      persist(next);
+      return next;
+    });
+    ensureLootDropForToken(Object.assign({}, token, { hp: 0, dead: true }), reason || 'defeated');
+    addHistory(String(token.name || 'Token') + ' was defeated. Loot dropped on the body.');
+  }
+
+  function applyDamageToToken(tokenId, damage, sourceLabel) {
+    var target = byId(tokenId);
+    if (!target || isTokenDead(target)) return 0;
+    var amount = Math.max(0, Number(damage || 0));
+    if (!amount) return Math.max(0, Number(target.hp || 0));
+    var newHp = Math.max(0, Number(target.hp || 0) - amount);
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      next.tokens = (state.tokens || []).map(function (row) {
+        if (!row || String(row.id) !== String(tokenId)) return row;
+        return Object.assign({}, row, { hp: newHp, dead: newHp <= 0 });
+      });
+      persist(next);
+      return next;
+    });
+    if (target.isPlayer && window.S) {
+      window.S.health = Math.max(0, Number(window.S.health || 0) - amount);
+      if (typeof window.updateCombatUI === 'function') {
+        try { window.updateCombatUI(); } catch (_err) {}
+      }
+    }
+    addHistory((sourceLabel ? String(sourceLabel) + ' hits ' : '') + String(target.name || 'Target') + ' for ' + amount + ' damage (' + newHp + ' HP left).');
+    if (newHp <= 0) markTokenAsDead(tokenId, sourceLabel || 'damage');
+    return newHp;
   }
 
   function nearestTokenAt(q, r) {
@@ -854,17 +1003,7 @@
         var damage = Math.max(1, total - targetDread);
         var deathNumber = Math.max(1, Number(target.deathNumber || targetDread));
         var autoKill = damage >= deathNumber;
-        store.setState(function (inner) {
-          var next = Object.assign({}, inner);
-          next.tokens = (inner.tokens || []).map(function (token) {
-            if (!token || String(token.id) !== String(target.id)) return token;
-            var hpNow = Math.max(0, Number(token.hp || 0));
-            var hpLoss = autoKill ? hpNow : damage;
-            return Object.assign({}, token, { hp: Math.max(0, hpNow - hpLoss) });
-          });
-          persist(next);
-          return next;
-        });
+        applyDamageToToken(target.id, autoKill ? Math.max(0, Number(target.hp || 0)) : damage, actor.name || 'Action');
         addHistory((actor.name || 'Token') + ' hits ' + (target.name || 'Target') + ' at ' + range + ' hexes (' + cin + ') for ' + damage + ' damage vs DD' + targetDread + '.' + (autoKill ? (' Death Number ' + deathNumber + ' reached: instant kill.') : ''));
       } else {
         addHistory((actor.name || 'Token') + ' misses ' + (target.name || 'Target') + ' at ' + range + ' hexes (' + cin + ') vs DD' + targetDread + '.');
@@ -1041,24 +1180,36 @@
 
   function consumeMovementAction(actor, distance) {
     if (!actor) return true;
+    if (!isSceneActive()) return true;
     var isPlayerSide = !!actor.isPlayer || String(actor.faction || '') === 'player';
-    if (!isPlayerSide) return true;
-    if (!window.S || !window.S.combat) return true;
     var required = Math.max(1, Number(distance || 1));
-    var available = Math.max(0, Number(window.S.combat.actionsLeft || 0));
-    if (available < required) {
-      safeNotif('Not enough Actions to move. Movement costs 1 Action per hex.', 'warn');
-      return false;
-    }
-    if (typeof window.consumeCombatAction === 'function') {
-      for (var i = 0; i < required; i++) {
-        if (!window.consumeCombatAction('Move 1 Hex')) return false;
+    if (isPlayerSide) {
+      if (!window.S || !window.S.combat) return true;
+      var available = Math.max(0, Number(window.S.combat.actionsLeft || 0));
+      if (available < required) {
+        safeNotif('Not enough Actions to move. Movement costs 1 Action per hex.', 'warn');
+        return false;
+      }
+      if (typeof window.consumeCombatAction === 'function') {
+        for (var i = 0; i < required; i++) {
+          if (!window.consumeCombatAction('Move 1 Hex')) return false;
+        }
+        return true;
+      }
+      window.S.combat.actionsLeft = Math.max(0, available - required);
+      if (typeof window.updateCombatUI === 'function') {
+        try { window.updateCombatUI(); } catch (_err) {}
       }
       return true;
     }
-    window.S.combat.actionsLeft = Math.max(0, available - required);
-    if (typeof window.updateCombatUI === 'function') {
-      try { window.updateCombatUI(); } catch (_err) {}
+    var state = store.getState();
+    var availableEnemy = Math.max(0, Number(state.teamActions && state.teamActions[actor.id] || 0));
+    if (availableEnemy < required) {
+      safeNotif('Enemy token is out of actions for movement this turn.', 'warn');
+      return false;
+    }
+    for (var j = 0; j < required; j++) {
+      if (!spendUnitAction(actor.id)) return false;
     }
     return true;
   }
@@ -1071,13 +1222,15 @@
     var state = store.getState();
     var actor = (state.tokens || []).find(function (token) { return token && String(token.id) === String(tokenId); }) || null;
     if (!actor) return;
+    if (isTokenDead(actor)) return;
     var distance = hexDistance({ q: Number(actor.q || 0), r: Number(actor.r || 0) }, { q: Number(q), r: Number(r) });
     if (distance <= 0) return;
-    if (state.playMode && distance > 1) {
+    var activeMovement = !!(state.playMode && isSceneActive());
+    if (activeMovement && distance > 1) {
       addHistory('Movement limited to 1 hex per action in active scenes.');
       return;
     }
-    if (state.playMode && !consumeMovementAction(actor, distance)) {
+    if (activeMovement && !consumeMovementAction(actor, distance)) {
       return;
     }
     store.setState(function (state) {
@@ -1227,6 +1380,8 @@
       + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.2rem;">'
       + '<button class="btn btn-xs" id="combatTokenExecuteActionBtn">Execute</button>'
       + '<button class="btn btn-xs" id="combatTokenEnemyActionBtn">Enemy Action</button>'
+      + '<button class="btn btn-xs" id="combatLootBodyBtn">Loot Body</button>'
+      + '<button class="btn btn-xs" id="combatPlaceLootBtn">GM Place Loot</button>'
       + '</div>'
       + '<div id="combatTokenActionHelp" class="combat-mini" style="margin-top:.2rem;">No combat roll yet.</div>'
       + '</div>'
@@ -1552,15 +1707,41 @@
       }
     }
 
+    var selectedForMove = byId(state.selectedTokenId);
+    var moveBudget = getMovementActionsAvailable(state, selectedForMove);
+    if (selectedForMove && moveBudget > 0) {
+      for (var mr = -moveBudget; mr <= moveBudget; mr++) {
+        for (var mq = -moveBudget; mq <= moveBudget; mq++) {
+          var targetQ = Number(selectedForMove.q || 0) + mq;
+          var targetR = Number(selectedForMove.r || 0) + mr;
+          var dist = hexDistance({ q: Number(selectedForMove.q || 0), r: Number(selectedForMove.r || 0) }, { q: targetQ, r: targetR });
+          if (dist <= 0 || dist > moveBudget) continue;
+          if (isBlocked(targetQ, targetR)) continue;
+          if (nearestTokenAt(targetQ, targetR)) continue;
+          var mp = axialToPixel(targetQ, targetR, size, board.panX, board.panY);
+          ctx.save();
+          drawHex(ctx, mp.x, mp.y, size - 4);
+          ctx.fillStyle = String(selectedForMove.faction) === 'monster' ? 'rgba(208,83,83,.18)' : 'rgba(73,201,187,.2)';
+          ctx.fill();
+          ctx.strokeStyle = String(selectedForMove.faction) === 'monster' ? 'rgba(208,83,83,.55)' : 'rgba(73,201,187,.62)';
+          ctx.lineWidth = 1.3;
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    }
+
     (state.tokens || []).forEach(function (token) {
       var p = axialToPixel(Number(token.q || 0), Number(token.r || 0), size, board.panX, board.panY);
       var radius = Math.max(14, (size * 0.32) * Math.max(1, Number(token.size || 1)));
+      var dead = isTokenDead(token);
       ctx.save();
       ctx.beginPath();
       ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
       ctx.fillStyle = String(token.faction) === 'monster' ? 'rgba(160,58,58,.92)' : 'rgba(47,154,144,.92)';
+      if (dead) ctx.fillStyle = 'rgba(94,98,110,.7)';
       ctx.fill();
-      if (token.image) {
+      if (token.image && !dead) {
         var img = new Image();
         img.onload = function () {
           ctx.save();
@@ -1580,16 +1761,34 @@
       ctx.fillStyle = '#fff';
       ctx.font = '11px Rajdhani, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(String(token.name || 'Token'), p.x, p.y - radius - 8);
+      ctx.fillText(String(token.name || 'Token') + (dead ? ' [DEAD]' : ''), p.x, p.y - radius - 8);
       ctx.fillStyle = 'rgba(230,230,230,.95)';
       ctx.fillText('HP ' + Number(token.hp || 0) + '/' + Number(token.maxHp || token.hp || 0), p.x, p.y + radius + 12);
+
+      if (dead) {
+        ctx.strokeStyle = 'rgba(255,96,96,.92)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(p.x - radius + 4, p.y - radius + 4);
+        ctx.lineTo(p.x + radius - 4, p.y + radius - 4);
+        ctx.moveTo(p.x + radius - 4, p.y - radius + 4);
+        ctx.lineTo(p.x - radius + 4, p.y + radius - 4);
+        ctx.stroke();
+      }
+
+      var drop = getLootDropForToken(state, token.id);
+      if (drop && !drop.claimed) {
+        ctx.fillStyle = 'rgba(227,188,94,.96)';
+        ctx.font = '10px Rajdhani, sans-serif';
+        ctx.fillText('LOOT', p.x, p.y + radius + 24);
+      }
 
       // Quick-edit bubbles above token. Click bubble to edit with absolute or +/- delta.
       var bubbleY = p.y - radius - 34;
       var bubbles = [
         { key: 'hp', label: 'HP ' + Number(token.hp || 0), color: 'rgba(47,154,144,.88)' }
       ];
-      if (String(token.faction) === 'monster') {
+      if (!dead && String(token.faction) === 'monster') {
         bubbles.push({ key: 'dread', label: 'DD ' + Math.max(4, Number(token.dread || token.codexDread || 6)), color: 'rgba(208,83,83,.88)' });
         bubbles.push({ key: 'deathNumber', label: 'DN ' + Math.max(1, Number(token.deathNumber || token.dread || 6)), color: 'rgba(227,188,94,.88)' });
       }
@@ -1728,6 +1927,14 @@
 
     var paintSel = document.getElementById('combatPaintValue');
     if (paintSel) {
+      var options = getExpandedPaintOptions(state);
+      var hash = options.join('|');
+      if (paintSel.getAttribute('data-options-hash') !== hash) {
+        paintSel.innerHTML = options.map(function (opt) {
+          return '<option value="' + String(opt).replace(/"/g, '&quot;') + '">' + String(opt) + '</option>';
+        }).join('');
+        paintSel.setAttribute('data-options-hash', hash);
+      }
       paintSel.value = String(state.paintValue || 'forest');
       paintSel.onchange = function () { store.setState({ paintValue: String(paintSel.value || 'forest') }); };
     }
@@ -2040,6 +2247,8 @@
     var tokenTargetSel = document.getElementById('combatTokenTargetSel');
     var tokenActionSel = document.getElementById('combatTokenActionSel');
     var tokenCoverSel = document.getElementById('combatTargetCoverOverrideSel');
+    var lootBodyBtn = document.getElementById('combatLootBodyBtn');
+    var placeLootBtn = document.getElementById('combatPlaceLootBtn');
     var tokenActionHelp = document.getElementById('combatTokenActionHelp');
     if (tokenTargetSel) {
       var actorToken = byId(state.selectedTokenId);
@@ -2119,6 +2328,19 @@
       } else {
         tokenActionHelp.textContent = 'No combat roll yet.';
       }
+    }
+
+    if (lootBodyBtn) {
+      var selToken = byId(state.selectedTokenId);
+      var selDrop = selToken ? getLootDropForToken(state, selToken.id) : null;
+      lootBodyBtn.disabled = !(selToken && isTokenDead(selToken) && selDrop && !selDrop.claimed);
+      lootBodyBtn.style.opacity = lootBodyBtn.disabled ? '0.45' : '1';
+    }
+    if (placeLootBtn) {
+      var allow = isGmController() && !!byId(state.selectedTokenId);
+      placeLootBtn.disabled = !allow;
+      placeLootBtn.style.opacity = allow ? '1' : '0.45';
+      placeLootBtn.title = allow ? '' : 'Only GM can place loot in campaign sessions.';
     }
 
     var recoverySlotSel = document.getElementById('combatRecoverySlotSel');
@@ -2529,6 +2751,85 @@
     });
 
     window.addEventListener('mouseup', function () { dragging = null; });
+  }
+
+  function getExpandedPaintOptions(state) {
+    var base = [
+      'forest', 'marsh', 'crags', 'lava', 'ruins', 'water', 'difficult terrain',
+      'obstacle', 'trap', 'shrine', 'turret', 'door', 'spawn',
+      'wall', 'vision-blocker', 'wall-seg-e', 'wall-seg-ne', 'wall-seg-nw', 'wall-seg-w', 'wall-seg-sw', 'wall-seg-se',
+      '1', '2', '3'
+    ];
+    var set = {};
+    base.forEach(function (v) { set[v] = true; });
+    var scenes = Array.isArray(state && state.scenes) ? state.scenes : [];
+    scenes.forEach(function (scene) {
+      if (!scene || !scene.layers || !scene.layers.terrain) return;
+      Object.keys(scene.layers.terrain).forEach(function (k) {
+        var val = String(scene.layers.terrain[k] || '').trim();
+        if (val) set[val] = true;
+      });
+    });
+    var terrainMap = state && state.layers && state.layers.terrain ? state.layers.terrain : {};
+    Object.keys(terrainMap || {}).forEach(function (k2) {
+      var val2 = String(terrainMap[k2] || '').trim();
+      if (val2) set[val2] = true;
+    });
+    var customAssets = (window.S && (window.S.customTerrainAssets || window.S.terrainAssets || window.S.customAssets)) || null;
+    if (Array.isArray(customAssets)) {
+      customAssets.forEach(function (entry) {
+        var label = typeof entry === 'string' ? entry : (entry && (entry.name || entry.id || entry.label));
+        if (label) set[String(label)] = true;
+      });
+    } else if (customAssets && typeof customAssets === 'object') {
+      Object.keys(customAssets).forEach(function (key) { set[String(key)] = true; });
+    }
+    return Object.keys(set).sort(function (a, b) { return a.localeCompare(b); });
+  }
+
+  function executeEnemyTokenAction(actor, target) {
+    if (!actor || isTokenDead(actor)) return;
+    var state = store.getState();
+    var foe = target || null;
+    if (!foe || isTokenDead(foe) || String(foe.faction) === String(actor.faction)) {
+      var foes = (state.tokens || []).filter(function (row) {
+        return row && !isTokenDead(row) && String(row.faction) !== String(actor.faction);
+      });
+      foes.sort(function (a, b) {
+        return hexDistance({ q: actor.q, r: actor.r }, { q: a.q, r: a.r }) - hexDistance({ q: actor.q, r: actor.r }, { q: b.q, r: b.r });
+      });
+      foe = foes[0] || null;
+    }
+    if (!foe) {
+      addHistory((actor.name || 'Enemy') + ' has no living target.');
+      return;
+    }
+    var dist = hexDistance({ q: actor.q, r: actor.r }, { q: foe.q, r: foe.r });
+    var profile = getEnemyProfileByName(actor.name);
+    var skill = null;
+    if (profile && Array.isArray(profile.skills) && profile.skills.length) {
+      var rangeMap = { engaged: 1, close: 2, nearby: 4, far: 99 };
+      var usable = profile.skills.filter(function (row) {
+        var maxR = (row.range || []).reduce(function (mx, r) { return Math.max(mx, rangeMap[String(r || '').toLowerCase()] || 1); }, 1);
+        return dist <= maxR;
+      });
+      if (usable.length) {
+        skill = usable[Math.floor(Math.random() * usable.length)];
+      }
+    }
+    var baseDamage = Math.max(1, Math.ceil(Number(actor.dread || actor.codexDread || 6) / 3));
+    var damage = baseDamage;
+    if (skill) {
+      damage = parseStressFromText(skill.onFail || skill.desc || '', baseDamage);
+      addHistory((actor.name || 'Enemy') + ' uses ' + String(skill.name || 'enemy skill') + ' at ' + hexLabel(dist) + ' against ' + String(foe.name || 'target') + '.');
+      var notifEl = document.getElementById('combatLastNotification');
+      if (notifEl) notifEl.textContent = (actor.name || 'Enemy') + ': ' + String(skill.name || 'Skill') + ' · ' + String(skill.onFail || 'Effect applies');
+    } else {
+      addHistory((actor.name || 'Enemy') + ' uses basic attack at ' + hexLabel(dist) + ' against ' + String(foe.name || 'target') + '.');
+    }
+    applyDamageToToken(foe.id, damage, actor.name || 'Enemy');
+    drawBoard();
+    updateUiPanels();
   }
 
   function bindStaticControls() {
@@ -3017,6 +3318,23 @@
     }
 
     function runLegacyAction(kind) {
+      var stateBefore = store.getState();
+      var selectedActor = byId(stateBefore.selectedTokenId);
+      if ((kind === 'enemy' || kind === 'flow') && selectedActor && String(selectedActor.faction) === 'monster') {
+        var tokenTargetSelEnemy = document.getElementById('combatTokenTargetSel');
+        var tIdEnemy = String(tokenTargetSelEnemy && tokenTargetSelEnemy.value || '');
+        var targetEnemy = tIdEnemy ? byId(tIdEnemy) : null;
+        executeEnemyTokenAction(selectedActor, targetEnemy);
+        return;
+      }
+      if (kind === 'enemy' || kind === 'flow') {
+        var activeRow = stateBefore.initiative && stateBefore.initiative[stateBefore.initiativeIndex] || null;
+        var activeActor = activeRow ? byId(activeRow.tokenId) : null;
+        if (activeActor && String(activeActor.faction) === 'monster') {
+          executeEnemyTokenAction(activeActor, null);
+          return;
+        }
+      }
       try {
         if (kind === 'strike' && typeof window.rollAttack === 'function') window.rollAttack('strike');
         else if (kind === 'shoot' && typeof window.rollAttack === 'function') window.rollAttack('shoot');
@@ -3030,11 +3348,12 @@
     }
 
     function tryApplyLegacyDamageToTokens(kind) {
-      if (kind !== 'strike' && kind !== 'shoot') return;
-      var el = document.getElementById('attackResult');
+      var el = (kind === 'enemy' || kind === 'flow')
+        ? document.getElementById('enemyActionResult')
+        : document.getElementById('attackResult');
       if (!el) return;
       var text = el.textContent || el.innerText || '';
-      var match = text.match(/HIT!\s*(\d+)\s*Stress/i);
+      var match = text.match(/HIT!\s*(\d+)\s*Stress/i) || text.match(/(\d+)\s*Stress/i);
       if (!match) return;
       var damage = Math.max(1, parseInt(match[1], 10));
       var state = store.getState();
@@ -3042,26 +3361,21 @@
       var targetId = String(tokenTargetSel && tokenTargetSel.value || '');
       var target = targetId ? byId(targetId) : null;
       if (!target) {
-        var actor = byId(state.selectedTokenId) || (state.tokens || []).find(function (t) { return t && t.isPlayer; });
-        var enemies = (state.tokens || []).filter(function (t) { return t && String(t.faction) === 'monster' && Number(t.hp || 0) > 0; });
-        if (actor && enemies.length) {
-          enemies.sort(function (a, b) { return hexDistance({ q: actor.q, r: actor.r }, { q: a.q, r: a.r }) - hexDistance({ q: actor.q, r: actor.r }, { q: b.q, r: b.r }); });
-          target = enemies[0];
+        if (kind === 'enemy' || kind === 'flow') {
+          var players = (state.tokens || []).filter(function (t) { return t && !isTokenDead(t) && String(t.faction) === 'player'; });
+          players.sort(function (a, b) { return Number(a.hp || 0) - Number(b.hp || 0); });
+          target = players[0] || null;
+        } else {
+          var actor = byId(state.selectedTokenId) || (state.tokens || []).find(function (t) { return t && t.isPlayer; });
+          var enemies = (state.tokens || []).filter(function (t) { return t && String(t.faction) === 'monster' && Number(t.hp || 0) > 0; });
+          if (actor && enemies.length) {
+            enemies.sort(function (a, b) { return hexDistance({ q: actor.q, r: actor.r }, { q: a.q, r: a.r }) - hexDistance({ q: actor.q, r: actor.r }, { q: b.q, r: b.r }); });
+            target = enemies[0];
+          }
         }
       }
       if (!target) return;
-      var prevHp = Math.max(0, Number(target.hp || 0));
-      var newHp = Math.max(0, prevHp - damage);
-      store.setState(function (inner) {
-        var next = Object.assign({}, inner);
-        next.tokens = (inner.tokens || []).map(function (t) {
-          if (!t || String(t.id) !== String(target.id)) return t;
-          return Object.assign({}, t, { hp: newHp });
-        });
-        persist(next);
-        return next;
-      });
-      addHistory('Combat Scene: ' + String(target.name || 'Enemy') + ' HP reduced by ' + damage + ' → now ' + newHp + '.');
+      var newHp = applyDamageToToken(target.id, damage, kind === 'enemy' || kind === 'flow' ? 'Enemy Action' : 'Player Action');
       var notifEl = document.getElementById('combatLastNotification');
       if (notifEl) notifEl.textContent = String(target.name || 'Enemy') + ' takes ' + damage + ' stress · HP: ' + newHp;
       drawBoard();
@@ -3139,44 +3453,8 @@
           return;
         }
         if (String(actor.faction) === 'monster') {
-          if (actionVal === 'enemy_flow') runLegacyAction('flow');
-          else runLegacyAction('enemy');
-          return;
-        }
-        // monster unique skill logging
-        if (String(actor.faction) === 'monster') {
-          var monProfile = null;
-          var allBestiary = typeof window.NAMED_ENEMY_BESTIARY !== 'undefined' ? window.NAMED_ENEMY_BESTIARY : null;
-          if (allBestiary && actor.name) {
-            Object.keys(allBestiary).some(function (k) {
-              var f2 = (allBestiary[k] || []).find(function (e) { return e && String(e.name).toLowerCase() === String(actor.name).toLowerCase(); });
-              if (f2) { monProfile = f2; return true; }
-              return false;
-            });
-          }
-          if (monProfile && Array.isArray(monProfile.skills) && monProfile.skills.length) {
-            var tokenTargetSel2 = document.getElementById('combatTokenTargetSel');
-            var tId2 = String(tokenTargetSel2 && tokenTargetSel2.value || '');
-            var tToken2 = tId2 ? byId(tId2) : null;
-            var HEX_RANGE_MAP2 = { 'engaged': 1, 'close': 2, 'nearby': 4, 'far': 99 };
-            var usedSkill = null;
-            if (tToken2) {
-              var dist2 = hexDistance({ q: actor.q, r: actor.r }, { q: tToken2.q, r: tToken2.r });
-              usedSkill = monProfile.skills.find(function (sk) {
-                var maxR = (sk.range || []).reduce(function (mx, r) { return Math.max(mx, HEX_RANGE_MAP2[r] || 1); }, 0);
-                return dist2 <= maxR;
-              });
-            }
-            if (usedSkill) {
-              addHistory(String(actor.name) + ' uses unique skill: ' + usedSkill.name + ' — ' + usedSkill.desc);
-              var notifEl2 = document.getElementById('combatLastNotification');
-              if (notifEl2) notifEl2.textContent = actor.name + ': ' + usedSkill.name + ' · Save: ' + usedSkill.save + ' · On fail: ' + usedSkill.onFail;
-            } else {
-              addHistory(String(actor.name) + ' is out of range for unique skills — defaults to Strike/Shoot.');
-            }
-          }
-          if (actionVal === 'enemy_flow') runLegacyAction('flow');
-          else runLegacyAction('enemy');
+          var directTarget = targetVal ? byId(targetVal) : null;
+          executeEnemyTokenAction(actor, directTarget);
           return;
         }
         if (!actionVal) {
@@ -3209,7 +3487,86 @@
           safeNotif('Select an enemy token to use enemy actions.', 'warn');
           return;
         }
-        runLegacyAction('enemy');
+        executeEnemyTokenAction(actor, null);
+      };
+    }
+
+    var lootBodyBtn = document.getElementById('combatLootBodyBtn');
+    if (lootBodyBtn && !lootBodyBtn._bound) {
+      lootBodyBtn._bound = true;
+      lootBodyBtn.onclick = function () {
+        var st = store.getState();
+        var token = byId(st.selectedTokenId);
+        if (!token || !isTokenDead(token)) {
+          safeNotif('Select a defeated token to loot the body.', 'warn');
+          return;
+        }
+        var drop = getLootDropForToken(st, token.id);
+        if (!drop || drop.claimed) {
+          safeNotif('No loot available on this body.', 'warn');
+          return;
+        }
+        var list = Array.isArray(drop.items) ? drop.items : [];
+        list.forEach(function (item) {
+          if (typeof window.addToBackpack === 'function') {
+            try { window.addToBackpack(item); } catch (_err) {}
+          }
+        });
+        store.setState(function (state) {
+          var next = Object.assign({}, state);
+          var rules = ensureLootDrops(state);
+          var row = rules.lootDrops[String(token.id)] || null;
+          if (row) row.claimed = true;
+          rules.lootDrops[String(token.id)] = row;
+          next.sceneRules = rules;
+          persist(next);
+          return next;
+        });
+        addHistory('Looted ' + String(token.name || 'body') + ': ' + list.join(', ') + '.');
+        safeNotif('Loot collected from body.', 'good');
+        drawBoard();
+        updateUiPanels();
+      };
+    }
+
+    var placeLootBtn = document.getElementById('combatPlaceLootBtn');
+    if (placeLootBtn && !placeLootBtn._bound) {
+      placeLootBtn._bound = true;
+      placeLootBtn.onclick = function () {
+        if (!isGmController()) {
+          safeNotif('Only GM can place loot in campaign sessions.', 'warn');
+          return;
+        }
+        var st = store.getState();
+        var token = byId(st.selectedTokenId);
+        if (!token) {
+          safeNotif('Select a token card first.', 'warn');
+          return;
+        }
+        var raw = window.prompt('Loot items to place on this token (comma separated):', 'Credits x50, Arc Shard');
+        if (!raw) return;
+        var items = String(raw).split(',').map(function (v) { return String(v || '').trim(); }).filter(Boolean);
+        if (!items.length) return;
+        store.setState(function (state) {
+          var next = Object.assign({}, state);
+          var rules = ensureLootDrops(state);
+          var key = String(token.id);
+          var row = rules.lootDrops[key] || {
+            id: uid('loot'), tokenId: key, tokenName: String(token.name || 'Token'), q: Number(token.q || 0), r: Number(token.r || 0), items: [], claimed: false, droppedAt: Date.now(), reason: 'gm-placed'
+          };
+          row.items = (Array.isArray(row.items) ? row.items : []).concat(items);
+          row.claimed = false;
+          row.q = Number(token.q || 0);
+          row.r = Number(token.r || 0);
+          rules.lootDrops[key] = row;
+          next.sceneRules = rules;
+          persist(next);
+          return next;
+        });
+        addHistory('GM placed loot on ' + String(token.name || 'token') + ': ' + items.join(', ') + '.');
+        safeNotif('Loot placed on token card.', 'good');
+        drawBoard();
+        updateUiPanels();
       };
     }
 
@@ -3309,13 +3666,9 @@
             var dmg = Math.max(1, total - dd);
             var dn = Math.max(1, Number(target.deathNumber || dd));
             var kill = dmg >= dn;
+            applyDamageToToken(target.id, kill ? Math.max(0, Number(target.hp || 0)) : dmg, ally.name || 'Ally');
             store.setState(function (inner) {
               var next = Object.assign({}, inner);
-              next.tokens = (inner.tokens || []).map(function (t) {
-                if (!t || String(t.id) !== String(target.id)) return t;
-                var hpNow = Math.max(0, Number(t.hp || 0));
-                return Object.assign({}, t, { hp: kill ? 0 : Math.max(0, hpNow - dmg) });
-              });
               next.sceneRules = Object.assign({}, inner.sceneRules, { supportBonus: 0 });
               persist(next);
               return next;

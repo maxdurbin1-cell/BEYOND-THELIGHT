@@ -17135,6 +17135,81 @@ function explorePlanetCell(cellId) {
   finalizeExplore({ success: check.success, text: check.text, manual: false, dreadDie: dd });
 }
 
+function buildPlanetTravelSceneCombatSeed(hexRef, cellRef) {
+  if (!hexRef || !cellRef) return null;
+  const portrait = (S && S.identityForge && S.identityForge.media && S.identityForge.media.portrait)
+    ? String(S.identityForge.media.portrait)
+    : '';
+  const wayfarerName = String((S && S.name) || 'Wayfarer');
+  const dread = cellRef.marker === 'peril' || cellRef.marker === 'barrier' ? 8 : 6;
+  const count = cellRef.marker === 'peril' ? 2 : 1;
+  const tokens = [{
+    id: 'planet-wayfarer-' + Date.now().toString(36),
+    name: wayfarerName,
+    faction: 'player',
+    hp: 12,
+    maxHp: 12,
+    status: [],
+    q: 0,
+    r: 0,
+    image: portrait,
+    size: 1,
+    isPlayer: true
+  }];
+  for (let i = 0; i < count; i += 1) {
+    tokens.push({
+      id: 'planet-enemy-' + i + '-' + Date.now().toString(36),
+      name: 'Surface Hostile ' + String(i + 1),
+      faction: 'monster',
+      hp: dread * 2,
+      maxHp: dread * 2,
+      status: [],
+      q: 3 + i,
+      r: i % 2,
+      image: '',
+      size: 1,
+      dread,
+      deathNumber: dread
+    });
+  }
+  return {
+    id: 'planet-scene-' + String(hexRef.id) + '-' + String(cellRef.id),
+    name: 'Planet Scene · Cell ' + String(cellRef.id),
+    tokens,
+    history: ['Planet scene loaded: Cell ' + String(cellRef.id) + '.', 'Hostiles seeded: ' + String(count) + '.']
+  };
+}
+
+function launchPlanetSelectedCellToCombat() {
+  const planetHex = getActivePlanetHex();
+  if (!planetHex || planetHex.type !== 'planet') return;
+  const state = ensurePlanetSurfaceState(planetHex);
+  const selected = state && Array.isArray(state.cells)
+    ? (state.cells.find((c) => c.id === state.selectedCellId) || state.cells[0])
+    : null;
+  const seed = buildPlanetTravelSceneCombatSeed(planetHex, selected);
+  if (seed && typeof window.openCombatSceneEditor === 'function') {
+    window.openCombatSceneEditor(seed);
+    if (typeof showNotif === 'function') showNotif('Launching Combat Mode from Planet Cell ' + String(selected && selected.id || '?') + '.', 'good');
+  } else if (typeof showNotif === 'function') {
+    showNotif('Combat Mode is unavailable.', 'warn');
+  }
+}
+
+function buildPlanetTravelSceneCard(cellRef) {
+  if (!cellRef) return '';
+  return `<details class="npc-block" style="margin-bottom:.35rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);">
+    <summary class="nb-label" style="color:var(--teal);cursor:pointer;list-style:none;">🎬 Travel Scene [Planet]</summary>
+    <div style="margin-top:.28rem;">
+      <div style="font-size:.78rem;color:var(--text2);line-height:1.55;">Use this selected surface cell as an encounter scene and launch to Combat Mode.</div>
+      <div style="font-size:.74rem;color:var(--muted2);margin-top:.2rem;">Selected Cell: ${Number(cellRef.id || 0)} · ${String(cellRef.marker || cellRef.terrain || 'surface')}</div>
+      <div style="margin-top:.28rem;display:flex;gap:.25rem;flex-wrap:wrap;">
+        <button class="btn btn-xs btn-primary" onclick="launchPlanetSelectedCellToCombat()">Launch Into Combat Mode</button>
+      </div>
+    </div>
+  </details>`;
+}
+
 function renderPlanetExplorationPanel() {
   ensureStarsState();
   const target = document.getElementById('tab-planet');
@@ -17274,6 +17349,7 @@ function renderPlanetExplorationPanel() {
           <div class="hex-type-tag ${selected && selected.explored ? 'holding' : 'wilderness'}">${narrative.markerLabel}</div>
           <div class="hex-name">${narrative.terrainLabel}</div>
           <div class="hex-desc" style="margin-bottom:.4rem;">${narrative.terrainLabel} terrain · ${selected ? selected.province : '-'}</div>
+          ${buildPlanetTravelSceneCard(selected)}
 
           ${weather ? `<div class="weather-block ${weather.rough ? 'rough' : 'clear'}" style="margin-bottom:.35rem;">
             <div class="weather-label" style="color:${weather.rough ? 'var(--red2)' : 'var(--teal)'};">🌦 ${(typeof capitalize === 'function' ? capitalize(S.currentSeason || 'spring') : (S.currentSeason || 'spring'))} Weather: ${weather.label}</div>
@@ -18727,6 +18803,82 @@ function runFurtherSystemAnalysis() {
   updateStarSystemReadouts();
 }
 
+function buildGalaxyTravelSceneCombatSeed(hex) {
+  if (!hex) return null;
+  const portrait = (S && S.identityForge && S.identityForge.media && S.identityForge.media.portrait)
+    ? String(S.identityForge.media.portrait)
+    : '';
+  const wayfarerName = String((S && S.name) || 'Wayfarer');
+  const tokens = [{
+    id: 'galaxy-wayfarer-' + Date.now().toString(36),
+    name: wayfarerName,
+    faction: 'player',
+    hp: 12,
+    maxHp: 12,
+    status: [],
+    q: 0,
+    r: 0,
+    image: portrait,
+    size: 1,
+    isPlayer: true
+  }];
+
+  let count = 1;
+  let dread = 8;
+  if (hex.type === 'void' || hex.type === 'hazard') { count = 2; dread = 10; }
+  if (hex.type === 'planet') { count = 1; dread = 8; }
+  for (let i = 0; i < count; i += 1) {
+    tokens.push({
+      id: 'galaxy-enemy-' + i + '-' + Date.now().toString(36),
+      name: 'Deep Space Hostile ' + String(i + 1),
+      faction: 'monster',
+      hp: dread * 2,
+      maxHp: dread * 2,
+      status: [],
+      q: 3 + i,
+      r: i % 2,
+      image: '',
+      size: 1,
+      dread: dread,
+      deathNumber: dread
+    });
+  }
+
+  return {
+    id: 'galaxy-scene-' + String(hex.id || Date.now()),
+    name: 'Galaxy Scene · Hex ' + String(hex.id || '?'),
+    tokens,
+    history: ['Galaxy scene loaded: Hex ' + String(hex.id || '?') + '.', 'Hostiles seeded: ' + String(count) + '.']
+  };
+}
+
+function launchGalaxyHexToCombat(hexId) {
+  if (!S || !S.starSystem || !Array.isArray(S.starSystem.hexes)) return;
+  const hex = S.starSystem.hexes.find((entry) => entry && Number(entry.id) === Number(hexId)) || getCurrentStarHex();
+  if (!hex) return;
+  const seed = buildGalaxyTravelSceneCombatSeed(hex);
+  if (seed && typeof window.openCombatSceneEditor === 'function') {
+    window.openCombatSceneEditor(seed);
+    if (typeof showNotif === 'function') showNotif('Launching Combat Mode from Galaxy hex ' + String(hex.id) + '.', 'good');
+  } else if (typeof showNotif === 'function') {
+    showNotif('Combat Mode is unavailable.', 'warn');
+  }
+}
+
+function buildGalaxyTravelSceneCard(hex) {
+  if (!hex) return '';
+  return `<details class="npc-block" style="margin-bottom:.35rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);">
+    <summary class="nb-label" style="color:var(--teal);cursor:pointer;list-style:none;">🎬 Travel Scene [Galaxy]</summary>
+    <div style="margin-top:.28rem;">
+      <div style="font-size:.78rem;color:var(--text2);line-height:1.55;">Create a fast encounter from the selected galaxy hex and launch it in Combat Mode.</div>
+      <div style="font-size:.74rem;color:var(--muted2);margin-top:.2rem;">Selected Hex: ${Number(hex.id || 0)} · ${String(hex.type || 'unknown')}</div>
+      <div style="margin-top:.28rem;display:flex;gap:.25rem;flex-wrap:wrap;">
+        <button class="btn btn-xs btn-primary" onclick="launchGalaxyHexToCombat(${Number(hex.id || 0)})">Launch Into Combat Mode</button>
+      </div>
+    </div>
+  </details>`;
+}
+
 function updateStarSystemReadouts() {
   const detail = document.getElementById('starSystemHexDetail');
   const panel = document.getElementById('starHexInfoBody');
@@ -18821,6 +18973,7 @@ function updateStarSystemReadouts() {
             <div style="font-size:.78rem;color:var(--muted2);margin-top:.2rem;">${S.starSystem.currentWeather.dd > 0 ? `⚠ ${S.starSystem.currentWeather.checkLabel} vs DD${S.starSystem.currentWeather.dd}. Failure: ${S.starSystem.currentWeather.failure}` : 'Clear travel lane. No traversal check required.'}</div>
             ${S.starSystem.currentWeather.dd > 0 ? '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.25rem;"><button class="btn btn-xs" onclick="resolveGalaxyWeatherCheck()">Traverse Weather</button></div>' : ''}
           </div>` : ''}
+          ${buildGalaxyTravelSceneCard(current)}
           ${current.type === 'radio_task' && !current.radioTaskResolved ? `<div style="padding:.42rem;border:1px solid rgba(80,200,255,.7);background:rgba(80,200,255,.08);font-size:.84rem;color:#dff8ff;line-height:1.55;">Radio event marker active in this hex. Resolve it here before it goes cold.</div>` : ''}
           <div style="padding:.42rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">            <div style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Wonder</div>
             <div style="font-size:.88rem;color:var(--text2);line-height:1.55;margin-top:.08rem;">${current.wonder ? current.wonder + '.' : 'No notable marvel detected in this hex.'}</div>

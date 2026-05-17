@@ -1772,6 +1772,85 @@
     return 'The confrontation wing is already awake: barricades, signal flares, and watchfires line the approach while shadows move between kill-zones. The field is cramped, loud, and seconds from violence.';
   }
 
+  function buildSeaTravelSceneCombatSeed(hex) {
+    if (!hex) return null;
+    var portrait = (S && S.identityForge && S.identityForge.media && S.identityForge.media.portrait) ? String(S.identityForge.media.portrait) : '';
+    var wayfarerName = String((S && S.name) || 'Wayfarer');
+    var title = String(hex.title || hex.islandName || hex.seaLabel || ('Sea Hex ' + String(hex.key || '?')));
+    var tokens = [{
+      id: 'sea-wayfarer-' + Date.now().toString(36),
+      name: wayfarerName,
+      faction: 'player',
+      hp: 12,
+      maxHp: 12,
+      status: [],
+      q: 0,
+      r: 0,
+      image: portrait,
+      size: 1,
+      isPlayer: true
+    }];
+
+    var count = 0;
+    var dread = 6;
+    if (hex.siteType === 'dungeon') { count = 2; dread = 8; }
+    else if (hex.siteType === 'colosseum') { count = 2; dread = 10; }
+    else if (hex.type === 'sea') { count = 1; dread = 6; }
+    else { count = 1; dread = 6; }
+
+    for (var i = 0; i < count; i++) {
+      tokens.push({
+        id: 'sea-enemy-' + i + '-' + Date.now().toString(36),
+        name: (hex.siteType === 'colosseum' ? 'Arena Raider' : 'Sea Hostile') + ' ' + String(i + 1),
+        faction: 'monster',
+        hp: Math.max(1, dread * 2),
+        maxHp: Math.max(1, dread * 2),
+        status: [],
+        q: 3 + i,
+        r: i % 2,
+        image: '',
+        size: 1,
+        dread: dread,
+        deathNumber: dread
+      });
+    }
+
+    return {
+      id: 'sea-scene-' + String(hex.key || Date.now()),
+      name: 'Sea Scene · ' + title,
+      tokens: tokens,
+      history: ['Sea scene loaded: ' + title + '.', 'Hostiles seeded: ' + String(count) + '.']
+    };
+  }
+
+  function launchSeaSceneToCombat(hexKey) {
+    if (!S || !S.lastSea || !Array.isArray(S.lastSea.map)) return;
+    var hex = S.lastSea.map.find(function (item) { return item && String(item.key) === String(hexKey || ''); }) || null;
+    if (!hex) return;
+    var seed = buildSeaTravelSceneCombatSeed(hex);
+    if (seed && typeof window.openCombatSceneEditor === 'function') {
+      window.openCombatSceneEditor(seed);
+      if (typeof showNotif === 'function') showNotif('Launching Combat Mode from Last Sea: ' + String(seed.name || 'Sea Scene') + '.', 'good');
+    } else if (typeof showNotif === 'function') {
+      showNotif('Combat Mode is unavailable.', 'warn');
+    }
+  }
+
+  function buildSeaTravelSceneCard(hex) {
+    if (!hex) return '';
+    var title = String(hex.title || hex.islandName || hex.seaLabel || ('Sea Hex ' + String(hex.key || '?')));
+    return '<details class="npc-block" style="margin-bottom:.35rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);">'
+      + '<summary class="nb-label" style="color:var(--teal);cursor:pointer;list-style:none;">🎬 Travel Scene [Last Sea]</summary>'
+      + '<div style="margin-top:.28rem;">'
+      + '<div style="font-size:.78rem;color:var(--text2);line-height:1.55;">Use this sea hex as a staged encounter card and launch directly into Combat Mode.</div>'
+      + '<div style="font-size:.74rem;color:var(--muted2);margin-top:.2rem;">Selected: ' + title + '</div>'
+      + '<div style="margin-top:.28rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs btn-primary" onclick="launchSeaSceneToCombat(\'' + String(hex.key || '').replace(/'/g, "\\'") + '\')">Launch Into Combat Mode</button>'
+      + '</div>'
+      + '</div>'
+      + '</details>';
+  }
+
   function renderLastSeaInfo(cell) {
     const panel = document.getElementById("lastSeaInfo");
     if (!panel) {
@@ -1869,6 +1948,7 @@
         <div class="hex-name">${hex.type === "sea" ? (hex.seaLabel || "Open Water") : hex.title || hex.islandName}</div>
         <div class="hex-desc" style="margin-bottom:.45rem;">${hex.desc}</div>
         ${seaTravelNarrative ? `<div class="npc-block" style="margin-bottom:.35rem;border-color:rgba(126,215,255,.32);background:rgba(126,215,255,.06);"><div class="nb-label" style="color:#7ed7ff;">🎭 Scene Read</div><div style="font-size:.79rem;color:var(--text2);line-height:1.58;">${seaTravelNarrative}</div></div>` : ''}
+        ${buildSeaTravelSceneCard(hex)}
         ${renderCurrentSeaWeather()}
         ${
           island
@@ -5429,4 +5509,5 @@
   window.setGamblingGuess = setGamblingGuess;
   window.playGamblingRound = playGamblingRound;
   window.clearGamblingHistory = clearGamblingHistory;
+  window.launchSeaSceneToCombat = launchSeaSceneToCombat;
 })();

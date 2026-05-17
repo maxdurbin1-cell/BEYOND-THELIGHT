@@ -3606,6 +3606,79 @@
       + "</details>";
   }
 
+  function buildWtwTravelSceneCombatSeed(hex) {
+    if (!hex) return null;
+    const portrait = (S && S.identityForge && S.identityForge.media && S.identityForge.media.portrait)
+      ? String(S.identityForge.media.portrait)
+      : "";
+    const wayfarerName = String((S && S.name) || "Wayfarer");
+    const dread = Math.max(6, Number((hex.encounter && hex.encounter.dread) || 8));
+    const enemyCount = Math.max(1, Number((hex.encounter && hex.encounter.enemies) || 1));
+    const enemyName = String((hex.encounter && hex.encounter.enemyName) || "District Hostile");
+    const tokens = [{
+      id: "wtw-wayfarer-" + Date.now().toString(36),
+      name: wayfarerName,
+      faction: "player",
+      hp: 12,
+      maxHp: 12,
+      status: [],
+      q: 0,
+      r: 0,
+      image: portrait,
+      size: 1,
+      isPlayer: true
+    }];
+    for (let i = 0; i < enemyCount; i += 1) {
+      tokens.push({
+        id: "wtw-enemy-" + i + "-" + Date.now().toString(36),
+        name: enemyName + (enemyCount > 1 ? (" " + String(i + 1)) : ""),
+        faction: "monster",
+        hp: dread * 2,
+        maxHp: dread * 2,
+        status: [],
+        q: 3 + i,
+        r: i % 2,
+        image: "",
+        size: 1,
+        dread: dread,
+        deathNumber: dread
+      });
+    }
+    return {
+      id: "wtw-scene-" + String(hex.id || Date.now()),
+      name: "World That Was Scene · " + String(hex.district || hex.id || "District"),
+      tokens: tokens,
+      history: ["World That Was scene loaded: " + String(hex.district || hex.id || "District") + ".", "Hostiles seeded: " + String(enemyCount) + "."]
+    };
+  }
+
+  function launchWtwHexToCombat(hexId) {
+    const w = ensureWorldState();
+    if (!w || !Array.isArray(w.hexes)) return;
+    const hex = w.hexes.find(function (entry) { return entry && String(entry.id) === String(hexId || ""); }) || getSelectedHex();
+    if (!hex) return;
+    const seed = buildWtwTravelSceneCombatSeed(hex);
+    if (seed && typeof window.openCombatSceneEditor === "function") {
+      window.openCombatSceneEditor(seed);
+      if (typeof showNotif === "function") showNotif("Launching Combat Mode from World That Was district " + String(hex.id) + ".", "good");
+    } else if (typeof showNotif === "function") {
+      showNotif("Combat Mode is unavailable.", "warn");
+    }
+  }
+
+  function buildWtwTravelSceneCard(hex) {
+    if (!hex) return "";
+    return ""
+      + "<details class='npc-block' style='margin:.35rem 0;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);'>"
+      + "<summary class='nb-label' style='color:var(--teal);cursor:pointer;list-style:none;'>🎬 Travel Scene [World That Was]</summary>"
+      + "<div style='margin-top:.28rem;'>"
+      + "<div style='font-size:.78rem;color:var(--text2);line-height:1.55;'>Use this district as an encounter scene and launch directly into Combat Mode.</div>"
+      + "<div style='font-size:.74rem;color:var(--muted2);margin-top:.2rem;'>Selected District: " + String(hex.id || "?") + " · " + String(hex.district || hex.zone || "Unknown") + "</div>"
+      + "<div style='margin-top:.28rem;display:flex;gap:.25rem;flex-wrap:wrap;'><button class='btn btn-xs btn-primary' onclick='launchWtwHexToCombat(\"" + String(hex.id || "").replace(/"/g, '&quot;') + "\")'>Launch Into Combat Mode</button></div>"
+      + "</div>"
+      + "</details>";
+  }
+
   function renderWorldThatWasInfo() {
     const w = ensureWorldState();
     const panel = document.getElementById("wtwInfo");
@@ -3864,6 +3937,7 @@
       + "<div class='wtw-summary'>" + n.location + " • " + n.sight + " • " + n.weather + " • " + n.feature + "</div>"
       + "</div>"
       + summaryGrid
+      + buildWtwTravelSceneCard(hex)
       + eventCard
         + buildWtwAccordionStateful("Encounter & Markers", activityHtml + encounterHtml + markerHtml + wtwWorldStateHtml + backstoryAnchorHtml, true, "encounter")
         + buildWtwAccordionStateful("Hazards, Wayfarers, Exploration & Travel", worldSystems, false, "worldsystems")
@@ -4075,6 +4149,7 @@
   window.initWorldThatWas = initWorldThatWas;
   window.mountWorldThatWasPanel = mountWorldThatWasPanel;
   window.renderWorldThatWas = renderWorldThatWas;
+  window.launchWtwHexToCombat = launchWtwHexToCombat;
   window.generateWorldThatWasMap = generateWorldThatWasMap;
   window.advanceWorldThatWas = advanceWorldThatWas;
   window.resolveWorldSkirmish = quickResolveWorldSkirmish;

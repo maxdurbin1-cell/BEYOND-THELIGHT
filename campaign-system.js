@@ -669,8 +669,13 @@
 
   function collectCombatSceneState() {
     if (typeof window.S === "undefined" || !window.S) {
-      return { combat: {}, enemies: [], naval: null, caravan: null, combatMap: null, combatAugState: null, sceneEditor: null };
+      return { combat: {}, enemies: [], naval: null, caravan: null, combatMap: null, combatAugState: null, sceneEditor: null, syncMeta: null };
     }
+    var shared = getCampaignSharedState();
+    var sharedScene = shared && shared.combatScene && typeof shared.combatScene === "object" ? shared.combatScene : null;
+    var existingMeta = (window.S.combat && window.S.combat.sceneSyncMeta && typeof window.S.combat.sceneSyncMeta === "object")
+      ? window.S.combat.sceneSyncMeta
+      : (sharedScene && sharedScene.syncMeta && typeof sharedScene.syncMeta === "object" ? sharedScene.syncMeta : null);
     return {
       combat: deepCloneJson(window.S.combat || {}) || {},
       enemies: Array.isArray(window.S.enemies) ? (deepCloneJson(window.S.enemies) || []) : [],
@@ -680,7 +685,8 @@
       combatAugState: (window.S.combatAugState && typeof window.S.combatAugState === "object") ? (deepCloneJson(window.S.combatAugState) || null) : null,
       sceneEditor: (window.S.combat && window.S.combat.sceneEditor && typeof window.S.combat.sceneEditor === "object")
         ? (deepCloneJson(window.S.combat.sceneEditor) || null)
-        : null
+        : null,
+      syncMeta: existingMeta ? (deepCloneJson(existingMeta) || null) : null
     };
   }
 
@@ -1445,6 +1451,9 @@
         }
         if (sharedState.combatScene.sceneEditor && typeof sharedState.combatScene.sceneEditor === "object") {
           window.S.combat.sceneEditor = deepCloneJson(sharedState.combatScene.sceneEditor) || null;
+        }
+        if (sharedState.combatScene.syncMeta && typeof sharedState.combatScene.syncMeta === "object") {
+          window.S.combat.sceneSyncMeta = deepCloneJson(sharedState.combatScene.syncMeta) || null;
         }
         state.lastCombatSceneHash = hashCombatSceneState(sharedState.combatScene);
         var current = getCampaignSharedState() || {};
@@ -4922,6 +4931,7 @@
       text: String(state.syncText || "Idle"),
       lastSyncAt: Number(state.lastSyncAt || 0),
       lastCampaignStateAt: Number(state.lastCampaignStateAt || 0),
+      sharedVersion: Number(state.lastSharedVersion || 0),
       pendingSyncCount: Number(state.pendingSyncCount || 0),
       syncConflictCount: Number(state.syncConflictCount || 0),
       connected: !!state.connected,

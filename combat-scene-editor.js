@@ -13,6 +13,16 @@
     if (typeof window.showNotif === 'function') window.showNotif(msg, tone || 'info');
   }
 
+  function formatClockTime(value) {
+    var t = Number(value || 0);
+    if (!t) return '--:--';
+    try {
+      return new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (_err) {
+      return '--:--';
+    }
+  }
+
   function clone(obj) {
     return JSON.parse(JSON.stringify(obj));
   }
@@ -324,6 +334,10 @@
       }
       if (!cs || cs.role !== 'gm' || !cs.connected || !cs.code) return;
       var scene = {
+        syncMeta: {
+          by: String(window.S && window.S.name || 'GM'),
+          at: Date.now()
+        },
         combat: deepCloneJson(window.S && window.S.combat || {}) || {},
         enemies: Array.isArray(window.S && window.S.enemies) ? (deepCloneJson(window.S.enemies) || []) : [],
         naval: (window.S && window.S.naval && typeof window.S.naval === 'object') ? (deepCloneJson(window.S.naval) || null) : null,
@@ -477,6 +491,18 @@
     return 'utility';
   }
 
+  function coverOverridePenaltyForTarget(state, targetId) {
+    if (!state || !targetId) return 0;
+    var map = state.sceneRules && state.sceneRules.targetCoverOverrides && typeof state.sceneRules.targetCoverOverrides === 'object'
+      ? state.sceneRules.targetCoverOverrides
+      : {};
+    var mode = String(map[targetId] || 'auto').toLowerCase();
+    if (mode === 'none') return 0;
+    if (mode === 'light') return -1;
+    if (mode === 'heavy') return -2;
+    return 0;
+  }
+
   function coverPenaltyForTarget(state, actor, target, action) {
     if (!state || !actor || !target) return 0;
     if (actionModeFor(action) === 'melee') return 0;
@@ -491,7 +517,8 @@
     if (actorElev > targetElev && cover > 0) cover -= 1;
     var range = hexDistance({ q: actor.q, r: actor.r }, { q: target.q, r: target.r });
     if (range <= 1 && cover > 0) cover -= 1;
-    return -Math.max(0, cover);
+    var terrainCover = -Math.max(0, cover);
+    return terrainCover + coverOverridePenaltyForTarget(state, String(target.id || ''));
   }
 
   function losModifierForAction(state, actor, target, action) {
@@ -1083,7 +1110,7 @@
       + '<div class="combat-topbar">'
       + '<div>'
       + '<div class="combat-topbar-title">Combat Scene · Round <span id="combatRoundDisplay">1</span></div>'
-      + '<div class="combat-mini" id="combatTopMeta">No active scene. | Turn: <span id="combatTurnDisplay">Awaiting start</span></div>'
+      + '<div class="combat-mini" id="combatTopMeta">No active scene. | Turn: <span id="combatTurnDisplay">Awaiting start</span> · <span id="combatSharedSyncBadge">Sync --</span></div>'
       + '</div>'
       + '<div style="display:flex;gap:.28rem;align-items:center;">'
       + '<button class="btn btn-xs btn-primary" id="combatStartSceneBtn">Start Scene</button>'
@@ -1091,7 +1118,8 @@
       + '<button class="btn btn-xs" id="combatAddWayfarerBtn" title="Add Wayfarer to board">+ Wayfarer</button>'
       + '<button class="btn btn-xs combat-editor-only" id="combatExportSceneBtn">Export</button>'
       + '<button class="btn btn-xs combat-editor-only" id="combatImportSceneBtn">Import</button>'
-      + '<button class="btn btn-xs combat-editor-only" id="combatRecoverSceneBtn">Recover</button>'
+      + '<select class="combat-select combat-editor-only" id="combatRecoverySlotSel" style="max-width:10.5rem;"></select>'
+      + '<button class="btn btn-xs combat-editor-only" id="combatRecoverSceneBtn">Recover Slot</button>'
       + '<button class="btn btn-xs combat-editor-only" id="combatUploadMapBtn">Upload Battlemap</button>'
       + '<button class="btn btn-xs combat-editor-only" id="combatAddTokenBtn">+ Add Enemy</button>'
       + '<button class="btn btn-xs btn-red" id="combatCloseBtn">End Scene</button>'
@@ -1195,6 +1223,7 @@
       + '<div><div class="combat-label">Target Enemy</div><select class="combat-select" id="combatTokenTargetSel"><option value="">Closest hostile</option></select></div>'
       + '<div><div class="combat-label">Token Action</div><select class="combat-select" id="combatTokenActionSel"><option value="">Choose action</option></select></div>'
       + '</div>'
+      + '<div style="margin-top:.2rem;"><div class="combat-label">Cover Override</div><select class="combat-select" id="combatTargetCoverOverrideSel"><option value="auto">Auto (terrain/object)</option><option value="none">None (+0)</option><option value="light">Light (-1)</option><option value="heavy">Heavy (-2)</option></select></div>'
       + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.2rem;">'
       + '<button class="btn btn-xs" id="combatTokenExecuteActionBtn">Execute</button>'
       + '<button class="btn btn-xs" id="combatTokenEnemyActionBtn">Enemy Action</button>'
@@ -1909,6 +1938,26 @@
       var combatStatusText = stripHtml((document.getElementById('combatStatus') || {}).textContent || '');
       topMeta.textContent = combatStatusText || 'No active scene.';
     }
+    var syncBadge = document.getElementById('combatSharedSyncBadge');
+    if (syncBadge) {
+      var badgeText = 'Sync Local';
+      if (window.campaignSystem && typeof window.campaignSystem.getSyncStatus === 'function') {
+        var syncStatus = null;
+        var sharedState = null;
+        try { syncStatus = window.campaignSystem.getSyncStatus(); } catch (_err) { syncStatus = null; }
+        try { sharedState = typeof window.campaignSystem.getSharedState === 'function' ? window.campaignSystem.getSharedState() : null; } catch (_err2) { sharedState = null; }
+        var version = Math.max(0, Number(syncStatus && syncStatus.sharedVersion || 0));
+        var sceneMeta = sharedState && sharedState.combatScene && sharedState.combatScene.syncMeta && typeof sharedState.combatScene.syncMeta === 'object'
+          ? sharedState.combatScene.syncMeta
+          : (window.S && window.S.combat && window.S.combat.sceneSyncMeta && typeof window.S.combat.sceneSyncMeta === 'object' ? window.S.combat.sceneSyncMeta : null);
+        var by = sceneMeta && sceneMeta.by ? String(sceneMeta.by) : '-';
+        var at = Number(sceneMeta && sceneMeta.at || 0);
+        var ageSec = at ? Math.max(0, Math.floor((Date.now() - at) / 1000)) : 0;
+        var freshness = at ? (ageSec <= 12 ? 'fresh' : (ageSec <= 30 ? 'aging' : 'stale')) : 'unknown';
+        badgeText = 'Sync v' + version + ' · ' + by + ' · ' + formatClockTime(at) + ' · ' + freshness;
+      }
+      syncBadge.textContent = badgeText;
+    }
 
     var startSceneBtn = document.getElementById('combatStartSceneBtn');
     if (startSceneBtn) {
@@ -1990,6 +2039,7 @@
 
     var tokenTargetSel = document.getElementById('combatTokenTargetSel');
     var tokenActionSel = document.getElementById('combatTokenActionSel');
+    var tokenCoverSel = document.getElementById('combatTargetCoverOverrideSel');
     var tokenActionHelp = document.getElementById('combatTokenActionHelp');
     if (tokenTargetSel) {
       var actorToken = byId(state.selectedTokenId);
@@ -2008,6 +2058,14 @@
         : '<option value="">Closest hostile</option>';
       var exists = Array.prototype.slice.call(tokenTargetSel.options || []).some(function (opt) { return String(opt.value || '') === prevTarget; });
       if (exists) tokenTargetSel.value = prevTarget;
+    }
+    if (tokenCoverSel) {
+      var targetId = String(tokenTargetSel && tokenTargetSel.value || '');
+      var overrides = state.sceneRules && state.sceneRules.targetCoverOverrides && typeof state.sceneRules.targetCoverOverrides === 'object'
+        ? state.sceneRules.targetCoverOverrides
+        : {};
+      tokenCoverSel.value = targetId ? String(overrides[targetId] || 'auto') : 'auto';
+      tokenCoverSel.disabled = !targetId;
     }
     if (tokenActionSel) {
       var mirroredSel = document.getElementById('combatWayfarerActionSel');
@@ -2031,10 +2089,11 @@
       var actorNow = byId(state.selectedTokenId);
       var targetNow = selectedTargetId ? byId(selectedTargetId) : null;
       var selectedAction = String(tokenActionSel && tokenActionSel.value || '');
+      var selectedCoverOverride = String(tokenCoverSel && tokenCoverSel.value || 'auto');
       if (actorNow && targetNow && selectedAction) {
         var distNow = hexDistance({ q: actorNow.q, r: actorNow.r }, { q: targetNow.q, r: targetNow.r });
         var reachable = canActionReachTarget(selectedAction, distNow);
-        tokenActionHelp.textContent = 'Target ' + String(targetNow.name || 'Enemy') + ' · ' + hexLabel(distNow) + ' (' + distNow + 'h) · ' + (reachable ? 'In range' : 'Out of range for this action') + '.';
+        tokenActionHelp.textContent = 'Target ' + String(targetNow.name || 'Enemy') + ' · ' + hexLabel(distNow) + ' (' + distNow + 'h) · Cover override: ' + selectedCoverOverride + ' · ' + (reachable ? 'In range' : 'Out of range for this action') + '.';
       } else if (actorNow && (actorNow.isPlayer || String(actorNow.faction) === 'player')) {
         var actionCtxLines = [];
         var selAct = String(tokenActionSel && tokenActionSel.value || '');
@@ -2059,6 +2118,25 @@
         tokenActionHelp.textContent = 'Roster Action: run enemy behavior from the selected token.';
       } else {
         tokenActionHelp.textContent = 'No combat roll yet.';
+      }
+    }
+
+    var recoverySlotSel = document.getElementById('combatRecoverySlotSel');
+    if (recoverySlotSel) {
+      var stack = loadRecoveryStack();
+      var prevVal = String(recoverySlotSel.value || '');
+      if (!stack.length) {
+        recoverySlotSel.innerHTML = '<option value="">No autosaves</option>';
+        recoverySlotSel.disabled = true;
+      } else {
+        recoverySlotSel.disabled = false;
+        recoverySlotSel.innerHTML = stack.map(function (entry, idx) {
+          var slotNumber = idx + 1;
+          var stamp = formatClockTime(Number(entry && entry.at || 0));
+          return '<option value="' + idx + '">Snapshot #' + slotNumber + ' · ' + stamp + '</option>';
+        }).join('');
+        var stillExists2 = Array.prototype.slice.call(recoverySlotSel.options || []).some(function (opt) { return String(opt.value || '') === prevVal; });
+        recoverySlotSel.value = stillExists2 ? prevVal : String(Math.max(0, stack.length - 1));
       }
     }
 
@@ -2533,13 +2611,40 @@
     if (recoverSceneBtn && !recoverSceneBtn._bound) {
       recoverSceneBtn._bound = true;
       recoverSceneBtn.onclick = function () {
-        var latest = loadLatestRecoverySnapshot();
-        if (!latest) {
+        var sel = document.getElementById('combatRecoverySlotSel');
+        var idx = Math.max(0, Number(sel && sel.value || 0));
+        var stack = loadRecoveryStack();
+        var chosen = stack[idx] || null;
+        var chosenData = chosen && chosen.data && typeof chosen.data === 'object' ? chosen.data : null;
+        if (!chosenData) {
           safeNotif('No autosave recovery snapshot available yet.', 'warn');
           return;
         }
-        applyImportedSceneSnapshot(latest);
-        safeNotif('Recovered combat scene from autosave backup.', 'good');
+        applyImportedSceneSnapshot(chosenData);
+        safeNotif('Recovered combat scene from snapshot #' + String(idx + 1) + '.', 'good');
+      };
+    }
+
+    var tokenTargetSel = document.getElementById('combatTokenTargetSel');
+    var tokenCoverSel = document.getElementById('combatTargetCoverOverrideSel');
+    if (tokenTargetSel && tokenCoverSel && !tokenCoverSel._bound) {
+      tokenCoverSel._bound = true;
+      tokenCoverSel.onchange = function () {
+        var targetId = String(tokenTargetSel.value || '');
+        if (!targetId) return;
+        var mode = String(tokenCoverSel.value || 'auto');
+        store.setState(function (state) {
+          var next = Object.assign({}, state);
+          var sceneRules = Object.assign({}, state.sceneRules || {});
+          var overrides = Object.assign({}, sceneRules.targetCoverOverrides || {});
+          if (mode === 'auto') delete overrides[targetId];
+          else overrides[targetId] = mode;
+          sceneRules.targetCoverOverrides = overrides;
+          next.sceneRules = sceneRules;
+          persist(next);
+          return next;
+        });
+        updateUiPanels();
       };
     }
 

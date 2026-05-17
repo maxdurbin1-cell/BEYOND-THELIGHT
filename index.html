@@ -15093,6 +15093,8 @@ function createTravelSceneAtHex(col,row){
   const nameInput=document.getElementById('travelSceneName-'+String(col)+'-'+String(row));
   const rawName=nameInput?String(nameInput.value||'').trim():'';
   const sceneName=rawName||('Scene '+String(ts.seq));
+  const tagSel=document.getElementById('travelSceneTag-'+String(col)+'-'+String(row));
+  const sourceTag=tagSel?String(tagSel.value||''):'unknown';
   const id='travel-scene-'+Date.now().toString(36)+'-'+Math.floor(Math.random()*9999).toString(36);
   const scene={
     id:id,
@@ -15100,6 +15102,7 @@ function createTravelSceneAtHex(col,row){
     hexKey:travelSceneHexKey(col,row),
     image:'',
     npcs:[],
+    tag:sourceTag,
     createdAt:Date.now(),
     updatedAt:Date.now()
   };
@@ -15197,6 +15200,37 @@ function removeTravelSceneNpc(col,row,npcId){
   rerenderTravelSceneHex(col,row);
 }
 
+function seedTravelSceneNpcTemplate(col,row,templateType){
+  const scene=getActiveTravelSceneForHex(col,row);
+  if(!scene){
+    if(typeof showNotif==='function')showNotif('Create and load a scene first.','warn');
+    return;
+  }
+  if(!Array.isArray(scene.npcs))scene.npcs=[];
+  const templates={
+    'bandits':[{name:'Bandit',dread:6,count:3}],
+    'cultists':[{name:'Cultist',dread:8,count:2}],
+    'beasts':[{name:'Beast',dread:8,count:2}],
+    'elite':[{name:'Elite Guard',dread:10,count:1}],
+    'swarm':[{name:'Minion',dread:4,count:8}]
+  };
+  const template=templates[templateType]||[];
+  template.forEach(function(t){
+    for(let i=0;i<t.count;i++){
+      scene.npcs.push({
+        id:'scene-npc-'+Date.now().toString(36)+'-'+Math.floor(Math.random()*9999).toString(36)+'-'+String(i),
+        name:t.count>1?(t.name+' '+String(i+1)):t.name,
+        dread:Math.max(4,Number(t.dread||6)),
+        hp:Math.max(1,Number(t.dread||6)*2),
+        image:''
+      });
+    }
+  });
+  touchTravelScene(scene);
+  rerenderTravelSceneHex(col,row);
+  if(typeof showNotif==='function')showNotif('NPC template "'+templateType+'" seeded.','good');
+}
+
 function buildTravelSceneCombatSeed(scene){
   const seed={tokens:[],history:[],board:{}};
   const portrait=(S&&S.identityForge&&S.identityForge.media&&S.identityForge.media.portrait)?String(S.identityForge.media.portrait):'';
@@ -15270,9 +15304,21 @@ function buildTravelScenePanelHtml(hex){
       if(!scene)return '';
       const sid=String(scene.id||'');
       const selected=active&&String(active.id||'')===sid?' selected':'';
-      return '<option value="'+sid+'"'+selected+'>'+escapeHtmlLite(String(scene.name||'Scene'))+'</option>';
+      const tagLabel=scene.tag?(' ['+scene.tag+']') : '';
+      return '<option value="'+sid+'"'+selected+'>'+escapeHtmlLite(String(scene.name||'Scene'))+tagLabel+'</option>';
     }).join('')
     : '<option value="">No scenes yet</option>';
+
+  // Scene management controls (delete, rename, duplicate)
+  let sceneMgmtHtml = '';
+  if(active){
+    sceneMgmtHtml = '<div style="display:flex;gap:.25rem;margin-top:.3rem;align-items:center;">'
+      + '<input id="travelSceneRename-'+col+'-'+row+'" type="text" maxlength="60" placeholder="Rename scene..." style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.22rem .32rem;font-size:.72rem;border-radius:3px;width:10rem;">'
+      + '<button class="btn btn-xs btn-primary" onclick="renameTravelSceneAtHex('+col+','+row+')">Rename</button>'
+      + '<button class="btn btn-xs btn-warn" onclick="duplicateTravelSceneAtHex('+col+','+row+')">Duplicate</button>'
+      + '<button class="btn btn-xs btn-red" onclick="deleteTravelSceneAtHex('+col+','+row+')">Delete</button>'
+      + '</div>';
+  }
   const npcs=(active&&Array.isArray(active.npcs))?active.npcs:[];
   const npcRows=npcs.length
     ? npcs.map(function(npc){
@@ -15288,11 +15334,13 @@ function buildTravelScenePanelHtml(hex){
     }).join('')
     : '<div style="font-size:.72rem;color:var(--muted2);">No NPC tokens seeded yet.</div>';
 
+  const tagLabelHtml = active&&active.tag ? '<span style="font-size:.72rem;color:var(--muted2);margin-left:.5rem;">['+escapeHtmlLite(active.tag)+']</span>' : '';
   return '<div class="npc-block" style="margin-bottom:.45rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);">'
-    + '<div class="nb-label" style="color:var(--teal);">🎬 Travel Scene</div>'
+    + '<div class="nb-label" style="color:var(--teal);">🎬 Travel Scene'+tagLabelHtml+'</div>'
     + '<div style="font-size:.76rem;color:var(--text2);line-height:1.55;margin-bottom:.35rem;">Create or load a scene at this hex, attach an image, seed NPC tokens, then launch directly into Combat Mode.</div>'
-    + '<div style="display:grid;grid-template-columns:1fr auto;gap:.25rem;">'
+    + '<div style="display:grid;grid-template-columns:1fr auto auto;gap:.25rem;">'
       + '<input id="travelSceneName-'+col+'-'+row+'" type="text" maxlength="60" placeholder="Scene name (ruins ambush, convoy hit...)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.26rem .36rem;font-size:.74rem;border-radius:3px;">'
+      + '<select id="travelSceneTag-'+col+'-'+row+'" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.26rem .32rem;font-size:.74rem;border-radius:3px;"><option value="unknown">Tag</option><option value="dungeon">Dungeon</option><option value="ruins">Ruins</option><option value="raid">Raid</option><option value="random encounter">Random Encounter</option></select>'
       + '<button class="btn btn-xs btn-primary" onclick="createTravelSceneAtHex('+col+','+row+')">Create</button>'
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr auto;gap:.25rem;margin-top:.3rem;">'
@@ -15303,6 +15351,66 @@ function buildTravelScenePanelHtml(hex){
       + '<button class="btn btn-xs btn-teal" onclick="triggerTravelSceneImageUpload('+col+','+row+')">Upload Scene Image</button>'
       + '<button class="btn btn-xs btn-primary" onclick="launchTravelSceneToCombat('+col+','+row+')">Launch Into Combat Mode</button>'
     + '</div>'
+    + sceneMgmtHtml
+    // ── SCENE MANAGEMENT LOGIC ─────────────────────────────
+    function deleteTravelSceneAtHex(col,row){
+      const ts=ensureTravelSceneState();
+      const list=getTravelScenesForHex(col,row,false);
+      const sel=document.getElementById('travelSceneSelect-'+col+'-'+row);
+      const sceneId=sel?String(sel.value||''):'';
+      if(!sceneId)return;
+      const idx=list.findIndex(s=>s&&String(s.id||'')===sceneId);
+      if(idx>=0){
+        const removed=list.splice(idx,1)[0];
+        if(ts.activeSceneId===sceneId){
+          ts.activeSceneId=list[0]?String(list[0].id):'';
+        }
+        rerenderTravelSceneHex(col,row);
+        if(typeof showNotif==='function')showNotif('Scene deleted.','good');
+      }
+    }
+
+    function renameTravelSceneAtHex(col,row){
+      const list=getTravelScenesForHex(col,row,false);
+      const sel=document.getElementById('travelSceneSelect-'+col+'-'+row);
+      const sceneId=sel?String(sel.value||''):'';
+      const nameInput=document.getElementById('travelSceneRename-'+col+'-'+row);
+      const newName=nameInput?String(nameInput.value||'').trim():'';
+      if(!sceneId||!newName)return;
+      const scene=list.find(s=>s&&String(s.id||'')===sceneId);
+      if(scene){
+        scene.name=newName;
+        // Also allow changing tag on rename
+        const tagSel=document.getElementById('travelSceneTag-'+col+'-'+row);
+        const newTag=tagSel?String(tagSel.value||''):'unknown';
+        scene.tag=newTag;
+        touchTravelScene(scene);
+        rerenderTravelSceneHex(col,row);
+        if(typeof showNotif==='function')showNotif('Scene renamed/retagged.','good');
+        nameInput.value='';
+      }
+    }
+
+    function duplicateTravelSceneAtHex(col,row){
+      const list=getTravelScenesForHex(col,row,false);
+      const sel=document.getElementById('travelSceneSelect-'+col+'-'+row);
+      const sceneId=sel?String(sel.value||''):'';
+      if(!sceneId)return;
+      const orig=list.find(s=>s&&String(s.id||'')===sceneId);
+      if(orig){
+        const ts=ensureTravelSceneState();
+        const newId='travel-scene-'+Date.now().toString(36)+'-'+Math.floor(Math.random()*9999).toString(36);
+        const copy=JSON.parse(JSON.stringify(orig));
+        copy.id=newId;
+        copy.name=orig.name+' (Copy)';
+        copy.createdAt=Date.now();
+        copy.updatedAt=Date.now();
+        list.push(copy);
+        ts.activeSceneId=newId;
+        rerenderTravelSceneHex(col,row);
+        if(typeof showNotif==='function')showNotif('Scene duplicated.','good');
+      }
+    }
     + '<input id="travelSceneImageInput-'+col+'-'+row+'" data-scene-id="'+(active?String(active.id||''):'')+'" type="file" accept="image/*" style="display:none;" onchange="handleTravelSceneImageUpload(this,'+col+','+row+')">'
     + imagePreview
     + '<div style="margin-top:.38rem;padding-top:.34rem;border-top:1px solid rgba(46,196,182,.28);">'
@@ -15315,7 +15423,16 @@ function buildTravelScenePanelHtml(hex){
         + '<input id="travelSceneNpcCount-'+col+'-'+row+'" type="number" min="1" max="8" value="1" title="Count" style="width:3rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.22rem .2rem;font-size:.72rem;border-radius:3px;">'
         + '<button class="btn btn-xs btn-teal" onclick="addTravelSceneNpc('+col+','+row+')">Seed NPC</button>'
       + '</div>'
-      + '<div style="margin-top:.26rem;">'+npcRows+'</div>'
+      + '<div style="margin-top:.26rem;">'
+      + '<div style="display:flex;gap:.15rem;flex-wrap:wrap;margin-bottom:.2rem;">'
+        + '<button class="btn btn-xs btn-secondary" onclick="seedTravelSceneNpcTemplate('+col+','+row+',\'bandits\')">Bandits</button>'
+        + '<button class="btn btn-xs btn-secondary" onclick="seedTravelSceneNpcTemplate('+col+','+row+',\'cultists\')">Cultists</button>'
+        + '<button class="btn btn-xs btn-secondary" onclick="seedTravelSceneNpcTemplate('+col+','+row+',\'beasts\')">Beasts</button>'
+        + '<button class="btn btn-xs btn-secondary" onclick="seedTravelSceneNpcTemplate('+col+','+row+',\'elite\')">Elite Guard</button>'
+        + '<button class="btn btn-xs btn-secondary" onclick="seedTravelSceneNpcTemplate('+col+','+row+',\'swarm\')">Swarm</button>'
+      + '</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);">Quick NPC Templates</div>'
+      + '<div style="margin-top:.2rem;">'+npcRows+'</div>'
     + '</div>'
   + '</div>';
 }

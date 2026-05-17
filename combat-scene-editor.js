@@ -851,6 +851,47 @@
     return 1 + Math.floor(Math.random() * s);
   }
 
+  function isManualRollModeActive() {
+    return !!(window.settingsSystem && typeof window.settingsSystem.isManualRollMode === 'function' && window.settingsSystem.isManualRollMode());
+  }
+
+  function skillRangeVerbatim(skill) {
+    if (!skill) return 'Engaged';
+    if (Array.isArray(skill.range) && skill.range.length) {
+      return skill.range.map(function (r) {
+        var raw = String(r || '').trim();
+        if (!raw) return '';
+        return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+      }).filter(Boolean).join(' / ');
+    }
+    return 'Engaged';
+  }
+
+  function skillSourceVerbatim(skill) {
+    if (!skill) return 'Combat Tab';
+    var src = String(skill.source || 'Combat Tab').trim();
+    var rangeTxt = skillRangeVerbatim(skill);
+    return src + ' · Range: ' + rangeTxt.toLowerCase();
+  }
+
+  function pushEnemySkillNarration(actor, skill, dreadDie) {
+    if (!actor || !skill) return;
+    addHistory(String(actor.name || 'Enemy') + ' uses ' + String(skill.name || 'Enemy Skill'));
+    addHistory('Save: ' + String(skill.save || 'Defend'));
+    addHistory('Range: ' + skillRangeVerbatim(skill));
+    addHistory('Roll: ' + String(skill.save || 'Defend') + ' vs Dread d' + Number(dreadDie || 6));
+    addHistory('On Fail: ' + String(skill.onFail || 'Apply effect.'));
+    addHistory('On Success: ' + String(skill.onSuccess || 'Resist the effect.'));
+    addHistory('Source: ' + skillSourceVerbatim(skill));
+  }
+
+  function extractTimedConditionText(onFail) {
+    var txt = String(onFail || '');
+    var m = txt.match(/apply\s+([^\.]+?)(?:\.|$)/i);
+    if (!m) return '';
+    return String(m[1] || '').trim();
+  }
+
   function parseStressFromText(text, fallback) {
     var src = String(text || '');
     var m = src.match(/take\s*(\d+)\s*stress/i) || src.match(/(\d+)\s*stress/i);
@@ -2508,7 +2549,28 @@
       var targetNow = selectedTargetId ? byId(selectedTargetId) : null;
       var selectedAction = String(tokenActionSel && tokenActionSel.value || '');
       var selectedCoverOverride = String(tokenCoverSel && tokenCoverSel.value || 'auto');
-      if (actorNow && targetNow && selectedAction) {
+      if (actorNow && String(actorNow.faction) === 'monster') {
+        var targetForEnemy = selectedTargetId ? byId(selectedTargetId) : null;
+        var skillState = getEnemySkillOptionsForToken(actorNow, targetForEnemy);
+        var chosen = null;
+        if (selectedAction.indexOf('enemy_skill:') === 0) {
+          var chosenIdx = Number(selectedAction.split(':')[1]);
+          chosen = skillState.find(function (s) { return Number(s.idx) === chosenIdx; }) || null;
+        }
+        if (chosen && chosen.skill) {
+          tokenActionHelp.textContent = 'Save: ' + String(chosen.skill.save || 'Defend')
+            + ' · Range: ' + skillRangeVerbatim(chosen.skill)
+            + ' · On Fail: ' + String(chosen.skill.onFail || 'Apply effect.')
+            + ' · On Success: ' + String(chosen.skill.onSuccess || 'Resist the effect.')
+            + ' · Source: ' + skillSourceVerbatim(chosen.skill)
+            + (chosen.inRange ? '' : ' · Out of Range');
+        } else if (skillState.length) {
+          var inRangeCount = skillState.filter(function (s) { return s.inRange; }).length;
+          tokenActionHelp.textContent = 'Enemy skills: ' + inRangeCount + '/' + skillState.length + ' in range. Enemy rolls Dread vs target Defend.';
+        } else {
+          tokenActionHelp.textContent = 'No unique enemy skills found. Uses Basic Enemy Action (Dread vs Defend).';
+        }
+      } else if (actorNow && targetNow && selectedAction) {
         var distNow = hexDistance({ q: actorNow.q, r: actorNow.r }, { q: targetNow.q, r: targetNow.r });
         var reachable = canActionReachTarget(selectedAction, distNow);
         tokenActionHelp.textContent = 'Target ' + String(targetNow.name || 'Enemy') + ' · ' + hexLabel(distNow) + ' (' + distNow + 'h) · Cover override: ' + selectedCoverOverride + ' · ' + (reachable ? 'In range' : 'Out of range for this action') + '.';
@@ -2532,15 +2594,6 @@
           actionCtxLines.push('Quick Actions: choose target + action, then Execute.');
         }
         tokenActionHelp.textContent = actionCtxLines.join(' | ');
-      } else if (actorNow && String(actorNow.faction) === 'monster') {
-        var targetForEnemy = selectedTargetId ? byId(selectedTargetId) : null;
-        var skillState = getEnemySkillOptionsForToken(actorNow, targetForEnemy);
-        if (skillState.length) {
-          var inRangeCount = skillState.filter(function (s) { return s.inRange; }).length;
-          tokenActionHelp.textContent = 'Enemy skills: ' + inRangeCount + '/' + skillState.length + ' in range. Enemy rolls Dread vs target Defend.';
-        } else {
-          tokenActionHelp.textContent = 'No unique enemy skills found. Uses Basic Enemy Action (Dread vs Defend).';
-        }
       } else {
         tokenActionHelp.textContent = 'No combat roll yet.';
       }
@@ -3080,14 +3133,81 @@
       var inRange = skills.filter(function (row) { return !!row.inRange; });
       selected = inRange[0] || null;
     }
-
-    if (!spendUnitAction(actor.id)) {
-      safeNotif(String(actor.name || 'Enemy') + ' has no actions remaining this turn.', 'warn');
-      return false;
-    }
-
     var dreadDie = Math.max(4, Number(actor.dread || actor.codexDread || 6));
     var defendDie = Math.max(4, Number(foe && foe.isPlayer ? (window.S && window.S.stats && window.S.stats.defend || 6) : (foe.defend || foe.dread || 6)));
+    var actionName = selected ? selected.name : 'Basic Enemy Action';
+
+    function finalizeEnemyAction(resolution) {
+      if (!spendUnitAction(actor.id)) {
+        safeNotif(String(actor.name || 'Enemy') + ' has no actions remaining this turn.', 'warn');
+        return false;
+      }
+      var enemyRoll = Math.max(1, Number(resolution && resolution.enemyRoll || 1));
+      var defendRoll = Math.max(1, Number(resolution && resolution.defendRoll || 1));
+      var margin = enemyRoll - defendRoll;
+      var hit = margin > 0;
+      var stress = 0;
+      if (hit) {
+        if (selected && selected.skill) {
+          var onFail = String(selected.skill.onFail || selected.skill.desc || '');
+          if (/difference\s*\+\s*1/i.test(onFail)) stress = Math.max(1, margin + 1);
+          else stress = Math.max(1, parseStressFromText(onFail, margin));
+        } else {
+          stress = Math.max(1, margin);
+        }
+        applyDamageToToken(foe.id, stress, actor.name || 'Enemy');
+        if (selected && selected.skill) {
+          var cond = extractTimedConditionText(selected.skill.onFail || '');
+          if (cond) {
+            store.setState(function (inner) {
+              var next = Object.assign({}, inner);
+              next.tokens = (inner.tokens || []).map(function (row) {
+                if (!row || String(row.id) !== String(foe.id)) return row;
+                var statuses = Array.isArray(row.status) ? row.status.slice() : [];
+                if (statuses.indexOf(cond) < 0) statuses.push(cond);
+                return Object.assign({}, row, { status: statuses });
+              });
+              persist(next);
+              return next;
+            });
+          }
+        }
+      }
+
+      if (selected && selected.skill) pushEnemySkillNarration(actor, selected.skill, dreadDie);
+      addHistory((actor.name || 'Enemy') + ' action result at ' + hexLabel(dist)
+        + ' · Dread d' + dreadDie + ' = ' + enemyRoll
+        + ' vs ' + String(foe.name || 'target') + ' Defend d' + defendDie + ' = ' + defendRoll
+        + (hit ? (' · On Fail: ' + String(selected && selected.skill && selected.skill.onFail || ('Take ' + stress + ' Stress.'))) : (' · On Success: ' + String(selected && selected.skill && selected.skill.onSuccess || 'Resist the effect.'))));
+
+      var notifEl = document.getElementById('combatLastNotification');
+      if (notifEl) {
+        notifEl.textContent = (actor.name || 'Enemy') + ' used ' + actionName + (hit ? (' · hit for ' + stress + ' stress') : ' · resisted') + ' · actions left ' + Math.max(0, Number(store.getState().teamActions && store.getState().teamActions[actor.id] || 0));
+      }
+      drawBoard();
+      updateUiPanels();
+      return true;
+    }
+
+    if (isManualRollModeActive() && typeof window.openWtwManualActionDreadPrompt === 'function') {
+      window.openWtwManualActionDreadPrompt({
+        title: 'Manual Roll — Enemy Action',
+        context: (actor.name || 'Enemy') + ' using ' + actionName + ' on ' + String(foe.name || 'target'),
+        statKey: 'defend',
+        statLabel: 'Defend',
+        actionDie: defendDie,
+        dreadDie: dreadDie,
+        onResolve: function (outcome) {
+          if (!outcome) return;
+          finalizeEnemyAction({
+            defendRoll: Number(outcome.actionTotal || 1),
+            enemyRoll: Number(outcome.dreadTotal || 1)
+          });
+        }
+      });
+      return true;
+    }
+
     var enemyRoll = rollDie(dreadDie);
     var defendRolls = [rollDie(defendDie)];
     if (foe && foe.isPlayer) {
@@ -3095,47 +3215,7 @@
       for (var advIdx = 0; advIdx < defendAdv; advIdx++) defendRolls.push(rollDie(defendDie));
     }
     var defendRoll = defendRolls.reduce(function (mx, val) { return Math.max(mx, val); }, 0);
-    var margin = enemyRoll - defendRoll;
-    var hit = margin > 0;
-    var stress = 0;
-    if (hit) {
-      if (selected && selected.skill) {
-        var onFail = String(selected.skill.onFail || selected.skill.desc || '');
-        if (/difference\s*\+\s*1/i.test(onFail)) stress = Math.max(1, margin + 1);
-        else stress = Math.max(1, parseStressFromText(onFail, margin));
-      } else {
-        stress = Math.max(1, margin);
-      }
-      applyDamageToToken(foe.id, stress, actor.name || 'Enemy');
-      if (selected && selected.skill && /distracted/i.test(String(selected.skill.onFail || ''))) {
-        store.setState(function (inner) {
-          var next = Object.assign({}, inner);
-          next.tokens = (inner.tokens || []).map(function (row) {
-            if (!row || String(row.id) !== String(foe.id)) return row;
-            var statuses = Array.isArray(row.status) ? row.status.slice() : [];
-            if (statuses.indexOf('distracted') < 0) statuses.push('distracted');
-            return Object.assign({}, row, { status: statuses });
-          });
-          persist(next);
-          return next;
-        });
-      }
-    } else {
-      stress = 0;
-    }
-
-    var actionName = selected ? selected.name : 'Basic Attack';
-    addHistory((actor.name || 'Enemy') + ' uses ' + actionName + ' at ' + hexLabel(dist)
-      + ' · Dread d' + dreadDie + ' rolled ' + enemyRoll
-      + ' vs ' + String(foe.name || 'target') + ' Defend d' + defendDie + ' rolled ' + defendRoll
-      + (hit ? (' -> HIT for ' + stress + ' Stress.') : ' -> resisted.'));
-    var notifEl = document.getElementById('combatLastNotification');
-    if (notifEl) {
-      notifEl.textContent = (actor.name || 'Enemy') + ' ' + (hit ? ('hit for ' + stress + ' stress') : 'was resisted') + ' · actions left ' + Math.max(0, Number(store.getState().teamActions && store.getState().teamActions[actor.id] || 0));
-    }
-    drawBoard();
-    updateUiPanels();
-    return true;
+    return finalizeEnemyAction({ defendRoll: defendRoll, enemyRoll: enemyRoll });
   }
 
   function bindStaticControls() {

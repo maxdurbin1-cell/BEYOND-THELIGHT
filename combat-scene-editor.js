@@ -687,13 +687,8 @@
       + '<div class="combat-label">Wayfarer Action</div>'
       + '<select class="combat-select" id="combatWayfarerActionSel">'
       + '<option value="">Select action</option>'
-      + '<option value="flourish">Flourish (+1 Strike this turn)</option>'
-      + '<option value="bandage">Bandage (-1 Stress)</option>'
-      + '<option value="reposition">Reposition (adjacent +1 Defend)</option>'
-      + '<option value="break_grapple">Break Grapple (auto disengage)</option>'
-      + '<option value="improvise_tool">Improvise Tool (single-use +2)</option>'
-      + '<option value="patch_cover">Patch Cover (repair cover)</option>'
       + '</select>'
+      + '<div id="combatWayfarerContext" class="combat-mini" style="margin-top:.14rem;">Actions and wording mirror Combat Tab rules.</div>'
       + '<button class="btn btn-xs" id="combatCmdWayfarerBtn" style="margin-top:.18rem;">Execute Wayfarer Action</button>'
       + '</div>'
       + '<div id="combatLegacyResultMirror" class="combat-result-mirror">Legacy combat output mirrors here.</div>'
@@ -1027,11 +1022,52 @@
     if (weatherSelect) weatherSelect.value = String(state.board.weatherOverlay || 'none');
     if (weatherIntensity) weatherIntensity.value = Number(state.board.weatherIntensity || 0);
 
+    // Mirror Combat Tab action math/text so Combat Mode always follows game rules.
+    var mirroredWayfarerSel = document.getElementById('combatWayfarerActionSel');
+    var mirroredWayfarerContext = document.getElementById('combatWayfarerContext');
+    var sourceWayfarerSel = document.getElementById('wayfarerActionSel');
+    if (mirroredWayfarerSel && sourceWayfarerSel) {
+      try {
+        if (typeof window.updateWayfarerActionBtn === 'function') window.updateWayfarerActionBtn();
+      } catch (_err) {}
+      var priorVal = String(mirroredWayfarerSel.value || '');
+      mirroredWayfarerSel.innerHTML = sourceWayfarerSel.innerHTML;
+      var values = Array.prototype.slice.call(mirroredWayfarerSel.options || []).map(function (opt) { return String(opt.value || ''); });
+      if (priorVal && values.indexOf(priorVal) >= 0) mirroredWayfarerSel.value = priorVal;
+      else if (String(sourceWayfarerSel.value || '')) mirroredWayfarerSel.value = String(sourceWayfarerSel.value || '');
+      else mirroredWayfarerSel.value = '';
+      if (mirroredWayfarerContext) {
+        var listed = Array.prototype.slice.call(mirroredWayfarerSel.options || []).filter(function (opt) {
+          return String(opt.value || '') !== '';
+        }).map(function (opt) {
+          var text = String(opt.textContent || '');
+          return text.split(' — ')[0];
+        });
+        mirroredWayfarerContext.textContent = listed.length
+          ? ('Available now: ' + listed.join(' · '))
+          : 'No Wayfarer actions available right now.';
+      }
+    }
+
     var ruler = document.getElementById('combatRulerSummary');
     if (ruler) {
-      ruler.textContent = state.ruler && state.ruler.distance
-        ? (state.ruler.distance + ' Hexes · ' + state.ruler.label)
-        : 'Engaged';
+      var focusEnemy = null;
+      try {
+        if (typeof window.getPrimaryCombatEnemy === 'function') focusEnemy = window.getPrimaryCombatEnemy();
+      } catch (_err) {}
+      var rel = '';
+      try {
+        if (typeof window.getPrimaryEnemyZoneRelative === 'function') rel = String(window.getPrimaryEnemyZoneRelative() || '');
+      } catch (_err) {}
+      var relLabel = rel ? (rel.charAt(0).toUpperCase() + rel.slice(1)) : 'Unknown';
+      var actionsLeft = (window.S && window.S.combat) ? Math.max(0, Number(window.S.combat.actionsLeft || 0)) : 0;
+      if (focusEnemy) {
+        ruler.textContent = String(focusEnemy.name || 'Focused Enemy') + ' · ' + relLabel + ' · Actions Left ' + actionsLeft;
+      } else if (state.ruler && state.ruler.distance) {
+        ruler.textContent = state.ruler.distance + ' Hexes · ' + state.ruler.label;
+      } else {
+        ruler.textContent = 'Select/focus an enemy to sync Cinematic Distance.';
+      }
     }
 
     var rollBtn = document.getElementById('combatRollModeBtn');
@@ -1098,7 +1134,14 @@
     var actionInfoMirror = document.getElementById('combatLegacyActionInfoMirror');
     if (actionInfoMirror) {
       var actionInfo = stripHtml((document.getElementById('wayfarerActionInfo') || {}).textContent || '');
-      actionInfoMirror.textContent = actionInfo || 'Wayfarer action details appear here.';
+      var distanceInfo = '';
+      try {
+        if (typeof window.getPrimaryEnemyZoneRelative === 'function') {
+          var d = String(window.getPrimaryEnemyZoneRelative() || '');
+          if (d) distanceInfo = 'Distance: ' + d.charAt(0).toUpperCase() + d.slice(1) + '.';
+        }
+      } catch (_err) {}
+      actionInfoMirror.textContent = (distanceInfo ? (distanceInfo + ' ') : '') + (actionInfo || 'Wayfarer action details appear here.');
     }
 
     var flavorMirror = document.getElementById('combatLegacyFlavorMirror');
@@ -1211,6 +1254,9 @@
 
       if (clickedToken && state.activeTool !== 'paint' && state.activeTool !== 'erase') {
         store.setState({ selectedTokenId: clickedToken.id, draggingTokenId: clickedToken.id });
+        if (String(clickedToken.faction || '') === 'monster' && typeof window.setCombatFocusEnemy === 'function') {
+          try { window.setCombatFocusEnemy(Number(clickedToken.id || 0)); } catch (_err) {}
+        }
         updateUiPanels();
         drawBoard();
         return;
@@ -1602,10 +1648,15 @@
         if (!val) return;
         var legacySel = document.getElementById('wayfarerActionSel');
         if (legacySel) legacySel.value = val;
+        try {
+          if (typeof window.updateWayfarerActionBtn === 'function') window.updateWayfarerActionBtn();
+        } catch (_err) {}
         if (typeof window.executeWayfarerAction === 'function') {
           try { window.executeWayfarerAction(); } catch (_err) {}
         }
-        addHistory('Wayfarer action executed: ' + val + '.');
+        var selectedOpt = legacySel && legacySel.options ? legacySel.options[legacySel.selectedIndex] : null;
+        var actionLabel = selectedOpt ? String(selectedOpt.textContent || val) : val;
+        addHistory('Wayfarer action executed (Combat Tab rules): ' + actionLabel + '.');
         updateUiPanels();
       };
     }

@@ -6503,6 +6503,46 @@ function applyPassiveDefendSuccessEffects(){
   }
 }
 
+function ensureEnemyBudgetLedgerState(){
+  if(!S||!S.combat)return{events:[],cycle:1};
+  if(!Array.isArray(S.combat.enemyBudgetLedger))S.combat.enemyBudgetLedger=[];
+  if(typeof S.combat.enemyBudgetCycle!=='number'||S.combat.enemyBudgetCycle<1)S.combat.enemyBudgetCycle=1;
+  return {events:S.combat.enemyBudgetLedger,cycle:Math.max(1,Number(S.combat.enemyBudgetCycle||1))};
+}
+
+function appendEnemyBudgetLedger(entry){
+  if(!S||!S.combat||!entry||typeof entry!=='object')return;
+  var ledger=ensureEnemyBudgetLedgerState();
+  var evt=Object.assign({
+    at:Date.now(),
+    round:Math.max(1,Number(S.combat.round||1)),
+    cycle:ledger.cycle,
+    kind:'event',
+    source:'enemy event',
+    remaining:Math.max(0,Number((typeof getEnemyActionsRemaining==='function')?getEnemyActionsRemaining():0))
+  },entry||{});
+  ledger.events.push(evt);
+  if(ledger.events.length>80)ledger.events=ledger.events.slice(ledger.events.length-80);
+  S.combat.enemyBudgetLedger=ledger.events;
+}
+
+function resetEnemyBudgetLedger(reason){
+  if(!S||!S.combat)return;
+  S.combat.enemyBudgetLedger=[];
+  S.combat.enemyBudgetCycle=1;
+  appendEnemyBudgetLedger({
+    kind:'reset',
+    source:'system',
+    note:String(reason||'ledger reset')
+  });
+}
+
+window.getEnemyBudgetLedger=function(){
+  if(!S||!S.combat)return [];
+  var ledger=ensureEnemyBudgetLedgerState();
+  return Array.isArray(ledger.events)?ledger.events.slice():[];
+};
+
 function startCombat(){
   S.combat.active=true;
   S.combat.round=1;
@@ -6512,6 +6552,7 @@ function startCombat(){
   S.combat.enemyDefendsThisTurn=0;
   S.combat.enemyActionPenaltyThisRound=0;
   S.combat.flavorResistUsed={};
+  resetEnemyBudgetLedger('scene start');
   var pendingMercs=Math.max(0,Number(S.combat.pendingMercenaryAllies||0));
   if(pendingMercs>0){
     if(!Array.isArray(S.enemies))S.enemies=[];
@@ -6548,7 +6589,7 @@ function startCombat(){
     window.AudioManager.playMusic('music-combat', true);
   }
 }
-function nextRound(){S.combat.round++;prepareCombatTurnStart();S.combat.enemyDefendsThisTurn=0;S.combat.enemyActionPenaltyThisRound=0;applyRegeneratorRecovery(1,'combat round');updateCombatUI();}
+function nextRound(){S.combat.round++;prepareCombatTurnStart();S.combat.enemyDefendsThisTurn=0;S.combat.enemyActionPenaltyThisRound=0;resetEnemyBudgetLedger('next round');applyRegeneratorRecovery(1,'combat round');updateCombatUI();}
 
 // ── FLEE, MORALE & REWARDS ────────────────────────────────────────────────────
 function promptCombatRewards(){
@@ -6649,7 +6690,7 @@ function finishCurrentQuest(){
   updateQuestUI();
 }
 
-function nextRound(){S.combat.round++;prepareCombatTurnStart();S.combat.enemyDefendsThisTurn=0;S.combat.enemyActionPenaltyThisRound=0;applyRegeneratorRecovery(1,'combat round');updateCombatUI();}
+function nextRound(){S.combat.round++;prepareCombatTurnStart();S.combat.enemyDefendsThisTurn=0;S.combat.enemyActionPenaltyThisRound=0;resetEnemyBudgetLedger('next round');applyRegeneratorRecovery(1,'combat round');updateCombatUI();}
 function endCombat(){
   S.combat.active=false;
   S.combat.round=0;
@@ -6661,6 +6702,7 @@ function endCombat(){
   S.combat.autoReloaderActionSpent=false;
   S.combat.fastAttackUsedEncounter=false;
   S.combat.flavorResistUsed={};
+  resetEnemyBudgetLedger('scene end');
   if(Array.isArray(S.enemies)){
     S.enemies=S.enemies.filter(function(e){
       return !(e&&e.ally&&e.temporarySceneAlly);
@@ -8682,14 +8724,49 @@ function maybeResetActionsAfterDefend(){
 
 function consumeEnemyActionBudget(actionLabel){
   if(!S||!S.combat)return true;
-  var remaining=(typeof getEnemyActionsRemaining==='function')?Number(getEnemyActionsRemaining()||0):0;
-  if(remaining<=0){
+  var sourceRaw=String(actionLabel||'enemy event').toLowerCase();
+  var source='enemy event';
+  if(sourceRaw.indexOf('arena')>=0)source='arena special';
+  else if(sourceRaw.indexOf('attack')>=0)source='enemy attack';
+  var cycle=Math.max(1,Number(S.combat.enemyBudgetCycle||1));
+  var beforeRemaining=(typeof getEnemyActionsRemaining==='function')?Number(getEnemyActionsRemaining()||0):0;
+  var beforeSpent=Math.max(0,Number(S.combat.enemyDefendsThisTurn||0));
+  if(beforeRemaining<=0){
+    appendEnemyBudgetLedger({
+      kind:'blocked',
+      source:source,
+      cycle:cycle,
+      remaining:0,
+      spent:beforeSpent,
+      note:'No actions remaining in cycle.'
+    });
     showNotif((actionLabel||'Enemy action')+': no enemy actions remaining this cycle.','warn');
     if(typeof updateCombatUI==='function')updateCombatUI();
     if(typeof renderQP==='function')renderQP('combat');
     return false;
   }
   maybeResetActionsAfterDefend();
+  var perCycle=Math.max(1,Number((typeof getEnemyActionsPerCycle==='function')?getEnemyActionsPerCycle():1));
+  var afterRemaining=(typeof getEnemyActionsRemaining==='function')?Number(getEnemyActionsRemaining()||0):0;
+  var cycleComplete=afterRemaining>beforeRemaining;
+  appendEnemyBudgetLedger({
+    kind:'spend',
+    source:source,
+    cycle:cycle,
+    remaining:cycleComplete?0:afterRemaining,
+    spent:cycleComplete?perCycle:Math.max(0,beforeSpent+1),
+    note:cycleComplete?'Cycle complete; enemy budget reset.':''
+  });
+  if(cycleComplete){
+    appendEnemyBudgetLedger({
+      kind:'cycle-complete',
+      source:'system',
+      cycle:cycle,
+      remaining:0,
+      note:'Enemy action cycle completed.'
+    });
+    S.combat.enemyBudgetCycle=cycle+1;
+  }
   return true;
 }
 
@@ -8722,7 +8799,7 @@ function triggerEnemyActionEvent(){
   if(!requireCampaignTurn('enemy'))return;
   var actingEnemy=getPrimaryCombatEnemy();
   if(!actingEnemy){showNotif('Add an enemy first.','warn');return;}
-  if(!consumeEnemyActionBudget('Enemy Action'))return;
+  if(!consumeEnemyActionBudget('enemy event'))return;
   if(consumeEnemyTurnBlock(actingEnemy))return;
   var enemyRange=getPrimaryEnemyZoneRelative();
   var rangeKinds=enemyRange==='engaged'
@@ -9816,7 +9893,7 @@ function enemyAttack(id){
     finalizeEnemyTurn(e);
     return;
   }
-  if(!consumeEnemyActionBudget(e.name||'Enemy'))return;
+  if(!consumeEnemyActionBudget('enemy attack'))return;
   if(consumeEnemyTurnBlock(e))return;
   if(typeof hasActivePsychicDomeProtection==='function'&&hasActivePsychicDomeProtection()){
     if(typeof window.AudioManager!=='undefined')window.AudioManager.combatMiss();
@@ -21058,7 +21135,7 @@ window.addEventListener('DOMContentLoaded', function() {
     var flow = S && S.combat && S.combat.arenaFlow ? S.combat.arenaFlow : null;
     var enemy = getArenaCurrentEnemy();
     if (!flow || !enemy) return false;
-    if (typeof consumeEnemyActionBudget === 'function' && !consumeEnemyActionBudget('Arena Enemy Special')) return false;
+    if (typeof consumeEnemyActionBudget === 'function' && !consumeEnemyActionBudget('arena special')) return false;
     flow.specialUses = Number(flow.specialUses || 0) + 1;
     var hitDie = Math.max(4, Number(enemy.dread || 4));
     var specialEffects = enemy.specialAction && enemy.specialAction.effects ? enemy.specialAction.effects : null;

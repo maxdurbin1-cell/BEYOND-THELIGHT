@@ -669,6 +669,11 @@
       + '</div>'
       + '</div>'
       + '<div class="combat-action-block">'
+      + '<div class="combat-label">Enemy Budget Ledger</div>'
+      + '<div id="combatEnemyLedgerMeta" class="combat-result-mirror">Awaiting enemy actions...</div>'
+      + '<div class="combat-feed" id="combatEnemyLedgerFeed"></div>'
+      + '</div>'
+      + '<div class="combat-action-block">'
       + '<div class="combat-label">Combat Commands</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.22rem;margin-top:.22rem;">'
       + '<button class="btn btn-xs" id="combatCmdStrikeBtn">Strike</button>'
@@ -1123,6 +1128,50 @@
         return '<div class="combat-feed-line"><strong style="color:var(--combat-accent);">' + entry.label + ':</strong> ' + value + '</div>';
       }).filter(Boolean).join('');
       rowsMirror.innerHTML = rowsHtml || '<div class="combat-feed-line">No recent legacy combat rows.</div>';
+    }
+
+    var enemyLedgerMeta = document.getElementById('combatEnemyLedgerMeta');
+    var enemyLedgerFeed = document.getElementById('combatEnemyLedgerFeed');
+    if (enemyLedgerMeta && enemyLedgerFeed) {
+      var entries = [];
+      if (typeof window.getEnemyBudgetLedger === 'function') {
+        try { entries = window.getEnemyBudgetLedger() || []; } catch (_err) { entries = []; }
+      }
+      var spendRows = entries.filter(function (entry) {
+        return entry && String(entry.kind || '') === 'spend';
+      });
+      var grouped = {};
+      spendRows.forEach(function (entry) {
+        var c = Math.max(1, Number(entry.cycle || 1));
+        if (!grouped[c]) grouped[c] = 0;
+        grouped[c] += 1;
+      });
+      var activeCycle = 1;
+      Object.keys(grouped).forEach(function (k) {
+        activeCycle = Math.max(activeCycle, Number(k || 1));
+      });
+      var activeCount = grouped[activeCycle] || 0;
+      enemyLedgerMeta.textContent = 'Cycle ' + activeCycle + ' spend events: ' + activeCount + ' · total logged: ' + spendRows.length;
+      var lines = entries.slice(-18).reverse().map(function (entry) {
+        if (!entry) return '';
+        var kind = String(entry.kind || 'event');
+        var source = String(entry.source || 'enemy event');
+        var cycle = Math.max(1, Number(entry.cycle || 1));
+        var round = Math.max(1, Number(entry.round || 1));
+        var remaining = Math.max(0, Number(entry.remaining || 0));
+        var spent = Math.max(0, Number(entry.spent || 0));
+        var note = stripHtml(String(entry.note || ''));
+        var badgeColor = kind === 'blocked' ? 'var(--combat-danger)' : (kind === 'cycle-complete' ? 'var(--combat-accent-2)' : 'var(--combat-accent)');
+        return '<div class="combat-feed-line">'
+          + '<span style="color:' + badgeColor + ';font-weight:700;">' + kind.toUpperCase() + '</span>'
+          + ' · src ' + source
+          + ' · r' + round + ' c' + cycle
+          + ' · spent ' + spent
+          + ' · remaining ' + remaining
+          + (note ? (' · ' + note) : '')
+          + '</div>';
+      }).filter(Boolean).join('');
+      enemyLedgerFeed.innerHTML = lines || '<div class="combat-feed-line">No enemy budget events yet.</div>';
     }
 
     var allySel = document.getElementById('combatAllySelect');

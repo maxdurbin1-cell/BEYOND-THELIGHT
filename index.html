@@ -6900,6 +6900,19 @@ function updateWayfarerActionBtn(){
   v=sel.value;
   var blocked=false;var hint='';
   if(!v){btn.disabled=true;if(info)info.textContent='';return;}
+  var turnBlocked=false;
+  if(typeof getCampaignTurnGate==='function'){
+    try{
+      var gate=getCampaignTurnGate('wayfarer');
+      turnBlocked=!!(gate&&gate.ok===false);
+    }catch(_err){turnBlocked=false;}
+  }
+  if(turnBlocked){
+    btn.disabled=true;
+    btn.style.opacity='0.45';
+    if(info)info.textContent='⚠ Wait for the Wayfarer turn in initiative order.';
+    return;
+  }
   if(!allow[v]){
     blocked=true;
     if(v==='teamwork_event')hint='Need 1 Action and 5 TMW. ('+actions+' Actions, '+tmw+' TMW)';
@@ -6915,6 +6928,30 @@ function updateWayfarerActionBtn(){
   btn.disabled=blocked;
   btn.style.opacity=blocked?'0.45':'1';
   if(info)info.textContent=blocked?'⚠ '+hint:'';
+}
+
+function promptWayfarerBackpackOrFlavor(){
+  var readied=String((S&&S.equipment&&S.equipment.readied)||'').trim();
+  var backpackItems=Array.isArray(S&&S.backpack)?S.backpack.map(function(item,idx){
+    return {item:String(item||'').trim(),idx:idx};
+  }).filter(function(entry){return !!entry.item;}):[];
+  var hasFlavor=!!String(S&&S.flavor||'').trim();
+  var hacks=Array.isArray(S&&S.ownedHacks)?S.ownedHacks.filter(Boolean):[];
+  if(!readied&&!backpackItems.length&&!hasFlavor&&!hacks.length){
+    showNotif('No readied item, backpack item, hack, or Personal Flavor is ready to use.','warn');
+    return false;
+  }
+  if(typeof openCombatUtilityChooser==='function'){
+    openCombatUtilityChooser();
+    return true;
+  }
+  var lines=[];
+  if(readied)lines.push('Readied: '+readied);
+  backpackItems.forEach(function(entry){lines.push('Backpack ['+(entry.idx+1)+']: '+entry.item);});
+  hacks.forEach(function(h){lines.push('Hack: '+String(h));});
+  if(hasFlavor)lines.push('Personal Flavor: '+String(S.flavor||''));
+  if(typeof openModal==='function')openModal('Combat Utility','<div style="font-size:.8rem;color:var(--muted2);line-height:1.5;">'+lines.join('<br>')+'</div>');
+  return true;
 }
 
 function executeWayfarerAction(){
@@ -7038,8 +7075,8 @@ function executeWayfarerAction(){
   }
   if(v==='use_item'){
     if(!consumeCombatAction('Use Item / Utility'))return;
-    openCombatUtilityChooser();
-    setRes('<span style="color:var(--muted2);">Choose a readied item, backpack item, owned hack, or Personal Flavor.</span>');
+    var shown=promptWayfarerBackpackOrFlavor();
+    setRes('<span style="color:var(--muted2);">'+(shown?'Choose from your actual readied item, backpack inventory, owned hacks, or Personal Flavor.':'No utility actions are available right now.')+'</span>');
     return;
   }
   if(v==='stand_help'){

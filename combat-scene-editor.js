@@ -44,6 +44,11 @@
     });
   }
 
+  // Header onclick handlers are inline in overlay markup.
+  if (typeof window !== 'undefined') {
+    window.togglePanel = togglePanel;
+  }
+
   function hexLabel(distance) {
     var d = Math.max(0, Number(distance || 0));
     if (d <= 1) return 'Engaged';
@@ -173,23 +178,59 @@
     }
   }
 
+  function makeSceneSnapshot(state) {
+    return {
+      board: clone(state.board || {}),
+      layers: clone(state.layers || {}),
+      fog: clone(state.fog || {}),
+      sceneRules: clone(state.sceneRules || {}),
+      tokens: clone(state.tokens || []),
+      initiative: clone(state.initiative || []),
+      actionHistory: clone((state.actionHistory || []).slice(0, 80))
+    };
+  }
+
+  function withActiveSceneSnapshot(state) {
+    if (!state || !Array.isArray(state.scenes) || !state.activeSceneId) return state;
+    var sceneIdx = state.scenes.findIndex(function (scene) {
+      return scene && String(scene.id) === String(state.activeSceneId);
+    });
+    if (sceneIdx < 0) return state;
+
+    var nextScenes = state.scenes.slice();
+    var currentScene = nextScenes[sceneIdx] || {};
+    nextScenes[sceneIdx] = Object.assign({}, currentScene, makeSceneSnapshot(state), {
+      id: String(currentScene.id || state.activeSceneId),
+      name: String(currentScene.name || ('Scene ' + String(sceneIdx + 1))),
+      updatedAt: Date.now()
+    });
+    return Object.assign({}, state, { scenes: nextScenes });
+  }
+
   function persist(state) {
+    var synced = withActiveSceneSnapshot(state);
     try {
       var slim = {
-        board: state.board,
-        layers: state.layers,
-        fog: state.fog,
-        sceneRules: state.sceneRules,
-        tokens: state.tokens,
-        initiative: state.initiative,
-        actionHistory: state.actionHistory,
-        panelPos: state.panelPos,
-        autoRoll: state.autoRoll
+        board: synced.board,
+        layers: synced.layers,
+        fog: synced.fog,
+        sceneRules: synced.sceneRules,
+        tokens: synced.tokens,
+        initiative: synced.initiative,
+        actionHistory: synced.actionHistory,
+        panelPos: synced.panelPos,
+        autoRoll: synced.autoRoll,
+        round: synced.round,
+        initiativeIndex: synced.initiativeIndex,
+        currentTurnIndex: synced.currentTurnIndex,
+        collapsedPanels: synced.collapsedPanels,
+        scenes: synced.scenes,
+        activeSceneId: synced.activeSceneId
       };
       localStorage.setItem(KEY, JSON.stringify(slim));
     } catch (_err) {}
     if (window.S && window.S.combat) {
-      window.S.combat.sceneEditor = clone(state);
+      window.S.combat.sceneEditor = clone(synced);
     }
   }
 
@@ -600,9 +641,45 @@
     updateUiPanels();
   }
 
+  function consumeMovementAction(actor, distance) {
+    if (!actor) return true;
+    var isPlayerSide = !!actor.isPlayer || String(actor.faction || '') === 'player';
+    if (!isPlayerSide) return true;
+    if (!window.S || !window.S.combat) return true;
+    var required = Math.max(1, Number(distance || 1));
+    var available = Math.max(0, Number(window.S.combat.actionsLeft || 0));
+    if (available < required) {
+      safeNotif('Not enough Actions to move. Movement costs 1 Action per hex.', 'warn');
+      return false;
+    }
+    if (typeof window.consumeCombatAction === 'function') {
+      for (var i = 0; i < required; i++) {
+        if (!window.consumeCombatAction('Move 1 Hex')) return false;
+      }
+      return true;
+    }
+    window.S.combat.actionsLeft = Math.max(0, available - required);
+    if (typeof window.updateCombatUI === 'function') {
+      try { window.updateCombatUI(); } catch (_err) {}
+    }
+    return true;
+  }
+
   function moveToken(tokenId, q, r) {
     if (isBlocked(q, r)) {
       addHistory('Movement blocked by terrain collision at ' + toKey(q, r) + '.');
+      return;
+    }
+    var state = store.getState();
+    var actor = (state.tokens || []).find(function (token) { return token && String(token.id) === String(tokenId); }) || null;
+    if (!actor) return;
+    var distance = hexDistance({ q: Number(actor.q || 0), r: Number(actor.r || 0) }, { q: Number(q), r: Number(r) });
+    if (distance <= 0) return;
+    if (state.playMode && distance > 1) {
+      addHistory('Movement limited to 1 hex per action in active scenes.');
+      return;
+    }
+    if (state.playMode && !consumeMovementAction(actor, distance)) {
       return;
     }
     store.setState(function (state) {
@@ -649,7 +726,7 @@
       + '<input id="combatTokenImageInput" type="file" accept="image/*" style="display:none;">'
       + '<div class="combat-canvas-wrap"><canvas id="combatSceneCanvas"></canvas></div>'
       + '<aside class="combat-floating-panel combat-left-tools combat-editor-only" id="combatToolsPanel">'
-      + '<div class="combat-panel-header" data-drag="tools">Combat Scene</div>'
+      + '<div class="combat-panel-header" data-drag="tools" onclick="togglePanel(\'combatToolsPanel\')">Combat Scene <span style="float:right;font-size:.7rem;cursor:pointer;">◀</span></div>'
       + '<div class="combat-panel-body">'
       + '<div class="combat-label">Layer</div>'
       + '<div class="combat-chip-row" id="combatLayerRow"></div>'
@@ -788,6 +865,31 @@
     return map[n] || 'rgba(255,255,255,.02)';
   }
 
+  var backgroundCache = { src: '', img: null };
+
+  function drawBackground(ctx, board) {
+    var src = String(board && board.background || '');
+    if (!src) return;
+    if (backgroundCache.src !== src || !backgroundCache.img) {
+      backgroundCache.src = src;
+      backgroundCache.img = new Image();
+      backgroundCache.img.src = src;
+    }
+    var img = backgroundCache.img;
+    if (!img || !img.complete || !img.naturalWidth || !img.naturalHeight) return;
+
+    var zoom = Number(board.zoom || 1);
+    var drawW = img.naturalWidth * zoom;
+    var drawH = img.naturalHeight * zoom;
+    var originX = Number(board.panX || 0) - drawW / 2;
+    var originY = Number(board.panY || 0) - drawH / 2;
+
+    ctx.save();
+    ctx.globalAlpha = 0.34;
+    ctx.drawImage(img, originX, originY, drawW, drawH);
+    ctx.restore();
+  }
+
   function drawBoard() {
     var canvas = document.getElementById('combatSceneCanvas');
     if (!canvas) return;
@@ -803,18 +905,7 @@
 
     ctx.clearRect(0, 0, rect.width, rect.height);
 
-    if (board.background) {
-      var image = new Image();
-      image.onload = function () {
-        ctx.globalAlpha = 0.34;
-        ctx.drawImage(image, 0, 0, rect.width, rect.height);
-        ctx.globalAlpha = 1;
-        drawGridAndTokens(ctx, state, rect.width, rect.height);
-      };
-      image.src = board.background;
-      drawGridAndTokens(ctx, state, rect.width, rect.height);
-      return;
-    }
+    drawBackground(ctx, board);
     drawGridAndTokens(ctx, state, rect.width, rect.height);
   }
 
@@ -931,13 +1022,21 @@
       else root.classList.remove('play-mode');
     }
 
+    ['combatToolsPanel', 'combatFeedPanel', 'combatActionsPanel'].forEach(function (panelId) {
+      var panel = document.getElementById(panelId);
+      if (!panel) return;
+      var isCollapsed = !!(state.collapsedPanels && state.collapsedPanels[panelId]);
+      if (isCollapsed) panel.classList.add('collapsed');
+      else panel.classList.remove('collapsed');
+    });
+
     // Update round and turn display
     var roundDisplay = document.getElementById('combatRoundDisplay');
     if (roundDisplay) roundDisplay.textContent = String(Math.max(1, Number(state.round || 1)));
 
     var turnDisplay = document.getElementById('combatTurnDisplay');
     if (turnDisplay) {
-      var current = state.initiative && state.initiative[state.currentTurnIndex] || null;
+      var current = state.initiative && state.initiative[state.initiativeIndex] || null;
       if (current) {
         turnDisplay.textContent = current.name || 'Awaiting start';
       } else {
@@ -1144,6 +1243,37 @@
 
     var rollBtn = document.getElementById('combatRollModeBtn');
     if (rollBtn) rollBtn.textContent = state.autoRoll ? 'Auto Roll' : 'Manual Roll';
+
+    var activeEntry = state.initiative && state.initiative[state.initiativeIndex] || null;
+    var activeTokenId = String(activeEntry && activeEntry.tokenId || '');
+    var activeToken = activeTokenId ? (state.tokens || []).find(function (token) {
+      return token && String(token.id) === activeTokenId;
+    }) : null;
+    var playerTurn = !!(activeToken && (activeToken.isPlayer || String(activeToken.faction) === 'player'));
+
+    var playerActionIds = [
+      'combatCmdStrikeBtn', 'combatCmdShootBtn', 'combatCmdDefendBtn', 'combatCmdTraumaBtn',
+      'combatCmdWayfarerBtn', 'combatOpenUtilityPromptBtn', 'combatOpenFlavorActionBtn',
+      'combatAllyDefendBtn', 'combatAllySupportBtn', 'combatAllyAttackBtn', 'combatAllyMoveBtn'
+    ];
+    playerActionIds.forEach(function (id) {
+      var btn = document.getElementById(id);
+      if (!btn) return;
+      btn.disabled = !playerTurn;
+      btn.style.opacity = playerTurn ? '1' : '0.45';
+      if (!playerTurn) btn.title = 'Wait for a player turn in initiative order.';
+      else btn.title = '';
+    });
+
+    var enemyActionIds = ['combatCmdEnemyBtn', 'combatCmdFlowBtn'];
+    enemyActionIds.forEach(function (id) {
+      var btn = document.getElementById(id);
+      if (!btn) return;
+      btn.disabled = playerTurn;
+      btn.style.opacity = playerTurn ? '0.45' : '1';
+      if (playerTurn) btn.title = 'Enemy actions are disabled during player turns.';
+      else btn.title = '';
+    });
 
     var topMeta = document.getElementById('combatTopMeta');
     if (topMeta) {
@@ -1515,8 +1645,11 @@
       nextTurn.onclick = function () {
         store.setState(function (state) {
           var size = Math.max(1, (state.initiative || []).length);
-          var idx = (Number(state.initiativeIndex || 0) + 1) % size;
-          var next = Object.assign({}, state, { initiativeIndex: idx });
+          var prevIdx = Number(state.initiativeIndex || 0);
+          var idx = (prevIdx + 1) % size;
+          var nextRound = Number(state.round || 1);
+          if (idx === 0 && size > 0) nextRound += 1;
+          var next = Object.assign({}, state, { initiativeIndex: idx, currentTurnIndex: idx, round: nextRound });
           if (!isCampaignModeActive()) {
             next.teamActions = {};
             (state.tokens || []).forEach(function (token) {
@@ -1788,8 +1921,10 @@
     if (openUtilityPromptBtn && !openUtilityPromptBtn._bound) {
       openUtilityPromptBtn._bound = true;
       openUtilityPromptBtn.onclick = function () {
-        if (typeof window.promptCombatUtilityAction === 'function') {
-          try { window.promptCombatUtilityAction(); } catch (_err) {}
+        if (typeof window.openCombatUtilityChooser === 'function') {
+          try { window.openCombatUtilityChooser(); } catch (_err) {}
+        } else if (typeof window.promptCombatUtilityAction === 'function') {
+          try { window.promptCombatUtilityAction(); } catch (_err2) {}
         }
         updateUiPanels();
       };
@@ -2042,6 +2177,15 @@
     if (seed && typeof seed === 'object') {
       store.setState(function (state) {
         var next = Object.assign({}, state);
+        if (seed.id) {
+          next.activeSceneId = String(seed.id);
+        }
+        if (typeof seed.name === 'string' && Array.isArray(next.scenes) && next.activeSceneId) {
+          next.scenes = (next.scenes || []).map(function (scene) {
+            if (!scene || String(scene.id) !== String(next.activeSceneId)) return scene;
+            return Object.assign({}, scene, { name: String(seed.name || scene.name || 'Scene') });
+          });
+        }
         if (Array.isArray(seed.tokens) && seed.tokens.length) {
           next.tokens = seed.tokens.map(function (token, idx) {
             return Object.assign({ id: uid('seed-' + idx), faction: 'npc', hp: 8, maxHp: 8, status: [], q: idx, r: 0, size: 1, image: '' }, token || {});
@@ -2053,6 +2197,12 @@
         }
         if (seed.layers && typeof seed.layers === 'object') {
           next.layers = Object.assign({}, next.layers, seed.layers);
+        }
+        if (seed.fog && typeof seed.fog === 'object') {
+          next.fog = Object.assign({}, next.fog, seed.fog);
+        }
+        if (seed.sceneRules && typeof seed.sceneRules === 'object') {
+          next.sceneRules = Object.assign({}, next.sceneRules, seed.sceneRules);
         }
         if (seed.board && typeof seed.board === 'object') {
           next.board = Object.assign({}, next.board, seed.board);
@@ -2185,13 +2335,13 @@
       name: 'New Scene ' + (scenes.length + 1),
       isActive: scenes.length === 0,
       createdAt: Date.now(),
-      board: {
-        width: 15,
-        height: 15,
-        tokens: [],
-        terrain: {},
-        fogOfWar: {}
-      }
+      board: clone((state && state.board) || { cols: 15, rows: 15 }),
+      layers: clone((state && state.layers) || {}),
+      fog: clone((state && state.fog) || {}),
+      sceneRules: clone((state && state.sceneRules) || {}),
+      tokens: clone((state && state.tokens) || []),
+      initiative: clone((state && state.initiative) || []),
+      actionHistory: []
     };
     
     scenes.push(newScene);
@@ -2223,7 +2373,7 @@
       return '<div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem .5rem;background:' + (isActive ? 'rgba(73,201,187,.1);border:1px solid var(--accent-2)' : 'transparent;border:1px solid var(--border2)') + ';border-radius:3px;cursor:pointer;" onclick="window.selectScene(\'' + String(scene.id).replace(/'/g, "\\'") + '\')">'
         + '<div>'
         + '<div style="font-size:.78rem;color:var(--text);">' + (scene.name || 'Unnamed Scene') + '</div>'
-        + '<div style="font-size:.65rem;color:var(--muted);margin-top:.1rem;">' + (scene.board && scene.board.width ? (scene.board.width + 'x' + scene.board.height + ' board') : 'No board') + '</div>'
+        + '<div style="font-size:.65rem;color:var(--muted);margin-top:.1rem;">' + (scene.board && scene.board.cols ? (scene.board.cols + 'x' + scene.board.rows + ' board') : 'No board') + '</div>'
         + '</div>'
         + '<button class="btn btn-xs" style="margin-left:.3rem;" onclick="event.stopPropagation();window.deleteScene(\'' + String(scene.id).replace(/'/g, "\\'") + '\')" title="Delete scene">✕</button>'
         + '</div>';
@@ -2251,7 +2401,7 @@
     document.getElementById('sceneEditNameInput').value = scene.name;
     
     if (scene.board) {
-      var sizeStr = (scene.board.width || 15) + 'x' + (scene.board.height || 15);
+      var sizeStr = (scene.board.cols || 15) + 'x' + (scene.board.rows || 15);
       var sizeSelect = document.getElementById('sceneMapSize');
       if (sizeSelect) {
         if (sizeStr === '10x10') sizeSelect.value = '10x10';
@@ -2261,7 +2411,7 @@
       }
       
       var fogEl = document.getElementById('sceneFogOfWar');
-      if (fogEl) fogEl.checked = (scene.board && scene.board.fogOfWar && Object.keys(scene.board.fogOfWar).length > 0);
+      if (fogEl) fogEl.checked = !!(scene.fog && scene.fog.enabled);
     }
   }
 
@@ -2284,20 +2434,45 @@
     var scene = clone(scenes[sceneIdx]);
     
     var templateConfigs = {
-      'empty': { width: 10, height: 10, terrain: {}, fogOfWar: {} },
-      'urban': { width: 15, height: 15, terrain: { 'building-1': { type: 'building', q: 5, r: 5 }, 'building-2': { type: 'building', q: 8, r: 8 } }, fogOfWar: {} },
-      'wilderness': { width: 15, height: 15, terrain: { 'forest-1': { type: 'forest', q: 3, r: 3 }, 'hill-1': { type: 'hill', q: 10, r: 7 } }, fogOfWar: {} },
-      'dungeon': { width: 15, height: 15, terrain: { 'wall-1': { type: 'wall', q: 5, r: 5 }, 'trap-1': { type: 'trap', q: 8, r: 5 } }, fogOfWar: {} }
+      'empty': {
+        board: { cols: 10, rows: 10 },
+        layers: { terrain: {}, objects: {}, hazards: {}, elevation: {}, lighting: {}, weather: {}, interactives: {}, spawns: {} },
+        fog: { enabled: false, revealed: {} }
+      },
+      'urban': {
+        board: { cols: 15, rows: 15 },
+        layers: {
+          terrain: { '5,5': 'ruins', '8,8': 'ruins', '9,8': 'ruins' },
+          objects: { '6,5': 'obstacle', '8,7': 'obstacle' },
+          hazards: {}, elevation: {}, lighting: {}, weather: {}, interactives: { '7,8': 'chest' }, spawns: { '3,5': 'spawn' }
+        },
+        fog: { enabled: true, revealed: {} }
+      },
+      'wilderness': {
+        board: { cols: 15, rows: 15 },
+        layers: {
+          terrain: { '3,3': 'forest', '4,3': 'forest', '10,7': 'crags', '10,8': 'crags' },
+          objects: {}, hazards: {}, elevation: { '10,7': 2 }, lighting: {}, weather: {}, interactives: { '2,4': 'loot-cache' }, spawns: { '12,6': 'spawn' }
+        },
+        fog: { enabled: true, revealed: {} }
+      },
+      'dungeon': {
+        board: { cols: 15, rows: 15 },
+        layers: {
+          terrain: { '5,5': 'ruins', '6,5': 'ruins', '7,5': 'ruins' },
+          objects: { '5,6': 'obstacle', '6,6': 'obstacle' },
+          hazards: { '8,5': 'trap' }, elevation: {}, lighting: {}, weather: {}, interactives: { '4,5': 'chest' }, spawns: { '11,5': 'spawn' }
+        },
+        fog: { enabled: true, revealed: {} }
+      }
     };
     
     var config = templateConfigs[template];
     if (!config) return;
     
-    if (!scene.board) scene.board = {};
-    scene.board.width = config.width;
-    scene.board.height = config.height;
-    scene.board.terrain = config.terrain;
-    scene.board.fogOfWar = config.fogOfWar;
+    scene.board = Object.assign({}, scene.board || {}, config.board || {});
+    scene.layers = clone(config.layers || scene.layers || {});
+    scene.fog = Object.assign({}, scene.fog || {}, config.fog || {});
     
     scenes[sceneIdx] = scene;
     store.setState({ scenes: scenes });
@@ -2316,9 +2491,34 @@
     
     // Update scene name from input
     var nameInput = document.getElementById('sceneEditNameInput');
+    var scenesNext = scenes.slice();
+    var sceneIndex = scenesNext.findIndex(function (s) { return s && String(s.id) === String(scene.id); });
     if (nameInput && nameInput.value) {
-      scene.name = nameInput.value;
+      scene = Object.assign({}, scene, { name: String(nameInput.value || scene.name || 'Scene') });
+      if (sceneIndex >= 0) scenesNext[sceneIndex] = scene;
     }
+
+    var sizeSel = document.getElementById('sceneMapSize');
+    if (sizeSel) {
+      var raw = String(sizeSel.value || '15x15');
+      var parts = raw.split('x');
+      var cols = Math.max(6, Number(parts[0] || scene.board && scene.board.cols || 15));
+      var rows = Math.max(6, Number(parts[1] || scene.board && scene.board.rows || 15));
+      scene.board = Object.assign({}, scene.board || {}, { cols: cols, rows: rows });
+      if (sceneIndex >= 0) scenesNext[sceneIndex] = scene;
+    }
+
+    var fogEl = document.getElementById('sceneFogOfWar');
+    if (fogEl) {
+      scene.fog = Object.assign({}, scene.fog || {}, { enabled: !!fogEl.checked });
+      if (sceneIndex >= 0) scenesNext[sceneIndex] = scene;
+    }
+
+    store.setState(function (prev) {
+      var next = Object.assign({}, prev, { scenes: scenesNext, activeSceneId: scene.id });
+      persist(next);
+      return next;
+    });
     
     // Load scene board state and open combat mode
     if (typeof window.openCombatSceneEditor === 'function') {

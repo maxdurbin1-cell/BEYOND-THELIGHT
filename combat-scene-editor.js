@@ -416,6 +416,11 @@
     next.fog.revealOrder = Object.assign({}, next.fog.revealOrder || {});
     next.sceneRules = Object.assign({ rollMode: 'auto', defaultActionType: 'ranged' }, next.sceneRules && typeof next.sceneRules === 'object' ? next.sceneRules : {});
     next.tokens = Array.isArray(next.tokens) ? next.tokens : [];
+    next.tokenRoundEffects = Array.isArray(next.tokenRoundEffects) ? next.tokenRoundEffects : [];
+    var roundNum = Math.max(1, Number(next.round || 1));
+    var appliedNum = Number(next.lastConditionRoundApplied);
+    if (!Number.isFinite(appliedNum) || appliedNum <= 0) appliedNum = roundNum;
+    next.lastConditionRoundApplied = Math.max(1, appliedNum);
     next.initiative = Array.isArray(next.initiative) ? next.initiative : [];
     next.actionHistory = Array.isArray(next.actionHistory) ? next.actionHistory : [];
     next.collapsedPanels = Object.assign({}, next.collapsedPanels || {});
@@ -434,6 +439,7 @@
       fog: clone(state.fog || {}),
       sceneRules: clone(state.sceneRules || {}),
       tokens: clone(state.tokens || []),
+      tokenRoundEffects: clone(state.tokenRoundEffects || []),
       initiative: clone(state.initiative || []),
       actionHistory: clone((state.actionHistory || []).slice(0, 80))
     };
@@ -464,11 +470,13 @@
       fog: synced.fog,
       sceneRules: synced.sceneRules,
       tokens: synced.tokens,
+      tokenRoundEffects: synced.tokenRoundEffects,
       initiative: synced.initiative,
       actionHistory: synced.actionHistory,
       panelPos: synced.panelPos,
       autoRoll: synced.autoRoll,
       round: synced.round,
+      lastConditionRoundApplied: synced.lastConditionRoundApplied,
       initiativeIndex: synced.initiativeIndex,
       currentTurnIndex: synced.currentTurnIndex,
       collapsedPanels: synced.collapsedPanels,
@@ -673,6 +681,8 @@
     },
     codexBestiary: flattenCodexBestiary(),
     tokens: seedFromCurrentCombat(),
+    tokenRoundEffects: [],
+    lastConditionRoundApplied: 1,
     initiative: [],
     teamActions: {},
     actionHistory: ['Combat mode initialized.'],
@@ -923,6 +933,7 @@
     syncWayfarerCombatActionBudget(true);
     addHistory('Enemy actions exhausted. New round begins. Wayfarer actions reset.');
     safeNotif('New round started: Wayfarer actions reset.', 'good');
+    processRoundEffectsForCurrentRound();
     updateUiPanels();
     drawBoard();
     return true;
@@ -1101,6 +1112,106 @@
     addHistory((sourceLabel ? String(sourceLabel) + ' hits ' : '') + String(target.name || 'Target') + ' for ' + amount + ' damage (' + newHp + ' HP left).');
     if (newHp <= 0) markTokenAsDead(tokenId, sourceLabel || 'damage');
     return newHp;
+  }
+
+  function addTokenRoundEffect(targetTokenId, label, stressPerRound, rounds, color) {
+    var target = byId(targetTokenId);
+    if (!target) return false;
+    var safeStress = Math.max(0, Number(stressPerRound || 0));
+    var safeRounds = Math.max(1, Number(rounds || 1));
+    var safeLabel = String(label || 'Condition').trim() || 'Condition';
+    var tone = String(color || '#e3bc5e').trim() || '#e3bc5e';
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      var list = Array.isArray(state.tokenRoundEffects) ? state.tokenRoundEffects.slice() : [];
+      list.push({
+        id: uid('cond'),
+        targetTokenId: String(targetTokenId),
+        label: safeLabel,
+        stressPerRound: safeStress,
+        roundsLeft: safeRounds,
+        color: tone,
+        sourceRound: Math.max(1, Number(state.round || 1))
+      });
+      next.tokenRoundEffects = list;
+      persist(next);
+      return next;
+    });
+    addHistory('Condition applied: ' + safeLabel + ' to ' + String(target.name || 'Token') + ' (' + safeStress + '/round for ' + safeRounds + ' rounds).');
+    return true;
+  }
+
+  function processRoundEffectsForCurrentRound() {
+    var st = store.getState();
+    var currentRound = Math.max(1, Number(st.round || 1));
+    var alreadyApplied = Math.max(0, Number(st.lastConditionRoundApplied || 0));
+    if (currentRound <= alreadyApplied) return;
+
+    var fallen = [];
+    store.setState(function (state) {
+      var roundNow = Math.max(1, Number(state.round || 1));
+      var roundApplied = Math.max(0, Number(state.lastConditionRoundApplied || 0));
+      if (roundNow <= roundApplied) return state;
+
+      var next = Object.assign({}, state);
+      var tokenIndex = {};
+      var tokenCopies = (state.tokens || []).map(function (token) {
+        var copy = Object.assign({}, token);
+        tokenIndex[String(copy.id || '')] = copy;
+        return copy;
+      });
+      var lines = [];
+      var effects = (state.tokenRoundEffects || []).map(function (effect) {
+        return Object.assign({}, effect);
+      });
+
+      effects.forEach(function (effect) {
+        if (!effect || Number(effect.roundsLeft || 0) <= 0) return;
+        var target = tokenIndex[String(effect.targetTokenId || '')];
+        if (!target || isTokenDead(target)) {
+          effect.roundsLeft = 0;
+          return;
+        }
+        var tickDamage = Math.max(0, Number(effect.stressPerRound || 0));
+        if (tickDamage > 0) {
+          var before = Math.max(0, Number(target.hp || 0));
+          var after = Math.max(0, before - tickDamage);
+          target.hp = after;
+          target.dead = after <= 0;
+          if (target.isPlayer && window.S) {
+            window.S.health = Math.max(0, Number(window.S.health || 0) - tickDamage);
+          }
+          lines.push(String(effect.label || 'Condition') + ' deals ' + tickDamage + ' to ' + String(target.name || 'Token') + ' (' + after + ' HP).');
+          if (after <= 0) {
+            fallen.push(Object.assign({}, target));
+          }
+        }
+        effect.roundsLeft = Math.max(0, Number(effect.roundsLeft || 0) - 1);
+      });
+
+      next.tokens = tokenCopies;
+      next.tokenRoundEffects = effects.filter(function (effect) {
+        return effect && Number(effect.roundsLeft || 0) > 0;
+      });
+      next.lastConditionRoundApplied = roundNow;
+      if (lines.length) {
+        var baseHistory = Array.isArray(state.actionHistory) ? state.actionHistory.slice() : [];
+        next.actionHistory = lines.concat(baseHistory).slice(0, 80);
+      }
+      persist(next);
+      return next;
+    });
+
+    if (fallen.length) {
+      fallen.forEach(function (token) {
+        ensureLootDropForToken(token, 'condition');
+      });
+    }
+    if (typeof window.updateCombatUI === 'function') {
+      try { window.updateCombatUI(); } catch (_err) {}
+    }
+    drawBoard();
+    updateUiPanels();
   }
 
   function nearestTokenAt(q, r) {
@@ -1626,13 +1737,22 @@
       + '</div>'
       + '<div id="combatTokenActionHelp" class="combat-mini" style="margin-top:.2rem;">No combat roll yet.</div>'
       + '</div>'
-      + '<div style="display:grid;grid-template-columns:1fr auto auto;gap:.24rem;align-items:end;margin-top:.2rem;">'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.24rem;align-items:end;margin-top:.2rem;">'
+      + '<div><div class="combat-label">Token Name</div><input class="combat-input" id="combatSelectedName" type="text" maxlength="64" placeholder="Token name"></div>'
+      + '<div><div class="combat-label">Dread</div><input class="combat-input" id="combatSelectedDread" type="number" min="1" max="20"></div>'
+      + '<button class="btn btn-xs" id="combatSaveTokenBtn">Save</button>'
       + '<div><div class="combat-label">HP</div><input class="combat-input" id="combatSelectedHp" type="number" min="0"></div>'
       + '<div><div class="combat-label">Elevation</div><input class="combat-input" id="combatSelectedElevation" type="number" min="0" max="9"></div>'
-      + '<button class="btn btn-xs" id="combatSaveTokenBtn">Save</button>'
       + '<button class="btn btn-xs" id="combatUploadTokenBtn">Portrait</button>'
       + '<button class="btn btn-xs btn-red" id="combatDeleteTokenBtn">Delete Selected</button>'
       + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:.24rem;align-items:end;margin-top:.28rem;">'
+      + '<div><div class="combat-label">Condition</div><input class="combat-input" id="combatRoundEffectName" type="text" maxlength="30" placeholder="Burning"></div>'
+      + '<div><div class="combat-label">Stress/Round</div><input class="combat-input" id="combatRoundEffectStress" type="number" min="0" max="20" value="1"></div>'
+      + '<div><div class="combat-label">Rounds</div><input class="combat-input" id="combatRoundEffectRounds" type="number" min="1" max="20" value="2"></div>'
+      + '<button class="btn btn-xs" id="combatApplyRoundEffectBtn">Apply Condition</button>'
+      + '</div>'
+      + '<div id="combatTokenRoundEffectsList" class="combat-feed" style="margin-top:.24rem;"></div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.24rem;align-items:end;margin-top:.28rem;">'
       + '<div><div class="combat-label">Weather</div><select class="combat-select" id="combatWeatherSelect"><option value="none">none</option><option value="rain">rain</option><option value="storm">storm</option><option value="fog">fog</option><option value="ash">ash</option></select></div>'
       + '<div><div class="combat-label">Intensity</div><input class="combat-input" id="combatWeatherIntensity" type="number" min="0" max="5"></div>'
@@ -2143,6 +2263,29 @@
         ctx.fillText('LOOT', p.x, p.y + radius + 24);
       }
 
+      var activeEffects = (state.tokenRoundEffects || []).filter(function (effect) {
+        return effect && String(effect.targetTokenId || '') === String(token.id || '') && Number(effect.roundsLeft || 0) > 0;
+      });
+      if (activeEffects.length) {
+        var ringRadius = radius + 5;
+        var slice = (Math.PI * 2) / activeEffects.length;
+        activeEffects.forEach(function (effect, idx) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.strokeStyle = String(effect.color || '#e3bc5e');
+          ctx.lineWidth = 3;
+          ctx.arc(p.x, p.y, ringRadius, (idx * slice) - (Math.PI / 2), ((idx + 1) * slice) - (Math.PI / 2));
+          ctx.stroke();
+          ctx.restore();
+        });
+        var tag = activeEffects.map(function (effect) {
+          return String(effect.label || 'Condition').slice(0, 8) + ' ' + Math.max(0, Number(effect.roundsLeft || 0));
+        }).join(' | ');
+        ctx.fillStyle = 'rgba(227,188,94,.98)';
+        ctx.font = '10px Rajdhani, sans-serif';
+        ctx.fillText(tag, p.x, p.y + radius + 36);
+      }
+
       // Quick-edit bubbles above token. Click bubble to edit with absolute or +/- delta.
       var bubbleY = p.y - radius - 34;
       var bubbles = [
@@ -2467,8 +2610,11 @@
 
     var selected = byId(state.selectedTokenId);
     var selectedSummary = document.getElementById('combatSelectedSummary');
+    var selectedName = document.getElementById('combatSelectedName');
+    var selectedDreadInput = document.getElementById('combatSelectedDread');
     var selectedHp = document.getElementById('combatSelectedHp');
     var selectedElevation = document.getElementById('combatSelectedElevation');
+    var effectList = document.getElementById('combatTokenRoundEffectsList');
     if (selectedSummary) {
       var selectedDread = selected ? Math.max(4, Number(selected.dread || selected.codexDread || 0)) : 0;
       var selectedDeath = selected ? Math.max(1, Number(selected.deathNumber || selectedDread || 0)) : 0;
@@ -2487,8 +2633,28 @@
     if (selectedHp) {
       selectedHp.value = selected ? Number(selected.hp || 0) : '';
     }
+    if (selectedName) {
+      selectedName.value = selected ? String(selected.name || '') : '';
+    }
+    if (selectedDreadInput) {
+      selectedDreadInput.value = selected ? Math.max(1, Number(selected.dread || selected.codexDread || selected.deathNumber || 1)) : '';
+    }
     if (selectedElevation) {
       selectedElevation.value = selected ? Number(state.layers.elevation[toKey(selected.q, selected.r)] || 0) : 0;
+    }
+    if (effectList) {
+      var effects = (state.tokenRoundEffects || []).filter(function (effect) {
+        return effect && selected && String(effect.targetTokenId || '') === String(selected.id || '');
+      });
+      effectList.innerHTML = effects.length
+        ? effects.map(function (effect) {
+          return '<div class="combat-feed-line">'
+            + '<strong>' + String(effect.label || 'Condition') + '</strong>'
+            + ' · ' + Math.max(0, Number(effect.stressPerRound || 0)) + '/round'
+            + ' · ' + Math.max(0, Number(effect.roundsLeft || 0)) + ' rounds left'
+            + '</div>';
+        }).join('')
+        : '<div class="combat-feed-line">No active round conditions on selected token.</div>';
     }
 
     var weatherSelect = document.getElementById('combatWeatherSelect');
@@ -3443,6 +3609,7 @@
             fog: clone(state.fog || {}),
             sceneRules: clone(state.sceneRules || {}),
             tokens: clone(state.tokens || []),
+            tokenRoundEffects: clone(state.tokenRoundEffects || []),
             initiative: clone(state.initiative || []),
             actionHistory: clone((state.actionHistory || []).slice(0, 200)),
             scenes: clone(state.scenes || []),
@@ -3452,6 +3619,7 @@
             round: Number(state.round || 1),
             initiativeIndex: Number(state.initiativeIndex || 0),
             currentTurnIndex: Number(state.currentTurnIndex || 0),
+            lastConditionRoundApplied: Number(state.lastConditionRoundApplied || state.round || 1),
             autoRoll: !!state.autoRoll
           }
         };
@@ -3627,6 +3795,7 @@
         var st = store.getState();
         var active = st.initiative[st.initiativeIndex] || null;
         if (active) addHistory('Turn: ' + active.name + '.');
+        processRoundEffectsForCurrentRound();
         updateUiPanels();
       };
     }
@@ -3648,15 +3817,27 @@
     if (saveToken && !saveToken._bound) {
       saveToken._bound = true;
       saveToken.onclick = function () {
+        var nameInput = document.getElementById('combatSelectedName');
+        var dreadInput = document.getElementById('combatSelectedDread');
         var hpInput = document.getElementById('combatSelectedHp');
         var elevationInput = document.getElementById('combatSelectedElevation');
+        var tokenName = String(nameInput && nameInput.value || '').trim();
+        var dread = Math.max(1, Number(dreadInput && dreadInput.value || 0));
         var hp = Math.max(0, Number(hpInput && hpInput.value || 0));
         var elevation = Math.max(0, Number(elevationInput && elevationInput.value || 0));
         store.setState(function (state) {
           var next = Object.assign({}, state);
           next.tokens = (state.tokens || []).map(function (token) {
             if (!token || String(token.id) !== String(state.selectedTokenId || '')) return token;
-            return Object.assign({}, token, { hp: hp, maxHp: Math.max(hp, Number(token.maxHp || hp)) });
+            var updated = Object.assign({}, token, { hp: hp, maxHp: Math.max(hp, Number(token.maxHp || hp)) });
+            if (tokenName) updated.name = tokenName;
+            if (dread > 0) {
+              updated.dread = dread;
+              if (!updated.isPlayer && String(updated.faction || '') === 'monster') {
+                updated.deathNumber = Math.max(1, dread);
+              }
+            }
+            return updated;
           });
           var selected = byId(state.selectedTokenId);
           if (selected) {
@@ -3667,8 +3848,35 @@
           persist(next);
           return next;
         });
-        addHistory('Updated HP for selected token.');
+        addHistory('Updated selected token details.');
         drawBoard();
+      };
+    }
+
+    var applyRoundEffectBtn = document.getElementById('combatApplyRoundEffectBtn');
+    if (applyRoundEffectBtn && !applyRoundEffectBtn._bound) {
+      applyRoundEffectBtn._bound = true;
+      applyRoundEffectBtn.onclick = function () {
+        var state = store.getState();
+        var selectedToken = byId(state.selectedTokenId);
+        var targetSel = document.getElementById('combatTokenTargetSel');
+        var targetId = String(targetSel && targetSel.value || '') || String(selectedToken && selectedToken.id || '');
+        if (!targetId) {
+          safeNotif('Select a token or target first.', 'warn');
+          return;
+        }
+        var effectNameInput = document.getElementById('combatRoundEffectName');
+        var effectStressInput = document.getElementById('combatRoundEffectStress');
+        var effectRoundsInput = document.getElementById('combatRoundEffectRounds');
+        var label = String(effectNameInput && effectNameInput.value || 'Condition').trim() || 'Condition';
+        var stress = Math.max(0, Number(effectStressInput && effectStressInput.value || 0));
+        var rounds = Math.max(1, Number(effectRoundsInput && effectRoundsInput.value || 1));
+        var applied = addTokenRoundEffect(targetId, label, stress, rounds, '#e3bc5e');
+        if (applied) {
+          if (effectNameInput) effectNameInput.value = '';
+          updateUiPanels();
+          drawBoard();
+        }
       };
     }
 
@@ -3683,6 +3891,9 @@
         store.setState(function (inner) {
           var next = Object.assign({}, inner);
           next.tokens = (inner.tokens || []).filter(function (t) { return t && String(t.id) !== String(token.id); });
+          next.tokenRoundEffects = (inner.tokenRoundEffects || []).filter(function (effect) {
+            return effect && String(effect.targetTokenId || '') !== String(token.id || '');
+          });
           next.selectedTokenId = '';
           next.initiative = [];
           persist(next);
@@ -3972,7 +4183,9 @@
       else el = document.getElementById('attackResult');
       if (!el) return;
       var text = el.textContent || el.innerText || '';
-      var match = text.match(/HIT!\s*(\d+)\s*Stress/i) || text.match(/(\d+)\s*Stress/i);
+      var match = text.match(/HIT!\s*(\d+)\s*(Stress|Health\s*damage)/i)
+        || text.match(/(\d+)\s*(Stress|Health\s*damage)/i)
+        || text.match(/deals?\s*(\d+)\s*(Stress|Health\s*damage)/i);
       if (!match) return;
       var damage = Math.max(1, parseInt(match[1], 10));
       var isCrit = /crit/i.test(text);
@@ -4054,6 +4267,25 @@
         }
         if (!actionVal) {
           safeNotif('Choose a token action first.', 'warn');
+          return;
+        }
+        var lowerAction = actionVal.toLowerCase();
+        var utilityLike = /use_item|utility|backpack|hack|flavor|personal_flavor/.test(lowerAction);
+        if (utilityLike) {
+          if (/flavor|personal_flavor/.test(lowerAction) && typeof window.usePersonalFlavorAction === 'function') {
+            try { window.usePersonalFlavorAction(); } catch (_flavorErr) {}
+            addHistory('Wayfarer utility executed: Personal Flavor.');
+          } else if (typeof window.openCombatUtilityChooser === 'function') {
+            try { window.openCombatUtilityChooser(); } catch (_chooserErr) {}
+            addHistory('Wayfarer utility chooser opened from Combat Scene.');
+          } else if (typeof window.promptWayfarerBackpackOrFlavor === 'function') {
+            try { window.promptWayfarerBackpackOrFlavor(); } catch (_promptErr) {}
+            addHistory('Wayfarer utility menu opened from Combat Scene.');
+          } else {
+            safeNotif('Utility actions are unavailable right now.', 'warn');
+          }
+          tryApplyLegacyDamageToTokens('wayfarer');
+          updateUiPanels();
           return;
         }
         if (targetVal) {

@@ -1489,7 +1489,7 @@ function generateCharacter() {
   // Trigger origin mission after all character state is initialized
   if (typeof createOriginMissionFromReason === 'function') {
     try {
-      createOriginMissionFromReason(true);
+      createOriginMissionFromReason(true, { suppressFocus: true });
     } catch (err) {
       console.warn('Error creating origin mission:', err);
     }

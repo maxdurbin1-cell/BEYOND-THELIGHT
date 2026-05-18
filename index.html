@@ -15312,6 +15312,7 @@ function ensureTravelSceneState(){
   if(!S.travelScenes||typeof S.travelScenes!=='object')S.travelScenes={};
   const ts=S.travelScenes;
   if(!ts.byHex||typeof ts.byHex!=='object')ts.byHex={};
+  if(!ts.panelHiddenByHex||typeof ts.panelHiddenByHex!=='object')ts.panelHiddenByHex={};
   if(typeof ts.activeSceneId!=='string')ts.activeSceneId='';
   if(typeof ts.seq!=='number'||!isFinite(ts.seq)||ts.seq<1)ts.seq=1;
   return ts;
@@ -15319,6 +15320,21 @@ function ensureTravelSceneState(){
 
 function travelSceneHexKey(col,row){
   return String(col)+','+String(row);
+}
+
+function isTravelScenePanelHidden(col,row){
+  const ts=ensureTravelSceneState();
+  const key=travelSceneHexKey(col,row);
+  return !!(ts.panelHiddenByHex&&ts.panelHiddenByHex[key]);
+}
+
+function setTravelScenePanelHidden(col,row,hidden){
+  const ts=ensureTravelSceneState();
+  const key=travelSceneHexKey(col,row);
+  if(!ts.panelHiddenByHex||typeof ts.panelHiddenByHex!=='object')ts.panelHiddenByHex={};
+  if(hidden)ts.panelHiddenByHex[key]=true;
+  else delete ts.panelHiddenByHex[key];
+  rerenderTravelSceneHex(col,row);
 }
 
 function getTravelScenesForHex(col,row,create){
@@ -15570,6 +15586,14 @@ function buildTravelScenePanelHtml(hex){
   if(!hex)return '';
   const col=Number(hex.col||0);
   const row=Number(hex.row||0);
+  if(isTravelScenePanelHidden(col,row)){
+    return '<div class="npc-block" style="margin-bottom:.45rem;border-color:rgba(46,196,182,.4);background:rgba(46,196,182,.05);">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:.35rem;">'
+      + '<div class="nb-label" style="color:var(--teal);">🎬 Travel Scene</div>'
+      + '<button class="btn btn-xs" onclick="setTravelScenePanelHidden('+col+','+row+',false)">Open Travel Scene</button>'
+      + '</div>'
+    + '</div>';
+  }
   const list=getTravelScenesForHex(col,row,false);
   const ts=ensureTravelSceneState();
   const active=list.find(function(scene){ return scene&&String(scene.id||'')===String(ts.activeSceneId||''); })||list[0]||null;
@@ -15628,6 +15652,7 @@ function buildTravelScenePanelHtml(hex){
     + '</div>'
     + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem;">'
       + '<button class="btn btn-xs btn-primary" onclick="launchTravelSceneToCombat('+col+','+row+')">Launch Into Combat Mode</button>'
+      + '<button class="btn btn-xs" onclick="setTravelScenePanelHidden('+col+','+row+',true)">Hide Travel Scene</button>'
     + '</div>'
     + sceneMgmtHtml
     // ── SCENE MANAGEMENT LOGIC ─────────────────────────────

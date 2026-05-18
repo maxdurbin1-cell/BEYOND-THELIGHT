@@ -1573,24 +1573,6 @@
       + '<div id="combatLegacyActionInfoMirror" class="combat-result-mirror">Action details appear here.</div>'
       + '<div id="combatLegacyFlavorMirror" class="combat-result-mirror"></div>'
       + '<div class="combat-feed" id="combatLegacyRowsMirror"></div>'
-      + '<div style="display:none;">'
-      + '<button class="btn btn-xs" id="combatCmdEnemyBtn">☠ Enemy Action</button>'
-      + '<button class="btn btn-xs" id="combatCmdDefendBtn">Roll Defend</button>'
-      + '<button class="btn btn-xs" id="combatCmdTraumaBtn">Trauma</button>'
-      + '<select class="combat-select" id="combatWayfarerActionSel"><option value="">— Choose Action —</option></select>'
-      + '<div id="combatWayfarerContext" class="combat-mini"></div>'
-      + '<button class="btn btn-xs" id="combatCmdWayfarerBtn">Execute</button>'
-      + '<button class="btn btn-xs" id="combatCmdStrikeBtn">Roll Strike</button>'
-      + '<button class="btn btn-xs" id="combatCmdShootBtn">Roll Shoot</button>'
-      + '<button class="btn btn-xs" id="combatOpenUtilityPromptBtn">Use Item</button>'
-      + '<button class="btn btn-xs" id="combatOpenFlavorActionBtn">Use Flavor</button>'
-      + '<select class="combat-select" id="combatAllySelect"></select>'
-      + '<div id="combatAllyBudgetMeta"></div>'
-      + '<button class="btn btn-xs" id="combatAllyDefendBtn">Defend Ally</button>'
-      + '<button class="btn btn-xs" id="combatAllySupportBtn">Support Ally</button>'
-      + '<button class="btn btn-xs" id="combatAllyAttackBtn">Attack Enemy</button>'
-      + '<button class="btn btn-xs" id="combatAllyMoveBtn">Move</button>'
-      + '</div>'
       + '<div class="combat-feed" id="combatFeedLog" style="margin-top:.3rem;"></div>'
       + '</div>'
       + '</aside>'
@@ -2411,33 +2393,6 @@
     if (weatherSelect) weatherSelect.value = String(state.board.weatherOverlay || 'none');
     if (weatherIntensity) weatherIntensity.value = Number(state.board.weatherIntensity || 0);
 
-    // Mirror Combat Tab action math/text so Combat Mode always follows game rules.
-    var mirroredWayfarerSel = document.getElementById('combatWayfarerActionSel');
-    var mirroredWayfarerContext = document.getElementById('combatWayfarerContext');
-    var sourceWayfarerSel = document.getElementById('wayfarerActionSel');
-    if (mirroredWayfarerSel && sourceWayfarerSel) {
-      try {
-        if (typeof window.updateWayfarerActionBtn === 'function') window.updateWayfarerActionBtn();
-      } catch (_err) {}
-      var priorVal = String(mirroredWayfarerSel.value || '');
-      mirroredWayfarerSel.innerHTML = sourceWayfarerSel.innerHTML;
-      var values = Array.prototype.slice.call(mirroredWayfarerSel.options || []).map(function (opt) { return String(opt.value || ''); });
-      if (priorVal && values.indexOf(priorVal) >= 0) mirroredWayfarerSel.value = priorVal;
-      else if (String(sourceWayfarerSel.value || '')) mirroredWayfarerSel.value = String(sourceWayfarerSel.value || '');
-      else mirroredWayfarerSel.value = '';
-      if (mirroredWayfarerContext) {
-        var listed = Array.prototype.slice.call(mirroredWayfarerSel.options || []).filter(function (opt) {
-          return String(opt.value || '') !== '';
-        }).map(function (opt) {
-          var text = String(opt.textContent || '');
-          return text.split(' — ')[0];
-        });
-        mirroredWayfarerContext.textContent = listed.length
-          ? ('Available now: ' + listed.join(' · '))
-          : 'No Wayfarer actions available right now.';
-      }
-    }
-
     var ruler = document.getElementById('combatRulerSummary');
     if (ruler) {
       var focusEnemy = null;
@@ -2483,36 +2438,6 @@
       return token && String(token.id) === activeTokenId;
     }) : null;
     var playerTurn = !!(activeToken && (activeToken.isPlayer || String(activeToken.faction) === 'player'));
-
-    var playerActionIds = [
-      'combatCmdStrikeBtn', 'combatCmdShootBtn', 'combatCmdDefendBtn', 'combatCmdTraumaBtn',
-      'combatCmdWayfarerBtn', 'combatOpenUtilityPromptBtn', 'combatOpenFlavorActionBtn',
-      'combatAllyDefendBtn', 'combatAllySupportBtn', 'combatAllyAttackBtn', 'combatAllyMoveBtn'
-    ];
-    playerActionIds.forEach(function (id) {
-      var btn = document.getElementById(id);
-      if (!btn) return;
-      btn.disabled = !playerTurn;
-      btn.style.opacity = playerTurn ? '1' : '0.45';
-      if (!playerTurn) btn.title = 'Wait for a player turn in initiative order.';
-      else btn.title = '';
-    });
-
-    var enemyActionIds = ['combatCmdEnemyBtn'];
-    enemyActionIds.forEach(function (id) {
-      var btn = document.getElementById(id);
-      if (!btn) return;
-      btn.disabled = false;
-      btn.style.opacity = '1';
-      btn.style.display = 'none';
-      btn.title = '';
-    });
-
-    ['combatCmdDefendBtn', 'combatCmdTraumaBtn'].forEach(function (id) {
-      var btn = document.getElementById(id);
-      if (!btn) return;
-      btn.style.display = 'none';
-    });
 
     var syncBadge = document.getElementById('combatSharedSyncBadge');
     if (syncBadge) {
@@ -2652,7 +2577,7 @@
       tokenCoverSel.disabled = !targetId;
     }
     if (tokenActionSel) {
-      var mirroredSel = document.getElementById('combatWayfarerActionSel');
+      var mirroredSel = document.getElementById('wayfarerActionSel');
       var actor = byId(state.selectedTokenId);
       var previous = String(tokenActionSel.value || '');
       if (actor && (actor.isPlayer || String(actor.faction) === 'player') && mirroredSel) {
@@ -2674,6 +2599,11 @@
       }
       var stillExists = Array.prototype.slice.call(tokenActionSel.options || []).some(function (opt) { return String(opt.value || '') === previous; });
       if (stillExists) tokenActionSel.value = previous;
+    }
+    var tokenEnemyBtnVis = document.getElementById('combatTokenEnemyActionBtn');
+    if (tokenEnemyBtnVis) {
+      var actorForEnemyBtn = byId(state.selectedTokenId);
+      tokenEnemyBtnVis.style.display = (actorForEnemyBtn && String(actorForEnemyBtn.faction) === 'monster') ? '' : 'none';
     }
     if (tokenActionHelp) {
       var selectedTargetId = String(tokenTargetSel && tokenTargetSel.value || '');
@@ -3494,6 +3424,35 @@
           safeNotif('Scene is already active.', 'info');
           return;
         }
+        var state = store.getState();
+        if ((!state.scenes || !state.scenes.length) && typeof window.createNewCombatScene === 'function') {
+          try { window.createNewCombatScene(); } catch (_sceneErr) {}
+        }
+        store.setState(function (inner) {
+          var hasWayfarer = (inner.tokens || []).some(function (t) { return t && t.isPlayer; });
+          if (hasWayfarer) return inner;
+          var next = Object.assign({}, inner);
+          var maxHpByRules = getWayfarerMaxHpByRules();
+          var portrait = (window.S && window.S.identityForge && window.S.identityForge.media && window.S.identityForge.media.portrait) || '';
+          var wayfarer = {
+            id: uid('player'),
+            name: canonicalWayfarerName(),
+            faction: 'player',
+            hp: maxHpByRules,
+            maxHp: maxHpByRules,
+            status: [],
+            q: 0,
+            r: 0,
+            image: portrait,
+            size: 1,
+            isPlayer: true
+          };
+          next.tokens = (inner.tokens || []).concat([wayfarer]);
+          next.selectedTokenId = String(wayfarer.id || '');
+          next.initiative = [];
+          persist(next);
+          return next;
+        });
         if (typeof window.startCombat === 'function') {
           try { window.startCombat(); } catch (_err) {}
           addHistory('Scene started from Combat Mode.');
@@ -3959,29 +3918,6 @@
       cmdEnemy.onclick = function () { runLegacyAction('enemy'); };
     }
 
-    var cmdWayfarer = document.getElementById('combatCmdWayfarerBtn');
-    if (cmdWayfarer && !cmdWayfarer._bound) {
-      cmdWayfarer._bound = true;
-      cmdWayfarer.onclick = function () {
-        var sel = document.getElementById('combatWayfarerActionSel');
-        var val = String(sel && sel.value || '');
-        if (!val) return;
-        var legacySel = document.getElementById('wayfarerActionSel');
-        if (legacySel) legacySel.value = val;
-        try {
-          if (typeof window.updateWayfarerActionBtn === 'function') window.updateWayfarerActionBtn();
-        } catch (_err) {}
-        if (typeof window.executeWayfarerAction === 'function') {
-          try { window.executeWayfarerAction(); } catch (_err) {}
-        }
-        tryApplyLegacyDamageToTokens('wayfarer');
-        var selectedOpt = legacySel && legacySel.options ? legacySel.options[legacySel.selectedIndex] : null;
-        var actionLabel = selectedOpt ? String(selectedOpt.textContent || val) : val;
-        addHistory('Wayfarer action executed (Combat Tab rules): ' + actionLabel + '.');
-        updateUiPanels();
-      };
-    }
-
     var tokenExecuteBtn = document.getElementById('combatTokenExecuteActionBtn');
     if (tokenExecuteBtn && !tokenExecuteBtn._bound) {
       tokenExecuteBtn._bound = true;
@@ -4018,10 +3954,19 @@
             }
           }
         }
-        var wayfarerSel = document.getElementById('combatWayfarerActionSel');
-        if (wayfarerSel) wayfarerSel.value = actionVal;
-        var execBtn = document.getElementById('combatCmdWayfarerBtn');
-        if (execBtn && typeof execBtn.onclick === 'function') execBtn.onclick();
+        var legacySel = document.getElementById('wayfarerActionSel');
+        if (legacySel) legacySel.value = actionVal;
+        try {
+          if (typeof window.updateWayfarerActionBtn === 'function') window.updateWayfarerActionBtn();
+        } catch (_err) {}
+        if (typeof window.executeWayfarerAction === 'function') {
+          try { window.executeWayfarerAction(); } catch (_err2) {}
+        }
+        tryApplyLegacyDamageToTokens('wayfarer');
+        var selectedOpt = legacySel && legacySel.options ? legacySel.options[legacySel.selectedIndex] : null;
+        var actionLabel = selectedOpt ? String(selectedOpt.textContent || actionVal) : actionVal;
+        addHistory('Wayfarer action executed (Combat Tab rules): ' + actionLabel + '.');
+        updateUiPanels();
       };
     }
 

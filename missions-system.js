@@ -546,12 +546,12 @@
       : 0;
 
     var topSummary = '<div style="margin-bottom:.45rem;font-size:.84rem;color:var(--text2);line-height:1.58;">'
-      + 'Track all endgame progression here: Crucible 6v6, Gate War seals, Colosseum clears, and Soul Forge hunts.'
+      + 'Track all endgame progression here: Crucible Control, Gate War seals, Colosseum clears, and Soul Forge hunts.'
       + '</div>';
 
     var grid = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.42rem;margin-bottom:.5rem;">'
       + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.46rem .5rem;">'
-        + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.14rem;">Crucible 6v6</div>'
+        + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.14rem;">Crucible Control</div>'
         + '<div style="font-size:.8rem;color:var(--text2);line-height:1.5;">Wins: <strong style="color:var(--green2);">' + Number(crucible.wins || 0) + '</strong> · Losses: <strong style="color:var(--red2);">' + Number(crucible.losses || 0) + '</strong></div>'
         + '<div style="font-size:.78rem;color:var(--text2);margin-top:.12rem;line-height:1.45;">Best streak: ' + Number(crucible.bestWinStreak || 0) + ' · Current: ' + Number(crucible.currentWinStreak || 0) + '</div>'
       + '</div>'
@@ -1422,7 +1422,8 @@
     }
   }
 
-  function createOriginMissionFromReason(forceCreate) {
+  function createOriginMissionFromReason(forceCreate, options) {
+    var opts = options && typeof options === 'object' ? options : {};
     ensureState();
     if (!S || !forceCreate && S.originMissionInitialized) return null;
 
@@ -1472,7 +1473,9 @@
     mission.templateLabel = opts.templateLabel;
     mission.lore = opts.lore;
     S.originMissionInitialized = true;
-    focusOriginRegion(region);
+    if (!opts.suppressFocus) {
+      focusOriginRegion(region);
+    }
     if (typeof showNotif === 'function') {
       showNotif('Your first mission has begun: ' + title, 'good');
     }
@@ -16974,7 +16977,7 @@
     window._originMissionGeneratePatched = true;
     generateCharacter = function() {
       _missionBaseGenerate.apply(this, arguments);
-      createOriginMissionFromReason(true);
+      createOriginMissionFromReason(true, { suppressFocus: true });
       syncMissionUIs();
     };
   }

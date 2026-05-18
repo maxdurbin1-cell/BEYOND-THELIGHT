@@ -113,8 +113,8 @@ nav{grid-column:1 / -1;display:flex;gap:.32rem;flex-wrap:wrap;align-items:center
 .section-title{font-family:'Cinzel',serif;font-size:.84rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);margin-bottom:.85rem;padding-bottom:.45rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.4rem;font-weight:700;}
 .section-title::before{content:'';width:3px;height:.7rem;background:var(--gold);opacity:.6;flex-shrink:0;}
 .sub-label{font-family:'Cinzel',serif;font-size:.74rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;display:block;margin-bottom:.32rem;font-weight:600;}
-.card{background:var(--card);border:1px solid var(--border);padding:.7rem;}
-.btn{background:transparent;border:1px solid var(--border2);color:var(--text2);font-family:'Rajdhani',sans-serif;font-size:.95rem;font-weight:600;letter-spacing:.08em;padding:.48rem 1.05rem;cursor:pointer;text-transform:uppercase;transition:all .15s;white-space:nowrap;min-height:2.4rem;}
+.card{background:linear-gradient(180deg,rgba(17,19,36,.96) 0%,rgba(12,14,28,.98) 100%);border:1px solid rgba(72,79,120,.42);padding:.78rem;border-radius:12px;box-shadow:0 10px 26px rgba(0,0,0,.2),inset 0 0 0 1px rgba(255,255,255,.02);}
+.btn{background:transparent;border:1px solid var(--border2);color:var(--text2);font-family:'Rajdhani',sans-serif;font-size:.95rem;font-weight:600;letter-spacing:.08em;padding:.48rem 1.05rem;cursor:pointer;text-transform:uppercase;transition:all .15s;white-space:nowrap;min-height:2.4rem;border-radius:10px;}
 .btn:hover{border-color:var(--gold);color:var(--gold);background:rgba(201,162,39,.05);}
 .btn:focus-visible,.tab-btn:focus-visible,.ctx-btn:focus-visible,.step-btn:focus-visible,.scat:focus-visible,.age-btn:focus-visible,.season-btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--teal2);outline-offset:2px;}
 .btn-primary{border-color:rgba(201,162,39,.6);color:var(--gold);background:rgba(201,162,39,.07);}
@@ -162,7 +162,7 @@ select option{background:#0f1020;}
 .counter-val{font-family:'Rajdhani',sans-serif;font-size:1.4rem;font-weight:700;min-width:2.2rem;text-align:center;line-height:1;}
 .gold-val{color:var(--gold);}.teal-val{color:var(--teal);}.red-val{color:var(--red);}.grey-val{color:var(--muted3);}
 .renown-badge{display:inline-block;font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:var(--gold);border:1px solid rgba(201,162,39,.4);padding:.16rem .52rem;text-transform:uppercase;background:rgba(201,162,39,.04);}
-.char-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;}
+.char-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.9rem;}
 .guided-build-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.28rem;}
 @media(max-width:1100px){.char-grid{grid-template-columns:1fr 1fr;}}@media(max-width:680px){.char-grid{grid-template-columns:1fr;}}
 @media(max-width:680px){.guided-build-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
@@ -586,7 +586,6 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
       <button class="btn btn-teal" onclick="switchTab('howto',document.getElementById('tabnav-howto'))">Start Onboarding</button>
       <button class="btn" onclick="switchTab('missions',document.getElementById('tabnav-missions'))">Open Mission Board</button>
       <button class="btn" onclick="switchTab('map',document.getElementById('tabnav-map'))">Enter Province Map</button>
-      <button class="btn btn-teal" onclick="openDiceRoller()" title="Open 3D dice roller">🎲 Roll Dice</button>
     </div>
     <div class="hero-meta-grid">
       <div class="hero-meta-card"><strong>Characters</strong><span>Identity, stats, resources, trauma, and condition management.</span></div>
@@ -602,7 +601,6 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
       <button class="btn" onclick="showSoloGuidance()">Guide</button>
       <button class="btn btn-primary" onclick="generateCharacter()">⚄ Generate Wayfarer</button>
       <button class="btn btn-teal" onclick="startGuidedCharacterBuild()">Guided Build</button>
-      <button class="btn btn-teal" onclick="openDiceRoller()" title="Open 3D dice roller">🎲 Roll Dice</button>
       <button class="btn" onclick="saveCharacter()">💾 Save</button>
       <button class="btn" onclick="loadCharacter()">📂 Load</button>
       <button class="btn" onclick="openWayfarerExportModal()">🧾 Export Sheet</button>
@@ -15326,14 +15324,30 @@ function renderHexMap(){
 }
 
 function ensureTravelSceneState(){
-  if(!S||typeof S!=='object')return {byHex:{},activeSceneId:'',seq:1};
+  if(!S||typeof S!=='object')return {byHex:{},activeSceneId:'',activeSceneByHex:{},seq:1};
   if(!S.travelScenes||typeof S.travelScenes!=='object')S.travelScenes={};
   const ts=S.travelScenes;
   if(!ts.byHex||typeof ts.byHex!=='object')ts.byHex={};
   if(!ts.panelHiddenByHex||typeof ts.panelHiddenByHex!=='object')ts.panelHiddenByHex={};
+  if(!ts.activeSceneByHex||typeof ts.activeSceneByHex!=='object')ts.activeSceneByHex={};
   if(typeof ts.activeSceneId!=='string')ts.activeSceneId='';
   if(typeof ts.seq!=='number'||!isFinite(ts.seq)||ts.seq<1)ts.seq=1;
   return ts;
+}
+
+function getTravelSceneActiveIdForHex(col,row){
+  const ts=ensureTravelSceneState();
+  const key=travelSceneHexKey(col,row);
+  if(ts.activeSceneByHex&&typeof ts.activeSceneByHex[key]==='string')return String(ts.activeSceneByHex[key]||'');
+  return String(ts.activeSceneId||'');
+}
+
+function setTravelSceneActiveIdForHex(col,row,sceneId){
+  const ts=ensureTravelSceneState();
+  const key=travelSceneHexKey(col,row);
+  if(!ts.activeSceneByHex||typeof ts.activeSceneByHex!=='object')ts.activeSceneByHex={};
+  ts.activeSceneByHex[key]=String(sceneId||'');
+  ts.activeSceneId=String(sceneId||'');
 }
 
 function travelSceneHexKey(col,row){
@@ -15381,10 +15395,10 @@ function findTravelSceneById(sceneId){
 }
 
 function getActiveTravelSceneForHex(col,row){
-  const ts=ensureTravelSceneState();
   const list=getTravelScenesForHex(col,row,false);
   if(!list.length)return null;
-  const active=list.find(function(scene){ return scene&&String(scene.id||'')===String(ts.activeSceneId||''); })||null;
+  const activeId=getTravelSceneActiveIdForHex(col,row);
+  const active=list.find(function(scene){ return scene&&String(scene.id||'')===activeId; })||null;
   return active||list[0]||null;
 }
 
@@ -15419,7 +15433,7 @@ function createTravelSceneAtHex(col,row){
     updatedAt:Date.now()
   };
   list.push(scene);
-  ts.activeSceneId=id;
+  setTravelSceneActiveIdForHex(col,row,id);
   ts.seq=Math.max(1,Number(ts.seq||1))+1;
   if(nameInput)nameInput.value='';
   rerenderTravelSceneHex(col,row);
@@ -15435,9 +15449,66 @@ function loadTravelSceneAtHex(col,row){
     return;
   }
   const ts=ensureTravelSceneState();
-  ts.activeSceneId=String(scene.id||'');
+  setTravelSceneActiveIdForHex(col,row,String(scene.id||''));
   rerenderTravelSceneHex(col,row);
   if(typeof showNotif==='function')showNotif('Scene loaded: '+String(scene.name||'Scene')+'.','good');
+}
+
+function deleteTravelSceneAtHex(col,row){
+  const ts=ensureTravelSceneState();
+  const list=getTravelScenesForHex(col,row,false);
+  const sel=document.getElementById('travelSceneSelect-'+col+'-'+row);
+  const sceneId=sel?String(sel.value||''):'';
+  if(!sceneId)return;
+  const idx=list.findIndex(function(s){ return s&&String(s.id||'')===sceneId; });
+  if(idx<0)return;
+  list.splice(idx,1);
+  const key=travelSceneHexKey(col,row);
+  const nextId=list[0]?String(list[0].id||''):'';
+  if(ts.activeSceneByHex&&String(ts.activeSceneByHex[key]||'')===sceneId){
+    ts.activeSceneByHex[key]=nextId;
+  }
+  if(String(ts.activeSceneId||'')===sceneId)ts.activeSceneId=nextId;
+  rerenderTravelSceneHex(col,row);
+  if(typeof showNotif==='function')showNotif('Scene deleted.','good');
+}
+
+function renameTravelSceneAtHex(col,row){
+  const list=getTravelScenesForHex(col,row,false);
+  const sel=document.getElementById('travelSceneSelect-'+col+'-'+row);
+  const sceneId=sel?String(sel.value||''):'';
+  const nameInput=document.getElementById('travelSceneRename-'+col+'-'+row);
+  const newName=nameInput?String(nameInput.value||'').trim():'';
+  if(!sceneId||!newName)return;
+  const scene=list.find(function(s){ return s&&String(s.id||'')===sceneId; });
+  if(!scene)return;
+  scene.name=newName;
+  const tagSel=document.getElementById('travelSceneTag-'+col+'-'+row);
+  const newTag=tagSel?String(tagSel.value||''):'unknown';
+  scene.tag=newTag;
+  touchTravelScene(scene);
+  rerenderTravelSceneHex(col,row);
+  if(typeof showNotif==='function')showNotif('Scene renamed/retagged.','good');
+  if(nameInput)nameInput.value='';
+}
+
+function duplicateTravelSceneAtHex(col,row){
+  const list=getTravelScenesForHex(col,row,false);
+  const sel=document.getElementById('travelSceneSelect-'+col+'-'+row);
+  const sceneId=sel?String(sel.value||''):'';
+  if(!sceneId)return;
+  const orig=list.find(function(s){ return s&&String(s.id||'')===sceneId; });
+  if(!orig)return;
+  const newId='travel-scene-'+Date.now().toString(36)+'-'+Math.floor(Math.random()*9999).toString(36);
+  const copy=JSON.parse(JSON.stringify(orig));
+  copy.id=newId;
+  copy.name=orig.name+' (Copy)';
+  copy.createdAt=Date.now();
+  copy.updatedAt=Date.now();
+  list.push(copy);
+  setTravelSceneActiveIdForHex(col,row,newId);
+  rerenderTravelSceneHex(col,row);
+  if(typeof showNotif==='function')showNotif('Scene duplicated.','good');
 }
 
 function triggerTravelSceneImageUpload(col,row){
@@ -15613,9 +15684,9 @@ function buildTravelScenePanelHtml(hex){
     + '</div>';
   }
   const list=getTravelScenesForHex(col,row,false);
-  const ts=ensureTravelSceneState();
-  const active=list.find(function(scene){ return scene&&String(scene.id||'')===String(ts.activeSceneId||''); })||list[0]||null;
-  if(active&&String(ts.activeSceneId||'')!==String(active.id||''))ts.activeSceneId=String(active.id||'');
+  const activeId=getTravelSceneActiveIdForHex(col,row);
+  const active=list.find(function(scene){ return scene&&String(scene.id||'')===activeId; })||list[0]||null;
+  if(active&&activeId!==String(active.id||''))setTravelSceneActiveIdForHex(col,row,String(active.id||''));
   const imagePreview=(active&&active.image)
     ? ('<div style="margin-top:.3rem;"><img src="'+String(active.image)+'" alt="Scene image" style="width:100%;max-height:120px;object-fit:cover;border:1px solid var(--border2);border-radius:4px;"></div>')
     : '<div style="margin-top:.3rem;font-size:.72rem;color:var(--muted2);">No scene image attached yet.</div>';
@@ -15673,65 +15744,6 @@ function buildTravelScenePanelHtml(hex){
       + '<button class="btn btn-xs" onclick="setTravelScenePanelHidden('+col+','+row+',true)">Hide Travel Scene</button>'
     + '</div>'
     + sceneMgmtHtml
-    // ── SCENE MANAGEMENT LOGIC ─────────────────────────────
-    function deleteTravelSceneAtHex(col,row){
-      const ts=ensureTravelSceneState();
-      const list=getTravelScenesForHex(col,row,false);
-      const sel=document.getElementById('travelSceneSelect-'+col+'-'+row);
-      const sceneId=sel?String(sel.value||''):'';
-      if(!sceneId)return;
-      const idx=list.findIndex(s=>s&&String(s.id||'')===sceneId);
-      if(idx>=0){
-        const removed=list.splice(idx,1)[0];
-        if(ts.activeSceneId===sceneId){
-          ts.activeSceneId=list[0]?String(list[0].id):'';
-        }
-        rerenderTravelSceneHex(col,row);
-        if(typeof showNotif==='function')showNotif('Scene deleted.','good');
-      }
-    }
-
-    function renameTravelSceneAtHex(col,row){
-      const list=getTravelScenesForHex(col,row,false);
-      const sel=document.getElementById('travelSceneSelect-'+col+'-'+row);
-      const sceneId=sel?String(sel.value||''):'';
-      const nameInput=document.getElementById('travelSceneRename-'+col+'-'+row);
-      const newName=nameInput?String(nameInput.value||'').trim():'';
-      if(!sceneId||!newName)return;
-      const scene=list.find(s=>s&&String(s.id||'')===sceneId);
-      if(scene){
-        scene.name=newName;
-        // Also allow changing tag on rename
-        const tagSel=document.getElementById('travelSceneTag-'+col+'-'+row);
-        const newTag=tagSel?String(tagSel.value||''):'unknown';
-        scene.tag=newTag;
-        touchTravelScene(scene);
-        rerenderTravelSceneHex(col,row);
-        if(typeof showNotif==='function')showNotif('Scene renamed/retagged.','good');
-        nameInput.value='';
-      }
-    }
-
-    function duplicateTravelSceneAtHex(col,row){
-      const list=getTravelScenesForHex(col,row,false);
-      const sel=document.getElementById('travelSceneSelect-'+col+'-'+row);
-      const sceneId=sel?String(sel.value||''):'';
-      if(!sceneId)return;
-      const orig=list.find(s=>s&&String(s.id||'')===sceneId);
-      if(orig){
-        const ts=ensureTravelSceneState();
-        const newId='travel-scene-'+Date.now().toString(36)+'-'+Math.floor(Math.random()*9999).toString(36);
-        const copy=JSON.parse(JSON.stringify(orig));
-        copy.id=newId;
-        copy.name=orig.name+' (Copy)';
-        copy.createdAt=Date.now();
-        copy.updatedAt=Date.now();
-        list.push(copy);
-        ts.activeSceneId=newId;
-        rerenderTravelSceneHex(col,row);
-        if(typeof showNotif==='function')showNotif('Scene duplicated.','good');
-      }
-    }
     + '<input id="travelSceneImageInput-'+col+'-'+row+'" data-scene-id="'+(active?String(active.id||''):'')+'" type="file" accept="image/*" style="display:none;" onchange="handleTravelSceneImageUpload(this,'+col+','+row+')">'
     + imagePreview
     + '<div style="margin-top:.38rem;padding-top:.34rem;border-top:1px solid rgba(46,196,182,.28);">'

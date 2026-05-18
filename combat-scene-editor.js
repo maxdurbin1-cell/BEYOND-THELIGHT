@@ -4940,6 +4940,101 @@
     return { tokens: allies.concat(enemies), history: history };
   }
 
+  function zoneToSeedHex(zoneName, laneIndex) {
+    var z = String(zoneName || 'Nearby').toLowerCase();
+    var lane = Math.max(0, Number(laneIndex || 0));
+    var row = lane - 1;
+    if (z.indexOf('engaged') >= 0) return { q: 0, r: row };
+    if (z.indexOf('close') >= 0) return { q: 2, r: row };
+    if (z.indexOf('nearby') >= 0) return { q: 4, r: row };
+    if (z.indexOf('far') >= 0) return { q: 6, r: row };
+    return { q: 4, r: row };
+  }
+
+  function getEnemyTrackerByName(name) {
+    var needle = String(name || '').trim().toLowerCase();
+    if (!needle || !window.S || !Array.isArray(window.S.enemies)) return null;
+    return window.S.enemies.find(function (entry) {
+      if (!entry || entry.ally) return false;
+      return String(entry.name || '').trim().toLowerCase() === needle;
+    }) || null;
+  }
+
+  function buildSeedFromCombatMapState() {
+    if (!window.S || !window.S.combatMap || !Array.isArray(window.S.combatMap.units) || !window.S.combatMap.units.length) return null;
+    var units = window.S.combatMap.units.slice();
+    var zoneLane = {};
+    var playerName = String(window.S && window.S.name || 'Wayfarer').trim() || 'Wayfarer';
+    var maxHpByRules = getWayfarerMaxHpByRules();
+    var portrait = (window.S && window.S.identityForge && window.S.identityForge.media && window.S.identityForge.media.portrait) || '';
+
+    var tokens = units.map(function (unit, idx) {
+      if (!unit) return null;
+      var zone = String(unit.zone || 'Nearby');
+      var laneKey = String(unit.side || 'enemy') + ':' + zone;
+      zoneLane[laneKey] = Math.max(0, Number(zoneLane[laneKey] || 0)) + 1;
+      var pos = zoneToSeedHex(zone, zoneLane[laneKey]);
+      var isAlly = String(unit.side || 'enemy') !== 'enemy';
+      var isPlayer = !!unit.isPlayer || String(unit.name || '').trim().toLowerCase() === playerName.toLowerCase();
+
+      if (isAlly) {
+        return {
+          id: String(unit.id || uid('ally-' + idx)),
+          name: String(unit.name || (isPlayer ? playerName : ('Ally ' + (idx + 1)))),
+          faction: 'player',
+          hp: isPlayer ? maxHpByRules : 10,
+          maxHp: isPlayer ? maxHpByRules : 10,
+          status: [],
+          q: Number(pos.q || 0),
+          r: Number(pos.r || 0),
+          image: isPlayer ? String(portrait || '') : '',
+          size: 1,
+          isPlayer: !!isPlayer
+        };
+      }
+
+      var trackerEnemy = getEnemyTrackerByName(unit.name);
+      var dread = Math.max(4, Number((trackerEnemy && trackerEnemy.dread) || unit.dread || 6));
+      var maxStress = Math.max(1, Number((trackerEnemy && trackerEnemy.maxStress) || (dread * 2)));
+      var curStress = Math.max(0, Number((trackerEnemy && trackerEnemy.stress) || 0));
+      return {
+        id: String(unit.id || uid('enm-' + idx)),
+        name: String(unit.name || ('Enemy ' + (idx + 1))),
+        faction: 'monster',
+        hp: Math.max(1, maxStress - curStress),
+        maxHp: maxStress,
+        status: [],
+        q: Number(pos.q || 0),
+        r: Number(pos.r || 0),
+        image: '',
+        size: 1,
+        dread: dread,
+        deathNumber: dread
+      };
+    }).filter(Boolean);
+
+    if (!tokens.length) return null;
+    return {
+      name: 'Live Combat Map',
+      tokens: tokens,
+      history: ['Loaded from current Combat tab units and zone map layout.']
+    };
+  }
+
+  function buildLiveCombatSeed() {
+    var mapSeed = buildSeedFromCombatMapState();
+    if (mapSeed) return mapSeed;
+    var tokens = seedFromCurrentCombat();
+    if (Array.isArray(tokens) && tokens.length) {
+      return {
+        name: 'Live Combat State',
+        tokens: tokens,
+        history: ['Loaded from current combat tracker state.']
+      };
+    }
+    return null;
+  }
+
   window.openCombatSceneEditor = function (seed) {
     openOverlay(seed || null);
   };
@@ -4949,7 +5044,7 @@
   };
 
   window.openCombatSceneEditorFromExpedition = function () {
-    var seed = expeditionSeed();
+    var seed = expeditionSeed() || buildLiveCombatSeed();
     openOverlay(seed || null);
   };
 

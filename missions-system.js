@@ -1423,7 +1423,7 @@
   }
 
   function createOriginMissionFromReason(forceCreate, options) {
-    var opts = options && typeof options === 'object' ? options : {};
+    var focusOpts = options && typeof options === 'object' ? options : {};
     ensureState();
     if (!S || !forceCreate && S.originMissionInitialized) return null;
 
@@ -1443,7 +1443,7 @@
     // Build narrative lore that ties reason to journey structure
     var loreLine = 'Your reason echoes from countless nights to this moment. Three steps lie ahead: question those who know, reach the marked location, and accept the stranger\'s proposal to enter the main arc.';
     
-    var opts = {
+    var missionOpts = {
       missionType: 'origin_story',
       stepNames: {
         1: 'Follow the Whisper',
@@ -1466,14 +1466,14 @@
       lose: null,
       gainName: 'Storyline',
       loseName: 'Storyline'
-    }, opts);
+    }, missionOpts);
 
     if (!mission) return null;
     mission.originReason = reasonLine;
-    mission.templateLabel = opts.templateLabel;
-    mission.lore = opts.lore;
+    mission.templateLabel = missionOpts.templateLabel;
+    mission.lore = missionOpts.lore;
     S.originMissionInitialized = true;
-    if (!opts.suppressFocus) {
+    if (!focusOpts.suppressFocus) {
       focusOriginRegion(region);
     }
     if (typeof showNotif === 'function') {

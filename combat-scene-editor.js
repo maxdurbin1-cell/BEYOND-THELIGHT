@@ -471,6 +471,8 @@
     next.fog.revealed = Object.assign({}, next.fog.revealed || {});
     next.fog.revealOrder = Object.assign({}, next.fog.revealOrder || {});
     next.sceneRules = Object.assign({ rollMode: 'auto', defaultActionType: 'ranged' }, next.sceneRules && typeof next.sceneRules === 'object' ? next.sceneRules : {});
+    next.rulerOptions = Object.assign({ shape: 'line', fadeDelay: 'linger', snapToGrid: true }, next.rulerOptions && typeof next.rulerOptions === 'object' ? next.rulerOptions : {});
+    next.assetBrowser = Object.assign({ category: 'heroes', query: '' }, next.assetBrowser && typeof next.assetBrowser === 'object' ? next.assetBrowser : {});
     next.tokens = Array.isArray(next.tokens) ? next.tokens : [];
     next.tokenRoundEffects = Array.isArray(next.tokenRoundEffects) ? next.tokenRoundEffects : [];
     var roundNum = Math.max(1, Number(next.round || 1));
@@ -537,7 +539,9 @@
       currentTurnIndex: synced.currentTurnIndex,
       collapsedPanels: synced.collapsedPanels,
       scenes: synced.scenes,
-      activeSceneId: synced.activeSceneId
+      activeSceneId: synced.activeSceneId,
+      rulerOptions: synced.rulerOptions,
+      assetBrowser: synced.assetBrowser
     };
     try {
       localStorage.setItem(KEY, JSON.stringify(slim));
@@ -777,6 +781,16 @@
     mouse: { panning: false, lastX: 0, lastY: 0 },
     ping: null
   }, persisted || {}));
+
+  store.setState(function (state) {
+    var next = Object.assign({}, state);
+    if (!next.assetBrowser || typeof next.assetBrowser !== 'object') {
+      next.assetBrowser = { category: 'heroes', query: '' };
+    } else {
+      next.assetBrowser = Object.assign({ category: 'heroes', query: '' }, next.assetBrowser);
+    }
+    return next;
+  });
 
   function ensureInitiative(state) {
     var expected = buildTurnOrder(state.tokens || []);
@@ -2063,6 +2077,16 @@
       + '<input id="combatTokenImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatImportSceneInput" type="file" accept="application/json,.json" style="display:none;">'
       + '<div class="combat-canvas-wrap" id="combatCanvasWrap"><canvas id="combatSceneCanvas"></canvas><input id="combatBubbleInlineInput" type="text" style="display:none;position:absolute;z-index:8;min-width:54px;height:20px;padding:0 .25rem;border:1px solid rgba(227,188,94,.8);background:rgba(4,6,12,.96);color:#fff;font-size:.72rem;"><div id="combatLootPopupCard" style="display:none;position:absolute;z-index:9;min-width:240px;max-width:300px;border:1px solid rgba(227,188,94,.65);background:rgba(5,8,16,.98);box-shadow:0 12px 28px rgba(0,0,0,.45);padding:.45rem .5rem;border-radius:10px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:.35rem;"><div id="combatLootPopupTitle" style="font:600 .83rem Rajdhani,sans-serif;color:var(--combat-accent-2);">Body Loot</div><button class="btn btn-xs" id="combatLootCloseBtn" style="padding:.08rem .3rem;">X</button></div><div id="combatLootPopupMeta" class="combat-mini" style="margin:.18rem 0 .28rem 0;"></div><div id="combatLootPopupList" style="display:grid;gap:.2rem;max-height:180px;overflow:auto;padding-right:.1rem;"></div><div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.34rem;"><button class="btn btn-xs" id="combatLootTakeSelectedBtn">Take Selected</button><button class="btn btn-xs" id="combatLootTakeAllBtn">Take All</button></div></div></div>'
+      + '<aside class="combat-icon-rail" id="combatIconRail">'
+      + '<button class="combat-icon-btn" id="combatRailSelectBtn" title="Select">✥</button>'
+      + '<button class="combat-icon-btn" id="combatRailPanBtn" title="Pan">✢</button>'
+      + '<button class="combat-icon-btn" id="combatRailDrawBtn" title="Draw">✎</button>'
+      + '<button class="combat-icon-btn" id="combatRailTextBtn" title="Text">T</button>'
+      + '<button class="combat-icon-btn" id="combatRailMeasureBtn" title="Measure">◍</button>'
+      + '<button class="combat-icon-btn" id="combatRailFogBtn" title="Fog">☁</button>'
+      + '<button class="combat-icon-btn" id="combatRailEffectsBtn" title="Effects">✦</button>'
+      + '<button class="combat-icon-btn" id="combatRailDiceBtn" title="Dice">⚄</button>'
+      + '</aside>'
       + '<aside class="combat-floating-panel combat-left-tools combat-editor-only" id="combatToolsPanel">'
       + '<div class="combat-panel-header" data-drag="tools" onclick="togglePanel(\'combatToolsPanel\')">Combat Scene <span style="float:right;font-size:.7rem;cursor:pointer;">◀</span></div>'
       + '<div class="combat-panel-body">'
@@ -2088,6 +2112,16 @@
       + '</div>'
       + '<div class="combat-mini" style="margin-top:.15rem;">Zoom</div>'
       + '<input id="combatZoomSlider" type="range" min="50" max="230" step="5" value="100" style="width:100%;">'
+      + '<div class="combat-label" style="margin-top:.35rem;">Measurement</div>'
+      + '<div class="combat-chip-row">'
+      + '<button class="combat-chip" id="combatMeasureShapeLineBtn">Line</button>'
+      + '<button class="combat-chip" id="combatMeasureShapeConeBtn">Cone</button>'
+      + '<button class="combat-chip" id="combatMeasureShapeRadiusBtn">Radius</button>'
+      + '</div>'
+      + '<div class="combat-chip-row" style="margin-top:.2rem;">'
+      + '<button class="combat-chip" id="combatMeasureSnapBtn">Snap: On</button>'
+      + '<button class="combat-chip" id="combatMeasureFadeBtn">Fade: Linger</button>'
+      + '</div>'
       + '<div class="combat-label" style="margin-top:.35rem;">Fog of War</div>'
       + '<div class="combat-chip-row"><button class="combat-chip" id="combatFogToggleBtn">Fog Off</button><button class="combat-chip" id="combatFogBrushBtn">Brush Reveal</button><button class="combat-chip" id="combatFogClearBtn">Clear Fog</button></div>'
       + '<div class="combat-chip-row" style="margin-top:.2rem;"><button class="combat-chip" id="combatFogModeBtn">Mode: Manual</button><button class="combat-chip" id="combatFogAdvanceBtn">Advance Reveal</button><button class="combat-chip" id="combatFogResetOrderBtn">Reset Order</button></div>'
@@ -2108,6 +2142,12 @@
       + '<button class="combat-chip" id="combatAssetsBtn">Assets</button>'
       + '<button class="combat-chip" id="combatRailRulesBtn">Rules</button>'
       + '<button class="combat-chip" id="combatSettingsBtn">Settings</button>'
+      + '</div>'
+      + '<div class="combat-action-block" style="margin-top:0;">'
+      + '<div class="combat-label">Asset Browser</div>'
+      + '<div class="combat-chip-row" id="combatAssetCategoryRow"></div>'
+      + '<input class="combat-input" id="combatAssetSearch" placeholder="Search assets..." style="margin-top:.24rem;">'
+      + '<div class="combat-feed" id="combatAssetBrowserFeed"></div>'
       + '</div>'
       + '<div id="combatInitiativeList"></div>'
       + '<div style="display:flex;gap:.24rem;margin-top:.26rem;"><button class="btn btn-xs" id="combatNextTurnBtn">Next Turn</button><button class="btn btn-xs" id="combatRollModeBtn">Auto Roll</button></div>'
@@ -2887,14 +2927,41 @@
     }
 
     if (state.ruler && state.ruler.active && state.ruler.start && state.ruler.end) {
-      var s = axialToPixel(state.ruler.start.q, state.ruler.start.r, size, board.panX, board.panY);
-      var e = axialToPixel(state.ruler.end.q, state.ruler.end.r, size, board.panX, board.panY);
+      var opts = Object.assign({ shape: 'line' }, state.rulerOptions || {});
+      var s = state.ruler.startPx && typeof state.ruler.startPx.x === 'number'
+        ? { x: Number(state.ruler.startPx.x), y: Number(state.ruler.startPx.y) }
+        : axialToPixel(state.ruler.start.q, state.ruler.start.r, size, board.panX, board.panY);
+      var e = state.ruler.endPx && typeof state.ruler.endPx.x === 'number'
+        ? { x: Number(state.ruler.endPx.x), y: Number(state.ruler.endPx.y) }
+        : axialToPixel(state.ruler.end.q, state.ruler.end.r, size, board.panX, board.panY);
       ctx.strokeStyle = 'rgba(73,201,187,.95)';
+      ctx.fillStyle = 'rgba(73,201,187,.16)';
       ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.moveTo(s.x, s.y);
-      ctx.lineTo(e.x, e.y);
-      ctx.stroke();
+      if (String(opts.shape || 'line') === 'radius') {
+        var radiusPx = Math.max(4, Math.hypot(e.x - s.x, e.y - s.y));
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, radiusPx, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      } else if (String(opts.shape || 'line') === 'cone') {
+        var ang = Math.atan2(e.y - s.y, e.x - s.x);
+        var len = Math.max(8, Math.hypot(e.x - s.x, e.y - s.y));
+        var spread = Math.PI / 6;
+        var l = { x: s.x + Math.cos(ang - spread) * len, y: s.y + Math.sin(ang - spread) * len };
+        var r = { x: s.x + Math.cos(ang + spread) * len, y: s.y + Math.sin(ang + spread) * len };
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y);
+        ctx.lineTo(l.x, l.y);
+        ctx.lineTo(r.x, r.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y);
+        ctx.lineTo(e.x, e.y);
+        ctx.stroke();
+      }
       ctx.fillStyle = 'rgba(73,201,187,.96)';
       ctx.font = '12px Rajdhani, sans-serif';
       ctx.fillText(String(state.ruler.distance) + ' hexes · ' + state.ruler.label, (s.x + e.x) / 2, (s.y + e.y) / 2 - 8);
@@ -3056,6 +3123,176 @@
     var zoomSlider = document.getElementById('combatZoomSlider');
     if (zoomSlider) {
       zoomSlider.value = String(Math.round(Math.max(0.5, Math.min(2.3, Number(state.board && state.board.zoom || 1))) * 100));
+    }
+
+    var measureShapeLineBtn = document.getElementById('combatMeasureShapeLineBtn');
+    var measureShapeConeBtn = document.getElementById('combatMeasureShapeConeBtn');
+    var measureShapeRadiusBtn = document.getElementById('combatMeasureShapeRadiusBtn');
+    var measureSnapBtn = document.getElementById('combatMeasureSnapBtn');
+    var measureFadeBtn = document.getElementById('combatMeasureFadeBtn');
+    var ro = Object.assign({ shape: 'line', fadeDelay: 'linger', snapToGrid: true }, state.rulerOptions || {});
+    if (measureShapeLineBtn) measureShapeLineBtn.className = 'combat-chip ' + (ro.shape === 'line' ? 'on' : '');
+    if (measureShapeConeBtn) measureShapeConeBtn.className = 'combat-chip ' + (ro.shape === 'cone' ? 'on' : '');
+    if (measureShapeRadiusBtn) measureShapeRadiusBtn.className = 'combat-chip ' + (ro.shape === 'radius' ? 'on' : '');
+    if (measureSnapBtn) {
+      measureSnapBtn.className = 'combat-chip ' + (ro.snapToGrid ? 'on' : '');
+      measureSnapBtn.textContent = 'Snap: ' + (ro.snapToGrid ? 'On' : 'Off');
+    }
+    if (measureFadeBtn) {
+      measureFadeBtn.className = 'combat-chip ' + (ro.fadeDelay === 'linger' ? 'on' : '');
+      measureFadeBtn.textContent = 'Fade: ' + (ro.fadeDelay === 'linger' ? 'Linger' : 'Instant');
+    }
+
+    var railToolMap = {
+      select: 'combatRailSelectBtn',
+      pan: 'combatRailPanBtn',
+      paint: 'combatRailDrawBtn',
+      text: 'combatRailTextBtn',
+      ruler: 'combatRailMeasureBtn',
+      fog: 'combatRailFogBtn'
+    };
+    Object.keys(railToolMap).forEach(function (toolKey) {
+      var node = document.getElementById(railToolMap[toolKey]);
+      if (!node) return;
+      node.classList.toggle('active', String(state.activeTool || '') === toolKey);
+    });
+
+    var assetCategoryRow = document.getElementById('combatAssetCategoryRow');
+    var assetSearch = document.getElementById('combatAssetSearch');
+    var assetFeed = document.getElementById('combatAssetBrowserFeed');
+    if (assetCategoryRow && assetSearch && assetFeed) {
+      var cats = ['heroes', 'villains', 'townsfolk', 'battlemaps', 'objects'];
+      var ab = Object.assign({ category: 'heroes', query: '' }, state.assetBrowser || {});
+      assetCategoryRow.innerHTML = cats.map(function (c) {
+        return '<button class="combat-chip ' + (ab.category === c ? 'on' : '') + '" data-asset-cat="' + c + '">' + c + '</button>';
+      }).join('');
+      Array.prototype.slice.call(assetCategoryRow.querySelectorAll('[data-asset-cat]')).forEach(function (btn) {
+        btn.onclick = function () {
+          var c = String(btn.getAttribute('data-asset-cat') || 'heroes');
+          store.setState(function (inner) {
+            var next = Object.assign({}, inner);
+            next.assetBrowser = Object.assign({}, inner.assetBrowser || {}, { category: c });
+            persist(next);
+            return next;
+          });
+          updateUiPanels();
+        };
+      });
+
+      assetSearch.value = String(ab.query || '');
+      if (!assetSearch._boundAssetSearch) {
+        assetSearch._boundAssetSearch = true;
+        assetSearch.oninput = function () {
+          var q = String(assetSearch.value || '');
+          store.setState(function (inner) {
+            var next = Object.assign({}, inner);
+            next.assetBrowser = Object.assign({}, inner.assetBrowser || {}, { query: q });
+            persist(next);
+            return next;
+          });
+          updateUiPanels();
+        };
+      }
+
+      var codex = Array.isArray(state.codexBestiary) ? state.codexBestiary : [];
+      var heroAssets = [
+        { id: 'hero-wayfarer', name: canonicalWayfarerName(), action: 'add-wayfarer' },
+        { id: 'hero-ally-scout', name: 'Ally Scout', action: 'spawn-ally' },
+        { id: 'hero-ally-warden', name: 'Ally Warden', action: 'spawn-ally' }
+      ];
+      var villainAssets = codex.slice(0, 32).map(function (entry) {
+        return { id: String(entry.id || uid('vill')), name: String(entry.name || 'Enemy'), action: 'spawn-villain', payload: entry };
+      });
+      var townsfolkAssets = [
+        { id: 'town-guide', name: 'Guide', action: 'spawn-npc' },
+        { id: 'town-merchant', name: 'Merchant', action: 'spawn-npc' },
+        { id: 'town-guard', name: 'Town Guard', action: 'spawn-npc' },
+        { id: 'town-healer', name: 'Field Healer', action: 'spawn-npc' }
+      ];
+      var battlemapsAssets = [
+        { id: 'map-blank', name: 'Blank Arena 15x15', action: 'map-preset', payload: { cols: 15, rows: 15, weather: 'none' } },
+        { id: 'map-urban', name: 'Urban Grid 20x20', action: 'map-preset', payload: { cols: 20, rows: 20, weather: 'none' } },
+        { id: 'map-fog', name: 'Fog Valley 18x12', action: 'map-preset', payload: { cols: 18, rows: 12, weather: 'fog' } },
+        { id: 'map-storm', name: 'Storm Deck 18x10', action: 'map-preset', payload: { cols: 18, rows: 10, weather: 'storm' } }
+      ];
+      var objectAssets = ['obstacle', 'door', 'turret', 'trap', 'shrine', 'spawn', 'wall', 'vision-blocker'].map(function (name) {
+        return { id: 'obj-' + name, name: name, action: 'paint-object', payload: name };
+      });
+
+      var pool = heroAssets;
+      if (ab.category === 'villains') pool = villainAssets;
+      else if (ab.category === 'townsfolk') pool = townsfolkAssets;
+      else if (ab.category === 'battlemaps') pool = battlemapsAssets;
+      else if (ab.category === 'objects') pool = objectAssets;
+
+      var qLower = String(ab.query || '').toLowerCase();
+      var filtered = pool.filter(function (item) {
+        return !qLower || String(item.name || '').toLowerCase().indexOf(qLower) >= 0;
+      }).slice(0, 48);
+
+      assetFeed.innerHTML = filtered.length
+        ? filtered.map(function (item) {
+          return '<div class="combat-feed-line" style="display:flex;align-items:center;justify-content:space-between;gap:.3rem;">'
+            + '<span>' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>'
+            + '<button class="btn btn-xs" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '">Use</button>'
+            + '</div>';
+        }).join('')
+        : '<div class="combat-feed-line">No assets found.</div>';
+
+      Array.prototype.slice.call(assetFeed.querySelectorAll('[data-asset-action]')).forEach(function (btn) {
+        btn.onclick = function () {
+          var action = String(btn.getAttribute('data-asset-action') || '');
+          var id = String(btn.getAttribute('data-asset-id') || '');
+          var actor = byId(store.getState().selectedTokenId);
+          var baseQ = actor ? Number(actor.q || 0) : 0;
+          var baseR = actor ? Number(actor.r || 0) : 0;
+          var chosen = filtered.find(function (item) { return String(item.id || '') === id; }) || null;
+          if (!chosen) return;
+          if (action === 'add-wayfarer') {
+            var addWayfarerBtn = document.getElementById('combatAddWayfarerBtn');
+            if (addWayfarerBtn) addWayfarerBtn.click();
+          } else if (action === 'spawn-ally') {
+            store.setState(function (inner) {
+              var next = Object.assign({}, inner);
+              var t = { id: uid('ally'), name: String(chosen.name || 'Ally'), faction: 'player', hp: 10, maxHp: 10, status: [], q: baseQ + 1, r: baseR + 1, image: '', size: 1, isPlayer: false };
+              next.tokens = (inner.tokens || []).concat([t]);
+              next.selectedTokenId = t.id;
+              persist(next);
+              return next;
+            });
+            addHistory('Asset placed: ' + chosen.name + '.');
+          } else if (action === 'spawn-villain' && chosen.payload) {
+            spawnBestiaryToken(chosen.payload, baseQ + 2, baseR);
+          } else if (action === 'spawn-npc') {
+            store.setState(function (inner2) {
+              var next2 = Object.assign({}, inner2);
+              var n = { id: uid('npc'), name: String(chosen.name || 'NPC'), faction: 'npc', hp: 8, maxHp: 8, status: [], q: baseQ + 1, r: baseR, image: '', size: 1 };
+              next2.tokens = (inner2.tokens || []).concat([n]);
+              next2.selectedTokenId = n.id;
+              persist(next2);
+              return next2;
+            });
+            addHistory('Asset placed: ' + chosen.name + '.');
+          } else if (action === 'map-preset' && chosen.payload) {
+            store.setState(function (inner3) {
+              var next3 = Object.assign({}, inner3);
+              next3.board = Object.assign({}, inner3.board || {}, { cols: Number(chosen.payload.cols || 15), rows: Number(chosen.payload.rows || 15), weatherOverlay: String(chosen.payload.weather || 'none') });
+              persist(next3);
+              return next3;
+            });
+            addHistory('Battlemap preset applied: ' + chosen.name + '.');
+          } else if (action === 'paint-object') {
+            store.setState(function (inner4) {
+              var next4 = Object.assign({}, inner4, { activeLayer: 'objects', activeTool: 'paint', paintValue: String(chosen.payload || 'obstacle') });
+              persist(next4);
+              return next4;
+            });
+            safeNotif('Object painter ready: ' + String(chosen.payload || 'object') + '.', 'good');
+          }
+          drawBoard();
+          updateUiPanels();
+        };
+      });
     }
 
     var bestiary = document.getElementById('combatBestiaryDrawer');
@@ -3814,10 +4051,20 @@
       }
 
       if (state.activeTool === 'ruler') {
+        var ro = Object.assign({ snapToGrid: true }, state.rulerOptions || {});
         var selected = byId(state.selectedTokenId);
         var start = selected ? { q: Number(selected.q), r: Number(selected.r) } : { q: ax.q, r: ax.r };
         var dist = Math.max(Math.abs(start.q - ax.q), Math.abs(start.r - ax.r));
-        store.setState({ ruler: { active: true, start: start, end: { q: ax.q, r: ax.r }, distance: dist, label: hexLabel(dist) } });
+        var rulerState = { active: true, start: start, end: { q: ax.q, r: ax.r }, distance: dist, label: hexLabel(dist) };
+        if (!ro.snapToGrid) {
+          rulerState.startPx = selected
+            ? axialToPixel(start.q, start.r, size, board.panX, board.panY)
+            : { x: canvasX, y: canvasY };
+          rulerState.endPx = { x: canvasX, y: canvasY };
+          rulerState.distance = Math.max(0, Number((Math.hypot(0, 0) / Math.max(1, size)).toFixed(2)));
+          rulerState.label = 'Free';
+        }
+        store.setState({ ruler: rulerState });
         drawBoard();
         updateUiPanels();
         return;
@@ -3865,8 +4112,29 @@
         var size2 = Number(board2.size || 42) * Number(board2.zoom || 1);
         var ax2 = pixelToAxial(ev.clientX - rect2.left, ev.clientY - rect2.top, size2, board2.panX, board2.panY);
         var start = state.ruler.start || { q: 0, r: 0 };
-        var dist2 = Math.max(Math.abs(start.q - ax2.q), Math.abs(start.r - ax2.r));
-        store.setState({ ruler: { active: true, start: start, end: { q: ax2.q, r: ax2.r }, distance: dist2, label: hexLabel(dist2) } });
+        var ro2 = Object.assign({ snapToGrid: true }, state.rulerOptions || {});
+        if (ro2.snapToGrid) {
+          var dist2 = Math.max(Math.abs(start.q - ax2.q), Math.abs(start.r - ax2.r));
+          store.setState({ ruler: { active: true, start: start, end: { q: ax2.q, r: ax2.r }, distance: dist2, label: hexLabel(dist2) } });
+        } else {
+          var sx = state.ruler.startPx && typeof state.ruler.startPx.x === 'number' ? state.ruler.startPx.x : (ev.clientX - rect2.left);
+          var sy = state.ruler.startPx && typeof state.ruler.startPx.y === 'number' ? state.ruler.startPx.y : (ev.clientY - rect2.top);
+          var ex = ev.clientX - rect2.left;
+          var ey = ev.clientY - rect2.top;
+          var distPx = Math.hypot(ex - sx, ey - sy);
+          var hexApprox = Math.max(0, Number((distPx / Math.max(1, size2)).toFixed(2)));
+          store.setState({
+            ruler: {
+              active: true,
+              start: start,
+              end: { q: ax2.q, r: ax2.r },
+              startPx: { x: sx, y: sy },
+              endPx: { x: ex, y: ey },
+              distance: hexApprox,
+              label: 'Free'
+            }
+          });
+        }
         drawBoard();
         updateUiPanels();
       }
@@ -3881,6 +4149,13 @@
       }
       if (state.draggingTokenId) {
         store.setState({ draggingTokenId: '' });
+      }
+      if (state.activeTool === 'ruler' && state.ruler && state.ruler.active) {
+        var ro3 = Object.assign({ fadeDelay: 'linger' }, state.rulerOptions || {});
+        if (String(ro3.fadeDelay || 'linger') === 'instant') {
+          store.setState({ ruler: { active: false, start: null, end: null, distance: 0, label: 'Engaged' } });
+          drawBoard();
+        }
       }
     }
 
@@ -4707,6 +4982,106 @@
         if (panel && panel.classList.contains('collapsed')) panel.classList.remove('collapsed');
         var list = document.getElementById('combatInitiativeList');
         if (list && typeof list.scrollIntoView === 'function') list.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      };
+    }
+
+    var railSelectBtn = document.getElementById('combatRailSelectBtn');
+    if (railSelectBtn && !railSelectBtn._bound) {
+      railSelectBtn._bound = true;
+      railSelectBtn.onclick = function () { setToolMode('select'); };
+    }
+
+    var railPanBtn = document.getElementById('combatRailPanBtn');
+    if (railPanBtn && !railPanBtn._bound) {
+      railPanBtn._bound = true;
+      railPanBtn.onclick = function () { setToolMode('pan'); };
+    }
+
+    var railDrawBtn = document.getElementById('combatRailDrawBtn');
+    if (railDrawBtn && !railDrawBtn._bound) {
+      railDrawBtn._bound = true;
+      railDrawBtn.onclick = function () { setToolMode('paint'); };
+    }
+
+    var railTextBtn = document.getElementById('combatRailTextBtn');
+    if (railTextBtn && !railTextBtn._bound) {
+      railTextBtn._bound = true;
+      railTextBtn.onclick = function () { setToolMode('text'); };
+    }
+
+    var railMeasureBtn = document.getElementById('combatRailMeasureBtn');
+    if (railMeasureBtn && !railMeasureBtn._bound) {
+      railMeasureBtn._bound = true;
+      railMeasureBtn.onclick = function () { setToolMode('ruler'); };
+    }
+
+    var railFogBtn = document.getElementById('combatRailFogBtn');
+    if (railFogBtn && !railFogBtn._bound) {
+      railFogBtn._bound = true;
+      railFogBtn.onclick = function () { setToolMode('fog'); };
+    }
+
+    var railEffectsBtn = document.getElementById('combatRailEffectsBtn');
+    if (railEffectsBtn && !railEffectsBtn._bound) {
+      railEffectsBtn._bound = true;
+      railEffectsBtn.onclick = function () { openQuickEffectsModal(); };
+    }
+
+    var railDiceBtn = document.getElementById('combatRailDiceBtn');
+    if (railDiceBtn && !railDiceBtn._bound) {
+      railDiceBtn._bound = true;
+      railDiceBtn.onclick = function () {
+        var toolbarDiceBtn = document.getElementById('combatToolbarDiceBtn');
+        if (toolbarDiceBtn) toolbarDiceBtn.click();
+      };
+    }
+
+    function patchRulerOptions(patch) {
+      store.setState(function (state) {
+        var next = Object.assign({}, state);
+        next.rulerOptions = Object.assign({ shape: 'line', fadeDelay: 'linger', snapToGrid: true }, state.rulerOptions || {}, patch || {});
+        persist(next);
+        return next;
+      });
+      drawBoard();
+      updateUiPanels();
+    }
+
+    var measureShapeLineBtn = document.getElementById('combatMeasureShapeLineBtn');
+    if (measureShapeLineBtn && !measureShapeLineBtn._bound) {
+      measureShapeLineBtn._bound = true;
+      measureShapeLineBtn.onclick = function () { patchRulerOptions({ shape: 'line' }); };
+    }
+
+    var measureShapeConeBtn = document.getElementById('combatMeasureShapeConeBtn');
+    if (measureShapeConeBtn && !measureShapeConeBtn._bound) {
+      measureShapeConeBtn._bound = true;
+      measureShapeConeBtn.onclick = function () { patchRulerOptions({ shape: 'cone' }); };
+    }
+
+    var measureShapeRadiusBtn = document.getElementById('combatMeasureShapeRadiusBtn');
+    if (measureShapeRadiusBtn && !measureShapeRadiusBtn._bound) {
+      measureShapeRadiusBtn._bound = true;
+      measureShapeRadiusBtn.onclick = function () { patchRulerOptions({ shape: 'radius' }); };
+    }
+
+    var measureSnapBtn = document.getElementById('combatMeasureSnapBtn');
+    if (measureSnapBtn && !measureSnapBtn._bound) {
+      measureSnapBtn._bound = true;
+      measureSnapBtn.onclick = function () {
+        var st = store.getState();
+        var current = !!(st.rulerOptions && st.rulerOptions.snapToGrid);
+        patchRulerOptions({ snapToGrid: !current });
+      };
+    }
+
+    var measureFadeBtn = document.getElementById('combatMeasureFadeBtn');
+    if (measureFadeBtn && !measureFadeBtn._bound) {
+      measureFadeBtn._bound = true;
+      measureFadeBtn.onclick = function () {
+        var st2 = store.getState();
+        var current2 = String(st2.rulerOptions && st2.rulerOptions.fadeDelay || 'linger');
+        patchRulerOptions({ fadeDelay: current2 === 'linger' ? 'instant' : 'linger' });
       };
     }
 

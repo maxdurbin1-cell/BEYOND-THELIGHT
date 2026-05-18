@@ -99,6 +99,44 @@
   inset: 0;
 }
 
+.combat-icon-rail {
+  position: absolute;
+  left: 0.7rem;
+  top: 4.2rem;
+  z-index: 6;
+  width: 42px;
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.35rem 0.22rem;
+  border: 1px solid var(--combat-border);
+  background: linear-gradient(180deg, rgba(6, 8, 14, 0.95), rgba(8, 10, 18, 0.88));
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.45);
+}
+
+.combat-icon-btn {
+  width: 100%;
+  height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--combat-text);
+  font: 700 0.9rem "Rajdhani", sans-serif;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.combat-icon-btn:hover {
+  border-color: rgba(227, 188, 94, 0.55);
+  background: rgba(227, 188, 94, 0.14);
+  transform: translateY(-1px);
+}
+
+.combat-icon-btn.active {
+  border-color: rgba(73, 201, 187, 0.75);
+  background: rgba(73, 201, 187, 0.2);
+  color: #7ef3e1;
+}
+
 #combatSceneCanvas {
   width: 100%;
   height: 100%;
@@ -353,6 +391,12 @@
     bottom: 5.8rem;
   }
 
+  .combat-icon-rail {
+    left: 0.4rem;
+    top: auto;
+    bottom: 5.8rem;
+  }
+
   .combat-right-rail {
     right: 0.4rem;
   }
@@ -415,7 +459,7 @@
   .combat-left-tools {
     top: auto !important;
     bottom: calc(var(--actions-panel-h, 300px) + 1rem) !important;
-    left: 0.5rem !important;
+    left: 3.9rem !important;
   }
 
   .combat-right-rail {
@@ -431,6 +475,20 @@
   .combat-chip {
     padding: 0.25rem 0.5rem;
     font-size: 0.76rem;
+  }
+
+  .combat-icon-rail {
+    width: 36px;
+    left: 0.5rem !important;
+    bottom: calc(var(--actions-panel-h, 300px) + 1rem) !important;
+    top: auto !important;
+    padding: 0.25rem 0.18rem;
+    gap: 0.25rem;
+  }
+
+  .combat-icon-btn {
+    height: 28px;
+    font-size: 0.82rem;
   }
 
   .combat-feed {

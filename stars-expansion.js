@@ -17187,9 +17187,17 @@ function launchPlanetSelectedCellToCombat() {
   const selected = state && Array.isArray(state.cells)
     ? (state.cells.find((c) => c.id === state.selectedCellId) || state.cells[0])
     : null;
+  const sceneKey = String(planetHex.id) + ':' + String(selected && selected.id || '');
+  if (typeof window.getActiveScopedTravelScene === 'function' && !window.getActiveScopedTravelScene('planet', sceneKey)) {
+    if (typeof showNotif === 'function') showNotif('Create and load a Travel Scene first.', 'warn');
+    return;
+  }
   const seed = buildPlanetTravelSceneCombatSeed(planetHex, selected);
-  if (seed && typeof window.openCombatSceneEditor === 'function') {
-    window.openCombatSceneEditor(seed);
+  const finalSeed = (typeof window.applyScopedTravelSceneToCombatSeed === 'function')
+    ? window.applyScopedTravelSceneToCombatSeed('planet', sceneKey, seed)
+    : seed;
+  if (finalSeed && typeof window.openCombatSceneEditor === 'function') {
+    window.openCombatSceneEditor(finalSeed);
     if (typeof showNotif === 'function') showNotif('Launching Combat Mode from Planet Cell ' + String(selected && selected.id || '?') + '.', 'good');
   } else if (typeof showNotif === 'function') {
     showNotif('Combat Mode is unavailable.', 'warn');
@@ -17198,16 +17206,17 @@ function launchPlanetSelectedCellToCombat() {
 
 function buildPlanetTravelSceneCard(cellRef) {
   if (!cellRef) return '';
-  return `<details class="npc-block" style="margin-bottom:.35rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);">
-    <summary class="nb-label" style="color:var(--teal);cursor:pointer;list-style:none;">🎬 Travel Scene [Planet]</summary>
-    <div style="margin-top:.28rem;">
-      <div style="font-size:.78rem;color:var(--text2);line-height:1.55;">Use this selected surface cell as an encounter scene and launch to Combat Mode.</div>
-      <div style="font-size:.74rem;color:var(--muted2);margin-top:.2rem;">Selected Cell: ${Number(cellRef.id || 0)} · ${String(cellRef.marker || cellRef.terrain || 'surface')}</div>
-      <div style="margin-top:.28rem;display:flex;gap:.25rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-primary" onclick="launchPlanetSelectedCellToCombat()">Launch Into Combat Mode</button>
-      </div>
-    </div>
-  </details>`;
+  const planetHex = getActivePlanetHex();
+  const sceneKey = String(planetHex && planetHex.id || '') + ':' + String(cellRef.id || '');
+  if (typeof window.buildScopedTravelSceneCard !== 'function') return '';
+  return window.buildScopedTravelSceneCard({
+    scope: 'planet',
+    key: sceneKey,
+    scopeLabel: 'Planet',
+    intro: 'Create or load a surface encounter scene, then launch it into Combat Mode.',
+    selectedLabel: 'Selected Cell: ' + String(Number(cellRef.id || 0)) + ' · ' + String(cellRef.marker || cellRef.terrain || 'surface'),
+    launchCall: 'launchPlanetSelectedCellToCombat()'
+  });
 }
 
 function renderPlanetExplorationPanel() {
@@ -18856,9 +18865,16 @@ function launchGalaxyHexToCombat(hexId) {
   if (!S || !S.starSystem || !Array.isArray(S.starSystem.hexes)) return;
   const hex = S.starSystem.hexes.find((entry) => entry && Number(entry.id) === Number(hexId)) || getCurrentStarHex();
   if (!hex) return;
+  if (typeof window.getActiveScopedTravelScene === 'function' && !window.getActiveScopedTravelScene('galaxy', String(hex.id || ''))) {
+    if (typeof showNotif === 'function') showNotif('Create and load a Travel Scene first.', 'warn');
+    return;
+  }
   const seed = buildGalaxyTravelSceneCombatSeed(hex);
-  if (seed && typeof window.openCombatSceneEditor === 'function') {
-    window.openCombatSceneEditor(seed);
+  const finalSeed = (typeof window.applyScopedTravelSceneToCombatSeed === 'function')
+    ? window.applyScopedTravelSceneToCombatSeed('galaxy', String(hex.id || ''), seed)
+    : seed;
+  if (finalSeed && typeof window.openCombatSceneEditor === 'function') {
+    window.openCombatSceneEditor(finalSeed);
     if (typeof showNotif === 'function') showNotif('Launching Combat Mode from Galaxy hex ' + String(hex.id) + '.', 'good');
   } else if (typeof showNotif === 'function') {
     showNotif('Combat Mode is unavailable.', 'warn');
@@ -18867,16 +18883,15 @@ function launchGalaxyHexToCombat(hexId) {
 
 function buildGalaxyTravelSceneCard(hex) {
   if (!hex) return '';
-  return `<details class="npc-block" style="margin-bottom:.35rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);">
-    <summary class="nb-label" style="color:var(--teal);cursor:pointer;list-style:none;">🎬 Travel Scene [Galaxy]</summary>
-    <div style="margin-top:.28rem;">
-      <div style="font-size:.78rem;color:var(--text2);line-height:1.55;">Create a fast encounter from the selected galaxy hex and launch it in Combat Mode.</div>
-      <div style="font-size:.74rem;color:var(--muted2);margin-top:.2rem;">Selected Hex: ${Number(hex.id || 0)} · ${String(hex.type || 'unknown')}</div>
-      <div style="margin-top:.28rem;display:flex;gap:.25rem;flex-wrap:wrap;">
-        <button class="btn btn-xs btn-primary" onclick="launchGalaxyHexToCombat(${Number(hex.id || 0)})">Launch Into Combat Mode</button>
-      </div>
-    </div>
-  </details>`;
+  if (typeof window.buildScopedTravelSceneCard !== 'function') return '';
+  return window.buildScopedTravelSceneCard({
+    scope: 'galaxy',
+    key: String(hex.id || ''),
+    scopeLabel: 'Galaxy',
+    intro: 'Create or load a galaxy encounter scene, then launch it into Combat Mode.',
+    selectedLabel: 'Selected Hex: ' + String(Number(hex.id || 0)) + ' · ' + String(hex.type || 'unknown'),
+    launchCall: 'launchGalaxyHexToCombat(' + String(Number(hex.id || 0)) + ')'
+  });
 }
 
 function updateStarSystemReadouts() {

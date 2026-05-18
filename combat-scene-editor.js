@@ -1048,6 +1048,37 @@
     return Math.max(1, Number(m[1] || fallback || 1));
   }
 
+  function pickMerchantLootItemsForToken(dread) {
+    var loot = [];
+    var shopData = null;
+    try {
+      if (window && window.SHOP_DATA && typeof window.SHOP_DATA === 'object') shopData = window.SHOP_DATA;
+      else if (typeof SHOP_DATA !== 'undefined' && SHOP_DATA && typeof SHOP_DATA === 'object') shopData = SHOP_DATA;
+    } catch (_err) {
+      shopData = null;
+    }
+    if (!shopData) return loot;
+
+    var categories = ['items', 'essentials', 'toolkits', 'remedies', 'scrolls', 'tradegoods'];
+    var pool = [];
+    categories.forEach(function (cat) {
+      var list = Array.isArray(shopData[cat]) ? shopData[cat] : [];
+      list.forEach(function (entry) {
+        if (!entry) return;
+        var label = String((entry.name || entry) || '').trim();
+        if (label) pool.push(label);
+      });
+    });
+    if (!pool.length) return loot;
+
+    var rolls = Math.max(1, Math.min(3, Math.ceil(Math.max(1, Number(dread || 4)) / 4)));
+    for (var i = 0; i < rolls; i++) {
+      var pick = pool[Math.floor(Math.random() * pool.length)] || '';
+      if (pick) loot.push(pick);
+    }
+    return loot;
+  }
+
   function ensureLootDropForToken(token, reason) {
     if (!token) return;
     store.setState(function (state) {
@@ -1059,7 +1090,12 @@
         var items = [];
         if (String(token.faction || '') === 'monster') {
           items.push('Credits x' + String(10 * dread));
-          items.push(String(token.name || 'Enemy') + ' Trophy');
+          var merchantItems = pickMerchantLootItemsForToken(dread);
+          if (merchantItems.length) {
+            merchantItems.forEach(function (entry) { items.push(entry); });
+          } else {
+            items.push(String(token.name || 'Enemy') + ' Salvage');
+          }
         } else {
           items.push(String(token.name || 'Wayfarer') + ' Kit');
         }

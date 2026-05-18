@@ -1772,6 +1772,191 @@
     return 'The confrontation wing is already awake: barricades, signal flares, and watchfires line the approach while shadows move between kill-zones. The field is cramped, loud, and seconds from violence.';
   }
 
+  function ensureScopedTravelSceneState() {
+    if (!S.scopedTravelScenes || typeof S.scopedTravelScenes !== 'object') {
+      S.scopedTravelScenes = { scopes: {} };
+    }
+    if (!S.scopedTravelScenes.scopes || typeof S.scopedTravelScenes.scopes !== 'object') {
+      S.scopedTravelScenes.scopes = {};
+    }
+    return S.scopedTravelScenes;
+  }
+
+  function ensureScopedTravelSceneBucket(scopeName) {
+    var root = ensureScopedTravelSceneState();
+    var scope = String(scopeName || 'generic').toLowerCase();
+    if (!root.scopes[scope] || typeof root.scopes[scope] !== 'object') {
+      root.scopes[scope] = { byKey: {}, activeByKey: {}, hiddenByKey: {} };
+    }
+    return root.scopes[scope];
+  }
+
+  function getScopedTravelSceneList(scopeName, sceneKey, createIfMissing) {
+    var bucket = ensureScopedTravelSceneBucket(scopeName);
+    var key = String(sceneKey || 'unknown');
+    if (!Array.isArray(bucket.byKey[key])) {
+      if (!createIfMissing) return [];
+      bucket.byKey[key] = [];
+    }
+    return bucket.byKey[key];
+  }
+
+  function getActiveScopedTravelScene(scopeName, sceneKey) {
+    var bucket = ensureScopedTravelSceneBucket(scopeName);
+    var key = String(sceneKey || 'unknown');
+    var list = getScopedTravelSceneList(scopeName, key, false);
+    if (!list.length) return null;
+    var activeId = String(bucket.activeByKey[key] || '');
+    var active = list.find(function (entry) { return entry && String(entry.id || '') === activeId; }) || list[0] || null;
+    if (active) bucket.activeByKey[key] = String(active.id || '');
+    return active;
+  }
+
+  function rerenderScopedTravelScenePanel(scopeName) {
+    var scope = String(scopeName || '').toLowerCase();
+    if (scope === 'lastsea' && typeof renderLastSeaInfo === 'function') renderLastSeaInfo();
+    else if (scope === 'worldthatwas' && typeof renderWorldThatWasInfo === 'function') renderWorldThatWasInfo();
+    else if (scope === 'galaxy' && typeof updateStarSystemReadouts === 'function') updateStarSystemReadouts();
+    else if (scope === 'planet' && typeof renderPlanetExplorationPanel === 'function') renderPlanetExplorationPanel();
+  }
+
+  window.getActiveScopedTravelScene = function (scopeName, sceneKey) {
+    return getActiveScopedTravelScene(scopeName, sceneKey);
+  };
+
+  window.applyScopedTravelSceneToCombatSeed = function (scopeName, sceneKey, seed) {
+    if (!seed || typeof seed !== 'object') return seed;
+    var active = getActiveScopedTravelScene(scopeName, sceneKey);
+    if (!active) return seed;
+    if (active.name) seed.name = String(active.name);
+    if (active.image) {
+      if (!seed.board || typeof seed.board !== 'object') seed.board = {};
+      seed.board.background = String(active.image);
+    }
+    if (Array.isArray(seed.history)) {
+      seed.history.push('Travel Scene loaded: ' + String(active.name || 'Scene') + '.');
+    }
+    return seed;
+  };
+
+  window.setScopedTravelScenePanelHidden = function (scopeName, sceneKey, hidden) {
+    var bucket = ensureScopedTravelSceneBucket(scopeName);
+    var key = String(sceneKey || 'unknown');
+    bucket.hiddenByKey[key] = !!hidden;
+    rerenderScopedTravelScenePanel(scopeName);
+  };
+
+  window.createScopedTravelSceneAtKey = function (scopeName, sceneKey) {
+    var scope = String(scopeName || 'generic').toLowerCase();
+    var key = String(sceneKey || 'unknown');
+    var list = getScopedTravelSceneList(scope, key, true);
+    var bucket = ensureScopedTravelSceneBucket(scope);
+    var nameInput = document.getElementById('scopedTravelSceneName-' + scope + '-' + key);
+    var tagInput = document.getElementById('scopedTravelSceneTag-' + scope + '-' + key);
+    var name = nameInput ? String(nameInput.value || '').trim() : '';
+    var tag = tagInput ? String(tagInput.value || 'unknown').trim() : 'unknown';
+    if (!name) {
+      if (typeof showNotif === 'function') showNotif('Enter a scene name first.', 'warn');
+      return;
+    }
+    var id = 'scoped-scene-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 9999).toString(36);
+    list.push({ id: id, name: name, tag: tag, image: '', createdAt: Date.now(), updatedAt: Date.now() });
+    bucket.activeByKey[key] = id;
+    if (nameInput) nameInput.value = '';
+    rerenderScopedTravelScenePanel(scope);
+    if (typeof showNotif === 'function') showNotif('Travel scene created.', 'good');
+  };
+
+  window.loadScopedTravelSceneAtKey = function (scopeName, sceneKey) {
+    var scope = String(scopeName || 'generic').toLowerCase();
+    var key = String(sceneKey || 'unknown');
+    var bucket = ensureScopedTravelSceneBucket(scope);
+    var list = getScopedTravelSceneList(scope, key, false);
+    if (!list.length) {
+      if (typeof showNotif === 'function') showNotif('No scenes to load yet.', 'warn');
+      return;
+    }
+    var select = document.getElementById('scopedTravelSceneSelect-' + scope + '-' + key);
+    var id = select ? String(select.value || '') : '';
+    var active = list.find(function (entry) { return entry && String(entry.id || '') === id; }) || list[0] || null;
+    if (!active) return;
+    bucket.activeByKey[key] = String(active.id || '');
+    rerenderScopedTravelScenePanel(scope);
+    if (typeof showNotif === 'function') showNotif('Travel scene loaded.', 'good');
+  };
+
+  window.handleScopedTravelSceneImageUpload = function (input, scopeName, sceneKey) {
+    if (!input || !input.files || !input.files[0]) return;
+    var active = getActiveScopedTravelScene(scopeName, sceneKey);
+    if (!active) {
+      if (typeof showNotif === 'function') showNotif('Create and load a scene first.', 'warn');
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function (evt) {
+      active.image = String((evt && evt.target && evt.target.result) || '');
+      active.updatedAt = Date.now();
+      rerenderScopedTravelScenePanel(scopeName);
+      if (typeof showNotif === 'function') showNotif('Scene image attached.', 'good');
+    };
+    reader.readAsDataURL(input.files[0]);
+  };
+
+  window.buildScopedTravelSceneCard = function (cfg) {
+    var scope = String((cfg && cfg.scope) || 'generic').toLowerCase();
+    var key = String((cfg && cfg.key) || 'unknown');
+    var scopeLabel = String((cfg && cfg.scopeLabel) || scope);
+    var intro = String((cfg && cfg.intro) || 'Create or load a scene here, then launch it into Combat Mode.');
+    var selectedLabel = String((cfg && cfg.selectedLabel) || '');
+    var launchCall = String((cfg && cfg.launchCall) || '');
+    var hidden = !!ensureScopedTravelSceneBucket(scope).hiddenByKey[key];
+    if (hidden) {
+      return '<div class="npc-block" style="margin-bottom:.45rem;border-color:rgba(46,196,182,.4);background:rgba(46,196,182,.05);">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;gap:.35rem;">'
+        + '<div class="nb-label" style="color:var(--teal);">🎬 Travel Scene [' + escapeHtmlLite(scopeLabel) + ']</div>'
+        + '<button class="btn btn-xs" onclick="setScopedTravelScenePanelHidden(\'' + scope.replace(/'/g, "\\'") + '\',\'' + key.replace(/'/g, "\\'") + '\',false)">Open Travel Scene</button>'
+        + '</div>'
+      + '</div>';
+    }
+    var list = getScopedTravelSceneList(scope, key, false);
+    var active = getActiveScopedTravelScene(scope, key);
+    var options = list.length
+      ? list.map(function (scene) {
+        if (!scene) return '';
+        var sid = String(scene.id || '');
+        var selected = (active && String(active.id || '') === sid) ? ' selected' : '';
+        var tag = scene.tag ? (' [' + String(scene.tag) + ']') : '';
+        return '<option value="' + sid + '"' + selected + '>' + escapeHtmlLite(String(scene.name || 'Scene')) + escapeHtmlLite(tag) + '</option>';
+      }).join('')
+      : '<option value="">No scenes yet</option>';
+    var imagePreview = active && active.image
+      ? '<div style="margin-top:.3rem;"><img src="' + String(active.image) + '" alt="Scene image" style="width:100%;max-height:120px;object-fit:cover;border:1px solid var(--border2);border-radius:4px;"></div>'
+      : '<div style="margin-top:.3rem;font-size:.72rem;color:var(--muted2);">No scene image attached yet.</div>';
+    return '<details class="npc-block" open style="margin-bottom:.45rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);">'
+      + '<summary class="nb-label" style="color:var(--teal);cursor:pointer;list-style:none;">🎬 Travel Scene [' + escapeHtmlLite(scopeLabel) + ']</summary>'
+      + '<div style="margin-top:.28rem;">'
+      + '<div style="font-size:.76rem;color:var(--text2);line-height:1.55;margin-bottom:.35rem;">' + escapeHtmlLite(intro) + '</div>'
+      + (selectedLabel ? '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.25rem;">' + escapeHtmlLite(selectedLabel) + '</div>' : '')
+      + '<div style="display:grid;grid-template-columns:1fr auto auto;gap:.25rem;">'
+      + '<input id="scopedTravelSceneName-' + scope + '-' + key + '" type="text" maxlength="60" placeholder="Scene name (ambush, breach, raid...)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.26rem .36rem;font-size:.74rem;border-radius:3px;">'
+      + '<select id="scopedTravelSceneTag-' + scope + '-' + key + '" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.26rem .32rem;font-size:.74rem;border-radius:3px;"><option value="unknown">Tag</option><option value="dungeon">Dungeon</option><option value="ruins">Ruins</option><option value="raid">Raid</option><option value="random encounter">Random Encounter</option></select>'
+      + '<button class="btn btn-xs btn-primary" onclick="createScopedTravelSceneAtKey(\'' + scope.replace(/'/g, "\\'") + '\',\'' + key.replace(/'/g, "\\'") + '\')">Create</button>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr auto;gap:.25rem;margin-top:.3rem;">'
+      + '<select id="scopedTravelSceneSelect-' + scope + '-' + key + '" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.26rem .32rem;font-size:.74rem;border-radius:3px;">' + options + '</select>'
+      + '<button class="btn btn-xs" onclick="loadScopedTravelSceneAtKey(\'' + scope.replace(/'/g, "\\'") + '\',\'' + key.replace(/'/g, "\\'") + '\')">Load</button>'
+      + '</div>'
+      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.3rem;">'
+      + (launchCall ? '<button class="btn btn-xs btn-primary" onclick="' + launchCall + '">Launch Into Combat Mode</button>' : '')
+      + '<button class="btn btn-xs" onclick="document.getElementById(\'scopedTravelSceneImageInput-' + scope + '-' + key + '\').click()">Attach Image</button>'
+      + '<button class="btn btn-xs" onclick="setScopedTravelScenePanelHidden(\'' + scope.replace(/'/g, "\\'") + '\',\'' + key.replace(/'/g, "\\'") + '\',true)">Hide Travel Scene</button>'
+      + '</div>'
+      + '<input id="scopedTravelSceneImageInput-' + scope + '-' + key + '" type="file" accept="image/*" style="display:none;" onchange="handleScopedTravelSceneImageUpload(this,\'' + scope.replace(/'/g, "\\'") + '\',\'' + key.replace(/'/g, "\\'") + '\')">'
+      + imagePreview
+      + '</div>'
+    + '</details>';
+  };
+
   function buildSeaTravelSceneCombatSeed(hex) {
     if (!hex) return null;
     var portrait = (S && S.identityForge && S.identityForge.media && S.identityForge.media.portrait) ? String(S.identityForge.media.portrait) : '';
@@ -1827,7 +2012,14 @@
     if (!S || !S.lastSea || !Array.isArray(S.lastSea.map)) return;
     var hex = S.lastSea.map.find(function (item) { return item && String(item.key) === String(hexKey || ''); }) || null;
     if (!hex) return;
+    if (typeof window.getActiveScopedTravelScene === 'function' && !window.getActiveScopedTravelScene('lastsea', String(hex.key || ''))) {
+      if (typeof showNotif === 'function') showNotif('Create and load a Travel Scene first.', 'warn');
+      return;
+    }
     var seed = buildSeaTravelSceneCombatSeed(hex);
+    if (typeof window.applyScopedTravelSceneToCombatSeed === 'function') {
+      seed = window.applyScopedTravelSceneToCombatSeed('lastsea', String(hex.key || ''), seed);
+    }
     if (seed && typeof window.openCombatSceneEditor === 'function') {
       window.openCombatSceneEditor(seed);
       if (typeof showNotif === 'function') showNotif('Launching Combat Mode from Last Sea: ' + String(seed.name || 'Sea Scene') + '.', 'good');
@@ -1839,16 +2031,15 @@
   function buildSeaTravelSceneCard(hex) {
     if (!hex) return '';
     var title = String(hex.title || hex.islandName || hex.seaLabel || ('Sea Hex ' + String(hex.key || '?')));
-    return '<details class="npc-block" style="margin-bottom:.35rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);">'
-      + '<summary class="nb-label" style="color:var(--teal);cursor:pointer;list-style:none;">🎬 Travel Scene [Last Sea]</summary>'
-      + '<div style="margin-top:.28rem;">'
-      + '<div style="font-size:.78rem;color:var(--text2);line-height:1.55;">Use this sea hex as a staged encounter card and launch directly into Combat Mode.</div>'
-      + '<div style="font-size:.74rem;color:var(--muted2);margin-top:.2rem;">Selected: ' + title + '</div>'
-      + '<div style="margin-top:.28rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
-      + '<button class="btn btn-xs btn-primary" onclick="launchSeaSceneToCombat(\'' + String(hex.key || '').replace(/'/g, "\\'") + '\')">Launch Into Combat Mode</button>'
-      + '</div>'
-      + '</div>'
-      + '</details>';
+    if (typeof window.buildScopedTravelSceneCard !== 'function') return '';
+    return window.buildScopedTravelSceneCard({
+      scope: 'lastsea',
+      key: String(hex.key || ''),
+      scopeLabel: 'Last Sea',
+      intro: 'Create or load a sea encounter scene, then launch it into Combat Mode.',
+      selectedLabel: 'Selected: ' + title,
+      launchCall: 'launchSeaSceneToCombat(\'' + String(hex.key || '').replace(/'/g, "\\'") + '\')'
+    });
   }
 
   function renderLastSeaInfo(cell) {

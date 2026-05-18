@@ -3657,9 +3657,16 @@
     if (!w || !Array.isArray(w.hexes)) return;
     const hex = w.hexes.find(function (entry) { return entry && String(entry.id) === String(hexId || ""); }) || getSelectedHex();
     if (!hex) return;
+    if (typeof window.getActiveScopedTravelScene === 'function' && !window.getActiveScopedTravelScene('worldthatwas', String(hex.id || ''))) {
+      if (typeof showNotif === 'function') showNotif('Create and load a Travel Scene first.', 'warn');
+      return;
+    }
     const seed = buildWtwTravelSceneCombatSeed(hex);
-    if (seed && typeof window.openCombatSceneEditor === "function") {
-      window.openCombatSceneEditor(seed);
+    const finalSeed = (typeof window.applyScopedTravelSceneToCombatSeed === 'function')
+      ? window.applyScopedTravelSceneToCombatSeed('worldthatwas', String(hex.id || ''), seed)
+      : seed;
+    if (finalSeed && typeof window.openCombatSceneEditor === "function") {
+      window.openCombatSceneEditor(finalSeed);
       if (typeof showNotif === "function") showNotif("Launching Combat Mode from World That Was district " + String(hex.id) + ".", "good");
     } else if (typeof showNotif === "function") {
       showNotif("Combat Mode is unavailable.", "warn");
@@ -3668,15 +3675,15 @@
 
   function buildWtwTravelSceneCard(hex) {
     if (!hex) return "";
-    return ""
-      + "<details class='npc-block' style='margin:.35rem 0;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);'>"
-      + "<summary class='nb-label' style='color:var(--teal);cursor:pointer;list-style:none;'>🎬 Travel Scene [World That Was]</summary>"
-      + "<div style='margin-top:.28rem;'>"
-      + "<div style='font-size:.78rem;color:var(--text2);line-height:1.55;'>Use this district as an encounter scene and launch directly into Combat Mode.</div>"
-      + "<div style='font-size:.74rem;color:var(--muted2);margin-top:.2rem;'>Selected District: " + String(hex.id || "?") + " · " + String(hex.district || hex.zone || "Unknown") + "</div>"
-      + "<div style='margin-top:.28rem;display:flex;gap:.25rem;flex-wrap:wrap;'><button class='btn btn-xs btn-primary' onclick='launchWtwHexToCombat(\"" + String(hex.id || "").replace(/"/g, '&quot;') + "\")'>Launch Into Combat Mode</button></div>"
-      + "</div>"
-      + "</details>";
+    if (typeof window.buildScopedTravelSceneCard !== 'function') return '';
+    return window.buildScopedTravelSceneCard({
+      scope: 'worldthatwas',
+      key: String(hex.id || ''),
+      scopeLabel: 'World That Was',
+      intro: 'Create or load a district encounter scene, then launch it into Combat Mode.',
+      selectedLabel: 'Selected District: ' + String(hex.id || '?') + ' · ' + String(hex.district || hex.zone || 'Unknown'),
+      launchCall: 'launchWtwHexToCombat("' + String(hex.id || '').replace(/\"/g, '&quot;') + '")'
+    });
   }
 
   function renderWorldThatWasInfo() {

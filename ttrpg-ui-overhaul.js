@@ -540,7 +540,7 @@
       + '<button class="btn btn-xs btn-red" onclick="combatWorkshopAddToken(\'enemy\')">+ Monster Token</button>'
       + '<button class="btn btn-xs" onclick="combatWorkshopBoardImageInput()">Upload Board Art</button>'
       + '<input id="combatWorkshopBoardImageInput" type="file" accept="image/*" style="display:none;" onchange="var file=this.files&&this.files[0];if(file&&typeof readFileAsDataUrl===\'function\'){readFileAsDataUrl(file,function(url){combatWorkshopSetBoardBackground(url);});this.value=\'\';}">'
-      + '<input id="combatWorkshopTokenImageInput" type="file" accept="image/*" style="display:none;" onchange="var file=this.files&&this.files[0];var tokenId=this.getAttribute(\'data-token-id\');if(file&&typeof readFileAsDataUrl===\'function\'){readFileAsDataUrl(file,function(url){var ws=ensureCombatSceneWorkshopState();if(!ws)return;var token=ws.tokens.find(function(row){return row&&String(row.id)===String(tokenId);});if(token){token.image=url;combatWorkshopLog(ws,token.name+\' image updated.\');renderCombatSceneWorkshop();}});}this.value=\'\';">'
+      + '<input id="combatWorkshopTokenImageInput" type="file" accept="image/*" style="display:none;" onchange="var file=this.files&&this.files[0];var tokenId=this.getAttribute(\'data-token-id\');if(file&&typeof readFileAsDataUrl===\'function\'){readFileAsDataUrl(file,function(url){var ws=ensureCombatSceneWorkshopState();if(!ws)return;var token=ws&&ws.tokens.find(function(row){return row&&String(row.id)===String(tokenId);});if(token){token.image=url;combatWorkshopLog(ws,token.name+\' image updated.\');renderCombatSceneWorkshop();}});}this.value=\'\';">'
       + '</div>'
       + '</div>'
       + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.45rem;">'
@@ -1177,41 +1177,15 @@
     }
     row.innerHTML = ''
       + '<button class="btn btn-sm ' + (state.mapTools.manualFogMode ? 'btn-teal' : '') + '" id="coFogModeBtn">Fog Manual: ' + (state.mapTools.manualFogMode ? 'On' : 'Off') + '</button>'
-      + '<button class="btn btn-sm" id="coFogHideBtn">Hide Selected</button>'
-      + '<button class="btn btn-sm" id="coFogRevealBtn">Reveal Selected</button>'
       + '<button class="btn btn-sm" id="coTrailClearBtn">Clear Trail</button>';
 
     var modeBtn = document.getElementById('coFogModeBtn');
     if (modeBtn) {
-      modeBtn.onclick = function () {
+      modeBtn.addEventListener('click', function() {
         state.mapTools.manualFogMode = !state.mapTools.manualFogMode;
-        ensureMapInteractionControls();
-      };
-    }
-    var hideBtn = document.getElementById('coFogHideBtn');
-    if (hideBtn) {
-      hideBtn.onclick = function () {
-        if (!window.selectedHex) return;
-        state.mapTools.manualFogHidden[mapKey(window.selectedHex)] = true;
-        if (typeof window.renderHexMap === 'function') window.renderHexMap();
-      };
-    }
-    var revealBtn = document.getElementById('coFogRevealBtn');
-    if (revealBtn) {
-      revealBtn.onclick = function () {
-        if (!window.selectedHex) return;
-        delete state.mapTools.manualFogHidden[mapKey(window.selectedHex)];
-        if (typeof window.revealMapFogHex === 'function') window.revealMapFogHex('province', mapKey(window.selectedHex));
-        if (typeof window.renderHexMap === 'function') window.renderHexMap();
-      };
-    }
-    var clearBtn = document.getElementById('coTrailClearBtn');
-    if (clearBtn) {
-      clearBtn.onclick = function () {
-        state.mapTools.trails = [];
-        safeNotif('Movement trails cleared.', 'info');
-        if (typeof window.renderHexMap === 'function') window.renderHexMap();
-      };
+        modeBtn.textContent = 'Fog Manual: ' + (state.mapTools.manualFogMode ? 'On' : 'Off');
+        modeBtn.classList.toggle('btn-teal', state.mapTools.manualFogMode);
+      });
     }
   }
 

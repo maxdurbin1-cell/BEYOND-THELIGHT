@@ -444,7 +444,8 @@
       weather: {},
       foreground: {},
       interactives: {},
-      spawns: {}
+      spawns: {},
+      labels: {}
     }, next.layers && typeof next.layers === 'object' ? next.layers : {});
     next.layers.terrain = Object.assign({}, next.layers.terrain || {});
     next.layers.objects = Object.assign({}, next.layers.objects || {});
@@ -456,6 +457,7 @@
     next.layers.foreground = Object.assign({}, next.layers.foreground || {});
     next.layers.interactives = Object.assign({}, next.layers.interactives || {});
     next.layers.spawns = Object.assign({}, next.layers.spawns || {});
+    next.layers.labels = Object.assign({}, next.layers.labels || {});
     next.fog = Object.assign({
       enabled: false,
       showMask: true,
@@ -719,6 +721,7 @@
     scenes: [{ id: 'scene-1', name: 'Main Scene', isActive: true }],
     activeSceneId: 'scene-1',
     ruler: { active: false, start: null, end: null, distance: 0, label: 'Engaged' },
+    rulerOptions: { shape: 'line', fadeDelay: 'linger', snapToGrid: true },
     board: {
       cols: 22,
       rows: 16,
@@ -756,7 +759,8 @@
       weather: {},
       foreground: {},
       interactives: {},
-      spawns: {}
+      spawns: {},
+      labels: {}
     },
     codexBestiary: flattenCodexBestiary(),
     tokens: seedFromCurrentCombat(),
@@ -2068,13 +2072,22 @@
       + '<div class="combat-chip-row" id="combatToolRow"></div>'
       + '<div class="combat-label" style="margin-top:.35rem;">VTT Toolbar</div>'
       + '<div class="combat-chip-row">'
+      + '<button class="combat-chip" id="combatToolbarSelectBtn">Select</button>'
+      + '<button class="combat-chip" id="combatToolbarDrawBtn">Draw</button>'
+      + '<button class="combat-chip" id="combatToolbarTextBtn">Text</button>'
+      + '<button class="combat-chip" id="combatToolbarMeasureBtn">Measure</button>'
       + '<button class="combat-chip" id="combatToolbarRulerBtn">Ruler</button>'
       + '<button class="combat-chip" id="combatToolbarPanBtn">Pan</button>'
       + '<button class="combat-chip" id="combatToolbarPingBtn">Ping</button>'
+      + '<button class="combat-chip" id="combatToolbarEffectsBtn">Effects</button>'
+      + '<button class="combat-chip" id="combatToolbarDiceBtn">Dice</button>'
+      + '<button class="combat-chip" id="combatToolbarTurnOrderBtn">Turn</button>'
       + '<button class="combat-chip" id="combatToolbarZoomInBtn">Zoom+</button>'
       + '<button class="combat-chip" id="combatToolbarZoomOutBtn">Zoom-</button>'
       + '<button class="combat-chip" id="combatToolbarZoomResetBtn">100%</button>'
       + '</div>'
+      + '<div class="combat-mini" style="margin-top:.15rem;">Zoom</div>'
+      + '<input id="combatZoomSlider" type="range" min="50" max="230" step="5" value="100" style="width:100%;">'
       + '<div class="combat-label" style="margin-top:.35rem;">Fog of War</div>'
       + '<div class="combat-chip-row"><button class="combat-chip" id="combatFogToggleBtn">Fog Off</button><button class="combat-chip" id="combatFogBrushBtn">Brush Reveal</button><button class="combat-chip" id="combatFogClearBtn">Clear Fog</button></div>'
       + '<div class="combat-chip-row" style="margin-top:.2rem;"><button class="combat-chip" id="combatFogModeBtn">Mode: Manual</button><button class="combat-chip" id="combatFogAdvanceBtn">Advance Reveal</button><button class="combat-chip" id="combatFogResetOrderBtn">Reset Order</button></div>'
@@ -2091,6 +2104,11 @@
       + '<aside class="combat-floating-panel combat-right-rail" id="combatFeedPanel">'
       + '<div class="combat-panel-header" data-drag="feed" onclick="togglePanel(\'combatFeedPanel\')">Roll Checks <span style="float:right;font-size:.7rem;cursor:pointer;">◀</span></div>'
       + '<div class="combat-panel-body">'
+      + '<div class="combat-chip-row" style="margin-bottom:.24rem;">'
+      + '<button class="combat-chip" id="combatAssetsBtn">Assets</button>'
+      + '<button class="combat-chip" id="combatRailRulesBtn">Rules</button>'
+      + '<button class="combat-chip" id="combatSettingsBtn">Settings</button>'
+      + '</div>'
       + '<div id="combatInitiativeList"></div>'
       + '<div style="display:flex;gap:.24rem;margin-top:.26rem;"><button class="btn btn-xs" id="combatNextTurnBtn">Next Turn</button><button class="btn btn-xs" id="combatRollModeBtn">Auto Roll</button></div>'
       + '<div class="combat-action-block">'
@@ -2616,6 +2634,16 @@
           ctx.fillStyle = 'rgba(2,3,7,.74)';
           ctx.fill();
         }
+
+        var labelText = String(state.layers && state.layers.labels && state.layers.labels[key] || '').trim();
+        if (labelText) {
+          ctx.save();
+          ctx.fillStyle = 'rgba(235,239,249,.96)';
+          ctx.font = '11px Rajdhani, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(labelText.slice(0, 28), p.x, p.y + 4);
+          ctx.restore();
+        }
       }
     }
 
@@ -2958,25 +2986,12 @@
 
     var playModeBtn = document.getElementById('combatPlayModeBtn');
     if (playModeBtn) {
-      playModeBtn.textContent = state.playMode ? 'Play View' : 'Build View';
-      playModeBtn.className = state.playMode ? 'btn btn-xs btn-teal' : 'btn btn-xs';
-      if (!playModeBtn._bound) {
-        playModeBtn._bound = true;
-        playModeBtn.addEventListener('click', function() {
-          // Toggle playMode in the store and update UI
-          var currentState = store.getState();
-          var newPlayMode = !currentState.playMode;
-          store.setState({ playMode: newPlayMode });
-          // Optionally, call a function to handle mode switching UI if needed
-          if (typeof window.togglePlayMode === 'function') {
-            window.togglePlayMode(newPlayMode);
-          }
-        });
-      }
+      playModeBtn.textContent = state.playMode ? 'Build View' : 'Play View';
+      playModeBtn.className = state.playMode ? 'btn btn-xs' : 'btn btn-xs btn-teal';
     }
 
     var layers = ['terrain', 'objects', 'hazards', 'elevation', 'lighting', 'weather', 'foreground', 'interactives', 'spawns'];
-    var tools = ['select', 'paint', 'erase', 'fog', 'ruler', 'pan', 'ping'];
+    var tools = ['select', 'paint', 'erase', 'text', 'fog', 'ruler', 'pan', 'ping'];
 
     var layerRow = document.getElementById('combatLayerRow');
     if (layerRow) {
@@ -3036,6 +3051,11 @@
     if (fogModeBtn) {
       var modeLabel = String(state.fog && state.fog.revealMode || 'manual');
       fogModeBtn.textContent = 'Mode: ' + modeLabel.charAt(0).toUpperCase() + modeLabel.slice(1);
+    }
+
+    var zoomSlider = document.getElementById('combatZoomSlider');
+    if (zoomSlider) {
+      zoomSlider.value = String(Math.round(Math.max(0.5, Math.min(2.3, Number(state.board && state.board.zoom || 1))) * 100));
     }
 
     var bestiary = document.getElementById('combatBestiaryDrawer');
@@ -3761,6 +3781,26 @@
 
       if (state.activeTool === 'paint' || state.activeTool === 'erase') {
         paintAt(ax.q, ax.r);
+        drawBoard();
+        updateUiPanels();
+        return;
+      }
+
+      if (state.activeTool === 'text') {
+        var existingLabel = String(state.layers && state.layers.labels && state.layers.labels[toKey(ax.q, ax.r)] || '');
+        var entered = window.prompt('Text label for this hex (blank clears):', existingLabel);
+        if (entered === null) return;
+        store.setState(function (inner) {
+          var next = Object.assign({}, inner);
+          next.layers = Object.assign({}, inner.layers || {});
+          next.layers.labels = Object.assign({}, (inner.layers && inner.layers.labels) || {});
+          var key = toKey(ax.q, ax.r);
+          var clean = String(entered || '').trim();
+          if (!clean) delete next.layers.labels[key];
+          else next.layers.labels[key] = clean;
+          persist(next);
+          return next;
+        });
         drawBoard();
         updateUiPanels();
         return;
@@ -4515,6 +4555,48 @@
       updateUiPanels();
     }
 
+    function openQuickEffectsModal() {
+      var st = store.getState();
+      var token = byId(st.selectedTokenId);
+      if (!token) {
+        safeNotif('Select a token first.', 'warn');
+        return;
+      }
+      var html = '<div style="display:grid;gap:.28rem;">'
+        + '<div style="font-size:.78rem;color:var(--text2);">Apply a timed effect to ' + String(token.name || 'token').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '.</div>'
+        + '<input id="combatFxName" class="combat-input" placeholder="Condition name (Burning)">'
+        + '<input id="combatFxStress" class="combat-input" type="number" min="0" max="20" value="1">'
+        + '<input id="combatFxRounds" class="combat-input" type="number" min="1" max="20" value="2">'
+        + '<button class="btn btn-xs btn-primary" onclick="(function(){var n=document.getElementById(\'combatFxName\');var s=document.getElementById(\'combatFxStress\');var r=document.getElementById(\'combatFxRounds\');if(window.applyCombatQuickEffect){window.applyCombatQuickEffect(String(n&&n.value||\'Condition\'),Number(s&&s.value||1),Number(r&&r.value||2));}if(typeof window.closeModal===\'function\')window.closeModal();})();">Apply</button>'
+        + '</div>';
+      if (typeof window.openModal === 'function') window.openModal('Combat Effects', html);
+      else safeNotif('Effects modal requires modal support.', 'warn');
+    }
+
+    var toolbarSelectBtn = document.getElementById('combatToolbarSelectBtn');
+    if (toolbarSelectBtn && !toolbarSelectBtn._bound) {
+      toolbarSelectBtn._bound = true;
+      toolbarSelectBtn.onclick = function () { setToolMode('select'); };
+    }
+
+    var toolbarDrawBtn = document.getElementById('combatToolbarDrawBtn');
+    if (toolbarDrawBtn && !toolbarDrawBtn._bound) {
+      toolbarDrawBtn._bound = true;
+      toolbarDrawBtn.onclick = function () { setToolMode('paint'); };
+    }
+
+    var toolbarTextBtn = document.getElementById('combatToolbarTextBtn');
+    if (toolbarTextBtn && !toolbarTextBtn._bound) {
+      toolbarTextBtn._bound = true;
+      toolbarTextBtn.onclick = function () { setToolMode('text'); };
+    }
+
+    var toolbarMeasureBtn = document.getElementById('combatToolbarMeasureBtn');
+    if (toolbarMeasureBtn && !toolbarMeasureBtn._bound) {
+      toolbarMeasureBtn._bound = true;
+      toolbarMeasureBtn.onclick = function () { setToolMode('ruler'); };
+    }
+
     var toolbarRulerBtn = document.getElementById('combatToolbarRulerBtn');
     if (toolbarRulerBtn && !toolbarRulerBtn._bound) {
       toolbarRulerBtn._bound = true;
@@ -4557,6 +4639,104 @@
         });
         drawBoard();
         updateUiPanels();
+      };
+    }
+
+    var zoomSlider = document.getElementById('combatZoomSlider');
+    if (zoomSlider && !zoomSlider._bound) {
+      zoomSlider._bound = true;
+      zoomSlider.value = String(Math.round(Number(store.getState().board && store.getState().board.zoom || 1) * 100));
+      zoomSlider.oninput = function () {
+        var pct = Math.max(50, Math.min(230, Number(zoomSlider.value || 100)));
+        store.setState(function (state) {
+          var next = Object.assign({}, state);
+          next.board = Object.assign({}, state.board, { zoom: pct / 100 });
+          persist(next);
+          return next;
+        });
+        drawBoard();
+      };
+    }
+
+    var toolbarEffectsBtn = document.getElementById('combatToolbarEffectsBtn');
+    if (toolbarEffectsBtn && !toolbarEffectsBtn._bound) {
+      toolbarEffectsBtn._bound = true;
+      toolbarEffectsBtn.onclick = function () { openQuickEffectsModal(); };
+    }
+
+    var toolbarDiceBtn = document.getElementById('combatToolbarDiceBtn');
+    if (toolbarDiceBtn && !toolbarDiceBtn._bound) {
+      toolbarDiceBtn._bound = true;
+      toolbarDiceBtn.onclick = function () {
+        var expr = window.prompt('Dice roll (e.g. 1d20+4, 2d6!+1 for exploding):', '1d20');
+        if (!expr) return;
+        var m = String(expr).trim().match(/^(\d+)d(\d+)(!)?\s*([+-]\s*\d+)?$/i);
+        if (!m) {
+          safeNotif('Invalid dice format.', 'warn');
+          return;
+        }
+        var count = Math.max(1, Math.min(20, Number(m[1] || 1)));
+        var die = Math.max(2, Math.min(100, Number(m[2] || 20)));
+        var exploding = !!m[3];
+        var mod = Number(String(m[4] || '0').replace(/\s+/g, '')) || 0;
+        var rolls = [];
+        var total = mod;
+        for (var i = 0; i < count; i++) {
+          var roll = rollDie(die);
+          rolls.push(roll);
+          total += roll;
+          if (exploding) {
+            while (roll === die) {
+              roll = rollDie(die);
+              rolls.push(roll);
+              total += roll;
+            }
+          }
+        }
+        addHistory('Dice: ' + expr + ' => [' + rolls.join(', ') + '] ' + (mod ? ((mod > 0 ? '+' : '') + mod + ' ') : '') + '= ' + total + '.');
+        safeNotif('Rolled ' + expr + ' = ' + total + '.', 'good');
+        updateUiPanels();
+      };
+    }
+
+    var toolbarTurnOrderBtn = document.getElementById('combatToolbarTurnOrderBtn');
+    if (toolbarTurnOrderBtn && !toolbarTurnOrderBtn._bound) {
+      toolbarTurnOrderBtn._bound = true;
+      toolbarTurnOrderBtn.onclick = function () {
+        var panel = document.getElementById('combatFeedPanel');
+        if (panel && panel.classList.contains('collapsed')) panel.classList.remove('collapsed');
+        var list = document.getElementById('combatInitiativeList');
+        if (list && typeof list.scrollIntoView === 'function') list.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      };
+    }
+
+    var assetsBtn = document.getElementById('combatAssetsBtn');
+    if (assetsBtn && !assetsBtn._bound) {
+      assetsBtn._bound = true;
+      assetsBtn.onclick = function () {
+        var drawer = document.getElementById('combatBestiaryDrawer');
+        if (drawer && typeof drawer.scrollIntoView === 'function') drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        safeNotif('Assets ready: use Bestiary Drawer and map upload to place content.', 'info');
+      };
+    }
+
+    var railRulesBtn = document.getElementById('combatRailRulesBtn');
+    if (railRulesBtn && !railRulesBtn._bound) {
+      railRulesBtn._bound = true;
+      railRulesBtn.onclick = function () { showCombatRulesReference(); };
+    }
+
+    var settingsBtn = document.getElementById('combatSettingsBtn');
+    if (settingsBtn && !settingsBtn._bound) {
+      settingsBtn._bound = true;
+      settingsBtn.onclick = function () {
+        var state = store.getState();
+        var html = '<div style="display:grid;gap:.28rem;">'
+          + '<label style="display:flex;align-items:center;gap:.4rem;"><input id="combatSettingsFogEnabled" type="checkbox" ' + ((state.fog && state.fog.enabled) ? 'checked' : '') + '> Fog of War enabled</label>'
+          + '<label style="display:flex;align-items:center;gap:.4rem;"><input id="combatSettingsAutoRoll" type="checkbox" ' + (state.autoRoll ? 'checked' : '') + '> Auto roll mode</label>'
+          + '<button class="btn btn-xs btn-primary" onclick="(function(){if(window.applyCombatSettingsFromModal)window.applyCombatSettingsFromModal();if(typeof window.closeModal===\'function\')window.closeModal();})();">Apply</button>'
+          + '</div>';
+        if (typeof window.openModal === 'function') window.openModal('Combat Settings', html);
       };
     }
 
@@ -4615,7 +4795,21 @@
       fogToggle.onclick = function () {
         store.setState(function (state) {
           var next = Object.assign({}, state);
-          next.fog = Object.assign({}, state.fog, { enabled: !state.fog.enabled });
+          var fog = Object.assign({
+            enabled: false,
+            showMask: true,
+            revealMode: 'manual',
+            visionRadius: 3,
+            revealed: {},
+            revealOrder: {},
+            revealSeq: 0,
+            revealStep: 0
+          }, state.fog || {});
+          next.fog = Object.assign({}, fog, {
+            enabled: !fog.enabled,
+            revealed: Object.assign({}, fog.revealed || {}),
+            revealOrder: Object.assign({}, fog.revealOrder || {})
+          });
           persist(next);
           return next;
         });
@@ -5405,29 +5599,30 @@
       next.initiative = [];
       next.actionHistory = [];
       next.selectedTokenId = '';
-      if (next.activeSceneId) {
-        next.scenes = (next.scenes || []).map(function (scene) {
-          if (!scene || String(scene.id) !== String(next.activeSceneId)) return scene;
-          return Object.assign({}, scene, {
-            name: String(scene.name || tpl.name || 'Scene'),
-            updatedAt: Date.now(),
-            board: clone(next.board),
-            layers: clone(next.layers),
-            fog: clone(next.fog),
-            sceneRules: clone(next.sceneRules || {}),
-            tokens: clone(next.tokens),
-            initiative: clone(next.initiative),
-            actionHistory: clone(next.actionHistory)
-          });
-        });
-      }
+      var newSceneId = uid('scene');
+      var newScene = {
+        id: newSceneId,
+        name: String(tpl.name || 'Scene Template'),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        board: clone(next.board),
+        layers: clone(next.layers),
+        fog: clone(next.fog),
+        sceneRules: clone(next.sceneRules || {}),
+        tokens: clone(next.tokens),
+        initiative: clone(next.initiative),
+        actionHistory: clone(next.actionHistory)
+      };
+      next.scenes = (next.scenes || []).concat([newScene]);
+      next.activeSceneId = newSceneId;
+      window._currentSceneEditId = newSceneId;
       persist(next);
       return next;
     });
     addHistory('Scene template applied: ' + String(tpl.name || key) + '.');
     updateUiPanels();
     drawBoard();
-    safeNotif('Template applied: ' + String(tpl.name || key) + '.', 'good');
+    safeNotif('Template scene created: ' + String(tpl.name || key) + '.', 'good');
   }
 
   function bindSceneLibraryControls() {
@@ -5528,16 +5723,37 @@
     } else {
       store.setState(function (state) {
         var next = Object.assign({}, state);
-        next.tokens = [];
-        next.initiative = [];
-        next.actionHistory = [];
+        next.tokens = clone(state.tokens || []);
+        next.initiative = clone(state.initiative || []);
+        next.actionHistory = clone(state.actionHistory || []);
         next.tokenRoundEffects = [];
-        next.board = { cols: 15, rows: 15, zoom: 1, panX: 0, panY: 0 };
-        next.layers = { terrain: {}, objects: {}, hazards: {}, lighting: {}, weather: {}, foreground: {}, interactives: {}, spawns: {} };
-        next.fog = {};
-        next.sceneRules = {};
+        next.board = normalizeBoard(Object.assign({}, state.board || {}, { cols: 15, rows: 15, zoom: 1, panX: 640, panY: 340 }));
+        next.layers = Object.assign({
+          terrain: {},
+          objects: {},
+          hazards: {},
+          elevation: {},
+          lighting: {},
+          wallSegments: {},
+          weather: {},
+          foreground: {},
+          interactives: {},
+          spawns: {},
+          labels: {}
+        }, clone(state.layers || {}));
+        next.fog = Object.assign({
+          enabled: false,
+          showMask: true,
+          revealMode: 'manual',
+          visionRadius: 3,
+          revealed: {},
+          revealOrder: {},
+          revealSeq: 0,
+          revealStep: 0
+        }, clone(state.fog || {}));
+        next.sceneRules = Object.assign({ rollMode: 'auto', defaultActionType: 'ranged', targetCoverOverrides: {}, lootDrops: {} }, clone(state.sceneRules || {}));
         next.selectedTokenId = '';
-        next.activeSceneId = '';
+        if (!next.activeSceneId && Array.isArray(next.scenes) && next.scenes.length) next.activeSceneId = String(next.scenes[0].id || '');
         persist(next);
         return next;
       });
@@ -6023,9 +6239,46 @@
     renderScenesList();
     
     // Subscribe to store changes to keep UI in sync
-    store.subscribe(function (state) {
-      renderScenesList();
+    if (!window.__combatScenesTabSubscribed) {
+      window.__combatScenesTabSubscribed = true;
+      store.subscribe(function () {
+        renderScenesList();
+      });
+    }
+  };
+
+  window.applyCombatQuickEffect = function (label, stress, rounds) {
+    var st = store.getState();
+    var token = byId(st.selectedTokenId);
+    if (!token) {
+      safeNotif('Select a token first.', 'warn');
+      return;
+    }
+    addTokenRoundEffect(String(token.id), String(label || 'Condition'), Number(stress || 1), Number(rounds || 2), '#e3bc5e');
+    updateUiPanels();
+    drawBoard();
+  };
+
+  window.applyCombatSettingsFromModal = function () {
+    var fogEnabled = !!(document.getElementById('combatSettingsFogEnabled') && document.getElementById('combatSettingsFogEnabled').checked);
+    var autoRoll = !!(document.getElementById('combatSettingsAutoRoll') && document.getElementById('combatSettingsAutoRoll').checked);
+    store.setState(function (state) {
+      var next = Object.assign({}, state, { autoRoll: autoRoll });
+      next.fog = Object.assign({
+        enabled: false,
+        showMask: true,
+        revealMode: 'manual',
+        visionRadius: 3,
+        revealed: {},
+        revealOrder: {},
+        revealSeq: 0,
+        revealStep: 0
+      }, state.fog || {}, { enabled: fogEnabled });
+      persist(next);
+      return next;
     });
+    drawBoard();
+    updateUiPanels();
   };
 
   window.showCombatRulesReference = showCombatRulesReference;

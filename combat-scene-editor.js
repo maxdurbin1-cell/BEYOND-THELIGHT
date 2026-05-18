@@ -400,8 +400,6 @@
     next.layers.weather = Object.assign({}, next.layers.weather || {});
     next.layers.interactives = Object.assign({}, next.layers.interactives || {});
     next.layers.spawns = Object.assign({}, next.layers.spawns || {});
-    // radiusEffects: array of { id, tokenId, label, radius, color, rounds, startRound }
-    next.radiusEffects = Array.isArray(next.radiusEffects) ? next.radiusEffects : [];
     next.fog = Object.assign({
       enabled: false,
       showMask: true,
@@ -416,10 +414,6 @@
     next.fog.revealOrder = Object.assign({}, next.fog.revealOrder || {});
     next.sceneRules = Object.assign({ rollMode: 'auto', defaultActionType: 'ranged' }, next.sceneRules && typeof next.sceneRules === 'object' ? next.sceneRules : {});
     next.tokens = Array.isArray(next.tokens) ? next.tokens : [];
-    next.tokens = next.tokens.map(function (t) {
-      if (!t) return t;
-      return Object.assign({ conditions: [] }, t, { conditions: Array.isArray(t.conditions) ? t.conditions : [] });
-    });
     next.initiative = Array.isArray(next.initiative) ? next.initiative : [];
     next.actionHistory = Array.isArray(next.actionHistory) ? next.actionHistory : [];
     next.collapsedPanels = Object.assign({}, next.collapsedPanels || {});
@@ -439,8 +433,7 @@
       sceneRules: clone(state.sceneRules || {}),
       tokens: clone(state.tokens || []),
       initiative: clone(state.initiative || []),
-      actionHistory: clone((state.actionHistory || []).slice(0, 80)),
-      radiusEffects: clone(state.radiusEffects || [])
+      actionHistory: clone((state.actionHistory || []).slice(0, 80))
     };
   }
 
@@ -478,8 +471,7 @@
       currentTurnIndex: synced.currentTurnIndex,
       collapsedPanels: synced.collapsedPanels,
       scenes: synced.scenes,
-      activeSceneId: synced.activeSceneId,
-      radiusEffects: synced.radiusEffects || []
+      activeSceneId: synced.activeSceneId
     };
     try {
       localStorage.setItem(KEY, JSON.stringify(slim));
@@ -914,22 +906,6 @@
       });
       if (wayfarerRowIndex < 0) wayfarerRowIndex = 0;
       next.round = Math.max(1, Number(inner.round || 1) + 1);
-      // Prune expired radius effects
-      next.radiusEffects = (inner.radiusEffects || []).filter(function (rfx) {
-        if (!rfx) return false;
-        var endRound = Number(rfx.startRound || 1) + Number(rfx.rounds || 1) - 1;
-        return endRound >= next.round;
-      });
-      // Expire conditions on tokens
-      next.tokens = (inner.tokens || []).map(function (t) {
-        if (!t || !Array.isArray(t.conditions)) return t;
-        var activeConds = t.conditions.filter(function (c) {
-          if (!c || typeof c !== 'object') return true; // plain strings kept
-          var endRnd = Number(c.startRound || 1) + Number(c.rounds || 99) - 1;
-          return endRnd >= next.round;
-        });
-        return Object.assign({}, t, { conditions: activeConds });
-      });
       next.initiativeIndex = wayfarerRowIndex;
       next.currentTurnIndex = wayfarerRowIndex;
       next.teamActions = {};
@@ -1122,54 +1098,6 @@
     addHistory((sourceLabel ? String(sourceLabel) + ' hits ' : '') + String(target.name || 'Target') + ' for ' + amount + ' damage (' + newHp + ' HP left).');
     if (newHp <= 0) markTokenAsDead(tokenId, sourceLabel || 'damage');
     return newHp;
-  }
-  // ── Radius Effects (Spell Radius, Personal Flavor zones, Conditions) ──────
-  function addRadiusEffect(tokenId, label, radius, color, rounds) {
-    store.setState(function (state) {
-      var next = Object.assign({}, state);
-      var existing = Array.isArray(state.radiusEffects) ? state.radiusEffects.slice() : [];
-      existing.push({
-        id: uid('rfx'),
-        tokenId: String(tokenId || ''),
-        label: String(label || 'Effect'),
-        radius: Math.max(1, Math.min(12, Number(radius || 2))),
-        color: String(color || '#49c9bb'),
-        rounds: Math.max(1, Number(rounds || 1)),
-        startRound: Math.max(1, Number(state.round || 1))
-      });
-      next.radiusEffects = existing;
-      persist(next);
-      return next;
-    });
-  }
-
-  function removeRadiusEffect(effectId) {
-    store.setState(function (state) {
-      var next = Object.assign({}, state);
-      next.radiusEffects = (state.radiusEffects || []).filter(function (e) {
-        return e && String(e.id) !== String(effectId);
-      });
-      persist(next);
-      return next;
-    });
-  }
-
-  function pruneExpiredRadiusEffects(state) {
-    var round = Math.max(1, Number(state.round || 1));
-    return (state.radiusEffects || []).filter(function (e) {
-      if (!e) return false;
-      var endRound = Number(e.startRound || 1) + Number(e.rounds || 1) - 1;
-      return endRound >= round;
-    });
-  }
-
-  function activeRadiusEffectsForToken(state, tokenId) {
-    var round = Math.max(1, Number(state.round || 1));
-    return (state.radiusEffects || []).filter(function (e) {
-      if (!e || String(e.tokenId) !== String(tokenId)) return false;
-      var endRound = Number(e.startRound || 1) + Number(e.rounds || 1) - 1;
-      return endRound >= round;
-    });
   }
 
   function nearestTokenAt(q, r) {
@@ -1450,7 +1378,10 @@
     var v = String(actionValue || '').toLowerCase();
     if (!v) return true;
     if (v.indexOf('strike') >= 0) return Number(range || 0) <= 1;
-    if (v.indexOf('shoot') >= 0) return Number(range || 0) <= 3;
+    if (v.indexOf('shoot') >= 0) {
+      var r = Number(range || 0);
+      return r >= 2 && r <= 3;
+    }
     return true;
   }
 
@@ -1551,6 +1482,9 @@
     });
     var token = byId(tokenId);
     if (token) addHistory(String(token.name || 'Token') + ' moved to ' + toKey(q, r) + '.');
+    if (activeMovement && actor && String(actor.faction || '') === 'monster') {
+      maybeAdvanceRoundAfterEnemyActions(actor.id);
+    }
   }
 
   function ensureOverlayDom() {
@@ -1706,7 +1640,6 @@
       + '<button class="btn btn-xs" id="combatZoomOutBtn">Zoom -</button>'
       + '</div>'
       + '</div>'
-      + '<div style="margin-top:.35rem;border:1px solid rgba(208,83,83,.4);padding:.32rem .36rem;background:rgba(208,83,83,.06);border-radius:5px;">'      + '<div class="combat-label" style="color:#d05353;margin-bottom:.25rem;">Enemy / Token Setup</div>'      + '<div style="display:grid;grid-template-columns:1fr auto auto;gap:.24rem;align-items:end;margin-bottom:.22rem;">'      + '<div><div class="combat-label">Name</div><input class="combat-input" id="combatTokenNameInput" type="text" placeholder="Enemy name…"></div>'      + '<button class="btn btn-xs" id="combatSaveTokenNameBtn">Set Name</button>'      + '<button class="btn btn-xs" id="combatTokenAppearanceBtn" title="Set appearance description">Looks</button>'      + '</div>'      + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.24rem;align-items:end;margin-bottom:.22rem;">'      + '<div><div class="combat-label">Dread Die</div><input class="combat-input" id="combatTokenDreadInput" type="number" min="4" max="20" step="2" placeholder="d6"></div>'      + '<div><div class="combat-label">Death #</div><input class="combat-input" id="combatTokenDeathNumInput" type="number" min="1" max="20" placeholder="6"></div>'      + '<button class="btn btn-xs" id="combatSaveDreadBtn">Set Dread</button>'      + '</div>'      + '<div style="border-top:1px solid rgba(73,201,187,.2);padding-top:.25rem;margin-top:.1rem;">'      + '<div class="combat-label" style="color:#49c9bb;">Conditions (with rounds)</div>'      + '<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:.22rem;align-items:end;margin-top:.2rem;">'      + '<input class="combat-input" id="combatConditionLabelInput" type="text" placeholder="burning, stunned…" list="combatConditionList">'      + '<datalist id="combatConditionList"><option value="burning"><option value="poisoned"><option value="stunned"><option value="frozen"><option value="bleeding"><option value="blinded"><option value="cursed"><option value="weakened"><option value="rooted"></datalist>'      + '<input class="combat-input" id="combatConditionRoundsInput" type="number" min="1" max="99" placeholder="rnd" style="width:52px;">'      + '<button class="btn btn-xs btn-teal" id="combatAddConditionBtn">+ Cond</button>'      + '<button class="btn btn-xs btn-red" id="combatClearConditionsBtn">Clear</button>'      + '</div>'      + '<div id="combatConditionList2" style="display:flex;flex-wrap:wrap;gap:.18rem;margin-top:.2rem;min-height:.9rem;font-size:.72rem;"></div>'      + '</div>'      + '<div style="border-top:1px solid rgba(73,201,187,.2);padding-top:.25rem;margin-top:.18rem;">'      + '<div class="combat-label" style="color:#49c9bb;">Spell Radius / Personal Flavor</div>'      + '<div style="display:grid;grid-template-columns:1fr auto auto auto auto;gap:.22rem;align-items:end;margin-top:.2rem;">'      + '<input class="combat-input" id="combatRfxLabelInput" type="text" placeholder="Fireball, Flavor…">'      + '<input class="combat-input" id="combatRfxRadiusInput" type="number" min="1" max="12" placeholder="r" style="width:44px;" value="2">'      + '<input class="combat-input" id="combatRfxRoundsInput" type="number" min="1" max="99" placeholder="rnd" style="width:44px;" value="3">'      + '<input class="combat-input" id="combatRfxColorInput" type="color" value="#49c9bb" style="width:36px;padding:1px;height:28px;cursor:pointer;">'      + '<button class="btn btn-xs btn-teal" id="combatPlaceRadiusBtn">Place</button>'      + '</div>'      + '<div id="combatRfxList" style="display:flex;flex-wrap:wrap;gap:.18rem;margin-top:.2rem;min-height:.9rem;font-size:.72rem;"></div>'      + '</div>'      + '</div>'
       + '</aside>';
     document.body.appendChild(root);
     return root;
@@ -2150,66 +2083,6 @@
       }
     }
 
-    // ── Radius Effects: draw spell radius zones on hex grid ──────────────────
-    function parseRfxColor(hex, alpha) {
-      var c = String(hex || '#49c9bb').replace('#', '');
-      if (c.length === 3) c = c[0]+c[0]+c[1]+c[1]+c[2]+c[2];
-      var r2 = parseInt(c.slice(0,2),16), g2 = parseInt(c.slice(2,4),16), b2 = parseInt(c.slice(4,6),16);
-      if (isNaN(r2)||isNaN(g2)||isNaN(b2)) { r2=73;g2=201;b2=187; }
-      return 'rgba('+r2+','+g2+','+b2+','+alpha+')';
-    }
-    var activeRfx = pruneExpiredRadiusEffects(state);
-    activeRfx.forEach(function (rfx) {
-      var src = (state.tokens || []).find(function (t) { return t && String(t.id) === String(rfx.tokenId); });
-      if (!src) return;
-      var srcCenter = axialToPixel(Number(src.q || 0), Number(src.r || 0), size, board.panX, board.panY);
-      var hexR = rfx.radius;
-      var hexColor = String(rfx.color || '#49c9bb');
-      var isPersonalFlavor = String(rfx.label||'').toLowerCase().indexOf('flavor') >= 0 || String(rfx.label||'').toLowerCase().indexOf('personal') >= 0;
-      // Draw filled hexes in radius
-      for (var rfxDr = -hexR; rfxDr <= hexR; rfxDr++) {
-        for (var rfxDq = -hexR; rfxDq <= hexR; rfxDq++) {
-          var rfxDist = hexDistance({q: 0, r: 0}, {q: rfxDq, r: rfxDr});
-          if (rfxDist < 1 || rfxDist > hexR) continue;
-          var rfxHq = Number(src.q||0) + rfxDq;
-          var rfxHr = Number(src.r||0) + rfxDr;
-          var rfxHp = axialToPixel(rfxHq, rfxHr, size, board.panX, board.panY);
-          ctx.save();
-          drawHex(ctx, rfxHp.x, rfxHp.y, size - 2);
-          ctx.fillStyle = parseRfxColor(hexColor, 0.13);
-          ctx.fill();
-          ctx.strokeStyle = parseRfxColor(hexColor, 0.55);
-          ctx.lineWidth = 1.8;
-          ctx.stroke();
-          if (isPersonalFlavor) {
-            ctx.fillStyle = parseRfxColor(hexColor, 0.9);
-            ctx.font = '9px Rajdhani, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('✶', rfxHp.x, rfxHp.y + 3);
-          }
-          ctx.restore();
-        }
-      }
-      // Dashed outer ring
-      ctx.save();
-      ctx.strokeStyle = parseRfxColor(hexColor, 0.8);
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([4, 3]);
-      ctx.beginPath();
-      ctx.arc(srcCenter.x, srcCenter.y, hexR * size * 1.73, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      // Floating label
-      var rfxEndRound = Number(rfx.startRound||1) + Number(rfx.rounds||1) - 1;
-      var rfxRoundsLeft = Math.max(0, rfxEndRound - Math.max(1, Number(state.round||1)) + 1);
-      var rfxLabelYOffset = (size * 0.32 * Math.max(1, Number(src.size||1))) + 44;
-      ctx.fillStyle = parseRfxColor(hexColor, 0.95);
-      ctx.font = 'bold 10px Rajdhani, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(String(rfx.label||'Effect') + ' r' + hexR + ' [' + rfxRoundsLeft + ']', srcCenter.x, srcCenter.y - rfxLabelYOffset);
-      ctx.restore();
-    });
-
     (state.tokens || []).forEach(function (token) {
       var p = axialToPixel(Number(token.q || 0), Number(token.r || 0), size, board.panX, board.panY);
       var radius = Math.max(14, (size * 0.32) * Math.max(1, Number(token.size || 1)));
@@ -2237,49 +2110,6 @@
         ctx.strokeStyle = 'rgba(227,188,94,.95)';
         ctx.stroke();
       }
-      // ── Condition Glow Rings ─────────────────────────────────────────────
-      var condColors = {
-        'burning': '#ff6b35', 'poisoned': '#57d69b', 'stunned': '#b993ff',
-        'frozen': '#7ecdff', 'bleeding': '#d05353', 'blinded': '#e3bc5e',
-        'cursed': '#9966cc', 'weakened': '#c8a87e', 'rooted': '#7aab4a'
-      };
-      if (!dead && Array.isArray(token.conditions) && token.conditions.length > 0) {
-        token.conditions.forEach(function (cond, ci) {
-          var condLabel = typeof cond === 'object' ? String(cond.label || '') : String(cond || '');
-          var condRound = typeof cond === 'object' ? Number(cond.rounds || 99) : 99;
-          var condStart = typeof cond === 'object' ? Number(cond.startRound || 1) : 1;
-          var condEndRound = condStart + condRound - 1;
-          var condActive = condEndRound >= Math.max(1, Number(state.round || 1));
-          if (!condActive || !condLabel) return;
-          var condColorKey = condLabel.toLowerCase();
-          var condHex = condColors[condColorKey] || '#aaaaff';
-          var condAlpha = 0.7 + 0.3 * (ci % 2);
-          var condR = radius + 5 + ci * 6;
-          ctx.save();
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, condR, 0, Math.PI * 2);
-          // Glow effect via shadow
-          ctx.shadowColor = condHex;
-          ctx.shadowBlur = 12;
-          ctx.strokeStyle = condHex.replace('#', 'rgba(').split('').join('') + ',' + condAlpha + ')';
-          // Simple color string
-          ctx.strokeStyle = condHex;
-          ctx.globalAlpha = condAlpha;
-          ctx.lineWidth = 2.5;
-          ctx.stroke();
-          ctx.shadowBlur = 0;
-          ctx.globalAlpha = 1;
-          // Condition label pill
-          var roundsLeft = Math.max(0, condEndRound - Math.max(1, Number(state.round||1)) + 1);
-          var pillLabel = condLabel + (roundsLeft < 99 ? ' ' + roundsLeft : '');
-          ctx.font = 'bold 8px Rajdhani, sans-serif';
-          ctx.textAlign = 'center';
-          ctx.fillStyle = condHex;
-          ctx.fillText(pillLabel, p.x, p.y - condR - 3);
-          ctx.restore();
-        });
-      }
-
       ctx.fillStyle = '#fff';
       ctx.font = '11px Rajdhani, sans-serif';
       ctx.textAlign = 'center';
@@ -2336,6 +2166,7 @@
         ctx.restore();
         bubbleHotspots.push({ tokenId: String(token.id), statKey: String(b.key), x: bx, y: bubbleY, w: bw, h: bh, cx: bx + (bw / 2), cy: bubbleY + (bh / 2) });
       });
+
       ctx.restore();
     });
 
@@ -2575,75 +2406,6 @@
       selectedElevation.value = selected ? Number(state.layers.elevation[toKey(selected.q, selected.r)] || 0) : 0;
     }
 
-    // ── Populate new token setup controls ─────────────────────────────────────
-    var nameInput = document.getElementById('combatTokenNameInput');
-    var dreadInput = document.getElementById('combatTokenDreadInput');
-    var deathNumInput = document.getElementById('combatTokenDeathNumInput');
-    if (nameInput) nameInput.value = selected ? String(selected.name || '') : '';
-    if (dreadInput) dreadInput.value = selected ? Math.max(4, Number(selected.dread || selected.codexDread || 6)) : '';
-    if (deathNumInput) deathNumInput.value = selected ? Math.max(1, Number(selected.deathNumber || selected.dread || 6)) : '';
-
-    // Condition list display
-    var condListEl = document.getElementById('combatConditionList2');
-    if (condListEl) {
-      var round = Math.max(1, Number(state.round || 1));
-      var condItems = selected && Array.isArray(selected.conditions) ? selected.conditions : [];
-      condListEl.innerHTML = condItems.length === 0 ? '<span style="color:rgba(255,255,255,.4);">None</span>' :
-        condItems.map(function (cond, ci) {
-          var label = typeof cond === 'object' ? String(cond.label || '') : String(cond || '');
-          var rnds = typeof cond === 'object' ? Number(cond.rounds || 99) : 99;
-          var start = typeof cond === 'object' ? Number(cond.startRound || 1) : 1;
-          var endRnd = start + rnds - 1;
-          var left = rnds >= 99 ? '∞' : String(Math.max(0, endRnd - round + 1));
-          var condColorMap = { burning: '#ff6b35', poisoned: '#57d69b', stunned: '#b993ff', frozen: '#7ecdff', bleeding: '#d05353', blinded: '#e3bc5e', cursed: '#9966cc', weakened: '#c8a87e', rooted: '#7aab4a' };
-          var c = condColorMap[label.toLowerCase()] || '#aaaaff';
-          return '<span style="background:' + c + '22;border:1px solid ' + c + ';color:' + c + ';padding:1px 6px;border-radius:10px;cursor:pointer;" title="Click to remove" data-condidx="' + ci + '">'
-            + label + ' ' + left + '</span>';
-        }).join('');
-      // Click-to-remove condition chips
-      Array.prototype.slice.call(condListEl.querySelectorAll('[data-condidx]')).forEach(function (chip) {
-        chip.onclick = function () {
-          var idx = Number(this.getAttribute('data-condidx'));
-          if (!selected) return;
-          store.setState(function (s) {
-            var next = Object.assign({}, s);
-            next.tokens = (s.tokens || []).map(function (t) {
-              if (!t || String(t.id) !== String(selected.id)) return t;
-              var conds = Array.isArray(t.conditions) ? t.conditions.slice() : [];
-              conds.splice(idx, 1);
-              return Object.assign({}, t, { conditions: conds });
-            });
-            persist(next);
-            return next;
-          });
-          updateUiPanels();
-          drawBoard();
-        };
-      });
-    }
-
-    // Radius effects list display
-    var rfxListEl = document.getElementById('combatRfxList');
-    if (rfxListEl) {
-      var activeRfxList = selected ? activeRadiusEffectsForToken(state, selected.id) : [];
-      rfxListEl.innerHTML = activeRfxList.length === 0 ? '<span style="color:rgba(255,255,255,.4);">None active</span>' :
-        activeRfxList.map(function (rfx) {
-          var rfxEndRound = Number(rfx.startRound||1) + Number(rfx.rounds||1) - 1;
-          var rfxLeft = Math.max(0, rfxEndRound - Math.max(1, Number(state.round||1)) + 1);
-          return '<span style="background:' + rfx.color + '22;border:1px solid ' + rfx.color + ';color:' + rfx.color + ';padding:1px 6px;border-radius:10px;cursor:pointer;" title="Click to remove" data-rfxid="' + rfx.id + '">'
-            + rfx.label + ' r' + rfx.radius + ' [' + rfxLeft + ']</span>';
-        }).join('');
-      Array.prototype.slice.call(rfxListEl.querySelectorAll('[data-rfxid]')).forEach(function (chip) {
-        chip.onclick = function () {
-          var eid = this.getAttribute('data-rfxid');
-          removeRadiusEffect(eid);
-          updateUiPanels();
-          drawBoard();
-        };
-      });
-    }
-
-
     var weatherSelect = document.getElementById('combatWeatherSelect');
     var weatherIntensity = document.getElementById('combatWeatherIntensity');
     if (weatherSelect) weatherSelect.value = String(state.board.weatherOverlay || 'none');
@@ -2741,9 +2503,15 @@
       var btn = document.getElementById(id);
       if (!btn) return;
       btn.disabled = false;
-      btn.style.opacity = playerTurn ? '0.72' : '1';
-      if (playerTurn) btn.title = 'Not enemy turn yet. Clicking shows guidance.';
-      else btn.title = '';
+      btn.style.opacity = '1';
+      btn.style.display = 'none';
+      btn.title = '';
+    });
+
+    ['combatCmdDefendBtn', 'combatCmdTraumaBtn'].forEach(function (id) {
+      var btn = document.getElementById(id);
+      if (!btn) return;
+      btn.style.display = 'none';
     });
 
     var syncBadge = document.getElementById('combatSharedSyncBadge');
@@ -3118,6 +2886,8 @@
     var enemyLedgerMeta = document.getElementById('combatEnemyLedgerMeta');
     var enemyLedgerFeed = document.getElementById('combatEnemyLedgerFeed');
     if (enemyLedgerMeta && enemyLedgerFeed) {
+      var ledgerBlock = enemyLedgerMeta.parentElement;
+      if (ledgerBlock) ledgerBlock.style.display = 'none';
       var entries = [];
       if (typeof window.getEnemyBudgetLedger === 'function') {
         try { entries = window.getEnemyBudgetLedger() || []; } catch (_err) { entries = []; }
@@ -3394,51 +3164,6 @@
       var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, state.board.panX, state.board.panY);
       spawnBestiaryToken(profile, ax.q, ax.r);
     });
-
-    // ── Touch events for mobile ───────────────────────────────────────────────
-    var _lastTouchDist = null;
-    canvas.addEventListener('touchstart', function (ev) {
-      if (ev.touches.length === 2) {
-        var t1 = ev.touches[0], t2 = ev.touches[1];
-        _lastTouchDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-        return;
-      }
-      ev.preventDefault();
-      var touch = ev.touches[0];
-      canvas.dispatchEvent(new MouseEvent('mousedown', { clientX: touch.clientX, clientY: touch.clientY, button: 0, bubbles: true }));
-    }, { passive: false });
-
-    canvas.addEventListener('touchmove', function (ev) {
-      if (ev.touches.length === 2) {
-        ev.preventDefault();
-        var t1 = ev.touches[0], t2 = ev.touches[1];
-        var dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-        if (_lastTouchDist !== null) {
-          var delta = _lastTouchDist - dist;
-          store.setState(function (state) {
-            var nextZoom = Number(state.board.zoom || 1) + (delta < 0 ? 0.04 : -0.04);
-            nextZoom = Math.max(0.5, Math.min(2.3, nextZoom));
-            var next = Object.assign({}, state);
-            next.board = Object.assign({}, state.board, { zoom: nextZoom });
-            persist(next);
-            return next;
-          });
-          drawBoard();
-        }
-        _lastTouchDist = dist;
-        return;
-      }
-      ev.preventDefault();
-      var touch = ev.touches[0];
-      canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: touch.clientX, clientY: touch.clientY, bubbles: true }));
-    }, { passive: false });
-
-    canvas.addEventListener('touchend', function (ev) {
-      _lastTouchDist = null;
-      ev.preventDefault();
-      canvas.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-    }, { passive: false });
-
   }
 
   function bindDragPanels() {
@@ -4677,154 +4402,6 @@
         drawBoard();
       };
     }
-
-    // ── New Token Setup Handlers ──────────────────────────────────────────────
-    var saveTokenNameBtn = document.getElementById('combatSaveTokenNameBtn');
-    if (saveTokenNameBtn && !saveTokenNameBtn._bound) {
-      saveTokenNameBtn._bound = true;
-      saveTokenNameBtn.onclick = function () {
-        var nameInput = document.getElementById('combatTokenNameInput');
-        var newName = String(nameInput && nameInput.value || '').trim();
-        if (!newName) return;
-        var state = store.getState();
-        var token = byId(state.selectedTokenId);
-        if (!token) { safeNotif('Select a token first.', 'warn'); return; }
-        store.setState(function (s) {
-          var next = Object.assign({}, s);
-          next.tokens = (s.tokens || []).map(function (t) {
-            return t && String(t.id) === String(token.id) ? Object.assign({}, t, { name: newName }) : t;
-          });
-          persist(next);
-          return next;
-        });
-        addHistory('Token renamed to "' + newName + '".');
-        updateUiPanels();
-        drawBoard();
-      };
-    }
-
-    var tokenAppearanceBtn = document.getElementById('combatTokenAppearanceBtn');
-    if (tokenAppearanceBtn && !tokenAppearanceBtn._bound) {
-      tokenAppearanceBtn._bound = true;
-      tokenAppearanceBtn.onclick = function () {
-        var state = store.getState();
-        var token = byId(state.selectedTokenId);
-        if (!token) { safeNotif('Select a token first.', 'warn'); return; }
-        var current = String(token.appearance || '');
-        var desc = window.prompt('Appearance / description for "' + (token.name || 'Token') + '":', current);
-        if (desc === null) return;
-        store.setState(function (s) {
-          var next = Object.assign({}, s);
-          next.tokens = (s.tokens || []).map(function (t) {
-            return t && String(t.id) === String(token.id) ? Object.assign({}, t, { appearance: String(desc) }) : t;
-          });
-          persist(next);
-          return next;
-        });
-        addHistory('"' + (token.name||'Token') + '" appearance: ' + String(desc).slice(0,80));
-        updateUiPanels();
-      };
-    }
-
-    var saveDreadBtn = document.getElementById('combatSaveDreadBtn');
-    if (saveDreadBtn && !saveDreadBtn._bound) {
-      saveDreadBtn._bound = true;
-      saveDreadBtn.onclick = function () {
-        var dreadInput = document.getElementById('combatTokenDreadInput');
-        var deathNumInput = document.getElementById('combatTokenDeathNumInput');
-        var dread = Math.max(4, Number(dreadInput && dreadInput.value || 6));
-        var deathNum = Math.max(1, Number(deathNumInput && deathNumInput.value || dread));
-        var state = store.getState();
-        var token = byId(state.selectedTokenId);
-        if (!token) { safeNotif('Select a token first.', 'warn'); return; }
-        store.setState(function (s) {
-          var next = Object.assign({}, s);
-          next.tokens = (s.tokens || []).map(function (t) {
-            return t && String(t.id) === String(token.id) ? Object.assign({}, t, { dread: dread, deathNumber: deathNum }) : t;
-          });
-          persist(next);
-          return next;
-        });
-        addHistory((token.name||'Token') + ' Dread Die: d' + dread + ', Death #: ' + deathNum + '.');
-        updateUiPanels();
-        drawBoard();
-      };
-    }
-
-    var addConditionBtn = document.getElementById('combatAddConditionBtn');
-    if (addConditionBtn && !addConditionBtn._bound) {
-      addConditionBtn._bound = true;
-      addConditionBtn.onclick = function () {
-        var condLabel = document.getElementById('combatConditionLabelInput');
-        var condRounds = document.getElementById('combatConditionRoundsInput');
-        var label = String(condLabel && condLabel.value || '').trim().toLowerCase();
-        var rounds = Math.max(1, Number(condRounds && condRounds.value || 1));
-        if (!label) { safeNotif('Enter a condition name.', 'warn'); return; }
-        var state = store.getState();
-        var token = byId(state.selectedTokenId);
-        if (!token) { safeNotif('Select a token first.', 'warn'); return; }
-        store.setState(function (s) {
-          var next = Object.assign({}, s);
-          next.tokens = (s.tokens || []).map(function (t) {
-            if (!t || String(t.id) !== String(token.id)) return t;
-            var conds = Array.isArray(t.conditions) ? t.conditions.slice() : [];
-            conds.push({ label: label, rounds: rounds, startRound: Math.max(1, Number(s.round || 1)) });
-            return Object.assign({}, t, { conditions: conds });
-          });
-          persist(next);
-          return next;
-        });
-        addHistory((token.name||'Token') + ' gains condition: ' + label + ' for ' + rounds + ' round(s).');
-        if (condLabel) condLabel.value = '';
-        if (condRounds) condRounds.value = '1';
-        updateUiPanels();
-        drawBoard();
-      };
-    }
-
-    var clearConditionsBtn = document.getElementById('combatClearConditionsBtn');
-    if (clearConditionsBtn && !clearConditionsBtn._bound) {
-      clearConditionsBtn._bound = true;
-      clearConditionsBtn.onclick = function () {
-        var state = store.getState();
-        var token = byId(state.selectedTokenId);
-        if (!token) { safeNotif('Select a token first.', 'warn'); return; }
-        store.setState(function (s) {
-          var next = Object.assign({}, s);
-          next.tokens = (s.tokens || []).map(function (t) {
-            return t && String(t.id) === String(token.id) ? Object.assign({}, t, { conditions: [] }) : t;
-          });
-          persist(next);
-          return next;
-        });
-        addHistory((token.name||'Token') + ' conditions cleared.');
-        updateUiPanels();
-        drawBoard();
-      };
-    }
-
-    var placeRadiusBtn = document.getElementById('combatPlaceRadiusBtn');
-    if (placeRadiusBtn && !placeRadiusBtn._bound) {
-      placeRadiusBtn._bound = true;
-      placeRadiusBtn.onclick = function () {
-        var state = store.getState();
-        var token = byId(state.selectedTokenId);
-        if (!token) { safeNotif('Select a token first.', 'warn'); return; }
-        var labelEl = document.getElementById('combatRfxLabelInput');
-        var radiusEl = document.getElementById('combatRfxRadiusInput');
-        var roundsEl = document.getElementById('combatRfxRoundsInput');
-        var colorEl = document.getElementById('combatRfxColorInput');
-        var label = String(labelEl && labelEl.value || 'Effect').trim() || 'Effect';
-        var radius = Math.max(1, Math.min(12, Number(radiusEl && radiusEl.value || 2)));
-        var rounds = Math.max(1, Number(roundsEl && roundsEl.value || 3));
-        var color = String(colorEl && colorEl.value || '#49c9bb');
-        addRadiusEffect(token.id, label, radius, color, rounds);
-        addHistory((token.name||'Token') + ': placed "' + label + '" radius ' + radius + ' for ' + rounds + ' rounds.');
-        updateUiPanels();
-        drawBoard();
-      };
-    }
-
   }
 
   function openOverlay(seed) {

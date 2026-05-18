@@ -1800,7 +1800,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 
 <script>
 const DICE=[4,6,8,10,12,20];
-const DICE_VISUAL_DEFAULTS={enabled:true,maxVisible:6,mode:'all',cinematicMajor:true};
+const DICE_VISUAL_DEFAULTS={enabled:false,maxVisible:6,mode:'all',cinematicMajor:true};
 function loadDiceVisualSettings(){
   try{
     const raw=localStorage.getItem('beyond-light-dice-visuals');
@@ -13663,20 +13663,20 @@ function toggleHeroOverview(forceState){
 }
 const HOMEPAGE_COPY_VARIANTS={
   A:{
-    kicker:'Beyond The Light • Play In Minutes',
-    title:'Run Characters, Combat, and Campaign Story In One Place',
-    subheading:'Create a Wayfarer, follow a guided first mission, then run combat and province travel with persistent progress. Designed for solo play or GM-led groups with clear flow and low setup friction.',
-    primaryCta:'Start New Wayfarer',
-    guidedCta:'First-Time Guided Path',
-    firstPathCta:'Begin First-Time Path'
+    kicker:'Beyond The Light • Solo Speed Run',
+    title:'Start Solo In Minutes, Keep Momentum Every Turn',
+    subheading:'Generate your Wayfarer, follow one guided objective, and move straight into combat and province play without setup drag. Built for fast solo sessions with clean carry-over progress.',
+    primaryCta:'Start Solo Wayfarer',
+    guidedCta:'Run The Guided Solo Start',
+    firstPathCta:'Begin Solo First Mission'
   },
   B:{
-    kicker:'Beyond The Light • Launch In Under 3 Minutes',
-    title:'From First Character To Live Combat Without Setup Drag',
-    subheading:'Generate your Wayfarer, take the guided first objective, and move into combat and province play with your progress already connected. Built for fast solo sessions and clean GM handoff.',
-    primaryCta:'Generate My Wayfarer Now',
-    guidedCta:'Take The Guided First Session',
-    firstPathCta:'Start The First Session Path'
+    kicker:'Beyond The Light • GM Campaign Control',
+    title:'Run Multi-Scene Campaigns With Fast GM Command',
+    subheading:'Stand up characters quickly, launch guided onboarding for players, and control combat plus province progression from one connected flow. Built for GM-led campaign continuity.',
+    primaryCta:'Launch GM Campaign Setup',
+    guidedCta:'Open Guided Player Onboarding',
+    firstPathCta:'Start Campaign Control Path'
   }
 };
 function getHomepageCopyVariant(){

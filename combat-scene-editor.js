@@ -795,9 +795,16 @@
   function getMovementActionsAvailable(state, token) {
     if (!state || !token) return 0;
     if (!isSceneActive() || !state.playMode) return 0;
-    if (!isTokenTurnActive(state, token.id)) return 0;
+    var isPlayerSide = !!token.isPlayer || String(token.faction || '') === 'player';
+    var tokenTurnActive = isTokenTurnActive(state, token.id);
+    if (!tokenTurnActive) {
+      var hasInitiative = !!(Array.isArray(state.initiative) && state.initiative.length);
+      var playerActions = Math.max(0, Number(window.S && window.S.combat && window.S.combat.actionsLeft || 0));
+      // Keep reachable hexes visible for Wayfarer when initiative has not synced yet.
+      if (!(isPlayerSide && (!hasInitiative || playerActions > 0))) return 0;
+    }
     if (isTokenDead(token)) return 0;
-    if (token.isPlayer || String(token.faction || '') === 'player') {
+    if (isPlayerSide) {
       return Math.max(0, Number(window.S && window.S.combat && window.S.combat.actionsLeft || 0));
     }
     return Math.max(0, Number(state.teamActions && state.teamActions[token.id] || 0));
@@ -952,6 +959,81 @@
   function rollDie(sides) {
     var s = Math.max(2, Number(sides || 6));
     return 1 + Math.floor(Math.random() * s);
+  }
+
+  function rollCombatDieTotal(sides, type, label) {
+    var die = Math.max(2, Number(sides || 6));
+    if (typeof window.explodingRoll === 'function') {
+      var rolled = window.explodingRoll(die, {
+        type: type || 'action',
+        major: true,
+        label: String(label || ('Combat d' + die))
+      });
+      return Math.max(1, Number(rolled && rolled.total || 1));
+    }
+    return rollDie(die);
+  }
+
+  function promptManualDieTotal(message, defaultValue, min, max) {
+    var raw = window.prompt(String(message || 'Enter roll total:'), String(defaultValue || 1));
+    if (raw === null) return null;
+    var n = Number(raw);
+    if (!Number.isFinite(n)) return null;
+    var low = Math.max(1, Number(min || 1));
+    var high = Math.max(low, Number(max || 20));
+    return Math.max(low, Math.min(high, Math.round(n)));
+  }
+
+  function parseArmorDefendFlatBonus() {
+    var armor = String(window.S && window.S.equipment && window.S.equipment.armor || '');
+    if (!armor) return 0;
+    var total = 0;
+    var m;
+    var rxLeading = /([+-]\d+)\s*defend/ig;
+    while ((m = rxLeading.exec(armor))) {
+      total += Number(m[1] || 0);
+    }
+    var rxTrailing = /defend\s*([+-]\d+)/ig;
+    while ((m = rxTrailing.exec(armor))) {
+      total += Number(m[1] || 0);
+    }
+    return Number.isFinite(total) ? total : 0;
+  }
+
+  function parseAffixDefendFlatBonus() {
+    var affix = (typeof window.getEquippedAffixCombatBonuses === 'function') ? window.getEquippedAffixCombatBonuses() : null;
+    if (!affix || typeof affix !== 'object') return 0;
+    var total = 0;
+    total += Number(affix.defendFlat || 0);
+    total += Number(affix.defendBonus || 0);
+    return Number.isFinite(total) ? total : 0;
+  }
+
+  function initializeSceneRoundState() {
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      var ordered = buildTurnOrder(state.tokens || []);
+      var wayfarerIndex = ordered.findIndex(function (row) {
+        var token = row ? byId(row.tokenId) : null;
+        return !!(token && token.isPlayer);
+      });
+      if (wayfarerIndex < 0) wayfarerIndex = 0;
+      next.round = 1;
+      next.initiative = ordered;
+      next.initiativeIndex = wayfarerIndex;
+      next.currentTurnIndex = wayfarerIndex;
+      next.teamActions = {};
+      (state.tokens || []).forEach(function (token) {
+        if (!normalizeTokenActionBudgetToken(token)) return;
+        next.teamActions[token.id] = 2;
+      });
+      persist(next);
+      return next;
+    });
+    if (window.S && window.S.combat) {
+      window.S.combat.round = 1;
+      syncWayfarerCombatActionBudget(true);
+    }
   }
 
   function isManualRollModeActive() {
@@ -1364,7 +1446,18 @@
       return;
     }
     var actionType = String(state.sceneRules && state.sceneRules.defaultActionType || 'ranged');
-    var base = state.autoRoll ? (Math.floor(Math.random() * 20) + 1) : Number(window.prompt('Manual action roll total (1-20):', '10') || 10);
+    var manualMode = !state.autoRoll || isManualRollModeActive();
+    var base = 0;
+    if (manualMode) {
+      var manualBase = promptManualDieTotal('Manual action roll total (1-20):', 10, 1, 20);
+      if (manualBase === null) {
+        safeNotif('Manual action roll cancelled.', 'info');
+        return;
+      }
+      base = manualBase;
+    } else {
+      base = Math.floor(Math.random() * 20) + 1;
+    }
     base = Math.max(1, Math.min(20, Number(base || 10)));
 
     var foes = (state.tokens || []).filter(function (token) {
@@ -3658,6 +3751,7 @@
       }
       var enemyRoll = Math.max(1, Number(resolution && resolution.enemyRoll || 1));
       var defendRoll = Math.max(1, Number(resolution && resolution.defendRoll || 1));
+      var defendBonus = Number(resolution && resolution.defendBonus || 0);
       var margin = enemyRoll - defendRoll;
       var hit = margin > 0;
       var stress = 0;
@@ -3692,6 +3786,7 @@
       addHistory((actor.name || 'Enemy') + ' action result at ' + hexLabel(dist)
         + ' · Dread d' + dreadDie + ' = ' + enemyRoll
         + ' vs ' + String(foe.name || 'target') + ' Defend d' + defendDie + ' = ' + defendRoll
+        + (defendBonus ? (' (includes +' + defendBonus + ' defend bonuses)') : '')
         + (hit ? (' · On Fail: ' + String(selected && selected.skill && selected.skill.onFail || ('Take ' + stress + ' Stress.'))) : (' · On Success: ' + String(selected && selected.skill && selected.skill.onSuccess || 'Resist the effect.'))));
 
       var notifEl = document.getElementById('combatLastNotification');
@@ -3704,37 +3799,55 @@
       return true;
     }
 
-    if (isManualRollModeActive() && typeof window.openWtwManualActionDreadPrompt === 'function') {
-      window.openWtwManualActionDreadPrompt({
-        title: 'Manual Roll — Enemy Action',
-        context: (actor.name || 'Enemy') + ' using ' + actionName + ' on ' + String(foe.name || 'target'),
-        statKey: 'defend',
-        statLabel: 'Defend',
-        actionDie: defendDie,
-        dreadDie: dreadDie,
-        onResolve: function (outcome) {
-          if (!outcome) return;
-          finalizeEnemyAction({
-            defendRoll: Number(outcome.actionTotal || 1),
-            enemyRoll: Number(outcome.dreadTotal || 1)
-          });
-        }
-      });
-      return true;
+    if (isManualRollModeActive()) {
+      if (typeof window.openWtwManualActionDreadPrompt === 'function') {
+        window.openWtwManualActionDreadPrompt({
+          title: 'Manual Roll — Enemy Action',
+          context: (actor.name || 'Enemy') + ' using ' + actionName + ' on ' + String(foe.name || 'target'),
+          statKey: 'defend',
+          statLabel: 'Defend',
+          actionDie: defendDie,
+          dreadDie: dreadDie,
+          onResolve: function (outcome) {
+            if (!outcome) return;
+            finalizeEnemyAction({
+              defendRoll: Number(outcome.actionTotal || 1),
+              enemyRoll: Number(outcome.dreadTotal || 1),
+              defendBonus: 0
+            });
+          }
+        });
+        return true;
+      }
+      var fallbackDefend = promptManualDieTotal('Manual Defend total for ' + String(foe.name || 'target') + ' (1-40):', 8, 1, 40);
+      if (fallbackDefend === null) {
+        safeNotif('Manual enemy action cancelled.', 'info');
+        return false;
+      }
+      var fallbackEnemy = promptManualDieTotal('Manual Dread total for ' + String(actor.name || 'Enemy') + ' (1-40):', 8, 1, 40);
+      if (fallbackEnemy === null) {
+        safeNotif('Manual enemy action cancelled.', 'info');
+        return false;
+      }
+      return finalizeEnemyAction({ defendRoll: fallbackDefend, enemyRoll: fallbackEnemy, defendBonus: 0 });
     }
 
-    var enemyRoll = rollDie(dreadDie);
-    var defendRolls = [rollDie(defendDie)];
+    var enemyRoll = rollCombatDieTotal(dreadDie, 'dread', String(actor.name || 'Enemy') + ' Dread d' + dreadDie);
+    var defendRolls = [rollCombatDieTotal(defendDie, 'action', String(foe.name || 'Target') + ' Defend d' + defendDie)];
+    var defendBonus = 0;
     if (foe && foe.isPlayer) {
       var defendAdv = parseDefendAdvantageCount();
-      for (var advIdx = 0; advIdx < defendAdv; advIdx++) defendRolls.push(rollDie(defendDie));
+      for (var advIdx = 0; advIdx < defendAdv; advIdx++) {
+        defendRolls.push(rollCombatDieTotal(defendDie, 'action', 'Defend Advantage d' + defendDie));
+      }
       var armorAdvDice = parseArmorDefendAdvDice();
       armorAdvDice.forEach(function (die) {
-        defendRolls.push(rollDie(die));
+        defendRolls.push(rollCombatDieTotal(die, 'action', 'Armor Defend AD' + die));
       });
+      defendBonus = parseArmorDefendFlatBonus() + parseAffixDefendFlatBonus();
     }
-    var defendRoll = defendRolls.reduce(function (mx, val) { return Math.max(mx, val); }, 0);
-    return finalizeEnemyAction({ defendRoll: defendRoll, enemyRoll: enemyRoll });
+    var defendRoll = defendRolls.reduce(function (mx, val) { return Math.max(mx, val); }, 0) + defendBonus;
+    return finalizeEnemyAction({ defendRoll: defendRoll, enemyRoll: enemyRoll, defendBonus: defendBonus });
   }
 
   function bindStaticControls() {
@@ -3860,10 +3973,7 @@
     if (startSceneBtn && !startSceneBtn._bound) {
       startSceneBtn._bound = true;
       startSceneBtn.onclick = function () {
-        if (window.S && window.S.combat && window.S.combat.active) {
-          safeNotif('Scene is already active.', 'info');
-          return;
-        }
+        var wasActive = !!(window.S && window.S.combat && window.S.combat.active);
         var state = store.getState();
         if ((!state.scenes || !state.scenes.length) && typeof window.createNewCombatScene === 'function') {
           try { window.createNewCombatScene(); } catch (_sceneErr) {}
@@ -3893,10 +4003,16 @@
           persist(next);
           return next;
         });
+        initializeSceneRoundState();
         if (typeof window.startCombat === 'function') {
-          try { window.startCombat(); } catch (_err) {}
-          addHistory('Scene started from Combat Mode.');
+          if (!wasActive) {
+            try { window.startCombat(); } catch (_err) {}
+          }
+          if (window.S && window.S.combat) window.S.combat.round = 1;
+          addHistory((wasActive ? 'Scene restarted' : 'Scene started') + ' from Combat Mode at Round 1.');
+          safeNotif(wasActive ? 'Scene restarted at Round 1.' : 'Scene started at Round 1.', 'good');
           updateUiPanels();
+          drawBoard();
           return;
         }
         safeNotif('Start Scene is unavailable right now.', 'warn');

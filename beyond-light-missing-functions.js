@@ -1478,14 +1478,6 @@ function generateCharacter() {
   changeCounter("pathTokens", 0);
   changeCounter("successRolls", 0);
   showNotif("Wayfarer generated", "good");
-  // Auto-generate backstory after character state is fully initialized
-  if (typeof generateBackstory === 'function') {
-    try {
-      generateBackstory();
-    } catch (err) {
-      console.warn('Error auto-generating backstory:', err);
-    }
-  }
   // Trigger origin mission after all character state is initialized
   if (typeof createOriginMissionFromReason === 'function') {
     try {

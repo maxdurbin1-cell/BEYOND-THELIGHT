@@ -586,6 +586,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
       <button class="btn btn-teal" onclick="switchTab('howto',document.getElementById('tabnav-howto'))">Start Onboarding</button>
       <button class="btn" onclick="switchTab('missions',document.getElementById('tabnav-missions'))">Open Mission Board</button>
       <button class="btn" onclick="switchTab('map',document.getElementById('tabnav-map'))">Enter Province Map</button>
+      <button class="btn btn-teal" onclick="openDiceRoller()" title="Open 3D dice roller">🎲 Roll Dice</button>
     </div>
     <div class="hero-meta-grid">
       <div class="hero-meta-card"><strong>Characters</strong><span>Identity, stats, resources, trauma, and condition management.</span></div>
@@ -601,6 +602,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
       <button class="btn" onclick="showSoloGuidance()">Guide</button>
       <button class="btn btn-primary" onclick="generateCharacter()">⚄ Generate Wayfarer</button>
       <button class="btn btn-teal" onclick="startGuidedCharacterBuild()">Guided Build</button>
+      <button class="btn btn-teal" onclick="openDiceRoller()" title="Open 3D dice roller">🎲 Roll Dice</button>
       <button class="btn" onclick="saveCharacter()">💾 Save</button>
       <button class="btn" onclick="loadCharacter()">📂 Load</button>
       <button class="btn" onclick="openWayfarerExportModal()">🧾 Export Sheet</button>
@@ -24278,6 +24280,7 @@ window.addEventListener('DOMContentLoaded', function() {
 <script defer src="/socket.io/socket.io.js"></script>
 <script defer src="./campaign-system.js"></script>
 <script defer src="./combat-scene-editor.js"></script>
+<script defer src="./dice-roller-3d.js"></script>
 
 </body>
 </html>

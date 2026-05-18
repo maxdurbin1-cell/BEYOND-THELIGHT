@@ -1121,6 +1121,36 @@ body.phone-layout-mode #main-content {
   padding: 0.82rem 0.55rem 5.5rem;
 }
 
+body.phone-layout-mode .tab-panel {
+  min-height: auto;
+}
+
+body.phone-layout-mode .card {
+  padding: 0.58rem;
+}
+
+body.phone-layout-mode .char-grid,
+body.phone-layout-mode .map-layout,
+body.phone-layout-mode .shop-grid,
+body.phone-layout-mode .backpack-grid,
+body.phone-layout-mode .hero-meta-grid {
+  grid-template-columns: 1fr !important;
+}
+
+body.phone-layout-mode .guided-build-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+body.phone-layout-mode .map-layout {
+  grid-template-rows: minmax(320px, 50vh) auto;
+}
+
+body.phone-layout-mode .hero-cta-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.34rem;
+}
+
 body.phone-layout-mode .global-quick-access {
   top: var(--quick-access-top, 7.25rem);
   padding: 0.34rem 0.5rem;

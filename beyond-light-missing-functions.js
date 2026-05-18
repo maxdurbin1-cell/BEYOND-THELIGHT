@@ -1498,6 +1498,100 @@ function generateCharacter() {
   }
 }
 
+function setGuidedBuildStatus(message, tone) {
+  var node = document.getElementById('charBuildStepStatus');
+  if (!node) return;
+  node.textContent = String(message || '');
+  node.style.color = tone === 'good' ? 'var(--green2)' : (tone === 'warn' ? 'var(--gold2)' : 'var(--muted2)');
+}
+
+function startGuidedCharacterBuild() {
+  clearCharacter({ force: true });
+  S.characterBuildGuide = { startedAt: Date.now(), steps: {} };
+  syncCharacterFields();
+  setGuidedBuildStatus('Guided build started. Run Step 1 or fill fields manually.', 'good');
+  if (typeof showNotif === 'function') showNotif('Guided character build started.', 'good');
+}
+
+function runCharacterBuildStep(stepId) {
+  var step = String(stepId || '').toLowerCase();
+  if (!S.characterBuildGuide || typeof S.characterBuildGuide !== 'object') {
+    S.characterBuildGuide = { startedAt: Date.now(), steps: {} };
+  }
+  var steps = S.characterBuildGuide.steps || {};
+
+  if (step === 'identity') {
+    rollName();
+    rollCareer();
+    rollBackground();
+    steps.identity = Date.now();
+    setGuidedBuildStatus('Step 1 complete: identity rolled. Adjust any fields you want.', 'good');
+  } else if (step === 'origin') {
+    if (!S.age) {
+      S.age = pick(['Youth (0-29)', 'Endeavor (30-59)', 'Twilight (60-100)']);
+      if (typeof getCharacterYearsFromBand === 'function') {
+        S.characterYears = getCharacterYearsFromBand(S.age);
+        S.characterDeadOfAge = false;
+      }
+    }
+    rollOmen();
+    rollReason();
+    steps.origin = Date.now();
+    setGuidedBuildStatus('Step 2 complete: origin and motive rolled.', 'good');
+  } else if (step === 'persona') {
+    rollFlavor();
+    rollMutation();
+    steps.persona = Date.now();
+    setGuidedBuildStatus('Step 3 complete: personality and mutation rolled.', 'good');
+  } else if (step === 'loadout') {
+    rollRandomItem();
+    rollBackpack();
+    steps.loadout = Date.now();
+    setGuidedBuildStatus('Step 4 complete: starting gear prepared.', 'good');
+  } else if (step === 'stats') {
+    rollSoulArray();
+    assignArray();
+    S.stats.valor = pick([4, 6, 8]);
+    steps.stats = Date.now();
+    setGuidedBuildStatus('Step 5 complete: action dice and valor assigned.', 'good');
+  } else if (step === 'finalize') {
+    rollAllTraits();
+    if (!S.credits || Number(S.credits) <= 0) S.credits = rollMulti(6, 2) * 10;
+    S.health = 0;
+    S.renown = Number(S.renown || 0);
+    S.stress = Number(S.stress || 0);
+    S.trauma = Number(S.trauma || 0);
+    S.pathTokens = Number(S.pathTokens || 0);
+    S.tmw = Number(S.tmw || 0);
+    S.successRolls = Number(S.successRolls || 0);
+    S.traumaConditions = { weakened: false, distracted: false, shaken: false, vulnerable: false };
+    clearAllConditions();
+    steps.finalize = Date.now();
+    setGuidedBuildStatus('Guided build complete. Character is ready.', 'good');
+    if (typeof showNotif === 'function') showNotif('Guided character build complete.', 'good');
+    if (typeof generateBackstory === 'function') {
+      try { generateBackstory(); } catch (_err) {}
+    }
+    if (typeof createOriginMissionFromReason === 'function') {
+      try { createOriginMissionFromReason(true, { suppressFocus: true }); } catch (_err2) {}
+    }
+  } else {
+    setGuidedBuildStatus('Unknown guided build step.', 'warn');
+  }
+
+  S.characterBuildGuide.steps = steps;
+  syncCharacterFields();
+  if (typeof updateCharacterAgeProgressUI === 'function') updateCharacterAgeProgressUI();
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  if (typeof updateCreditsUI === 'function') updateCreditsUI();
+  if (typeof updateRenown === 'function') updateRenown();
+  if (typeof updateTrauma === 'function') updateTrauma();
+  if (typeof updateHealthUI === 'function') updateHealthUI();
+  if (typeof updateInjuriesUI === 'function') updateInjuriesUI();
+  if (typeof updateScarUI === 'function') updateScarUI();
+  if (typeof updateTMWPool === 'function') updateTMWPool();
+}
+
 function clearCharacter(options) {
   const opts = options || {};
   if (!opts.force && hasUnsavedSoloChanges()) {

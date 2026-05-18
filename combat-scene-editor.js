@@ -388,6 +388,7 @@
       lighting: {},
       wallSegments: {},
       weather: {},
+      foreground: {},
       interactives: {},
       spawns: {}
     }, next.layers && typeof next.layers === 'object' ? next.layers : {});
@@ -398,6 +399,7 @@
     next.layers.lighting = Object.assign({}, next.layers.lighting || {});
     next.layers.wallSegments = Object.assign({}, next.layers.wallSegments || {});
     next.layers.weather = Object.assign({}, next.layers.weather || {});
+    next.layers.foreground = Object.assign({}, next.layers.foreground || {});
     next.layers.interactives = Object.assign({}, next.layers.interactives || {});
     next.layers.spawns = Object.assign({}, next.layers.spawns || {});
     next.fog = Object.assign({
@@ -665,6 +667,7 @@
       lighting: {},
       wallSegments: {},
       weather: {},
+      foreground: {},
       interactives: {},
       spawns: {}
     },
@@ -1372,6 +1375,29 @@
     var armor = String(equip.armor || '').trim();
     lines.push('Weapon: ' + (w1 || 'None') + (w2 ? (' · Off-hand: ' + w2) : '') + ' · Armor: ' + (armor || 'None'));
     return lines;
+  }
+
+  function openTokenSheetQuickView(tokenId) {
+    var token = byId(tokenId);
+    if (!token) return;
+    var body = '';
+    if (token.isPlayer || String(token.faction || '') === 'player') {
+      body = buildCharacterSheetCombatSummary(token.id).map(function (line) {
+        return '<div class="combat-feed-line">' + String(line) + '</div>';
+      }).join('');
+    } else {
+      body = ''
+        + '<div class="combat-feed-line"><strong>' + String(token.name || 'Enemy') + '</strong></div>'
+        + '<div class="combat-feed-line">Faction: ' + String(token.faction || 'monster') + '</div>'
+        + '<div class="combat-feed-line">HP: ' + Math.max(0, Number(token.hp || 0)) + '/' + Math.max(1, Number(token.maxHp || token.hp || 1)) + '</div>'
+        + '<div class="combat-feed-line">Dread Die: d' + Math.max(4, Number(token.dread || token.codexDread || 6)) + '</div>'
+        + '<div class="combat-feed-line">Death Number: ' + Math.max(1, Number(token.deathNumber || token.dread || token.codexDread || 6)) + '</div>';
+    }
+    if (typeof window.openModal === 'function') {
+      window.openModal('Combat Sheet · ' + String(token.name || 'Token'), '<div style="display:grid;gap:.2rem;max-height:58vh;overflow:auto;">' + body + '</div>');
+    } else {
+      safeNotif('Token Sheet: ' + String(token.name || 'Token'), 'info');
+    }
   }
 
   function canActionReachTarget(actionValue, range) {
@@ -2152,6 +2178,70 @@
       ctx.restore();
     });
 
+    for (var fr = -board.rows; fr <= board.rows; fr++) {
+      for (var fq = -board.cols; fq <= board.cols; fq++) {
+        var fgKey = toKey(fq, fr);
+        var fg = String(state.layers.foreground && state.layers.foreground[fgKey] || '').toLowerCase();
+        if (!fg) continue;
+        var fp = axialToPixel(fq, fr, size, board.panX, board.panY);
+        if (fp.x < -80 || fp.y < -80 || fp.x > w + 80 || fp.y > h + 80) continue;
+        ctx.save();
+        if (fg.indexOf('canopy') >= 0 || fg.indexOf('tree') >= 0) {
+          drawHex(ctx, fp.x, fp.y, size - 5.5);
+          ctx.fillStyle = 'rgba(57,130,88,.34)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(134,219,171,.44)';
+          ctx.lineWidth = 1.4;
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(214,243,220,.95)';
+          ctx.font = '10px Rajdhani, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('CANOPY', fp.x, fp.y + 3);
+        } else if (fg.indexOf('balcony') >= 0 || fg.indexOf('walkway') >= 0) {
+          drawHex(ctx, fp.x, fp.y, size - 6.5);
+          ctx.fillStyle = 'rgba(120,140,196,.25)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(175,196,255,.62)';
+          ctx.lineWidth = 1.8;
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(226,234,255,.95)';
+          ctx.font = '10px Rajdhani, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('BAL', fp.x, fp.y + 3);
+        } else if (fg.indexOf('weather') >= 0 || fg.indexOf('fog') >= 0 || fg.indexOf('ash') >= 0 || fg.indexOf('storm') >= 0 || fg.indexOf('rain') >= 0) {
+          drawHex(ctx, fp.x, fp.y, size - 3.8);
+          ctx.fillStyle = 'rgba(206,223,245,.22)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(206,223,245,.38)';
+          ctx.setLineDash([4, 3]);
+          ctx.lineWidth = 1.3;
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = 'rgba(226,236,250,.92)';
+          ctx.font = '10px Rajdhani, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('WX', fp.x, fp.y + 3);
+        } else if (fg.indexOf('elev') >= 0 || fg.indexOf('ledge') >= 0 || fg.indexOf('high') >= 0) {
+          drawHex(ctx, fp.x, fp.y, size - 6);
+          ctx.strokeStyle = 'rgba(227,188,94,.78)';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(245,225,164,.94)';
+          ctx.font = '10px Rajdhani, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('HIGH', fp.x, fp.y + 3);
+        } else {
+          drawHex(ctx, fp.x, fp.y, size - 5);
+          ctx.fillStyle = 'rgba(200,200,200,.2)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(240,240,240,.4)';
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+
     if (state.ruler && state.ruler.active && state.ruler.start && state.ruler.end) {
       var s = axialToPixel(state.ruler.start.q, state.ruler.start.r, size, board.panX, board.panY);
       var e = axialToPixel(state.ruler.end.q, state.ruler.end.r, size, board.panX, board.panY);
@@ -2235,7 +2325,7 @@
       playModeBtn.className = state.playMode ? 'btn btn-xs btn-teal' : 'btn btn-xs';
     }
 
-    var layers = ['terrain', 'objects', 'hazards', 'elevation', 'lighting', 'weather', 'interactives', 'spawns'];
+    var layers = ['terrain', 'objects', 'hazards', 'elevation', 'lighting', 'weather', 'foreground', 'interactives', 'spawns'];
     var tools = ['select', 'paint', 'erase', 'fog', 'ruler', 'pan', 'ping'];
 
     var layerRow = document.getElementById('combatLayerRow');
@@ -2340,21 +2430,31 @@
         if (token.isPlayer) return Math.max(0, Number(window.S && window.S.combat && window.S.combat.actionsLeft || 0));
         return Math.max(0, Number(state.teamActions && state.teamActions[token.id] || 0));
       }
-      function lane(label, list, color) {
-        if (!list.length) return '';
-        return '<div class="combat-feed-line"><strong style="color:' + color + ';">' + label + ':</strong> '
-          + list.map(function (t) {
-            var turnTag = String(t.id) === activeIdInit ? ' [TURN]' : '';
-            return String(t.name || 'Unit') + ' (' + tokenActionsLeft(t) + 'A)' + turnTag;
-          }).join(', ')
-          + '</div>';
+      function cardForToken(token, laneLabel, color) {
+        var isTurn = String(token && token.id || '') === activeIdInit;
+        var cls = 'combat-turn-card' + (isTurn ? ' active' : '');
+        return '<button class="' + cls + '" data-turn-token="' + String(token.id || '') + '">'
+          + '<span class="combat-turn-lane" style="color:' + color + ';">' + laneLabel + '</span>'
+          + '<span class="combat-turn-name">' + String(token.name || 'Unit') + '</span>'
+          + '<span class="combat-turn-meta">' + tokenActionsLeft(token) + 'A · hex ' + toKey(token.q, token.r) + (isTurn ? ' · TURN' : '') + '</span>'
+          + '</button>';
       }
       initList.innerHTML = ''
-        + lane('Wayfarer', wayfarers, 'var(--combat-accent-2)')
-        + lane('Ally', allies, 'var(--combat-text)')
-        + lane('Enemy', enemies, 'var(--combat-danger)');
+        + wayfarers.map(function (token) { return cardForToken(token, 'Wayfarer', 'var(--combat-accent-2)'); }).join('')
+        + allies.map(function (token) { return cardForToken(token, 'Ally', 'var(--combat-text)'); }).join('')
+        + enemies.map(function (token) { return cardForToken(token, 'Enemy', 'var(--combat-danger)'); }).join('');
       if (!String(initList.innerHTML || '').trim()) {
         initList.innerHTML = '<div class="combat-feed-line">No combatants tracked.</div>';
+      } else {
+        Array.prototype.slice.call(initList.querySelectorAll('[data-turn-token]')).forEach(function (btn) {
+          btn.onclick = function () {
+            var tokenId = String(btn.getAttribute('data-turn-token') || '');
+            if (!tokenId) return;
+            store.setState({ selectedTokenId: tokenId });
+            drawBoard();
+            updateUiPanels();
+          };
+        });
       }
     }
 
@@ -2377,8 +2477,11 @@
           ? Math.max(0, Number(window.S && window.S.combat && window.S.combat.actionsLeft || 0))
           : Math.max(0, Number(state.teamActions && state.teamActions[selected.id] || 0)))
         : 0;
+      var selectedThreat = selected && !selected.isPlayer && String(selected.faction || '') === 'monster' && selectedDread
+        ? (' · DD d' + selectedDread + ' · DN ' + selectedDeath)
+        : '';
       selectedSummary.textContent = selected
-        ? (selected.name + ' · ' + selected.faction + ' · ' + selectedActions + 'A · hex ' + toKey(selected.q, selected.r) + (selectedDread ? (' · DD d' + selectedDread + ' · DN ' + selectedDeath) : ''))
+        ? (selected.name + ' · ' + selected.faction + ' · ' + selectedActions + 'A · hex ' + toKey(selected.q, selected.r) + selectedThreat)
         : 'Select a token.';
     }
     if (selectedHp) {
@@ -3064,6 +3167,18 @@
     canvas.addEventListener('mouseup', stopDrag);
     canvas.addEventListener('mouseleave', stopDrag);
 
+    canvas.addEventListener('dblclick', function (ev) {
+      var state = store.getState();
+      var rect = canvas.getBoundingClientRect();
+      var board = state.board;
+      var size = Number(board.size || 42) * Number(board.zoom || 1);
+      var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, board.panX, board.panY);
+      var clickedToken = nearestTokenAt(ax.q, ax.r);
+      if (!clickedToken) return;
+      openTokenSheetQuickView(clickedToken.id);
+      ev.preventDefault();
+    });
+
     canvas.addEventListener('wheel', function (ev) {
       ev.preventDefault();
       store.setState(function (state) {
@@ -3135,7 +3250,8 @@
       'forest', 'marsh', 'crags', 'lava', 'ruins', 'water', 'difficult terrain',
       'obstacle', 'trap', 'shrine', 'turret', 'door', 'spawn',
       'wall', 'vision-blocker', 'wall-seg-e', 'wall-seg-ne', 'wall-seg-nw', 'wall-seg-w', 'wall-seg-sw', 'wall-seg-se',
-      '1', '2', '3'
+      '1', '2', '3',
+      'tree-canopy', 'balcony', 'weather-overlay', 'high-ledge'
     ];
     var set = {};
     base.forEach(function (v) { set[v] = true; });

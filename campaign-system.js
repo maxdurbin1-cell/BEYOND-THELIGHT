@@ -2048,13 +2048,22 @@
         return;
       }
 
+      var orderSize = combatState.turnOrder.length;
+      var actorIndex = Math.max(0, Math.min(Number(combatState.currentActorIndex || 0), orderSize - 1));
+      var actorToken = String(combatState.turnOrder[actorIndex] || "");
+
       // Mark current actor as acted
-      if (combatState.participants && combatState.participants[combatState.currentActorIndex]) {
-        combatState.participants[combatState.currentActorIndex].hasActed = true;
+      if (Array.isArray(combatState.participants) && actorToken) {
+        for (var pIdx = 0; pIdx < combatState.participants.length; pIdx += 1) {
+          var row = combatState.participants[pIdx];
+          if (!row || String(row.token || "") !== actorToken) continue;
+          row.hasActed = true;
+          break;
+        }
       }
 
-      combatState.currentActorIndex += 1;
-      if (combatState.currentActorIndex >= combatState.turnOrder.length) {
+      combatState.currentActorIndex = actorIndex + 1;
+      if (combatState.currentActorIndex >= orderSize) {
         combatState.currentActorIndex = 0;
         combatState.round += 1;
         // Reset hasActed for new round

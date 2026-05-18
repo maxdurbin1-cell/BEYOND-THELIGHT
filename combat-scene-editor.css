@@ -474,3 +474,272 @@
 .combat-radius-legend-pill:hover {
   opacity: 0.75;
 }
+
+/* ===== HEALTH BAR ENHANCEMENTS ===== */
+.combat-health-bar-container {
+  position: absolute;
+  width: 64px;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.combat-health-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2d9a7b 0%, #49c9bb 100%);
+  transition: width 0.18s ease-out;
+  box-shadow: 0 0 8px rgba(73, 201, 187, 0.5);
+}
+
+.combat-health-bar-fill.low {
+  background: linear-gradient(90deg, #c4613a 0%, #d05353 100%);
+  box-shadow: 0 0 8px rgba(208, 83, 83, 0.6);
+}
+
+.combat-health-bar-fill.critical {
+  background: linear-gradient(90deg, #8b2c2c 0%, #d05353 100%);
+  box-shadow: 0 0 12px rgba(208, 83, 83, 0.8);
+  animation: health-critical-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes health-critical-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* ===== CONDITION ICONS ===== */
+.combat-condition-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: bold;
+  margin: 0 2px;
+  border: 1px solid currentColor;
+}
+
+.combat-condition-icon[data-type="burn"] {
+  background: rgba(208, 83, 83, 0.3);
+  color: #ff9b5c;
+  border-color: #ff9b5c;
+}
+
+.combat-condition-icon[data-type="chill"] {
+  background: rgba(100, 150, 200, 0.3);
+  color: #7dd3ff;
+  border-color: #7dd3ff;
+}
+
+.combat-condition-icon[data-type="stun"] {
+  background: rgba(227, 188, 94, 0.3);
+  color: #ffd688;
+  border-color: #ffd688;
+}
+
+.combat-condition-icon[data-type="poison"] {
+  background: rgba(100, 150, 100, 0.3);
+  color: #9bdb5a;
+  border-color: #9bdb5a;
+}
+
+.combat-condition-icon[data-type="fear"] {
+  background: rgba(150, 100, 150, 0.3);
+  color: #c690ff;
+  border-color: #c690ff;
+}
+
+.combat-condition-icon[data-type="bleed"] {
+  background: rgba(208, 83, 83, 0.4);
+  color: #ff6b6b;
+  border-color: #ff6b6b;
+}
+
+.combat-conditions-row {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ===== ACTION ECONOMY DOTS ===== */
+.combat-action-dots {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.combat-action-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(73, 201, 187, 0.7);
+  border: 1px solid rgba(73, 201, 187, 0.95);
+  box-shadow: 0 0 4px rgba(73, 201, 187, 0.4);
+}
+
+.combat-action-dot.spent {
+  background: rgba(100, 100, 100, 0.3);
+  border-color: rgba(150, 150, 150, 0.4);
+  box-shadow: none;
+}
+
+.combat-action-dot.bonus {
+  background: rgba(227, 188, 94, 0.7);
+  border-color: rgba(227, 188, 94, 0.95);
+  box-shadow: 0 0 4px rgba(227, 188, 94, 0.4);
+}
+
+.combat-action-dot.movement {
+  background: rgba(106, 168, 255, 0.7);
+  border-color: rgba(106, 168, 255, 0.95);
+  box-shadow: 0 0 4px rgba(106, 168, 255, 0.4);
+}
+
+/* ===== FLOATING DAMAGE NUMBERS ===== */
+.combat-floating-number {
+  position: absolute;
+  font-family: "Rajdhani", sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  pointer-events: none;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+  z-index: 7;
+}
+
+.combat-floating-number.damage {
+  color: #ff6b6b;
+  animation: float-up-damage 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.combat-floating-number.heal {
+  color: #7dd3ff;
+  animation: float-up-heal 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.combat-floating-number.crit {
+  color: #ffd688;
+  font-size: 22px;
+  animation: float-up-crit 1.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.combat-floating-number.miss {
+  color: #9fa7bc;
+  font-size: 14px;
+  font-style: italic;
+  animation: float-up-miss 1s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+@keyframes float-up-damage {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-60px) scale(0.8);
+    opacity: 0;
+  }
+}
+
+@keyframes float-up-heal {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-50px) scale(0.85);
+    opacity: 0;
+  }
+}
+
+@keyframes float-up-crit {
+  0% {
+    transform: translateY(0) scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-30px) scale(1.15) rotate(5deg);
+  }
+  100% {
+    transform: translateY(-70px) scale(0.8) rotate(-5deg);
+    opacity: 0;
+  }
+}
+
+@keyframes float-up-miss {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-40px) scale(0.9);
+    opacity: 0;
+  }
+}
+
+/* ===== ENHANCED INITIATIVE TRACKER ===== */
+.combat-turn-card-progress {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 0;
+}
+
+.combat-turn-card-progress::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, rgba(73, 201, 187, 0.8), rgba(73, 201, 187, 0.2));
+  transition: width 0.3s ease;
+}
+
+.combat-turn-card.active .combat-turn-card-progress::before {
+  width: 6px;
+  background: linear-gradient(180deg, rgba(227, 188, 94, 1), rgba(227, 188, 94, 0.4));
+}
+
+.combat-initiative-round-marker {
+  display: inline-block;
+  padding: 0.2rem 0.45rem;
+  background: rgba(73, 201, 187, 0.15);
+  border: 1px solid rgba(73, 201, 187, 0.5);
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--combat-accent-2);
+  margin-bottom: 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.combat-turn-action-indicator {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 0.3rem;
+  vertical-align: middle;
+}
+
+.combat-turn-action-dot-small {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(73, 201, 187, 0.6);
+}
+
+.combat-turn-action-dot-small.spent {
+  background: rgba(100, 100, 100, 0.25);
+}
+
+/* ===== CANVAS ENHANCEMENTS ===== */
+#combatSceneCanvas {
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}

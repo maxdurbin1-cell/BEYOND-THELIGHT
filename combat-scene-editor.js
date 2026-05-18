@@ -1140,6 +1140,14 @@
     var amount = Math.max(0, Number(damage || 0));
     if (!amount) return Math.max(0, Number(target.hp || 0));
     var newHp = Math.max(0, Number(target.hp || 0) - amount);
+    
+    // Create floating damage number
+    var state = store.getState();
+    var board = state.board;
+    var size = Number(board.size || 42) * Number(board.zoom || 1);
+    var p = axialToPixel(Number(target.q || 0), Number(target.r || 0), size, board.panX, board.panY);
+    createFloatingNumber(p.x, p.y - 10, '-' + amount, 'damage');
+    
     store.setState(function (state) {
       var next = Object.assign({}, state);
       next.tokens = (state.tokens || []).map(function (row) {
@@ -1157,6 +1165,7 @@
     }
     addHistory((sourceLabel ? String(sourceLabel) + ' hits ' : '') + String(target.name || 'Target') + ' for ' + amount + ' damage (' + newHp + ' HP left).');
     if (newHp <= 0) markTokenAsDead(tokenId, sourceLabel || 'damage');
+    drawBoard();
     return newHp;
   }
 
@@ -2092,6 +2101,40 @@
 
   var backgroundCache = { src: '', img: null };
   var bubbleHotspots = [];
+  var floatingNumbers = [];
+
+  function createFloatingNumber(x, y, text, type) {
+    var id = uid('float');
+    var num = {
+      id: id,
+      x: x,
+      y: y,
+      text: String(text || ''),
+      type: String(type || 'damage'),
+      createdAt: Date.now(),
+      lifetime: 1200
+    };
+    floatingNumbers.push(num);
+    return id;
+  }
+
+  function updateFloatingNumbers() {
+    var now = Date.now();
+    floatingNumbers = floatingNumbers.filter(function (num) {
+      return (now - num.createdAt) < num.lifetime;
+    });
+  }
+
+  function getConditionTypeForLabel(label) {
+    var lower = String(label || '').toLowerCase();
+    if (lower.indexOf('burn') >= 0) return 'burn';
+    if (lower.indexOf('chill') >= 0 || lower.indexOf('freeze') >= 0 || lower.indexOf('cold') >= 0) return 'chill';
+    if (lower.indexOf('stun') >= 0) return 'stun';
+    if (lower.indexOf('poison') >= 0) return 'poison';
+    if (lower.indexOf('fear') >= 0 || lower.indexOf('terrif') >= 0) return 'fear';
+    if (lower.indexOf('bleed') >= 0) return 'bleed';
+    return 'burn';
+  }
 
   function drawBackground(ctx, board) {
     var src = String(board && board.background || '');
@@ -2309,27 +2352,68 @@
         ctx.fillText('LOOT', p.x, p.y + radius + 24);
       }
 
+      // ===== HEALTH BAR =====
+      var maxHp = Math.max(1, Number(token.maxHp || token.hp || 1));
+      var currentHp = Math.max(0, Number(token.hp || 0));
+      var hpPercent = maxHp > 0 ? currentHp / maxHp : 0;
+      var healthBarWidth = radius * 2;
+      var healthBarHeight = 5;
+      var healthBarX = p.x - (healthBarWidth / 2);
+      var healthBarY = p.y + radius + 4;
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,.4)';
+      ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+      var hpColor = hpPercent > 0.5 ? 'rgba(45, 154, 123, 0.9)' : (hpPercent > 0.25 ? 'rgba(196, 97, 58, 0.9)' : 'rgba(208, 83, 83, 0.95)');
+      ctx.fillStyle = hpColor;
+      ctx.fillRect(healthBarX, healthBarY, healthBarWidth * hpPercent, healthBarHeight);
+      ctx.strokeStyle = 'rgba(255,255,255,.2)';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
+      ctx.restore();
+
+      // ===== CONDITION ICONS =====
       var activeEffects = (state.tokenRoundEffects || []).filter(function (effect) {
         return effect && String(effect.targetTokenId || '') === String(token.id || '') && Number(effect.roundsLeft || 0) > 0;
       });
       if (activeEffects.length) {
-        var ringRadius = radius + 5;
-        var slice = (Math.PI * 2) / activeEffects.length;
+        ctx.save();
+        var iconSize = 14;
+        var iconSpacing = 2;
+        var totalIconWidth = (iconSize + iconSpacing) * activeEffects.length - iconSpacing;
+        var iconStartX = p.x - (totalIconWidth / 2);
+        var iconY = p.y + radius + 14;
         activeEffects.forEach(function (effect, idx) {
-          ctx.save();
+          var iconX = iconStartX + idx * (iconSize + iconSpacing);
+          var condType = getConditionTypeForLabel(String(effect.label || ''));
+          var colorMap = {
+            'burn': '#ff9b5c',
+            'chill': '#7dd3ff',
+            'stun': '#ffd688',
+            'poison': '#9bdb5a',
+            'fear': '#c690ff',
+            'bleed': '#ff6b6b'
+          };
+          var color = colorMap[condType] || '#e3bc5e';
           ctx.beginPath();
-          ctx.strokeStyle = String(effect.color || '#e3bc5e');
-          ctx.lineWidth = 3;
-          ctx.arc(p.x, p.y, ringRadius, (idx * slice) - (Math.PI / 2), ((idx + 1) * slice) - (Math.PI / 2));
+          ctx.arc(iconX + (iconSize / 2), iconY, iconSize / 2, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255,255,255,.3)';
+          ctx.lineWidth = 0.5;
           ctx.stroke();
-          ctx.restore();
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 9px Rajdhani, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          var iconLabel = String(effect.label || '').charAt(0).toUpperCase();
+          ctx.fillText(iconLabel, iconX + (iconSize / 2), iconY);
+          if (Number(effect.roundsLeft || 0) > 0) {
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 8px Rajdhani, sans-serif';
+            ctx.fillText(String(Math.max(0, Number(effect.roundsLeft || 0))), iconX + (iconSize / 2), iconY + 8);
+          }
         });
-        var tag = activeEffects.map(function (effect) {
-          return String(effect.label || 'Condition').slice(0, 8) + ' ' + Math.max(0, Number(effect.roundsLeft || 0));
-        }).join(' | ');
-        ctx.fillStyle = 'rgba(227,188,94,.98)';
-        ctx.font = '10px Rajdhani, sans-serif';
-        ctx.fillText(tag, p.x, p.y + radius + 36);
+        ctx.restore();
       }
 
       // Quick-edit bubbles above token. Click bubble to edit with absolute or +/- delta.
@@ -2465,6 +2549,26 @@
         ctx.restore();
       }
     }
+
+    // ===== FLOATING NUMBERS OVERLAY =====
+    updateFloatingNumbers();
+    floatingNumbers.forEach(function (num) {
+      var age = Date.now() - num.createdAt;
+      var progress = age / num.lifetime;
+      var offsetY = -60 * progress;
+      var opacity = 1 - progress;
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      ctx.font = 'bold 16px Rajdhani, sans-serif';
+      ctx.textAlign = 'center';
+      var color = '#ff6b6b';
+      if (num.type === 'heal') color = '#7dd3ff';
+      else if (num.type === 'crit') color = '#ffd688';
+      else if (num.type === 'miss') color = '#9fa7bc';
+      ctx.fillStyle = color;
+      ctx.fillText(num.text, num.x, num.y + offsetY);
+      ctx.restore();
+    });
   }
 
   function setPanelPositions() {
@@ -2622,13 +2726,27 @@
       function cardForToken(token, laneLabel, color) {
         var isTurn = String(token && token.id || '') === activeIdInit;
         var cls = 'combat-turn-card' + (isTurn ? ' active' : '');
+        var actionsLeft = tokenActionsLeft(token);
+        var maxActions = 3;
+        if (token && token.isPlayer && window.S && window.S.combat) {
+          maxActions = Math.max(1, Number(window.S.combat.maxActions || 3));
+        }
+        var actionDots = '';
+        for (var adx = 0; adx < maxActions; adx++) {
+          var dotClass = adx < actionsLeft ? '' : ' spent';
+          actionDots += '<span class="combat-turn-action-dot-small' + dotClass + '"></span>';
+        }
         return '<button class="' + cls + '" data-turn-token="' + String(token.id || '') + '">'
           + '<span class="combat-turn-lane" style="color:' + color + ';">' + laneLabel + '</span>'
           + '<span class="combat-turn-name">' + String(token.name || 'Unit') + '</span>'
-          + '<span class="combat-turn-meta">' + tokenActionsLeft(token) + 'A · hex ' + toKey(token.q, token.r) + (isTurn ? ' · TURN' : '') + '</span>'
+          + '<span class="combat-turn-meta">'
+          + '<span class="combat-turn-action-indicator">' + actionDots + '</span>'
+          + ' · hex ' + toKey(token.q, token.r) + (isTurn ? ' · TURN' : '') 
+          + '</span>'
           + '</button>';
       }
       initList.innerHTML = ''
+        + '<div class="combat-initiative-round-marker">Round ' + Math.max(1, Number(state.round || 1)) + '</div>'
         + wayfarers.map(function (token) { return cardForToken(token, 'Wayfarer', 'var(--combat-accent-2)'); }).join('')
         + allies.map(function (token) { return cardForToken(token, 'Ally', 'var(--combat-text)'); }).join('')
         + enemies.map(function (token) { return cardForToken(token, 'Enemy', 'var(--combat-danger)'); }).join('');

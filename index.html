@@ -6154,21 +6154,55 @@ function getBestiaryDerivedStats(entry){
   return {dread:dread,health:health,deathNumber:death};
 }
 
-function promptAddCustomWayfarer(){
+function getCustomCodexEditState(){
   ensureCustomCodexState();
-  var career=prompt('Wayfarer career/title:', 'Wayfarer');
-  if(career===null)return;
-  var first=prompt('First name:', 'Custom');
-  if(first===null)return;
-  var last=prompt('Last name:', 'Traveler');
-  if(last===null)return;
-  var story=prompt('Backstory hook:', 'GM-authored traveler with local rumors.');
-  if(story===null)return;
-  var drive=prompt('Drive:', 'Purpose');
-  if(drive===null)return;
-  S.customContent.wayfarers.push({career:career,first:first,last:last,story:story,drive:drive});
+  if(!S.customContentEdit||typeof S.customContentEdit!=='object')S.customContentEdit={wayfarer:-1,flavor:-1,bestiary:-1};
+  if(typeof S.customContentEdit.wayfarer!=='number')S.customContentEdit.wayfarer=-1;
+  if(typeof S.customContentEdit.flavor!=='number')S.customContentEdit.flavor=-1;
+  if(typeof S.customContentEdit.bestiary!=='number')S.customContentEdit.bestiary=-1;
+  return S.customContentEdit;
+}
+
+function saveCustomWayfarerFromCodex(){
+  ensureCustomCodexState();
+  var first=String((document.getElementById('codexWayfarerFirst')||{}).value||'').trim();
+  var last=String((document.getElementById('codexWayfarerLast')||{}).value||'').trim();
+  var career=String((document.getElementById('codexWayfarerCareer')||{}).value||'').trim();
+  var drive=String((document.getElementById('codexWayfarerDrive')||{}).value||'').trim();
+  var story=String((document.getElementById('codexWayfarerStory')||{}).value||'').trim();
+  if(!first||!last||!career||!drive||!story){showNotif('Fill all wayfarer fields before saving.','warn');return;}
+  var edit=getCustomCodexEditState();
+  var payload={career:career,first:first,last:last,story:story,drive:drive};
+  if(edit.wayfarer>=0&&edit.wayfarer<S.customContent.wayfarers.length){
+    S.customContent.wayfarers[edit.wayfarer]=payload;
+    showNotif('Custom Wayfarer updated.','good');
+  }else{
+    S.customContent.wayfarers.push(payload);
+    showNotif('Custom Wayfarer added to Codex.','good');
+  }
+  edit.wayfarer=-1;
   showCodexCat('wayfarers',document.querySelector('.codex-cats .scat.on'));
-  showNotif('Custom Wayfarer registered in Codex.','good');
+}
+
+function editCustomWayfarer(idx){
+  ensureCustomCodexState();
+  var i=Number(idx);
+  if(isNaN(i)||i<0||i>=S.customContent.wayfarers.length)return;
+  var row=S.customContent.wayfarers[i]||{};
+  getCustomCodexEditState().wayfarer=i;
+  var set=function(id,val){var el=document.getElementById(id);if(el)el.value=String(val||'');};
+  set('codexWayfarerFirst',row.first);
+  set('codexWayfarerLast',row.last);
+  set('codexWayfarerCareer',row.career);
+  set('codexWayfarerDrive',row.drive);
+  set('codexWayfarerStory',row.story);
+}
+
+function clearCustomWayfarerForm(){
+  getCustomCodexEditState().wayfarer=-1;
+  ['codexWayfarerFirst','codexWayfarerLast','codexWayfarerCareer','codexWayfarerDrive','codexWayfarerStory'].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.value='';
+  });
 }
 
 function removeCustomWayfarer(idx){
@@ -6176,18 +6210,50 @@ function removeCustomWayfarer(idx){
   var i=Number(idx);
   if(isNaN(i)||i<0||i>=S.customContent.wayfarers.length)return;
   S.customContent.wayfarers.splice(i,1);
+  getCustomCodexEditState().wayfarer=-1;
   showCodexCat('wayfarers',document.querySelector('.codex-cats .scat.on'));
 }
 
-function promptAddCustomFlavor(){
+function saveCustomFlavorFromCodex(){
   ensureCustomCodexState();
-  var raw=prompt('Personal Flavor (recommended format: Name: effect text)', 'Void Shepherd: Once per day, map fog peels back for one lane.');
-  if(raw===null)return;
-  var clean=String(raw||'').trim();
-  if(!clean){showNotif('Flavor not added: empty entry.','warn');return;}
-  S.customContent.flavors.push(clean);
+  var title=String((document.getElementById('codexFlavorTitle')||{}).value||'').trim();
+  var effect=String((document.getElementById('codexFlavorEffect')||{}).value||'').trim();
+  if(!title||!effect){showNotif('Flavor title and effect are required.','warn');return;}
+  var entry=title+': '+effect;
+  var edit=getCustomCodexEditState();
+  if(edit.flavor>=0&&edit.flavor<S.customContent.flavors.length){
+    S.customContent.flavors[edit.flavor]=entry;
+    showNotif('Custom Flavor updated.','good');
+  }else{
+    S.customContent.flavors.push(entry);
+    showNotif('Custom Flavor added to Codex.','good');
+  }
+  edit.flavor=-1;
   showCodexCat('flavors',document.querySelector('.codex-cats .scat.on'));
-  showNotif('Custom Personal Flavor registered.','good');
+}
+
+function editCustomFlavor(idx){
+  ensureCustomCodexState();
+  var i=Number(idx);
+  if(isNaN(i)||i<0||i>=S.customContent.flavors.length)return;
+  var full=String(S.customContent.flavors[i]||'').trim();
+  getCustomCodexEditState().flavor=i;
+  var title=full;
+  var effect='';
+  var split=full.split(':');
+  if(split.length>1){title=split[0].trim();effect=split.slice(1).join(':').trim();}
+  var titleEl=document.getElementById('codexFlavorTitle');
+  var effectEl=document.getElementById('codexFlavorEffect');
+  if(titleEl)titleEl.value=title;
+  if(effectEl)effectEl.value=effect;
+}
+
+function clearCustomFlavorForm(){
+  getCustomCodexEditState().flavor=-1;
+  var titleEl=document.getElementById('codexFlavorTitle');
+  var effectEl=document.getElementById('codexFlavorEffect');
+  if(titleEl)titleEl.value='';
+  if(effectEl)effectEl.value='';
 }
 
 function removeCustomFlavor(idx){
@@ -6195,23 +6261,50 @@ function removeCustomFlavor(idx){
   var i=Number(idx);
   if(isNaN(i)||i<0||i>=S.customContent.flavors.length)return;
   S.customContent.flavors.splice(i,1);
+  getCustomCodexEditState().flavor=-1;
   showCodexCat('flavors',document.querySelector('.codex-cats .scat.on'));
 }
 
-function promptAddCustomBestiaryEntry(){
+function saveCustomBestiaryFromCodex(){
   ensureCustomCodexState();
-  var region=String(prompt('Bestiary region (province, sea, wtw, planet, galaxy):','province')||'province').trim().toLowerCase();
-  if(!region)return;
-  var name=prompt('Creature name:','Glass Maw Sentinel');
-  if(name===null)return;
-  var dreadRaw=prompt('Dread die (4/6/8/10/12):','8');
-  if(dreadRaw===null)return;
-  var desc=prompt('Description:','GM-authored apex threat with zone pressure patterns.');
-  if(desc===null)return;
-  var dread=Math.max(4,Number(dreadRaw||8));
-  S.customContent.bestiary.push({region:region,name:String(name||'Custom Creature').trim(),dread:dread,desc:String(desc||'').trim()});
+  var region=String((document.getElementById('codexBestiaryRegion')||{}).value||'province').trim().toLowerCase();
+  var name=String((document.getElementById('codexBestiaryName')||{}).value||'').trim();
+  var desc=String((document.getElementById('codexBestiaryDesc')||{}).value||'').trim();
+  var dread=Math.max(4,Math.min(12,Number((document.getElementById('codexBestiaryDread')||{}).value||8)));
+  if(!region||!name||!desc){showNotif('Region, name, and description are required.','warn');return;}
+  var payload={region:region,name:name,desc:desc,dread:dread};
+  var edit=getCustomCodexEditState();
+  if(edit.bestiary>=0&&edit.bestiary<S.customContent.bestiary.length){
+    S.customContent.bestiary[edit.bestiary]=payload;
+    showNotif('Custom Bestiary entry updated.','good');
+  }else{
+    S.customContent.bestiary.push(payload);
+    showNotif('Custom Bestiary entry added.','good');
+  }
+  edit.bestiary=-1;
   showCodexCat('bestiary',document.querySelector('.codex-cats .scat.on'));
-  showNotif('Custom Bestiary entry registered.','good');
+}
+
+function editCustomBestiaryEntry(idx){
+  ensureCustomCodexState();
+  var i=Number(idx);
+  if(isNaN(i)||i<0||i>=S.customContent.bestiary.length)return;
+  var row=S.customContent.bestiary[i]||{};
+  getCustomCodexEditState().bestiary=i;
+  var set=function(id,val){var el=document.getElementById(id);if(el)el.value=String(val||'');};
+  set('codexBestiaryRegion',row.region||'province');
+  set('codexBestiaryName',row.name);
+  set('codexBestiaryDread',row.dread||8);
+  set('codexBestiaryDesc',row.desc);
+}
+
+function clearCustomBestiaryForm(){
+  getCustomCodexEditState().bestiary=-1;
+  ['codexBestiaryName','codexBestiaryDesc'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  var regionEl=document.getElementById('codexBestiaryRegion');
+  if(regionEl)regionEl.value='province';
+  var dreadEl=document.getElementById('codexBestiaryDread');
+  if(dreadEl)dreadEl.value='8';
 }
 
 function removeCustomBestiaryEntry(idx){
@@ -6219,7 +6312,23 @@ function removeCustomBestiaryEntry(idx){
   var i=Number(idx);
   if(isNaN(i)||i<0||i>=S.customContent.bestiary.length)return;
   S.customContent.bestiary.splice(i,1);
+  getCustomCodexEditState().bestiary=-1;
   showCodexCat('bestiary',document.querySelector('.codex-cats .scat.on'));
+}
+
+function promptAddCustomWayfarer(){
+  var el=document.getElementById('codexWayfarerFirst');
+  if(el)el.focus();
+}
+
+function promptAddCustomFlavor(){
+  var el=document.getElementById('codexFlavorTitle');
+  if(el)el.focus();
+}
+
+function promptAddCustomBestiaryEntry(){
+  var el=document.getElementById('codexBestiaryName');
+  if(el)el.focus();
 }
 
 function normalizeCustomCodexAffix(entry){
@@ -19259,10 +19368,21 @@ function showCodexCat(cat,btn){
   }else if(cat==='wayfarers'){
     var wayfarers=(typeof getCodexWayfarers==='function')?getCodexWayfarers():TRAVELING_WAYFARERS;
     c.innerHTML=`<div class="card"><div class="section-title">Traveling Wayfarers</div>
-      <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.65rem;"><button class="btn btn-primary" onclick="rollWayfarer()">⚄ Roll Random Wayfarer</button><button class="btn btn-teal" onclick="promptAddCustomWayfarer()">+ Add GM Wayfarer</button></div>
+      <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.65rem;"><button class="btn btn-primary" onclick="rollWayfarer()">⚄ Roll Random Wayfarer</button><button class="btn btn-sm" onclick="clearCustomWayfarerForm()">New GM Entry</button></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.28rem;border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.42rem .45rem;margin-bottom:.62rem;">
+        <input class="input" id="codexWayfarerFirst" placeholder="First name">
+        <input class="input" id="codexWayfarerLast" placeholder="Last name">
+        <input class="input" id="codexWayfarerCareer" placeholder="Career / role">
+        <input class="input" id="codexWayfarerDrive" placeholder="Drive">
+        <input class="input" id="codexWayfarerStory" placeholder="Backstory hook" style="grid-column:1/-1;">
+        <div style="display:flex;gap:.3rem;grid-column:1/-1;">
+          <button class="btn btn-teal btn-sm" onclick="saveCustomWayfarerFromCodex()">Save GM Wayfarer</button>
+          <button class="btn btn-sm" onclick="clearCustomWayfarerForm()">Clear</button>
+        </div>
+      </div>
       <div id="wayfarerResult" style="margin-bottom:.6rem;"></div>
       <div class="wayfarer-grid">
-        ${wayfarers.map((w,i)=>`<div class="wayfarer-card"><div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:.45rem;align-items:start;"><div style="padding-top:.05rem;">${window.SharedIconSystem&&typeof window.SharedIconSystem.iconWayfarer==='function'?window.SharedIconSystem.iconWayfarer(w[1]+' '+w[2],{size:30,title:w[1]+' '+w[2]}):'🧭'}</div><div style="min-width:0;"><div style="display:flex;justify-content:space-between;gap:.35rem;align-items:flex-start;"><div class="wf-name">${w[1]} ${w[2]}</div><div style="font-family:'Rajdhani',sans-serif;font-size:.72rem;color:var(--muted2);flex-shrink:0;">#${i+1}${w[5]==='custom'?' · GM':''}</div></div><div class="wf-bg">${w[0]}</div><div class="wf-story">${w[3]}</div><div class="wf-drive">Drive: ${w[4]}</div>${w[5]==='custom'?`<div style="margin-top:.25rem;"><button class="btn btn-xs" onclick="removeCustomWayfarer(${Number(w[6]||0)})">Remove</button></div>`:''}</div></div></div>`).join('')}
+        ${wayfarers.map((w,i)=>`<div class="wayfarer-card"><div style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:.45rem;align-items:start;"><div style="padding-top:.05rem;">${window.SharedIconSystem&&typeof window.SharedIconSystem.iconWayfarer==='function'?window.SharedIconSystem.iconWayfarer(w[1]+' '+w[2],{size:30,title:w[1]+' '+w[2]}):'🧭'}</div><div style="min-width:0;"><div style="display:flex;justify-content:space-between;gap:.35rem;align-items:flex-start;"><div class="wf-name">${w[1]} ${w[2]}</div><div style="font-family:'Rajdhani',sans-serif;font-size:.72rem;color:var(--muted2);flex-shrink:0;">#${i+1}${w[5]==='custom'?' · GM':''}</div></div><div class="wf-bg">${w[0]}</div><div class="wf-story">${w[3]}</div><div class="wf-drive">Drive: ${w[4]}</div>${w[5]==='custom'?`<div style="margin-top:.25rem;display:flex;gap:.25rem;"><button class="btn btn-xs" onclick="editCustomWayfarer(${Number(w[6]||0)})">Edit</button><button class="btn btn-xs" onclick="removeCustomWayfarer(${Number(w[6]||0)})">Remove</button></div>`:''}</div></div></div>`).join('')}
       </div>
     </div>`;
   }else if(cat==='lore'){
@@ -19273,7 +19393,15 @@ function showCodexCat(cat,btn){
     var entries=getAllBespokeFlavorEntries();
     var customFlavorBases=((S&&S.customContent&&Array.isArray(S.customContent.flavors))?S.customContent.flavors:[]).map(function(v){return normalizeFlavorBase(v);});
     c.innerHTML=`<div class="card"><div class="section-title">Personal Flavor Codex (100)</div>
-      <div style="display:flex;justify-content:space-between;gap:.45rem;align-items:center;flex-wrap:wrap;margin-bottom:.55rem;"><div style="font-size:.82rem;color:var(--muted2);">Every flavor has a bespoke action profile with an archetype-specific cooldown lane.</div><button class="btn btn-teal btn-sm" onclick="promptAddCustomFlavor()">+ Add GM Flavor</button></div>
+      <div style="font-size:.82rem;color:var(--muted2);margin-bottom:.4rem;">Every flavor has a bespoke action profile with an archetype-specific cooldown lane.</div>
+      <div style="display:grid;grid-template-columns:1fr;gap:.28rem;border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.42rem .45rem;margin-bottom:.55rem;">
+        <input class="input" id="codexFlavorTitle" placeholder="Flavor title (e.g., Void Shepherd)">
+        <input class="input" id="codexFlavorEffect" placeholder="Effect text (what it does in play)">
+        <div style="display:flex;gap:.3rem;">
+          <button class="btn btn-teal btn-sm" onclick="saveCustomFlavorFromCodex()">Save GM Flavor</button>
+          <button class="btn btn-sm" onclick="clearCustomFlavorForm()">Clear</button>
+        </div>
+      </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.35rem;">
         ${entries.map((e,i)=>`<div class="wayfarer-card" style="border-color:${normalizeFlavorBase(S.flavor)===e.key?'rgba(232,192,80,.55)':'var(--border2)'};background:${normalizeFlavorBase(S.flavor)===e.key?'rgba(232,192,80,.08)':'rgba(255,255,255,.02)'};">
           <div style="display:flex;justify-content:space-between;gap:.4rem;align-items:flex-start;">
@@ -19282,7 +19410,7 @@ function showCodexCat(cat,btn){
           </div>
           <div class="wf-drive" style="margin-top:.2rem;">${e.archetype} · cooldown ${e.cooldownType}</div>
           <div class="wf-story" style="margin-top:.25rem;">${e.desc}</div>
-          ${customFlavorBases.indexOf(e.key)>=0?`<div style="margin-top:.3rem;"><button class="btn btn-xs" onclick="removeCustomFlavor(${customFlavorBases.indexOf(e.key)})">Remove</button></div>`:''}
+          ${customFlavorBases.indexOf(e.key)>=0?`<div style="margin-top:.3rem;display:flex;gap:.25rem;"><button class="btn btn-xs" onclick="editCustomFlavor(${customFlavorBases.indexOf(e.key)})">Edit</button><button class="btn btn-xs" onclick="removeCustomFlavor(${customFlavorBases.indexOf(e.key)})">Remove</button></div>`:''}
         </div>`).join('')}
       </div>
     </div>`;
@@ -19324,10 +19452,20 @@ function showCodexCat(cat,btn){
   }else if(cat==='bestiary'){
     var bestiaryByRegion=(typeof getCodexBestiaryByRegion==='function')?getCodexBestiaryByRegion():CODEX_BESTIARY;
     c.innerHTML=`<div class="card"><div class="section-title">Enemy Bestiary</div>
-      <div style="display:flex;justify-content:space-between;gap:.45rem;align-items:center;flex-wrap:wrap;margin-bottom:.65rem;"><div style="font-size:.82rem;color:var(--muted2);">Death Number is listed as half Health, rounded up. Use it as the quick threshold for when a creature is entering its kill window.</div><button class="btn btn-teal btn-sm" onclick="promptAddCustomBestiaryEntry()">+ Add GM Entry</button></div>
+      <div style="font-size:.82rem;color:var(--muted2);margin-bottom:.45rem;">Death Number is listed as half Health, rounded up. Use it as the quick threshold for when a creature is entering its kill window.</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.28rem;border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.42rem .45rem;margin-bottom:.6rem;">
+        <select class="input" id="codexBestiaryRegion"><option value="province">province</option><option value="sea">sea</option><option value="wtw">wtw</option><option value="planet">planet</option><option value="galaxy">galaxy</option></select>
+        <input class="input" id="codexBestiaryName" placeholder="Creature name">
+        <input class="input" id="codexBestiaryDread" type="number" min="4" max="12" step="1" value="8" placeholder="Dread">
+        <input class="input" id="codexBestiaryDesc" placeholder="Description" style="grid-column:1/-1;">
+        <div style="display:flex;gap:.3rem;grid-column:1/-1;">
+          <button class="btn btn-teal btn-sm" onclick="saveCustomBestiaryFromCodex()">Save GM Bestiary Entry</button>
+          <button class="btn btn-sm" onclick="clearCustomBestiaryForm()">Clear</button>
+        </div>
+      </div>
       <div class="codex-grid">
         ${Object.keys(bestiaryByRegion).map(region=>`<div class="card"><div class="section-title" style="display:flex;align-items:center;gap:.45rem;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,{name:region==='wtw'?'World That Was':'Bestiary Region'},{size:26}):''}<span>${region==='wtw'?'World That Was':region.charAt(0).toUpperCase()+region.slice(1)}</span></div>
-          ${bestiaryByRegion[region].map(entry=>{var stats=getBestiaryDerivedStats(entry);return `<div class="hist-entry" style="display:grid;grid-template-columns:auto auto 1fr;gap:.55rem;align-items:center;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,entry,{size:42}):''}<div class="hist-num">d${stats.dread}</div><div class="hist-text"><strong>${entry.name}</strong>${entry._customIndex!==undefined?' <span style="font-size:.68rem;color:var(--teal);">GM</span>':''}<br>${entry.desc}<br><span style="color:var(--gold2);">Health ${stats.health} · Death Number ${stats.deathNumber}</span>${entry._customIndex!==undefined?`<br><button class="btn btn-xs" onclick="removeCustomBestiaryEntry(${Number(entry._customIndex)})">Remove</button>`:''}</div></div>`;}).join('')}
+          ${bestiaryByRegion[region].map(entry=>{var stats=getBestiaryDerivedStats(entry);return `<div class="hist-entry" style="display:grid;grid-template-columns:auto auto 1fr;gap:.55rem;align-items:center;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,entry,{size:42}):''}<div class="hist-num">d${stats.dread}</div><div class="hist-text"><strong>${entry.name}</strong>${entry._customIndex!==undefined?' <span style="font-size:.68rem;color:var(--teal);">GM</span>':''}<br>${entry.desc}<br><span style="color:var(--gold2);">Health ${stats.health} · Death Number ${stats.deathNumber}</span>${entry._customIndex!==undefined?`<br><div style="margin-top:.22rem;display:flex;gap:.22rem;"><button class="btn btn-xs" onclick="editCustomBestiaryEntry(${Number(entry._customIndex)})">Edit</button><button class="btn btn-xs" onclick="removeCustomBestiaryEntry(${Number(entry._customIndex)})">Remove</button></div>`:''}</div></div>`;}).join('')}
         </div>`).join('')}
         <div id="codexBestiaryForgeSlot">${typeof renderCodexBestiaryForgeCard==='function' ? renderCodexBestiaryForgeCard() : '<div class="card"><div class="section-title">Monster Forge</div><div style="font-size:.82rem;color:var(--muted2);">The monster forge is loading.</div></div>'}</div>
       </div>

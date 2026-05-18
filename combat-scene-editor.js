@@ -134,6 +134,60 @@
     return 0;
   }
 
+  function layerTextValue(state, layerName, q, r) {
+    return String(state && state.layers && state.layers[layerName] && state.layers[layerName][toKey(q, r)] || '').toLowerCase();
+  }
+
+  function getLayerGameplayProfile(state, q, r) {
+    var terrain = layerTextValue(state, 'terrain', q, r);
+    var object = layerTextValue(state, 'objects', q, r);
+    var hazard = layerTextValue(state, 'hazards', q, r);
+    var lighting = layerTextValue(state, 'lighting', q, r);
+    var weather = layerTextValue(state, 'weather', q, r);
+    var foreground = layerTextValue(state, 'foreground', q, r);
+    var interactive = layerTextValue(state, 'interactives', q, r);
+    var spawn = layerTextValue(state, 'spawns', q, r);
+
+    var moveTax = 0;
+    var cover = 0;
+    var rangedMod = 0;
+    var meleeMod = 0;
+    var defendMod = 0;
+    var blockMove = false;
+    var blockLos = false;
+    var hazardDamage = 0;
+
+    if (/obstacle|wall|vision-blocker|collapsed|barrier/.test(object + ' ' + lighting + ' ' + foreground)) blockMove = true;
+    if (/lava|chasm|void|pit/.test(terrain)) blockMove = true;
+
+    if (/difficult|marsh|water|mud|snow|rubble|ash/.test(terrain + ' ' + weather)) moveTax += 1;
+    if (/web|tangle|wreckage|debris/.test(object + ' ' + foreground)) moveTax += 1;
+
+    if (/forest|ruins|crags|marsh|balcony|tree-canopy|high-ledge/.test(terrain + ' ' + object + ' ' + foreground)) cover += 1;
+    if (/obstacle|door|turret|crate|pillar|barrier/.test(object)) cover += 1;
+
+    if (/vision-blocker|wall|smoke|fog/.test(lighting + ' ' + weather + ' ' + foreground)) blockLos = true;
+    if (/smoke|fog|ash|storm/.test(weather + ' ' + foreground)) rangedMod -= 1;
+
+    if (/water|mud|marsh/.test(terrain)) meleeMod -= 1;
+    if (/shrine|relay|cover-node/.test(interactive)) defendMod += 1;
+
+    if (/trap|fire|acid|radiation|shock|lava/.test(hazard + ' ' + terrain)) hazardDamage = Math.max(1, /lava|fire|acid/.test(hazard + ' ' + terrain) ? 2 : 1);
+    if (/spawn|ambush/.test(spawn) && /trap|mine/.test(hazard)) hazardDamage = Math.max(hazardDamage, 2);
+
+    return {
+      moveTax: Math.max(0, moveTax),
+      cover: cover,
+      rangedMod: rangedMod,
+      meleeMod: meleeMod,
+      defendMod: defendMod,
+      blockMove: blockMove,
+      blockLos: blockLos,
+      hazardDamage: hazardDamage,
+      interactive: interactive
+    };
+  }
+
   function isHexRevealed(state, q, r) {
     if (!state.fog || !state.fog.enabled) return true;
     var key = toKey(q, r);
@@ -517,11 +571,8 @@
     if (!state || !actor || !target) return 0;
     if (actionModeFor(action) === 'melee') return 0;
     var key = toKey(target.q, target.r);
-    var terrain = String(state.layers && state.layers.terrain && state.layers.terrain[key] || '').toLowerCase();
-    var object = String(state.layers && state.layers.objects && state.layers.objects[key] || '').toLowerCase();
-    var cover = 0;
-    if (object === 'obstacle' || object === 'door' || object === 'turret') cover += 2;
-    if (terrain === 'forest' || terrain === 'ruins' || terrain === 'crags' || terrain === 'marsh') cover += 1;
+    var profile = getLayerGameplayProfile(state, target.q, target.r);
+    var cover = Math.max(0, Number(profile.cover || 0));
     var actorElev = Number(state.layers && state.layers.elevation && state.layers.elevation[toKey(actor.q, actor.r)] || 0);
     var targetElev = Number(state.layers && state.layers.elevation && state.layers.elevation[key] || 0);
     if (actorElev > targetElev && cover > 0) cover -= 1;
@@ -534,8 +585,10 @@
   function losModifierForAction(state, actor, target, action) {
     if (!state || !actor || !target) return { blocked: false, mod: 0 };
     if (actionModeFor(action) !== 'ranged') return { blocked: false, mod: 0 };
-    var blocked = isSightBlocked(state, { q: Number(actor.q || 0), r: Number(actor.r || 0) }, { q: Number(target.q || 0), r: Number(target.r || 0) });
-    return { blocked: blocked, mod: blocked ? -4 : 0 };
+    var targetProfile = getLayerGameplayProfile(state, target.q, target.r);
+    var blocked = targetProfile.blockLos || isSightBlocked(state, { q: Number(actor.q || 0), r: Number(actor.r || 0) }, { q: Number(target.q || 0), r: Number(target.r || 0) });
+    var mod = blocked ? -4 : Number(targetProfile.rangedMod || 0);
+    return { blocked: blocked, mod: mod };
   }
 
   function defaultTokens() {
@@ -556,6 +609,32 @@
   function getWayfarerMaxHpByRules() {
     var defendDie = Math.max(4, Number(window.S && window.S.stats && window.S.stats.defend || 6));
     return Math.max(1, defendDie * 2);
+  }
+
+  function getWayfarerHealthSnapshot() {
+    var maxHp = getWayfarerMaxHpByRules();
+    var damageTaken = Math.max(0, Number(window.S && window.S.health || 0));
+    var remaining = Math.max(0, maxHp - damageTaken);
+    return { remaining: remaining, max: maxHp, damage: damageTaken };
+  }
+
+  function syncWayfarerTokenHealthFromSheet() {
+    var state = store.getState();
+    var snap = getWayfarerHealthSnapshot();
+    var changed = false;
+    store.setState(function (inner) {
+      var next = Object.assign({}, inner);
+      next.tokens = (inner.tokens || []).map(function (token) {
+        if (!token || !token.isPlayer) return token;
+        var hpNow = Math.max(0, Number(token.hp || 0));
+        var maxNow = Math.max(1, Number(token.maxHp || hpNow || 1));
+        if (hpNow === snap.remaining && maxNow === snap.max) return token;
+        changed = true;
+        return Object.assign({}, token, { hp: snap.remaining, maxHp: snap.max, dead: snap.remaining <= 0 });
+      });
+      if (changed) persist(next);
+      return changed ? next : inner;
+    });
   }
 
   function normalizeTokenActionBudgetToken(token) {
@@ -1056,7 +1135,51 @@
     if (!skill) return 'Combat Tab';
     var src = String(skill.source || 'Combat Tab').trim();
     var rangeTxt = skillRangeVerbatim(skill);
-    return src + ' · Range: ' + rangeTxt.toLowerCase();
+    var kind = String(skill.kind || 'special').trim();
+    return src + ' · ' + kind + ' · Range: ' + rangeTxt.toLowerCase();
+  }
+
+  function getEnemySkillSaveLabel(skill) {
+    var raw = String((skill && (skill.save || skill.saveStat || skill.stat)) || 'defend').toLowerCase();
+    var map = {
+      defend: 'Defend',
+      body: 'Body',
+      mind: 'Mind',
+      spirit: 'Spirit',
+      strike: 'Strike',
+      shoot: 'Shoot',
+      control: 'Control',
+      lead: 'Lead'
+    };
+    if (map[raw]) return map[raw];
+    if (raw === 'healthstrike' || raw === 'defendcheck') return 'Defend';
+    if (raw === 'forcetrauma') return 'Mind';
+    if (raw === 'radiation') return 'Spirit';
+    if (raw === 'hack') return 'Control';
+    return 'Defend';
+  }
+
+  function getEnemySkillSaveKey(skill) {
+    return String(getEnemySkillSaveLabel(skill) || 'Defend').toLowerCase();
+  }
+
+  function getEnemySkillDreadDie(skill, fallback) {
+    var fromSkill = Math.max(0, Number(skill && skill.dreadDie || 0));
+    if (fromSkill > 0) return Math.max(4, fromSkill);
+    return Math.max(4, Number(fallback || 6));
+  }
+
+  function getTargetSaveDieForSkill(target, skill) {
+    var key = getEnemySkillSaveKey(skill);
+    if (target && target.isPlayer) {
+      var s = window.S && window.S.stats ? window.S.stats : {};
+      return Math.max(4, Number(s[key] || s.defend || 6));
+    }
+    if (target) {
+      if (key === 'defend') return Math.max(4, Number(target.defend || target.dread || target.codexDread || 6));
+      return Math.max(4, Number(target[key] || target.defend || target.dread || target.codexDread || 6));
+    }
+    return 6;
   }
 
   function escapeHtml(value) {
@@ -1072,9 +1195,9 @@
     if (!entry || !entry.skill) return '';
     var skill = entry.skill;
     var title = escapeHtml(String(skill.name || 'Enemy Skill'));
-    var saveTxt = escapeHtml(String(skill.save || 'Defend'));
+    var saveTxt = escapeHtml(getEnemySkillSaveLabel(skill));
     var rangeTxt = escapeHtml(skillRangeVerbatim(skill));
-    var rollTxt = escapeHtml(saveTxt + ' vs Dread d' + Number(dreadDie || 6));
+    var rollTxt = escapeHtml(saveTxt + ' vs Dread d' + Number(getEnemySkillDreadDie(skill, dreadDie || 6)));
     var failTxt = escapeHtml(String(skill.onFail || 'Apply effect.'));
     var successTxt = escapeHtml(String(skill.onSuccess || 'Resist the effect.'));
     var sourceTxt = escapeHtml(skillSourceVerbatim(skill));
@@ -1108,9 +1231,9 @@
   function pushEnemySkillNarration(actor, skill, dreadDie) {
     if (!actor || !skill) return;
     addHistory(String(actor.name || 'Enemy') + ' uses ' + String(skill.name || 'Enemy Skill'));
-    addHistory('Save: ' + String(skill.save || 'Defend'));
+    addHistory('Save: ' + getEnemySkillSaveLabel(skill));
     addHistory('Range: ' + skillRangeVerbatim(skill));
-    addHistory('Roll: ' + String(skill.save || 'Defend') + ' vs Dread d' + Number(dreadDie || 6));
+    addHistory('Roll: ' + getEnemySkillSaveLabel(skill) + ' vs Dread d' + Number(getEnemySkillDreadDie(skill, dreadDie || 6)));
     addHistory('On Fail: ' + String(skill.onFail || 'Apply effect.'));
     addHistory('On Success: ' + String(skill.onSuccess || 'Resist the effect.'));
     addHistory('Source: ' + skillSourceVerbatim(skill));
@@ -1321,7 +1444,8 @@
           target.hp = after;
           target.dead = after <= 0;
           if (target.isPlayer && window.S) {
-            window.S.health = Math.max(0, Number(window.S.health || 0) - tickDamage);
+            if (typeof window.setHealth === 'function') window.setHealth(Number(window.S.health || 0) + tickDamage);
+            else window.S.health = Math.max(0, Number(window.S.health || 0) + tickDamage);
           }
           lines.push(String(effect.label || 'Condition') + ' deals ' + tickDamage + ' to ' + String(target.name || 'Token') + ' (' + after + ' HP).');
           if (after <= 0) {
@@ -1352,6 +1476,7 @@
     if (typeof window.updateCombatUI === 'function') {
       try { window.updateCombatUI(); } catch (_err) {}
     }
+    syncWayfarerTokenHealthFromSheet();
     drawBoard();
     updateUiPanels();
   }
@@ -1368,12 +1493,8 @@
 
   function isBlocked(q, r) {
     var state = store.getState();
-    var key = toKey(q, r);
-    var terrain = state.layers && state.layers.terrain && state.layers.terrain[key] || '';
-    var object = state.layers && state.layers.objects && state.layers.objects[key] || '';
-    if (String(object) === 'obstacle') return true;
-    if (String(terrain) === 'lava') return true;
-    return false;
+    var profile = getLayerGameplayProfile(state, q, r);
+    return !!profile.blockMove;
   }
 
   function paintAt(q, r) {
@@ -1481,9 +1602,13 @@
 
     var weatherMod = getWeatherModifier(state, actionType === 'melee' ? 'melee' : 'ranged');
     var terrainMod = 0;
+    var actorProfile = getLayerGameplayProfile(state, actor.q, actor.r);
     var terrain = String(state.layers.terrain[toKey(actor.q, actor.r)] || '');
     if (terrain === 'difficult terrain') terrainMod = -1;
     if (terrain === 'water' && actionType === 'melee') terrainMod -= 1;
+    if (actionType === 'melee' || actionType === 'strike') terrainMod += Number(actorProfile.meleeMod || 0);
+    if (actionType === 'ranged' || actionType === 'shoot') terrainMod += Number(actorProfile.rangedMod || 0);
+    if (actionType === 'defend') terrainMod += Number(actorProfile.defendMod || 0);
     var coverMod = target ? coverPenaltyForTarget(state, actor, target, actionType) : 0;
     var los = target ? losModifierForAction(state, actor, target, actionType) : { blocked: false, mod: 0 };
     var losMod = Number(los.mod || 0);
@@ -1563,10 +1688,14 @@
     var weatherMod = getWeatherModifier(state, weatherMode);
 
     var terrainMod = 0;
+    var actorProfile = getLayerGameplayProfile(state, actor.q, actor.r);
     var terrain = String(state.layers.terrain[toKey(actor.q, actor.r)] || '');
     if (terrain === 'difficult terrain') terrainMod -= 1;
     if (terrain === 'water' && (action === 'strike' || action === 'melee' || action === 'defend')) terrainMod -= 1;
     if (terrain === 'lava' && action === 'defend') terrainMod -= 1;
+    if (action === 'shoot' || action === 'ranged') terrainMod += Number(actorProfile.rangedMod || 0);
+    if (action === 'strike' || action === 'melee') terrainMod += Number(actorProfile.meleeMod || 0);
+    if (action === 'defend') terrainMod += Number(actorProfile.defendMod || 0);
     var coverMod = target ? coverPenaltyForTarget(state, actor, target, action) : 0;
     var los = target ? losModifierForAction(state, actor, target, action) : { blocked: false, mod: 0 };
     var losMod = Number(los.mod || 0);
@@ -1598,8 +1727,9 @@
     var defendDie = Number(stats.defend || 4);
     var controlDie = Number(stats.control || 4);
     var tmw = Math.max(0, Number(window.S && window.S.tmw || 0));
-    var health = Math.max(0, Number(window.S && window.S.health || 0));
-    var maxHealth = Math.max(0, Number(window.S && window.S.maxHealth || 8));
+    var hpSnap = getWayfarerHealthSnapshot();
+    var health = hpSnap.remaining;
+    var maxHealth = hpSnap.max;
     var flavor = String(window.S && window.S.flavor || '').trim();
 
     var affix = (typeof window.getEquippedAffixCombatBonuses === 'function') ? window.getEquippedAffixCombatBonuses() : {};
@@ -1716,7 +1846,7 @@
       if (!window.S || !window.S.combat) return true;
       var available = Math.max(0, Number(window.S.combat.actionsLeft || 0));
       if (available < required) {
-        safeNotif('Not enough Actions to move. Movement costs 1 Action per hex.', 'warn');
+        safeNotif('Not enough Actions to move. Movement cost includes terrain/layer tax.', 'warn');
         return false;
       }
       if (typeof window.consumeCombatAction === 'function') {
@@ -1759,7 +1889,9 @@
       addHistory('Movement limited to 1 hex per action in active scenes.');
       return;
     }
-    if (activeMovement && !consumeMovementAction(actor, distance)) {
+    var destinationProfile = getLayerGameplayProfile(state, q, r);
+    var movementCost = Math.max(1, distance + Math.max(0, Number(destinationProfile.moveTax || 0)));
+    if (activeMovement && !consumeMovementAction(actor, movementCost)) {
       return;
     }
     store.setState(function (state) {
@@ -1773,7 +1905,14 @@
       return next;
     });
     var token = byId(tokenId);
-    if (token) addHistory(String(token.name || 'Token') + ' moved to ' + toKey(q, r) + '.');
+    if (token) {
+      addHistory(String(token.name || 'Token') + ' moved to ' + toKey(q, r) + ' (cost ' + movementCost + ' action' + (movementCost === 1 ? '' : 's') + ').');
+      if (Number(destinationProfile.hazardDamage || 0) > 0) {
+        var hz = Math.max(1, Number(destinationProfile.hazardDamage || 0));
+        applyDamageToToken(token.id, hz, 'Hazard');
+        addHistory(String(token.name || 'Token') + ' takes ' + hz + ' hazard damage from tile effects.');
+      }
+    }
     if (activeMovement && actor && String(actor.faction || '') === 'monster') {
       maybeAdvanceRoundAfterEnemyActions(actor.id);
     }
@@ -2681,6 +2820,7 @@
   }
 
   function updateUiPanels() {
+    syncWayfarerTokenHealthFromSheet();
     var state = ensureActionBudgetMap(ensureInitiative(normalizeCombatSceneState(store.getState())));
     syncWayfarerCombatActionBudget(false);
     var root = document.getElementById('combatModeOverlay');
@@ -3009,8 +3149,9 @@
     if (statusGrid) {
       var playerActionsNow = Math.max(0, Number(window.S && window.S.combat && window.S.combat.actionsLeft || 0));
       var playerActionsMax = Math.max(playerActionsNow, Number(window.S && window.S.combat && window.S.combat.maxActions || 3));
-      var hpNow = Math.max(0, Number(window.S && window.S.health || 0));
-      var hpMax = Math.max(0, Number(window.S && window.S.maxHealth || 8));
+      var hpSnap = getWayfarerHealthSnapshot();
+      var hpNow = hpSnap.remaining;
+      var hpMax = hpSnap.max;
       var tmwNow = Math.max(0, Number(window.S && window.S.tmw || 0));
       var alliesCount = (state.tokens || []).filter(function (token) { return token && String(token.faction) === 'player' && !token.isPlayer; }).length;
       var enemiesCount = (state.tokens || []).filter(function (token) { return token && String(token.faction) === 'monster'; }).length;
@@ -3753,9 +3894,12 @@
       var inRange = skills.filter(function (row) { return !!row.inRange; });
       selected = inRange[0] || null;
     }
-    var dreadDie = Math.max(4, Number(actor.dread || actor.codexDread || 6));
-    var defendDie = Math.max(4, Number(foe && foe.isPlayer ? (window.S && window.S.stats && window.S.stats.defend || 6) : (foe.defend || foe.dread || 6)));
     var actionName = selected ? selected.name : 'Basic Enemy Action';
+    var skillRef = selected && selected.skill ? selected.skill : null;
+    var saveLabel = getEnemySkillSaveLabel(skillRef);
+    var saveKey = getEnemySkillSaveKey(skillRef);
+    var dreadDie = getEnemySkillDreadDie(skillRef, Math.max(4, Number(actor.dread || actor.codexDread || 6)));
+    var defendDie = Math.max(4, Number(getTargetSaveDieForSkill(foe, skillRef) || 6));
 
     function finalizeEnemyAction(resolution) {
       if (!spendUnitAction(actor.id)) {
@@ -3798,7 +3942,7 @@
       if (selected && selected.skill) pushEnemySkillNarration(actor, selected.skill, dreadDie);
       addHistory((actor.name || 'Enemy') + ' action result at ' + hexLabel(dist)
         + ' · Dread d' + dreadDie + ' = ' + enemyRoll
-        + ' vs ' + String(foe.name || 'target') + ' Defend d' + defendDie + ' = ' + defendRoll
+        + ' vs ' + String(foe.name || 'target') + ' ' + saveLabel + ' d' + defendDie + ' = ' + defendRoll
         + (defendBonus ? (' (includes +' + defendBonus + ' defend bonuses)') : '')
         + (hit ? (' · On Fail: ' + String(selected && selected.skill && selected.skill.onFail || ('Take ' + stress + ' Stress.'))) : (' · On Success: ' + String(selected && selected.skill && selected.skill.onSuccess || 'Resist the effect.'))));
 
@@ -3817,8 +3961,8 @@
         window.openWtwManualActionDreadPrompt({
           title: 'Manual Roll — Enemy Action',
           context: (actor.name || 'Enemy') + ' using ' + actionName + ' on ' + String(foe.name || 'target'),
-          statKey: 'defend',
-          statLabel: 'Defend',
+          statKey: saveKey,
+          statLabel: saveLabel,
           actionDie: defendDie,
           dreadDie: dreadDie,
           onResolve: function (outcome) {
@@ -3848,7 +3992,7 @@
     var enemyRoll = rollCombatDieTotal(dreadDie, 'dread', String(actor.name || 'Enemy') + ' Dread d' + dreadDie);
     var defendRolls = [rollCombatDieTotal(defendDie, 'action', String(foe.name || 'Target') + ' Defend d' + defendDie)];
     var defendBonus = 0;
-    if (foe && foe.isPlayer) {
+    if (foe && foe.isPlayer && saveKey === 'defend') {
       var defendAdv = parseDefendAdvantageCount();
       for (var advIdx = 0; advIdx < defendAdv; advIdx++) {
         defendRolls.push(rollCombatDieTotal(defendDie, 'action', 'Defend Advantage d' + defendDie));
@@ -4304,10 +4448,44 @@
         var token = byId(state.selectedTokenId);
         if (!token) return;
         var key = toKey(token.q, token.r);
-        var interactive = state.layers.interactives && state.layers.interactives[key];
-        if (interactive) addHistory((token.name || 'Token') + ' activates ' + interactive + ' at ' + key + '.');
-        else addHistory('No interactive object on current hex.');
+        var interactive = String(state.layers.interactives && state.layers.interactives[key] || '').toLowerCase();
+        if (!interactive) {
+          addHistory('No interactive object on current hex.');
+          updateUiPanels();
+          return;
+        }
+        var label = interactive;
+        var used = false;
+        if (/chest|cache|loot/.test(interactive)) {
+          addHistory((token.name || 'Token') + ' opens ' + label + ' and secures supplies.');
+          if (token.isPlayer && typeof window.changeCounter === 'function') {
+            window.changeCounter('tmw', 1);
+            if (typeof window.showNotif === 'function') window.showNotif('Loot cache: +1 Teamwork.', 'good');
+          }
+          used = true;
+        } else if (/shrine|relay|beacon/.test(interactive)) {
+          addHistory((token.name || 'Token') + ' channels ' + label + ' for battlefield stability.');
+          if (token.isPlayer && typeof window.setHealth === 'function') {
+            window.setHealth(Math.max(0, Number(window.S && window.S.health || 0) - 1));
+            if (typeof window.showNotif === 'function') window.showNotif('Shrine effect: healed 1 damage.', 'good');
+          }
+          used = true;
+        } else if (/switch|door|console/.test(interactive)) {
+          addHistory((token.name || 'Token') + ' triggers ' + label + ' and changes map state.');
+          store.setState(function (inner) {
+            var next = Object.assign({}, inner);
+            next.layers = Object.assign({}, inner.layers);
+            next.layers.objects = Object.assign({}, inner.layers.objects);
+            if (next.layers.objects[key] === 'door') delete next.layers.objects[key];
+            else next.layers.objects[key] = 'door';
+            persist(next);
+            return next;
+          });
+          used = true;
+        }
+        if (!used) addHistory((token.name || 'Token') + ' activates ' + label + ' at ' + key + '.');
         updateUiPanels();
+        drawBoard();
       };
     }
 

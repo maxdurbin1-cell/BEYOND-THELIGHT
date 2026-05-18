@@ -1164,36 +1164,89 @@
     state.mapTools.trails = state.mapTools.trails.slice(-18);
   }
 
-  function ensureMapInteractionControls() {
-    var controls = document.querySelector('#tab-map .map-controls');
-    if (!controls) return;
+  function clearMovementTrail() {
     var state = ensureState();
     if (!state) return;
-    var row = document.getElementById('mapInteractionControls');
-    if (!row) {
-      row = document.createElement('span');
-      row.id = 'mapInteractionControls';
-      controls.appendChild(row);
-    }
-    row.innerHTML = ''
-      + '<button class="btn btn-sm ' + (state.mapTools.manualFogMode ? 'btn-teal' : '') + '" id="coFogModeBtn">Fog Manual: ' + (state.mapTools.manualFogMode ? 'On' : 'Off') + '</button>'
-      + '<button class="btn btn-sm" id="coTrailClearBtn">Clear Trail</button>';
+    state.mapTools.trails = [];
+    state.mapTools.lastTrailKey = '';
+    safeNotif('Movement trail cleared.', 'good');
+    if (typeof window.renderHexMap === 'function') window.renderHexMap();
+  }
 
-    var modeBtn = document.getElementById('coFogModeBtn');
-    if (modeBtn) {
-      modeBtn.addEventListener('click', function() {
-        state.mapTools.manualFogMode = !state.mapTools.manualFogMode;
-        modeBtn.textContent = 'Fog Manual: ' + (state.mapTools.manualFogMode ? 'On' : 'Off');
-        modeBtn.classList.toggle('btn-teal', state.mapTools.manualFogMode);
-      });
-    }
+  function resolveMapRegionFromControls(controlsHost) {
+    var panel = controlsHost && controlsHost.closest ? controlsHost.closest('.tab-panel') : null;
+    var panelId = panel && panel.id ? String(panel.id) : '';
+    if (!panelId) return 'province';
+    if (panelId === 'tab-map') return 'province';
+    return panelId.replace(/^tab-/, '');
+  }
 
-    var clearTrailBtn = document.getElementById('coTrailClearBtn');
-    if (clearTrailBtn) {
-      clearTrailBtn.addEventListener('click', function() {
-        clearTrail(); // Assuming clearTrail is a defined function
-      });
+  function performMapLongRest() {
+    if (!window.S || typeof window.S !== 'object') return;
+    if (typeof window.clearStress === 'function') {
+      window.clearStress();
+    } else {
+      window.S.stress = 0;
     }
+    if (typeof window.clearAllConditions === 'function') {
+      window.clearAllConditions();
+    }
+    if (typeof window.updateStressUI === 'function') {
+      window.updateStressUI();
+    }
+    safeNotif('Long Rest complete: stress cleared and conditions removed.', 'good');
+  }
+
+  function ensureMapInteractionControls() {
+    var controlsList = document.querySelectorAll('.map-controls');
+    if (!controlsList || !controlsList.length) return;
+    var state = ensureState();
+    if (!state) return;
+
+    Array.prototype.forEach.call(controlsList, function (controls) {
+      var row = controls.querySelector('.map-interaction-controls');
+      if (!row) {
+        row = document.createElement('span');
+        row.className = 'map-interaction-controls';
+        controls.appendChild(row);
+      }
+
+      row.innerHTML = ''
+        + '<button class="btn btn-sm ' + (state.mapTools.manualFogMode ? 'btn-teal' : '') + ' coFogModeBtn">Fog Manual: ' + (state.mapTools.manualFogMode ? 'On' : 'Off') + '</button>'
+        + '<button class="btn btn-sm coTrailClearBtn">Clear Trail</button>'
+        + '<button class="btn btn-sm btn-teal coLongRestBtn">Long Rest</button>';
+
+      var modeBtn = row.querySelector('.coFogModeBtn');
+      if (modeBtn) {
+        modeBtn.onclick = function () {
+          state.mapTools.manualFogMode = !state.mapTools.manualFogMode;
+          if (state.mapTools.manualFogMode && typeof window.getMapFogConfig === 'function') {
+            var region = resolveMapRegionFromControls(controls);
+            var cfg = window.getMapFogConfig(region);
+            if (cfg && !cfg.enabled && typeof window.toggleMapFogForRegion === 'function') {
+              window.toggleMapFogForRegion(region);
+            }
+          }
+          modeBtn.textContent = 'Fog Manual: ' + (state.mapTools.manualFogMode ? 'On' : 'Off');
+          modeBtn.classList.toggle('btn-teal', state.mapTools.manualFogMode);
+          if (typeof window.renderHexMap === 'function') window.renderHexMap();
+        };
+      }
+
+      var clearTrailBtn = row.querySelector('.coTrailClearBtn');
+      if (clearTrailBtn) {
+        clearTrailBtn.onclick = function () {
+          clearMovementTrail();
+        };
+      }
+
+      var longRestBtn = row.querySelector('.coLongRestBtn');
+      if (longRestBtn) {
+        longRestBtn.onclick = function () {
+          performMapLongRest();
+        };
+      }
+    });
   }
 
   function renderMapOverlays() {

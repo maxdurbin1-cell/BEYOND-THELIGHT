@@ -2037,18 +2037,23 @@
       + '<div class="combat-topbar">'
       + '<div>'
       + '<div class="combat-topbar-title">Combat Scene · Round <span id="combatRoundDisplay">1</span></div>'
-            + '<div class="combat-mini" id="combatTopMeta">No active scene. | Turn: <span id="combatTurnDisplay">Awaiting start</span>  b7 <span id="combatSharedSyncBadge">Sync --</span></div>'
-            + '</div>'
-            + '<div style="display:flex;gap:.28rem;align-items:center;">'
-            + '<button class="btn btn-xs btn-primary" id="combatStartSceneBtn">Start Scene</button>'
-            + '<button class="btn btn-xs" id="combatPlayModeBtn">Play View</button>'
-            + '<button class="btn btn-xs" id="combatAddWayfarerBtn" title="Add Wayfarer to board">+ Wayfarer</button>'
-            + '<button class="btn btn-xs combat-editor-only" id="combatUploadMapBtn">Upload Battlemap</button>'
-            + '<button class="btn btn-xs combat-editor-only" id="combatClearMapBtn">Remove Battlemap</button>'
-            + '<button class="btn btn-xs combat-editor-only" id="combatAddTokenBtn">+ Add Enemy</button>'
-            + '<button class="btn btn-xs btn-red" id="combatCloseBtn">End Scene</button>'
-              + '<div style="display:flex;gap:.28rem;align-items:center;margin-left:.4rem;border-left:1px solid rgba(227,188,94,.2);padding-left:.4rem;">'
-              + '<button class="btn btn-xs" id="combatRulesReferenceBtn" title="Combat Rules Reference">📖 Rules</button>'
+      + '<div class="combat-mini" id="combatTopMeta">No active scene. | Turn: <span id="combatTurnDisplay">Awaiting start</span> &middot; <span id="combatSharedSyncBadge">Sync --</span></div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.28rem;align-items:center;">'
+      + '<button class="btn btn-xs btn-primary" id="combatStartSceneBtn">Start Scene</button>'
+      + '<button class="btn btn-xs" id="combatPlayModeBtn">Play View</button>'
+      + '<button class="btn btn-xs" id="combatAddWayfarerBtn" title="Add Wayfarer to board">+ Wayfarer</button>'
+      + '<button class="btn btn-xs combat-editor-only" id="combatUploadMapBtn">Upload Battlemap</button>'
+      + '<button class="btn btn-xs combat-editor-only" id="combatClearMapBtn">Remove Battlemap</button>'
+      + '<button class="btn btn-xs combat-editor-only" id="combatAddTokenBtn">+ Add Enemy</button>'
+      + '<button class="btn btn-xs btn-red" id="combatCloseBtn">End Scene</button>'
+      + '<div style="display:flex;gap:.28rem;align-items:center;margin-left:.4rem;border-left:1px solid rgba(227,188,94,.2);padding-left:.4rem;">'
+      + '<button class="btn btn-xs" id="combatRulesReferenceBtn" title="Combat Rules Reference">Rules</button>'
+      + '<button class="btn btn-xs combat-editor-only" id="combatSaveSceneCardBtn" title="Save current scene as card">Save Scene</button>'
+      + '<button class="btn btn-xs combat-editor-only" id="combatLoadSceneCardBtn" title="Load a saved scene card">Load Scene</button>'
+      + '<button class="btn btn-xs combat-editor-only" id="combatNewSceneTemplateBtn" title="Create new scene from template">New Scene</button>'
+      + '</div>'
+      + '</div>'
       + '</div>'
       + '<input id="combatMapImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatTokenImageInput" type="file" accept="image/*" style="display:none;">'
@@ -4121,6 +4126,8 @@
   }
 
   function bindStaticControls() {
+    bindSceneLibraryControls();
+
     function applyImportedSceneSnapshot(payload) {
       var source = payload && typeof payload === 'object' ? payload : {};
       var imported = source.schema && source.state && typeof source.state === 'object' ? source.state : source;
@@ -5231,56 +5238,247 @@
           return next;
         });
         addHistory('Wayfarer placed on the board (Engaged zone).');
-
-            var rulesBtn = document.getElementById('combatRulesReferenceBtn');
-            if (rulesBtn && !rulesBtn._bound) {
-              rulesBtn._bound = true;
-              rulesBtn.onclick = function () {
-                showCombatRulesReference();
-              };
-            }
-
-            var saveSceneBtn = document.getElementById('combatSaveSceneCardBtn');
-            if (saveSceneBtn && !saveSceneBtn._bound) {
-              saveSceneBtn._bound = true;
-              saveSceneBtn.onclick = function () {
-                saveSceneCard();
-              };
-            }
-
-            var loadSceneBtn = document.getElementById('combatLoadSceneCardBtn');
-            if (loadSceneBtn && !loadSceneBtn._bound) {
-              loadSceneBtn._bound = true;
-              loadSceneBtn.onclick = function () {
-                var state = store.getState();
-                var scenes = Array.isArray(state.scenes) ? state.scenes : [];
-                if (!scenes.length) {
-                  safeNotif('No saved scenes yet. Create and save one first.', 'warn');
-                  return;
-                }
-                var options = scenes.map(function (s, idx) {
-                  var updated = formatClockTime(Number(s.updatedAt || s.createdAt || 0));
-                  return '<option value="' + String(s.id) + '">' + String(s.name || 'Scene ' + (idx + 1)) + ' · ' + updated + '</option>';
-                }).join('');
-                var modal = '<div style="font-size:.78rem;"><select id="sceneLoadSelect" style="width:100%;padding:.3rem;margin:.2rem 0;border:1px solid rgba(227,188,94,.5);background:rgba(9,13,24,.95);color:#fff;">' + options + '</select><div style="margin-top:.3rem;display:flex;gap:.2rem;"><button class="btn btn-xs btn-primary" onclick="(function(){var sel=document.getElementById(\'sceneLoadSelect\');if(sel)loadSceneCard(sel.value);if(typeof window.closeModal===\'function\')window.closeModal();})();">Load</button><button class="btn btn-xs" onclick="if(typeof window.closeModal===\'function\')window.closeModal();">Cancel</button></div></div>';
-                if (typeof window.openModal === 'function') {
-                  window.openModal('Load Scene Card', modal);
-                }
-              };
-            }
-
-            var newSceneBtn = document.getElementById('combatNewSceneTemplateBtn');
-            if (newSceneBtn && !newSceneBtn._bound) {
-              newSceneBtn._bound = true;
-              newSceneBtn.onclick = function () {
-                var modal = '<div style="font-size:.78rem;display:grid;gap:.3rem;"><div style="margin-bottom:.15rem;">Choose a scene template:</div><button class="btn btn-xs btn-primary" style="width:100%;" onclick="createSceneFromTemplate(\'blank\');if(typeof window.closeModal===\'function\')window.closeModal();">⬜ Blank Canvas</button><button class="btn btn-xs" style="width:100%;" onclick="createSceneFromTemplate(\'dungeon\');if(typeof window.closeModal===\'function\')window.closeModal();">🏰 Dungeon Chamber</button><button class="btn btn-xs" style="width:100%;" onclick="createSceneFromTemplate(\'spaceship\');if(typeof window.closeModal===\'function\')window.closeModal();">🚀 Space Ship Interior</button><button class="btn btn-xs" style="width:100%;" onclick="createSceneFromTemplate(\'navalship\');if(typeof window.closeModal===\'function\')window.closeModal();">⛵ Naval Vessel Deck</button><button class="btn btn-xs" style="width:100%;" onclick="if(typeof window.closeModal===\'function\')window.closeModal();">Cancel</button></div>';
-                if (typeof window.openModal === 'function') {
-                  window.openModal('New Scene from Template', modal);
-                }
-              };
-            }
         updateUiPanels();
         drawBoard();
+      };
+    }
+  }
+
+  function showCombatRulesReference() {
+    var html = ''
+      + '<div style="font-size:.82rem;line-height:1.55;color:var(--text2);">'
+      + '<div><strong>Core Check:</strong> roll Action vs enemy Dread. Beat to succeed.</div>'
+      + '<div><strong>Turns:</strong> each token acts once per round by initiative order.</div>'
+      + '<div><strong>Movement:</strong> terrain and hazards can increase action cost.</div>'
+      + '<div><strong>Fog:</strong> use Fog tools to reveal tactical visibility.</div>'
+      + '<div><strong>Cover:</strong> use terrain and object layers to reduce incoming damage.</div>'
+      + '</div>';
+    if (typeof window.openModal === 'function') {
+      window.openModal('Combat Rules Reference', html);
+    } else {
+      safeNotif('Combat rules reference is available in modal-enabled views.', 'info');
+    }
+  }
+
+  function buildSceneSnapshotFromState(state, sceneId, sceneName) {
+    var id = String(sceneId || uid('scene'));
+    return {
+      id: id,
+      name: String(sceneName || ('Scene ' + id.slice(-4))),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      board: clone(state.board || { cols: 15, rows: 15, zoom: 1, panX: 0, panY: 0 }),
+      layers: clone(state.layers || {}),
+      fog: clone(state.fog || {}),
+      sceneRules: clone(state.sceneRules || {}),
+      tokens: clone(state.tokens || []),
+      initiative: clone(state.initiative || []),
+      actionHistory: clone((state.actionHistory || []).slice(0, 200)),
+      sceneOpener: clone(state.sceneOpener || null)
+    };
+  }
+
+  function saveSceneCard(sceneName) {
+    var savedId = '';
+    store.setState(function (state) {
+      var next = normalizeCombatSceneState(Object.assign({}, state));
+      var scenes = Array.isArray(next.scenes) ? next.scenes.slice() : [];
+      var activeId = String(next.activeSceneId || '');
+      var existingIdx = activeId
+        ? scenes.findIndex(function (scene) { return scene && String(scene.id) === activeId; })
+        : -1;
+      var targetName = String(sceneName || '').trim();
+      var snapshot;
+
+      if (existingIdx >= 0) {
+        var existing = scenes[existingIdx] || {};
+        snapshot = buildSceneSnapshotFromState(next, existing.id, targetName || existing.name || 'Scene');
+        snapshot.createdAt = Number(existing.createdAt || snapshot.createdAt || Date.now());
+        scenes[existingIdx] = snapshot;
+      } else {
+        snapshot = buildSceneSnapshotFromState(next, uid('scene'), targetName || ('Scene ' + (scenes.length + 1)));
+        scenes.push(snapshot);
+      }
+
+      savedId = String(snapshot.id || '');
+      next.scenes = scenes;
+      next.activeSceneId = savedId;
+      persist(next);
+      return next;
+    });
+    safeNotif('Scene saved.', 'good');
+  }
+
+  function loadSceneCard(sceneId) {
+    var targetId = String(sceneId || '');
+    if (!targetId) return;
+    var loaded = false;
+    store.setState(function (state) {
+      var next = normalizeCombatSceneState(Object.assign({}, state));
+      var scenes = Array.isArray(next.scenes) ? next.scenes.slice() : [];
+      var scene = scenes.find(function (entry) { return entry && String(entry.id) === targetId; }) || null;
+      if (!scene) return next;
+
+      next.activeSceneId = String(scene.id || '');
+      next.board = normalizeBoard(Object.assign({}, next.board || {}, clone(scene.board || {})));
+      next.layers = clone(scene.layers || {});
+      next.fog = clone(scene.fog || {});
+      next.sceneRules = clone(scene.sceneRules || {});
+      next.tokens = clone(scene.tokens || []);
+      next.initiative = clone(scene.initiative || []);
+      next.actionHistory = clone(scene.actionHistory || []);
+      next.selectedTokenId = next.tokens.length ? String((next.tokens[0] && next.tokens[0].id) || '') : '';
+      next.currentTurnIndex = 0;
+      next.initiativeIndex = 0;
+      persist(next);
+      loaded = true;
+      return next;
+    });
+
+    if (!loaded) {
+      safeNotif('Scene not found.', 'warn');
+      return;
+    }
+    addHistory('Scene loaded from card library.');
+    updateUiPanels();
+    drawBoard();
+    safeNotif('Scene loaded.', 'good');
+  }
+
+  function createSceneFromTemplate(templateKey) {
+    var key = String(templateKey || 'blank').toLowerCase();
+    var templates = {
+      blank: {
+        board: { cols: 15, rows: 15, zoom: 1, panX: 0, panY: 0 },
+        layers: { terrain: {}, objects: {}, hazards: {}, elevation: {}, lighting: {}, weather: {}, foreground: {}, interactives: {}, spawns: {} },
+        fog: {},
+        name: 'Blank Scene'
+      },
+      dungeon: {
+        board: { cols: 15, rows: 15, zoom: 1, panX: 0, panY: 0 },
+        layers: {
+          terrain: { '6,6': 'ruins', '7,6': 'ruins', '8,6': 'ruins', '8,7': 'ruins' },
+          objects: { '7,7': 'obstacle', '9,6': 'door' },
+          hazards: { '10,6': 'trap' },
+          elevation: {}, lighting: {}, weather: {}, foreground: {},
+          interactives: { '9,7': 'chest' },
+          spawns: { '11,6': 'spawn' }
+        },
+        fog: { enabled: true, revealed: {} },
+        name: 'Dungeon Scene'
+      },
+      spaceship: {
+        board: { cols: 16, rows: 12, zoom: 1, panX: 0, panY: 0 },
+        layers: {
+          terrain: { '4,4': 'ruins', '5,4': 'ruins', '6,4': 'ruins' },
+          objects: { '7,4': 'door', '8,4': 'wall' },
+          hazards: { '10,5': 'trap' },
+          elevation: {}, lighting: {}, weather: {}, foreground: {},
+          interactives: { '6,5': 'console' },
+          spawns: { '3,5': 'spawn', '12,5': 'spawn' }
+        },
+        fog: { enabled: true, revealed: {} },
+        name: 'Space Ship Interior'
+      },
+      navalship: {
+        board: { cols: 18, rows: 10, zoom: 1, panX: 0, panY: 0 },
+        layers: {
+          terrain: { '5,4': 'water', '6,4': 'water', '7,4': 'water' },
+          objects: { '4,3': 'door', '9,3': 'obstacle' },
+          hazards: { '11,5': 'trap' },
+          elevation: {}, lighting: {}, weather: { '0,0': 'storm' }, foreground: {},
+          interactives: { '8,3': 'turret' },
+          spawns: { '2,5': 'spawn', '14,5': 'spawn' }
+        },
+        fog: { enabled: true, revealed: {} },
+        name: 'Naval Vessel Deck'
+      }
+    };
+
+    var tpl = templates[key] || templates.blank;
+    store.setState(function (state) {
+      var next = normalizeCombatSceneState(Object.assign({}, state));
+      next.board = normalizeBoard(Object.assign({}, next.board || {}, tpl.board || {}));
+      next.layers = clone(tpl.layers || {});
+      next.fog = clone(tpl.fog || {});
+      next.tokens = [];
+      next.initiative = [];
+      next.actionHistory = [];
+      next.selectedTokenId = '';
+      if (next.activeSceneId) {
+        next.scenes = (next.scenes || []).map(function (scene) {
+          if (!scene || String(scene.id) !== String(next.activeSceneId)) return scene;
+          return Object.assign({}, scene, {
+            name: String(scene.name || tpl.name || 'Scene'),
+            updatedAt: Date.now(),
+            board: clone(next.board),
+            layers: clone(next.layers),
+            fog: clone(next.fog),
+            sceneRules: clone(next.sceneRules || {}),
+            tokens: clone(next.tokens),
+            initiative: clone(next.initiative),
+            actionHistory: clone(next.actionHistory)
+          });
+        });
+      }
+      persist(next);
+      return next;
+    });
+    addHistory('Scene template applied: ' + String(tpl.name || key) + '.');
+    updateUiPanels();
+    drawBoard();
+    safeNotif('Template applied: ' + String(tpl.name || key) + '.', 'good');
+  }
+
+  function bindSceneLibraryControls() {
+    var rulesBtn = document.getElementById('combatRulesReferenceBtn');
+    if (rulesBtn && !rulesBtn._bound) {
+      rulesBtn._bound = true;
+      rulesBtn.onclick = function () {
+        showCombatRulesReference();
+      };
+    }
+
+    var saveSceneBtn = document.getElementById('combatSaveSceneCardBtn');
+    if (saveSceneBtn && !saveSceneBtn._bound) {
+      saveSceneBtn._bound = true;
+      saveSceneBtn.onclick = function () {
+        saveSceneCard();
+      };
+    }
+
+    var loadSceneBtn = document.getElementById('combatLoadSceneCardBtn');
+    if (loadSceneBtn && !loadSceneBtn._bound) {
+      loadSceneBtn._bound = true;
+      loadSceneBtn.onclick = function () {
+        var state = store.getState();
+        var scenes = Array.isArray(state.scenes) ? state.scenes : [];
+        if (!scenes.length) {
+          safeNotif('No saved scenes yet. Create and save one first.', 'warn');
+          return;
+        }
+        var options = scenes.map(function (scene, idx) {
+          var updated = formatClockTime(Number(scene.updatedAt || scene.createdAt || 0));
+          var name = String(scene.name || ('Scene ' + (idx + 1))).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return '<option value="' + String(scene.id) + '">' + name + ' · ' + updated + '</option>';
+        }).join('');
+        var modal = '<div style="font-size:.78rem;"><select id="sceneLoadSelect" style="width:100%;padding:.3rem;margin:.2rem 0;border:1px solid rgba(227,188,94,.5);background:rgba(9,13,24,.95);color:#fff;">' + options + '</select><div style="margin-top:.3rem;display:flex;gap:.2rem;"><button class="btn btn-xs btn-primary" onclick="(function(){var sel=document.getElementById(\'sceneLoadSelect\');if(sel&&window.loadSceneCard)window.loadSceneCard(sel.value);if(typeof window.closeModal===\'function\')window.closeModal();})();">Load</button><button class="btn btn-xs" onclick="if(typeof window.closeModal===\'function\')window.closeModal();">Cancel</button></div></div>';
+        if (typeof window.openModal === 'function') {
+          window.openModal('Load Scene Card', modal);
+        }
+      };
+    }
+
+    var newSceneBtn = document.getElementById('combatNewSceneTemplateBtn');
+    if (newSceneBtn && !newSceneBtn._bound) {
+      newSceneBtn._bound = true;
+      newSceneBtn.onclick = function () {
+        var modal = '<div style="font-size:.78rem;display:grid;gap:.3rem;"><div style="margin-bottom:.15rem;">Choose a scene template:</div><button class="btn btn-xs btn-primary" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'blank\');if(typeof window.closeModal===\'function\')window.closeModal();">Blank Canvas</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'dungeon\');if(typeof window.closeModal===\'function\')window.closeModal();">Dungeon Chamber</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'spaceship\');if(typeof window.closeModal===\'function\')window.closeModal();">Space Ship Interior</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'navalship\');if(typeof window.closeModal===\'function\')window.closeModal();">Naval Vessel Deck</button><button class="btn btn-xs" style="width:100%;" onclick="if(typeof window.closeModal===\'function\')window.closeModal();">Cancel</button></div>';
+        if (typeof window.openModal === 'function') {
+          window.openModal('New Scene from Template', modal);
+        } else {
+          createSceneFromTemplate('blank');
+        }
       };
     }
   }
@@ -5323,23 +5521,23 @@
         }
         if (seed.board && typeof seed.board === 'object') {
           next.board = normalizeBoard(Object.assign({}, next.board, seed.board));
-            } else {
-              store.setState(function (state) {
-                var next = Object.assign({}, state);
-                next.tokens = [];
-                next.initiative = [];
-                next.actionHistory = [];
-                next.tokenRoundEffects = [];
-                next.board = { cols: 15, rows: 15, zoom: 1, panX: 0, panY: 0 };
-                next.layers = { terrain: {}, objects: {}, hazards: {}, lighting: {}, weather: {}, foreground: {}, interactives: {}, spawns: {} };
-                next.fog = {};
-                next.sceneRules = {};
-                next.selectedTokenId = '';
-                next.activeSceneId = '';
-                persist(next);
-                return next;
-              });
         }
+        persist(next);
+        return next;
+      });
+    } else {
+      store.setState(function (state) {
+        var next = Object.assign({}, state);
+        next.tokens = [];
+        next.initiative = [];
+        next.actionHistory = [];
+        next.tokenRoundEffects = [];
+        next.board = { cols: 15, rows: 15, zoom: 1, panX: 0, panY: 0 };
+        next.layers = { terrain: {}, objects: {}, hazards: {}, lighting: {}, weather: {}, foreground: {}, interactives: {}, spawns: {} };
+        next.fog = {};
+        next.sceneRules = {};
+        next.selectedTokenId = '';
+        next.activeSceneId = '';
         persist(next);
         return next;
       });
@@ -5829,6 +6027,11 @@
       renderScenesList();
     });
   };
+
+  window.showCombatRulesReference = showCombatRulesReference;
+  window.saveSceneCard = saveSceneCard;
+  window.loadSceneCard = loadSceneCard;
+  window.createSceneFromTemplate = createSceneFromTemplate;
 
   window.CombatSceneStore = {
     getState: store.getState,

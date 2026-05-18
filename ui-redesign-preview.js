@@ -36,6 +36,12 @@ const liveBridge = {
   timer: null
 };
 
+const mirrorBridge = {
+  enabled: false,
+  lastAction: '',
+  lastAt: 0
+};
+
 function init() {
   renderStats();
   renderHealthPips();
@@ -45,25 +51,111 @@ function init() {
   if (liveBridge.enabled) {
     liveBridge.timer = window.setInterval(syncFromExistingAppState, 1000);
   }
+  renderMirrorUi();
 }
 
-function readLiveSObject() {
+function readProductionBridge() {
   try {
     if (window.S && typeof window.S === 'object') {
-      return { source: 'window.S', S: window.S };
+      return { source: 'window', targetWindow: window, S: window.S };
     }
   } catch (_err) {}
   try {
     if (window.parent && window.parent !== window && window.parent.S && typeof window.parent.S === 'object') {
-      return { source: 'parent.S', S: window.parent.S };
+      return { source: 'parent', targetWindow: window.parent, S: window.parent.S };
     }
   } catch (_err2) {}
   try {
     if (window.opener && window.opener.S && typeof window.opener.S === 'object') {
-      return { source: 'opener.S', S: window.opener.S };
+      return { source: 'opener', targetWindow: window.opener, S: window.opener.S };
     }
   } catch (_err3) {}
   return null;
+}
+
+function readLiveSObject() {
+  const bridge = readProductionBridge();
+  if (!bridge) return null;
+  return { source: bridge.source + '.S', S: bridge.S };
+}
+
+function renderMirrorUi() {
+  const toggleBtn = document.getElementById('mirrorToggleBtn');
+  const mirrorMeta = document.getElementById('mirrorBridgeMeta');
+  if (toggleBtn) {
+    toggleBtn.textContent = mirrorBridge.enabled ? 'Mirror: On' : 'Mirror: Off';
+    toggleBtn.className = mirrorBridge.enabled ? 'btn btn-xs btn-teal' : 'btn btn-xs';
+  }
+  if (mirrorMeta) {
+    const suffix = mirrorBridge.lastAction
+      ? (' · last: ' + mirrorBridge.lastAction)
+      : '';
+    mirrorMeta.textContent = 'Action mirror: ' + (mirrorBridge.enabled ? 'enabled' : 'disabled') + suffix;
+  }
+}
+
+function toggleMirrorMode() {
+  mirrorBridge.enabled = !mirrorBridge.enabled;
+  renderMirrorUi();
+}
+
+function callProductionFunction(fnName, args) {
+  const bridge = readProductionBridge();
+  if (!bridge || !bridge.targetWindow) return { ok: false, reason: 'No production context detected.' };
+  const fn = bridge.targetWindow[fnName];
+  if (typeof fn !== 'function') return { ok: false, reason: fnName + ' is unavailable in production context.' };
+  try {
+    fn.apply(bridge.targetWindow, Array.isArray(args) ? args : []);
+    return { ok: true, source: bridge.source };
+  } catch (err) {
+    return { ok: false, reason: 'Call failed for ' + fnName + ': ' + String(err && err.message || err) };
+  }
+}
+
+function setMirrorMetaMessage(message) {
+  const mirrorMeta = document.getElementById('mirrorBridgeMeta');
+  if (mirrorMeta) mirrorMeta.textContent = 'Action mirror: ' + message;
+}
+
+function onPreviewAction(actionKey) {
+  const map = {
+    generate: ['generateCharacter'],
+    guidedBuild: ['startGuidedCharacterBuild'],
+    save: ['saveCharacter'],
+    load: ['loadCharacter'],
+    export: ['exportCharacter']
+  };
+  const candidates = map[actionKey] || [];
+
+  if (!mirrorBridge.enabled) {
+    if (actionKey === 'generate') {
+      rollAllStats();
+      setMirrorMetaMessage('disabled · local generate preview applied');
+      return;
+    }
+    setMirrorMetaMessage('disabled · enable mirror to call production action');
+    return;
+  }
+
+  let outcome = null;
+  for (let i = 0; i < candidates.length; i += 1) {
+    const fnName = candidates[i];
+    outcome = callProductionFunction(fnName, []);
+    if (outcome.ok) {
+      mirrorBridge.lastAction = actionKey + ' via ' + fnName;
+      mirrorBridge.lastAt = Date.now();
+      renderMirrorUi();
+      setMirrorMetaMessage('enabled · mirrored ' + actionKey + ' via ' + fnName + ' (' + outcome.source + ')');
+      syncFromExistingAppState();
+      return;
+    }
+  }
+
+  if (actionKey === 'export') {
+    setMirrorMetaMessage('enabled · export mirror unavailable (no exportCharacter function found)');
+    return;
+  }
+  setMirrorMetaMessage('enabled · mirror failed: ' + String(outcome && outcome.reason || 'No matching production function.'));
 }
 
 function derivePreviewStateFromS(raw) {

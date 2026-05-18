@@ -585,18 +585,18 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 <!-- CHARACTER TAB -->
 <div class="tab-panel active" id="tab-character" role="tabpanel" aria-labelledby="tabnav-character" tabindex="0">
   <section class="homepage-hero" id="homepageHero" aria-label="Overview">
-    <div class="hero-kicker">Beyond The Light • Play In Minutes</div>
-    <h1 class="hero-title">Run Characters, Combat, and Campaign Story In One Place</h1>
+    <div class="hero-kicker" id="heroKicker">Beyond The Light • Play In Minutes</div>
+    <h1 class="hero-title" id="heroTitle">Run Characters, Combat, and Campaign Story In One Place</h1>
     <div style="display:flex;justify-content:flex-end;">
       <button id="heroCollapseBtn" class="btn btn-sm" onclick="toggleHeroOverview()" aria-expanded="true">Collapse Overview</button>
     </div>
     <div id="heroOverviewBody">
     <div class="hero-layout">
       <div class="hero-main">
-        <p class="hero-subheading">Create a Wayfarer, follow a guided first mission, then run combat and province travel with persistent progress. Designed for solo play or GM-led groups with clear flow and low setup friction.</p>
+        <p class="hero-subheading" id="heroSubheading">Create a Wayfarer, follow a guided first mission, then run combat and province travel with persistent progress. Designed for solo play or GM-led groups with clear flow and low setup friction.</p>
         <div class="hero-cta-row">
-          <button class="btn btn-primary hero-primary-cta" onclick="generateCharacter()">Start New Wayfarer</button>
-          <button class="btn btn-teal" onclick="startGuidedCharacterBuild();switchTab('howto',document.getElementById('tabnav-howto'))">First-Time Guided Path</button>
+          <button class="btn btn-primary hero-primary-cta" id="heroPrimaryCta" onclick="generateCharacter()">Start New Wayfarer</button>
+          <button class="btn btn-teal" id="heroGuidedCta" onclick="startGuidedCharacterBuild();switchTab('howto',document.getElementById('tabnav-howto'))">First-Time Guided Path</button>
           <button class="btn" onclick="loadCharacter()">Load Existing Run</button>
         </div>
         <div class="hero-secondary-row">
@@ -616,7 +616,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
         <div class="hero-step"><span class="hero-step-num">1</span><span>Generate your Wayfarer and confirm core stats.</span></div>
         <div class="hero-step"><span class="hero-step-num">2</span><span>Open onboarding and run your first mission objective.</span></div>
         <div class="hero-step"><span class="hero-step-num">3</span><span>Enter Combat or Province to begin active play loops.</span></div>
-        <button class="btn btn-sm btn-teal" style="width:100%;" onclick="startGuidedCharacterBuild();switchTab('howto',document.getElementById('tabnav-howto'))">Begin First-Time Path</button>
+        <button class="btn btn-sm btn-teal" id="heroFirstPathCta" style="width:100%;" onclick="startGuidedCharacterBuild();switchTab('howto',document.getElementById('tabnav-howto'))">Begin First-Time Path</button>
       </aside>
     </div>
     <div class="hero-meta-grid">
@@ -13661,9 +13661,69 @@ function toggleHeroOverview(forceState){
   btn.setAttribute('aria-expanded',next?'true':'false');
   try{localStorage.setItem('beyond-hero-expanded',next?'1':'0');}catch(_err){}
 }
+const HOMEPAGE_COPY_VARIANTS={
+  A:{
+    kicker:'Beyond The Light • Play In Minutes',
+    title:'Run Characters, Combat, and Campaign Story In One Place',
+    subheading:'Create a Wayfarer, follow a guided first mission, then run combat and province travel with persistent progress. Designed for solo play or GM-led groups with clear flow and low setup friction.',
+    primaryCta:'Start New Wayfarer',
+    guidedCta:'First-Time Guided Path',
+    firstPathCta:'Begin First-Time Path'
+  },
+  B:{
+    kicker:'Beyond The Light • Launch In Under 3 Minutes',
+    title:'From First Character To Live Combat Without Setup Drag',
+    subheading:'Generate your Wayfarer, take the guided first objective, and move into combat and province play with your progress already connected. Built for fast solo sessions and clean GM handoff.',
+    primaryCta:'Generate My Wayfarer Now',
+    guidedCta:'Take The Guided First Session',
+    firstPathCta:'Start The First Session Path'
+  }
+};
+function getHomepageCopyVariant(){
+  var urlVariant='';
+  try{
+    var params=new URLSearchParams(window.location.search||'');
+    urlVariant=String(params.get('heroVariant')||'').toUpperCase();
+  }catch(_err){}
+  if(urlVariant==='A'||urlVariant==='B')return urlVariant;
+  try{
+    var saved=String(localStorage.getItem('beyond-hero-copy-variant')||'').toUpperCase();
+    if(saved==='A'||saved==='B')return saved;
+  }catch(_err){}
+  var key='A';
+  try{
+    var seed=String(new Date().toISOString().slice(0,10));
+    var h=0;
+    for(var i=0;i<seed.length;i++)h=((h<<5)-h)+seed.charCodeAt(i);
+    key=(Math.abs(h)%2===0)?'A':'B';
+  }catch(_err){key='A';}
+  return key;
+}
+function applyHomepageCopyVariant(variantKey){
+  var key=String(variantKey||getHomepageCopyVariant()).toUpperCase();
+  if(key!=='A'&&key!=='B')key='A';
+  var copy=HOMEPAGE_COPY_VARIANTS[key]||HOMEPAGE_COPY_VARIANTS.A;
+  var kickerEl=document.getElementById('heroKicker');
+  var titleEl=document.getElementById('heroTitle');
+  var subEl=document.getElementById('heroSubheading');
+  var primaryEl=document.getElementById('heroPrimaryCta');
+  var guidedEl=document.getElementById('heroGuidedCta');
+  var pathEl=document.getElementById('heroFirstPathCta');
+  if(kickerEl)kickerEl.textContent=copy.kicker;
+  if(titleEl)titleEl.textContent=copy.title;
+  if(subEl)subEl.textContent=copy.subheading;
+  if(primaryEl)primaryEl.textContent=copy.primaryCta;
+  if(guidedEl)guidedEl.textContent=copy.guidedCta;
+  if(pathEl)pathEl.textContent=copy.firstPathCta;
+  try{localStorage.setItem('beyond-hero-copy-variant',key);}catch(_err){}
+  return key;
+}
+window.applyHomepageCopyVariant=applyHomepageCopyVariant;
+window.setHomepageCopyVariant=function(key){return applyHomepageCopyVariant(key);};
 try{
   if(localStorage.getItem('beyond-hero-expanded')==='0')toggleHeroOverview(false);
 }catch(_err){}
+try{applyHomepageCopyVariant();}catch(_err){}
 function ensureMapClickMode(){
   if(!S.mapClickMode)S.mapClickMode='travel';
   if(['travel','inspect','fog'].indexOf(String(S.mapClickMode))<0)S.mapClickMode='travel';

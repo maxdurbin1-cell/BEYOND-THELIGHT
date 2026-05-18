@@ -820,6 +820,16 @@
     return found;
   }
 
+  function getEnemyProfileForToken(token) {
+    if (!token) return null;
+    var canonical = String(token.enemyProfileName || '').trim();
+    if (canonical) {
+      var byCanonical = getEnemyProfileByName(canonical);
+      if (byCanonical) return byCanonical;
+    }
+    return getEnemyProfileByName(token.name);
+  }
+
   function parseSkillRangeMax(skill) {
     var rangeMap = { engaged: 1, close: 2, nearby: 4, far: 99 };
     var ranges = Array.isArray(skill && skill.range) ? skill.range : [];
@@ -829,7 +839,7 @@
   }
 
   function getEnemySkillOptionsForToken(actor, target) {
-    var profile = actor ? getEnemyProfileByName(actor.name) : null;
+    var profile = actor ? getEnemyProfileForToken(actor) : null;
     if (!profile || !Array.isArray(profile.skills)) return [];
     var dist = (actor && target) ? hexDistance({ q: actor.q, r: actor.r }, { q: target.q, r: target.r }) : null;
     return profile.skills.map(function (skill, idx) {
@@ -1529,6 +1539,7 @@
       var token = {
         id: uid('bst'),
         name: String(profile.name || 'Beast'),
+        enemyProfileName: String(profile.name || ''),
         faction: 'monster',
         dread: Math.max(4, Number(profile.dread || 6)),
         deathNumber: Math.max(4, Number(profile.dread || 6)),
@@ -1733,7 +1744,6 @@
       + '<button class="btn btn-xs" id="combatTokenExecuteActionBtn">Execute</button>'
       + '<button class="btn btn-xs" id="combatTokenEnemyActionBtn">Enemy Action</button>'
       + '<button class="btn btn-xs" id="combatLootBodyBtn">Loot Body</button>'
-      + '<button class="btn btn-xs" id="combatPlaceLootBtn">GM Place Loot</button>'
       + '</div>'
       + '<div id="combatTokenActionHelp" class="combat-mini" style="margin-top:.2rem;">No combat roll yet.</div>'
       + '</div>'
@@ -2783,7 +2793,7 @@
           + '<div class="combat-feed-line">Health: ' + Math.max(0, Number(selected.hp || 0)) + '/' + Math.max(1, Number(selected.maxHp || selected.hp || 1)) + '</div>';
       }
       // Append unique monster skills if available
-      var enemyProfile = typeof window.getNamedEnemyProfileByName === 'function' ? window.getNamedEnemyProfileByName(selected && selected.name) : null;
+      var enemyProfile = getEnemyProfileForToken(selected);
       if (!enemyProfile && selected && selected.name) {
         // fallback: search NAMED_ENEMY_BESTIARY directly
         var allBest = typeof window.NAMED_ENEMY_BESTIARY !== 'undefined' ? window.NAMED_ENEMY_BESTIARY : null;
@@ -2817,7 +2827,6 @@
     var tokenEnemyBtn = document.getElementById('combatTokenEnemyActionBtn');
     var tokenCoverSel = document.getElementById('combatTargetCoverOverrideSel');
     var lootBodyBtn = document.getElementById('combatLootBodyBtn');
-    var placeLootBtn = document.getElementById('combatPlaceLootBtn');
     var tokenActionHelp = document.getElementById('combatTokenActionHelp');
     if (tokenTargetSel) {
       var actorToken = byId(state.selectedTokenId);
@@ -2883,7 +2892,7 @@
       if (actorNow && String(actorNow.faction) === 'monster') {
         var targetForEnemy = selectedTargetId ? byId(selectedTargetId) : null;
         var skillState = getEnemySkillOptionsForToken(actorNow, targetForEnemy);
-        var enemyProfileForHelp = getEnemyProfileByName(actorNow.name);
+        var enemyProfileForHelp = getEnemyProfileForToken(actorNow);
         var tacticText = enemyProfileForHelp && enemyProfileForHelp.tactic ? String(enemyProfileForHelp.tactic) : '';
         var chosen = null;
         if (selectedAction.indexOf('enemy_skill:') === 0) {
@@ -2944,7 +2953,7 @@
 
     if (tokenEnemyBtn) {
       var selectedTokenForButton = byId(state.selectedTokenId);
-      var showEnemyBtn = !(selectedTokenForButton && String(selectedTokenForButton.faction) === 'monster');
+      var showEnemyBtn = !!(selectedTokenForButton && String(selectedTokenForButton.faction) === 'monster');
       tokenEnemyBtn.style.display = showEnemyBtn ? '' : 'none';
     }
 
@@ -2954,13 +2963,6 @@
       lootBodyBtn.disabled = !(selToken && isTokenDead(selToken) && selDrop && !selDrop.claimed);
       lootBodyBtn.style.opacity = lootBodyBtn.disabled ? '0.45' : '1';
     }
-    if (placeLootBtn) {
-      var allow = isGmController() && !!byId(state.selectedTokenId);
-      placeLootBtn.disabled = !allow;
-      placeLootBtn.style.opacity = allow ? '1' : '0.45';
-      placeLootBtn.title = allow ? '' : 'Only GM can place loot in campaign sessions.';
-    }
-
     var recoverySlotSel = document.getElementById('combatRecoverySlotSel');
     if (recoverySlotSel) {
       var stack = loadRecoveryStack();
@@ -4322,12 +4324,17 @@
     if (tokenEnemyBtn && !tokenEnemyBtn._bound) {
       tokenEnemyBtn._bound = true;
       tokenEnemyBtn.onclick = function () {
+        var tokenActionSel = document.getElementById('combatTokenActionSel');
+        var tokenTargetSel = document.getElementById('combatTokenTargetSel');
         var actor = byId(store.getState().selectedTokenId);
         if (!actor || String(actor.faction) !== 'monster') {
           safeNotif('Select an enemy token to use enemy actions.', 'warn');
           return;
         }
-        executeEnemyTokenAction(actor, null, 'enemy_action');
+        var actionVal = String(tokenActionSel && tokenActionSel.value || 'enemy_action');
+        var targetId = String(tokenTargetSel && tokenTargetSel.value || '');
+        var target = targetId ? byId(targetId) : null;
+        executeEnemyTokenAction(actor, target, actionVal || 'enemy_action');
       };
     }
 
@@ -4386,47 +4393,6 @@
         var checks = card ? Array.prototype.slice.call(card.querySelectorAll('input[data-loot-idx]:checked')) : [];
         var indexes = checks.map(function (node) { return Number(node.getAttribute('data-loot-idx')); });
         takeLootFromTokenDrop(tokenId, indexes, 'Take Selected');
-      };
-    }
-
-    var placeLootBtn = document.getElementById('combatPlaceLootBtn');
-    if (placeLootBtn && !placeLootBtn._bound) {
-      placeLootBtn._bound = true;
-      placeLootBtn.onclick = function () {
-        if (!isGmController()) {
-          safeNotif('Only GM can place loot in campaign sessions.', 'warn');
-          return;
-        }
-        var st = store.getState();
-        var token = byId(st.selectedTokenId);
-        if (!token) {
-          safeNotif('Select a token card first.', 'warn');
-          return;
-        }
-        var raw = window.prompt('Loot items to place on this token (comma separated):', 'Credits x50, Arc Shard');
-        if (!raw) return;
-        var items = String(raw).split(',').map(function (v) { return String(v || '').trim(); }).filter(Boolean);
-        if (!items.length) return;
-        store.setState(function (state) {
-          var next = Object.assign({}, state);
-          var rules = ensureLootDrops(state);
-          var key = String(token.id);
-          var row = rules.lootDrops[key] || {
-            id: uid('loot'), tokenId: key, tokenName: String(token.name || 'Token'), q: Number(token.q || 0), r: Number(token.r || 0), items: [], claimed: false, droppedAt: Date.now(), reason: 'gm-placed'
-          };
-          row.items = (Array.isArray(row.items) ? row.items : []).concat(items);
-          row.claimed = false;
-          row.q = Number(token.q || 0);
-          row.r = Number(token.r || 0);
-          rules.lootDrops[key] = row;
-          next.sceneRules = rules;
-          persist(next);
-          return next;
-        });
-        addHistory('GM placed loot on ' + String(token.name || 'token') + ': ' + items.join(', ') + '.');
-        safeNotif('Loot placed on token card.', 'good');
-        drawBoard();
-        updateUiPanels();
       };
     }
 

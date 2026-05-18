@@ -44,7 +44,7 @@
         <span class="c-label">C</span>
         <span class="c-val" id="headerCredits">1,250</span>
       </div>
-      <div class="sync-pill"><div class="sync-dot"></div>Saved</div>
+      <div class="sync-pill"><div class="sync-dot" id="syncDot"></div><span id="syncText">Preview (Local)</span></div>
       <button class="icon-btn" title="Settings" onclick="switchTab('settings')">SET</button>
     </div>
   </header>
@@ -111,6 +111,7 @@
         <div>
           <div class="page-title">Wayfarer Sheet</div>
           <div class="page-title-sub">Character management and core mechanics</div>
+          <div class="page-title-sub" id="liveBridgeMeta">Live bridge: local preview values</div>
         </div>
         <div class="page-actions">
           <button class="btn btn-primary">Generate</button>
@@ -252,10 +253,10 @@
           <div class="card-title">Initiative Order</div>
           <div class="turn-tracker">
             <div class="counter-controls"><button class="step-btn" onclick="delta('turn',-1)">-</button><div class="turn-num" id="turnNum">3</div><button class="step-btn" onclick="delta('turn',1)">+</button></div>
-            <div class="turn-info"><div class="turn-label">Round</div><div class="turn-phase">Player Phase</div></div>
+            <div class="turn-info"><div class="turn-label">Round</div><div class="turn-phase" id="turnPhase">Player Phase</div></div>
             <button class="btn btn-primary btn-sm" style="margin-left:auto;">Next Turn</button>
           </div>
-          <div class="combatant-list">
+          <div class="combatant-list" id="combatantList">
             <div class="combatant-row active"><div class="combatant-avatar">VR</div><div class="combatant-name">Vex Rathe</div><div class="combatant-hp">HP 5/8</div><div class="initiative-badge">18</div></div>
             <div class="combatant-row"><div class="combatant-avatar">KS</div><div class="combatant-name">Kira Sol</div><div class="combatant-hp">HP 8/8</div><div class="initiative-badge">14</div></div>
             <div class="combatant-row"><div class="combatant-avatar">VS</div><div class="combatant-name">Void Stalker</div><div class="combatant-hp">HP 4/12</div><div class="initiative-badge">11</div></div>

@@ -29,11 +29,159 @@ const RENOWN_TIERS = [
   [40, 'Legendary', 'Your deeds shape the world itself']
 ];
 
+const liveBridge = {
+  enabled: true,
+  sourceLabel: 'local preview',
+  lastSyncAt: 0,
+  timer: null
+};
+
 function init() {
   renderStats();
   renderHealthPips();
   updateVitalsHeader();
   updateRenown();
+  syncFromExistingAppState();
+  if (liveBridge.enabled) {
+    liveBridge.timer = window.setInterval(syncFromExistingAppState, 1000);
+  }
+}
+
+function readLiveSObject() {
+  try {
+    if (window.S && typeof window.S === 'object') {
+      return { source: 'window.S', S: window.S };
+    }
+  } catch (_err) {}
+  try {
+    if (window.parent && window.parent !== window && window.parent.S && typeof window.parent.S === 'object') {
+      return { source: 'parent.S', S: window.parent.S };
+    }
+  } catch (_err2) {}
+  try {
+    if (window.opener && window.opener.S && typeof window.opener.S === 'object') {
+      return { source: 'opener.S', S: window.opener.S };
+    }
+  } catch (_err3) {}
+  return null;
+}
+
+function derivePreviewStateFromS(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const ad = Math.max(1, Number(raw && raw.stats && raw.stats.adventure || raw.maxStress || 8));
+  const stress = Math.max(0, Number(raw.stress || 0));
+  const currentHealth = Math.max(0, ad - stress);
+  const combat = raw.combat && typeof raw.combat === 'object' ? raw.combat : {};
+  const enemies = Array.isArray(raw.enemies) ? raw.enemies : [];
+
+  return {
+    name: String(raw.name || 'Wayfarer') || 'Wayfarer',
+    health: currentHealth,
+    maxHealth: ad,
+    stress: stress,
+    maxStress: ad,
+    credits: Math.max(0, Number(raw.credits || 0)),
+    renown: Math.max(0, Number(raw.renown || 0)),
+    trauma: Math.max(0, Number(raw.trauma || 0)),
+    pathTokens: Math.max(0, Number(raw.pathTokens || 0)),
+    teamwork: Math.max(0, Number(raw.tmw || 0)),
+    turn: Math.max(1, Number(combat.round || 1)),
+    actionsLeft: Math.max(0, Number(combat.actionsLeft || 0)),
+    combatActive: !!combat.active,
+    enemies: enemies
+  };
+}
+
+function applyLivePreviewState(next) {
+  if (!next) return;
+  state.health = next.health;
+  state.maxHealth = next.maxHealth;
+  state.stress = next.stress;
+  state.maxStress = next.maxStress;
+  state.credits = next.credits;
+  state.renown = next.renown;
+  state.trauma = next.trauma;
+  state.pathTokens = next.pathTokens;
+  state.teamwork = next.teamwork;
+  state.turn = next.turn;
+
+  const healthVal = document.getElementById('healthVal');
+  const creditsVal = document.getElementById('creditsVal');
+  const headerCredits = document.getElementById('headerCredits');
+  const traumaVal = document.getElementById('traumaVal');
+  const turnNum = document.getElementById('turnNum');
+  const turnPhase = document.getElementById('turnPhase');
+
+  if (healthVal) healthVal.textContent = String(state.health);
+  if (creditsVal) creditsVal.textContent = state.credits.toLocaleString();
+  if (headerCredits) headerCredits.textContent = state.credits.toLocaleString();
+  if (traumaVal) traumaVal.textContent = String(state.trauma);
+  if (turnNum) turnNum.textContent = String(state.turn);
+  if (turnPhase) {
+    turnPhase.textContent = next.combatActive
+      ? ('Player Phase · ' + next.actionsLeft + ' Actions Left')
+      : 'Out of Combat';
+  }
+
+  updateRenown();
+  updateVitalsHeader();
+  renderHealthPips();
+  renderCombatants(next);
+}
+
+function renderCombatants(snapshot) {
+  const list = document.getElementById('combatantList');
+  if (!list || !snapshot) return;
+  const playerInitials = snapshot.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('') || 'WF';
+  const playerRow = '<div class="combatant-row active">'
+    + '<div class="combatant-avatar">' + playerInitials + '</div>'
+    + '<div class="combatant-name">' + snapshot.name + '</div>'
+    + '<div class="combatant-hp">HP ' + snapshot.health + '/' + snapshot.maxHealth + '</div>'
+    + '<div class="initiative-badge">P</div>'
+    + '</div>';
+
+  const hostileRows = (snapshot.enemies || [])
+    .filter((enemy) => enemy && !enemy.ally)
+    .slice(0, 5)
+    .map((enemy, idx) => {
+      const stress = Math.max(0, Number(enemy.stress || 0));
+      const maxStress = Math.max(stress, Number(enemy.maxStress || enemy.health || 0) || stress);
+      const initials = String(enemy.name || 'EN').split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('') || 'EN';
+      return '<div class="combatant-row">'
+        + '<div class="combatant-avatar">' + initials + '</div>'
+        + '<div class="combatant-name">' + String(enemy.name || ('Enemy ' + (idx + 1))) + '</div>'
+        + '<div class="combatant-hp">Stress ' + stress + '/' + maxStress + '</div>'
+        + '<div class="initiative-badge">E</div>'
+        + '</div>';
+    }).join('');
+
+  list.innerHTML = playerRow + (hostileRows || '<div class="combatant-row"><div class="combatant-avatar">--</div><div class="combatant-name">No hostiles tracked</div><div class="combatant-hp">Stress 0/0</div><div class="initiative-badge">-</div></div>');
+}
+
+function setLiveBridgeMeta(text, isLive) {
+  const syncText = document.getElementById('syncText');
+  const syncDot = document.getElementById('syncDot');
+  const bridgeMeta = document.getElementById('liveBridgeMeta');
+  if (syncText) syncText.textContent = text;
+  if (bridgeMeta) bridgeMeta.textContent = 'Live bridge: ' + text;
+  if (syncDot) syncDot.style.background = isLive ? 'var(--green)' : 'var(--gold2)';
+}
+
+function syncFromExistingAppState() {
+  const live = readLiveSObject();
+  if (!live || !live.S) {
+    setLiveBridgeMeta('local preview values', false);
+    return;
+  }
+  const mapped = derivePreviewStateFromS(live.S);
+  if (!mapped) {
+    setLiveBridgeMeta('local preview values', false);
+    return;
+  }
+  liveBridge.sourceLabel = live.source;
+  liveBridge.lastSyncAt = Date.now();
+  applyLivePreviewState(mapped);
+  setLiveBridgeMeta('live from ' + live.source, true);
 }
 
 function renderStats() {

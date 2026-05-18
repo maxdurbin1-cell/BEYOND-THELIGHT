@@ -2051,6 +2051,12 @@
       + '<button class="btn btn-xs combat-editor-only" id="combatClearMapBtn">Remove Battlemap</button>'
       + '<button class="btn btn-xs combat-editor-only" id="combatAddTokenBtn">+ Add Enemy</button>'
       + '<button class="btn btn-xs btn-red" id="combatCloseBtn">End Scene</button>'
+        + '<div style="display:flex;gap:.28rem;align-items:center;margin-left:.4rem;border-left:1px solid rgba(227,188,94,.2);padding-left:.4rem;">'
+        + '<button class="btn btn-xs" id="combatRulesReferenceBtn" title="Combat Rules Reference">📖 Rules</button>'
+        + '<button class="btn btn-xs combat-editor-only" id="combatSaveSceneCardBtn" title="Save current scene as card">💾 Save Scene</button>'
+        + '<button class="btn btn-xs combat-editor-only" id="combatLoadSceneCardBtn" title="Load a saved scene card">📂 Load Scene</button>'
+        + '<button class="btn btn-xs combat-editor-only" id="combatNewSceneTemplateBtn" title="Create new scene from template">✨ New Scene</button>'
+        + '</div>'
       + '</div>'
       + '</div>'
       + '<input id="combatMapImageInput" type="file" accept="image/*" style="display:none;">'
@@ -5221,6 +5227,54 @@
           return next;
         });
         addHistory('Wayfarer placed on the board (Engaged zone).');
+
+            var rulesBtn = document.getElementById('combatRulesReferenceBtn');
+            if (rulesBtn && !rulesBtn._bound) {
+              rulesBtn._bound = true;
+              rulesBtn.onclick = function () {
+                showCombatRulesReference();
+              };
+            }
+
+            var saveSceneBtn = document.getElementById('combatSaveSceneCardBtn');
+            if (saveSceneBtn && !saveSceneBtn._bound) {
+              saveSceneBtn._bound = true;
+              saveSceneBtn.onclick = function () {
+                saveSceneCard();
+              };
+            }
+
+            var loadSceneBtn = document.getElementById('combatLoadSceneCardBtn');
+            if (loadSceneBtn && !loadSceneBtn._bound) {
+              loadSceneBtn._bound = true;
+              loadSceneBtn.onclick = function () {
+                var state = store.getState();
+                var scenes = Array.isArray(state.scenes) ? state.scenes : [];
+                if (!scenes.length) {
+                  safeNotif('No saved scenes yet. Create and save one first.', 'warn');
+                  return;
+                }
+                var options = scenes.map(function (s, idx) {
+                  var updated = formatClockTime(Number(s.updatedAt || s.createdAt || 0));
+                  return '<option value="' + String(s.id) + '">' + String(s.name || 'Scene ' + (idx + 1)) + ' · ' + updated + '</option>';
+                }).join('');
+                var modal = '<div style="font-size:.78rem;"><select id="sceneLoadSelect" style="width:100%;padding:.3rem;margin:.2rem 0;border:1px solid rgba(227,188,94,.5);background:rgba(9,13,24,.95);color:#fff;">' + options + '</select><div style="margin-top:.3rem;display:flex;gap:.2rem;"><button class="btn btn-xs btn-primary" onclick="(function(){var sel=document.getElementById(\'sceneLoadSelect\');if(sel)loadSceneCard(sel.value);if(typeof window.closeModal===\'function\')window.closeModal();})();">Load</button><button class="btn btn-xs" onclick="if(typeof window.closeModal===\'function\')window.closeModal();">Cancel</button></div></div>';
+                if (typeof window.openModal === 'function') {
+                  window.openModal('Load Scene Card', modal);
+                }
+              };
+            }
+
+            var newSceneBtn = document.getElementById('combatNewSceneTemplateBtn');
+            if (newSceneBtn && !newSceneBtn._bound) {
+              newSceneBtn._bound = true;
+              newSceneBtn.onclick = function () {
+                var modal = '<div style="font-size:.78rem;display:grid;gap:.3rem;"><div style="margin-bottom:.15rem;">Choose a scene template:</div><button class="btn btn-xs btn-primary" style="width:100%;" onclick="createSceneFromTemplate(\'blank\');if(typeof window.closeModal===\'function\')window.closeModal();">⬜ Blank Canvas</button><button class="btn btn-xs" style="width:100%;" onclick="createSceneFromTemplate(\'dungeon\');if(typeof window.closeModal===\'function\')window.closeModal();">🏰 Dungeon Chamber</button><button class="btn btn-xs" style="width:100%;" onclick="createSceneFromTemplate(\'spaceship\');if(typeof window.closeModal===\'function\')window.closeModal();">🚀 Space Ship Interior</button><button class="btn btn-xs" style="width:100%;" onclick="createSceneFromTemplate(\'navalship\');if(typeof window.closeModal===\'function\')window.closeModal();">⛵ Naval Vessel Deck</button><button class="btn btn-xs" style="width:100%;" onclick="if(typeof window.closeModal===\'function\')window.closeModal();">Cancel</button></div>';
+                if (typeof window.openModal === 'function') {
+                  window.openModal('New Scene from Template', modal);
+                }
+              };
+            }
         updateUiPanels();
         drawBoard();
       };
@@ -5265,6 +5319,22 @@
         }
         if (seed.board && typeof seed.board === 'object') {
           next.board = normalizeBoard(Object.assign({}, next.board, seed.board));
+            } else {
+              store.setState(function (state) {
+                var next = Object.assign({}, state);
+                next.tokens = [];
+                next.initiative = [];
+                next.actionHistory = [];
+                next.tokenRoundEffects = [];
+                next.board = { cols: 15, rows: 15, zoom: 1, panX: 0, panY: 0 };
+                next.layers = { terrain: {}, objects: {}, hazards: {}, lighting: {}, weather: {}, foreground: {}, interactives: {}, spawns: {} };
+                next.fog = {};
+                next.sceneRules = {};
+                next.selectedTokenId = '';
+                next.activeSceneId = '';
+                persist(next);
+                return next;
+              });
         }
         persist(next);
         return next;
@@ -5296,7 +5366,8 @@
       safeNotif('Combat scene opened with a fallback state because the saved scene data was invalid.', 'warn');
     }
 
-    addHistory('Entering encounter. Combat mode online.');
+    var hasExistingScene = !!(seed && typeof seed === 'object' && seed.id);
+    addHistory('Entering encounter. Combat mode online.' + (hasExistingScene ? ' Scene loaded.' : ' Fresh canvas ready.'));
   }
 
   function closeOverlay() {
@@ -5447,6 +5518,10 @@
 
   window.openCombatSceneEditor = function (seed) {
     openOverlay(seed || null);
+  };
+  
+  window.closeCombatSceneEditor = function () {
+    closeOverlay();
   };
 
   window.closeCombatSceneEditor = function () {

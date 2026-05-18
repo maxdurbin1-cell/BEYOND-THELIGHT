@@ -158,6 +158,62 @@ function onPreviewAction(actionKey) {
   setMirrorMetaMessage('enabled · mirror failed: ' + String(outcome && outcome.reason || 'No matching production function.'));
 }
 
+function mirrorTabNavigation(name) {
+  if (!mirrorBridge.enabled) return;
+  const bridge = readProductionBridge();
+  if (!bridge || !bridge.targetWindow) {
+    setMirrorMetaMessage('enabled · tab mirror unavailable (no production context)');
+    return;
+  }
+
+  const tabMap = {
+    character: 'character',
+    backstory: 'backstory',
+    dice: 'dice',
+    map: 'map',
+    theos: 'theos',
+    missions: 'missions',
+    factions: 'factions',
+    combat: 'combat',
+    oracle: 'oracle',
+    storyline: 'storyline',
+    codex: 'codex',
+    shop: 'shop',
+    caravan: 'caravan',
+    trophies: 'trophies',
+    endgame: 'endgame',
+    solo: 'solo',
+    gm: 'gm',
+    howto: 'howto',
+    settings: 'settings'
+  };
+  const targetTab = tabMap[name] || name;
+  const switchTabFn = bridge.targetWindow.switchTab;
+  if (typeof switchTabFn !== 'function') {
+    setMirrorMetaMessage('enabled · tab mirror unavailable (switchTab not found)');
+    return;
+  }
+
+  let navBtn = null;
+  try {
+    if (bridge.targetWindow.document && typeof bridge.targetWindow.document.querySelector === 'function') {
+      navBtn = bridge.targetWindow.document.querySelector('[id="tabnav-' + targetTab + '"]');
+    }
+  } catch (_btnErr) {
+    navBtn = null;
+  }
+
+  try {
+    switchTabFn.call(bridge.targetWindow, targetTab, navBtn || null);
+    mirrorBridge.lastAction = 'tab:' + targetTab;
+    mirrorBridge.lastAt = Date.now();
+    renderMirrorUi();
+    setMirrorMetaMessage('enabled · mirrored tab ' + targetTab + ' (' + bridge.source + ')');
+  } catch (err) {
+    setMirrorMetaMessage('enabled · tab mirror failed: ' + String(err && err.message || err));
+  }
+}
+
 function derivePreviewStateFromS(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const ad = Math.max(1, Number(raw && raw.stats && raw.stats.adventure || raw.maxStress || 8));
@@ -375,6 +431,7 @@ function switchTab(name) {
   if (panel) panel.classList.add('active');
   const navItem = document.querySelector(`[data-tab="${name}"]`);
   if (navItem) navItem.classList.add('active');
+  mirrorTabNavigation(name);
   window.scrollTo(0, 0);
 }
 

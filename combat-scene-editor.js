@@ -1771,6 +1771,106 @@
     return lines;
   }
 
+  function buildEnemyTokenQuickActions(token) {
+    if (!token || token.isPlayer || String(token.faction || '') !== 'monster') return '';
+    var state = store.getState();
+    var target = (state.tokens || []).find(function (t) {
+      return t && t.isPlayer && !isTokenDead(t);
+    });
+    if (!target || isTokenDead(token)) return '';
+    var dist = hexDistance({ q: Number(token.q || 0), r: Number(token.r || 0) }, { q: Number(target.q || 0), r: Number(target.r || 0) });
+    var html = '<div style="margin-top:.28rem;border-top:1px solid rgba(227,188,94,.2);padding-top:.22rem;">';
+    html += '<div style="font-size:.72rem;font-weight:700;color:var(--combat-accent-2);margin-bottom:.12rem;">Quick Actions</div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.16rem;">';
+    
+    var skills = getEnemySkillOptionsForToken(token, target);
+    if (skills.length) {
+      var inRangeSkills = skills.filter(function (s) { return !!s.inRange; });
+      if (inRangeSkills.length) {
+        var firstSkill = inRangeSkills[0];
+        var btnText = firstSkill.name.length > 12 ? firstSkill.name.substring(0, 11) + '…' : firstSkill.name;
+        html += '<button class="btn btn-xs" style="font-size:.68rem;" onclick="(function(){var token=store.getState().tokens.find(t=>t&&t.id===\'' + String(token.id) + '\');if(token)executeEnemyTokenAction(token,null,\'' + String(firstSkill.id) + '\');updateUiPanels();drawBoard();})();">' + escapeHtml(btnText) + '</button>';
+      }
+    }
+    
+    var nearbyTarget = dist <= 1;
+    if (nearbyTarget) {
+      html += '<button class="btn btn-xs" style="font-size:.68rem;" onclick="(function(){var token=store.getState().tokens.find(t=>t&&t.id===\'' + String(token.id) + '\');if(token)addHistory(token.name+\' attempts melee engagement\');})();">Melee</button>';
+    } else if (dist >= 2 && dist <= 3) {
+      html += '<button class="btn btn-xs" style="font-size:.68rem;" onclick="(function(){var token=store.getState().tokens.find(t=>t&&t.id===\'' + String(token.id) + '\');if(token)addHistory(token.name+\' maintains ranged pressure\');})();">Range</button>';
+    }
+    
+    if (!nearbyTarget && dist > 1) {
+      var adjQr = [(token.q + 1, token.r), (token.q - 1, token.r), (token.q, token.r + 1), (token.q, token.r - 1)][Math.floor(Math.random() * 4)];
+      html += '<button class="btn btn-xs" style="font-size:.68rem;" onclick="(function(){var token=store.getState().tokens.find(t=>t&&t.id===\'' + String(token.id) + '\');if(token)moveToken(token.id,' + (adjQr[0] || token.q) + ',' + (adjQr[1] || token.r) + ');updateUiPanels();drawBoard();})();">Advance</button>';
+    }
+    
+    html += '<button class="btn btn-xs" style="font-size:.68rem;" onclick="(function(){var token=store.getState().tokens.find(t=>t&&t.id===\'' + String(token.id) + '\');if(token)spendUnitAction(token.id);updateUiPanels();drawBoard();})();">Pass</button>';
+    html += '</div></div>';
+    return html;
+  }
+
+  function buildEnemySkillInspector(token) {
+    if (!token || token.isPlayer || String(token.faction || '') !== 'monster') return '';
+    var state = store.getState();
+    var target = (state.tokens || []).find(function (t) {
+      return t && t.isPlayer && !isTokenDead(t);
+    });
+    if (!target || isTokenDead(token)) return '';
+    var skills = getEnemySkillOptionsForToken(token, target);
+    if (!skills.length) return '';
+    
+    var dreadDie = Math.max(4, Number(token.dread || token.codexDread || 6));
+    var html = '<div style="margin-top:.28rem;border-top:1px solid rgba(227,188,94,.2);padding-top:.22rem;">';
+    html += '<div style="font-size:.72rem;font-weight:700;color:var(--combat-accent-2);margin-bottom:.12rem;">Available Skills</div>';
+    
+    skills.forEach(function (entry) {
+      if (!entry || !entry.skill) return;
+      var skill = entry.skill;
+      var title = escapeHtml(String(skill.name || 'Skill'));
+      var stateBadge = entry.inRange
+        ? '<span style="font-size:.65rem;color:#57d69b;">✓ In Range</span>'
+        : '<span style="font-size:.65rem;color:#d9534f;">✗ Out of Range</span>';
+      var saveLabel = escapeHtml(getEnemySkillSaveLabel(skill));
+      var saveKey = getEnemySkillSaveKey(skill);
+      var skillRoll = escapeHtml(saveLabel + ' vs Dread d' + Number(getEnemySkillDreadDie(skill, dreadDie)));
+      
+      html += '<div style="margin-top:.16rem;border:1px solid rgba(227,188,94,.25);background:rgba(9,13,24,.88);padding:.22rem .28rem;border-radius:6px;font-size:.7rem;">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:.2rem;">';
+      html += '<strong style="color:var(--combat-accent-2);">' + title + '</strong>';
+      html += stateBadge;
+      html += '</div>';
+      html += '<div style="margin-top:.12rem;color:var(--text2);">';
+      html += '<div><strong>Save:</strong> ' + saveLabel + '</div>';
+      html += '<div><strong>Range:</strong> ' + escapeHtml(Array.isArray(skill.range) ? skill.range.join('/') : 'engaged') + '</div>';
+      html += '<div><strong>Roll:</strong> ' + skillRoll + '</div>';
+      html += '</div>';
+      
+      if (entry.inRange) {
+        html += '<button class="btn btn-xs" style="margin-top:.12rem;width:100%;font-size:.65rem;padding:.08rem;" onclick="(function(){var token=store.getState().tokens.find(t=>t&&t.id===\'' + String(token.id) + '\');if(token)executeEnemyTokenAction(token,null,\'' + String(entry.id) + '\');updateUiPanels();drawBoard();})();">Execute Skill</button>';
+      }
+      html += '</div>';
+    });
+    
+    html += '</div>';
+    return html;
+  }
+
+  function buildLootShortcuts(token) {
+    if (!token || isTokenDead(token)) return '';
+    var state = store.getState();
+    var loot = getLootDropForToken(state, token.id);
+    if (!loot) return '';
+    
+    var html = '<div style="margin-top:.28rem;border-top:1px solid rgba(227,188,94,.2);padding-top:.22rem;">';
+    html += '<div style="font-size:.72rem;font-weight:700;color:var(--combat-accent-2);margin-bottom:.12rem;">Loot Available</div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.16rem;">';
+    html += '<button class="btn btn-xs" style="font-size:.68rem;background:#2a5c3d;" onclick="(function(){var card=document.getElementById(\'combatLootPopupCard\');if(card){card.style.display=\'block\';card.style.left=\'50%\';card.style.top=\'50%\';card.style.transform=\'translate(-50%,-50%)\';var buttons=card.querySelectorAll(\'#combatLootTakeAllBtn\');if(buttons.length)buttons[0].click();}})();">Take All</button>';
+    html += '<button class="btn btn-xs" style="font-size:.68rem;" onclick="(function(){var card=document.getElementById(\'combatLootPopupCard\');if(card)card.style.display=(card.style.display===\'none\'?\'block\':\'none\');})();">Inspect</button>';
+    html += '</div></div>';
+    return html;
+  }
+
   function openTokenSheetQuickView(tokenId) {
     var token = byId(tokenId);
     if (!token) return;
@@ -1785,7 +1885,10 @@
         + '<div class="combat-feed-line">Faction: ' + String(token.faction || 'monster') + '</div>'
         + '<div class="combat-feed-line">HP: ' + Math.max(0, Number(token.hp || 0)) + '/' + Math.max(1, Number(token.maxHp || token.hp || 1)) + '</div>'
         + '<div class="combat-feed-line">Dread Die: d' + Math.max(4, Number(token.dread || token.codexDread || 6)) + '</div>'
-        + '<div class="combat-feed-line">Death Number: ' + Math.max(1, Number(token.deathNumber || token.dread || token.codexDread || 6)) + '</div>';
+        + '<div class="combat-feed-line">Death Number: ' + Math.max(1, Number(token.deathNumber || token.dread || token.codexDread || 6)) + '</div>'
+        + buildEnemySkillInspector(token)
+        + buildEnemyTokenQuickActions(token)
+        + buildLootShortcuts(token);
     }
     if (typeof window.openModal === 'function') {
       window.openModal('Combat Sheet · ' + String(token.name || 'Token'), '<div style="display:grid;gap:.2rem;max-height:58vh;overflow:auto;">' + body + '</div>');

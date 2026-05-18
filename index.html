@@ -356,12 +356,23 @@ select option{background:#0f1020;}
 .char-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem;flex-wrap:wrap;gap:.5rem;}
 .char-top-title{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.14em;color:var(--muted2);text-transform:uppercase;}
 .solo-unsaved .char-top-title::after{content:' • UNSAVED';color:var(--warn);letter-spacing:.08em;margin-left:.35rem;}
-.homepage-hero{position:relative;overflow:hidden;background:linear-gradient(130deg,rgba(201,162,39,.16) 0%,rgba(16,20,42,.92) 38%,rgba(10,14,30,.96) 100%);border:1px solid rgba(201,162,39,.34);padding:1.15rem 1.15rem 1rem;margin-bottom:.8rem;}
+.homepage-hero{position:relative;overflow:hidden;background:linear-gradient(130deg,rgba(201,162,39,.16) 0%,rgba(16,20,42,.92) 38%,rgba(10,14,30,.96) 100%);border:1px solid rgba(201,162,39,.34);padding:1.15rem 1.15rem 1rem;margin-bottom:.8rem;border-radius:14px;}
 .homepage-hero::before{content:'';position:absolute;right:-3rem;top:-4rem;width:14rem;height:14rem;background:radial-gradient(circle,rgba(46,196,182,.22) 0%,rgba(46,196,182,0) 70%);pointer-events:none;}
 .hero-kicker{font-family:'Rajdhani',sans-serif;font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold2);margin-bottom:.35rem;position:relative;}
-.hero-title{font-family:'Cinzel',serif;font-size:1.26rem;letter-spacing:.06em;color:var(--gold3);line-height:1.25;margin-bottom:.35rem;position:relative;}
+.hero-title{font-family:'Cinzel',serif;font-size:1.34rem;letter-spacing:.06em;color:var(--gold3);line-height:1.2;margin-bottom:.35rem;position:relative;}
 .hero-subheading{font-size:.93rem;color:var(--text2);line-height:1.6;max-width:74ch;position:relative;}
+.hero-layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(250px,.85fr);gap:.72rem;align-items:start;position:relative;}
+.hero-main{min-width:0;}
 .hero-cta-row{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.7rem;position:relative;}
+.hero-primary-cta{box-shadow:0 0 0 1px rgba(201,162,39,.25) inset,0 8px 20px rgba(201,162,39,.14);}
+.hero-secondary-row{display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.4rem;}
+.hero-proof-row{display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.55rem;}
+.hero-proof-pill{display:inline-flex;align-items:center;gap:.2rem;padding:.16rem .42rem;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.03);font-size:.68rem;color:var(--muted3);}
+.hero-firstpath{border:1px solid rgba(46,196,182,.34);background:linear-gradient(180deg,rgba(46,196,182,.09) 0%,rgba(9,13,28,.74) 100%);padding:.55rem .58rem;}
+.hero-firstpath strong{display:block;font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--teal2);margin-bottom:.2rem;}
+.hero-step{display:flex;gap:.32rem;align-items:flex-start;margin-bottom:.24rem;font-size:.78rem;color:var(--text2);line-height:1.5;}
+.hero-step:last-of-type{margin-bottom:.38rem;}
+.hero-step-num{flex:0 0 auto;width:1.05rem;height:1.05rem;border:1px solid rgba(46,196,182,.45);color:var(--teal2);display:inline-flex;align-items:center;justify-content:center;font-family:'Rajdhani',sans-serif;font-size:.72rem;font-weight:700;}
 .hero-meta-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.35rem;margin-top:.7rem;position:relative;}
 .hero-meta-card{border:1px solid var(--border2);background:rgba(6,9,20,.62);padding:.42rem .48rem;}
 .hero-meta-card strong{display:block;font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gold2);margin-bottom:.12rem;}
@@ -495,8 +506,8 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 #quickPanel{right:.28rem;left:.28rem;bottom:2.9rem;max-height:calc(100vh - 4.55rem);}
 .qp-tab{font-size:.52rem;padding:.28rem .08rem;letter-spacing:.04em;}
 }
-@media(max-width:980px){.hero-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.openworld-proof-header,.openworld-proof-grid{grid-template-columns:1fr;}.onboarding-grid{grid-template-columns:1fr;}}
-@media(max-width:600px){.hero-title{font-size:1.05rem;}.hero-subheading{font-size:.86rem;}.hero-meta-grid{grid-template-columns:1fr;}}
+@media(max-width:980px){.hero-layout{grid-template-columns:1fr;}.hero-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.openworld-proof-header,.openworld-proof-grid{grid-template-columns:1fr;}.onboarding-grid{grid-template-columns:1fr;}}
+@media(max-width:600px){.hero-title{font-size:1.08rem;}.hero-subheading{font-size:.86rem;}.hero-meta-grid{grid-template-columns:1fr;}.hero-proof-pill{font-size:.64rem;}}
 .job-name{font-family:'Cinzel',serif;font-size:.75rem;color:var(--gold2);}
 .job-difficulty{font-size:.7rem;color:var(--teal);font-family:'Rajdhani',sans-serif;font-weight:600;}
 .job-reward{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.9rem;color:var(--gold);margin-top:.2rem;}
@@ -574,18 +585,39 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 <!-- CHARACTER TAB -->
 <div class="tab-panel active" id="tab-character" role="tabpanel" aria-labelledby="tabnav-character" tabindex="0">
   <section class="homepage-hero" id="homepageHero" aria-label="Overview">
-    <div class="hero-kicker">Beyond The Light</div>
-    <h1 class="hero-title">A Living Sci-Fi Campaign Command Center</h1>
+    <div class="hero-kicker">Beyond The Light • Play In Minutes</div>
+    <h1 class="hero-title">Run Characters, Combat, and Campaign Story In One Place</h1>
     <div style="display:flex;justify-content:flex-end;">
       <button id="heroCollapseBtn" class="btn btn-sm" onclick="toggleHeroOverview()" aria-expanded="true">Collapse Overview</button>
     </div>
     <div id="heroOverviewBody">
-    <p class="hero-subheading">Run solo sagas or full group arcs with synced combat flow, faction pressure, mission progression, and persistent world consequences. The suite connects character building, narrative engines, map exploration, economy tracking, and GM control into one seamless play surface.</p>
-    <div class="hero-cta-row">
-      <button class="btn btn-primary" onclick="generateCharacter()">Generate Wayfarer</button>
-      <button class="btn btn-teal" onclick="switchTab('howto',document.getElementById('tabnav-howto'))">Start Onboarding</button>
-      <button class="btn" onclick="switchTab('missions',document.getElementById('tabnav-missions'))">Open Mission Board</button>
-      <button class="btn" onclick="switchTab('map',document.getElementById('tabnav-map'))">Enter Province Map</button>
+    <div class="hero-layout">
+      <div class="hero-main">
+        <p class="hero-subheading">Create a Wayfarer, follow a guided first mission, then run combat and province travel with persistent progress. Designed for solo play or GM-led groups with clear flow and low setup friction.</p>
+        <div class="hero-cta-row">
+          <button class="btn btn-primary hero-primary-cta" onclick="generateCharacter()">Start New Wayfarer</button>
+          <button class="btn btn-teal" onclick="startGuidedCharacterBuild();switchTab('howto',document.getElementById('tabnav-howto'))">First-Time Guided Path</button>
+          <button class="btn" onclick="loadCharacter()">Load Existing Run</button>
+        </div>
+        <div class="hero-secondary-row">
+          <button class="btn btn-sm" onclick="switchTab('missions',document.getElementById('tabnav-missions'))">Continue: Mission Board</button>
+          <button class="btn btn-sm" onclick="switchTab('map',document.getElementById('tabnav-map'))">Continue: Province Map</button>
+          <button class="btn btn-sm" onclick="switchTab('combat',document.getElementById('tabnav-combat'))">Continue: Combat</button>
+        </div>
+        <div class="hero-proof-row" aria-label="Core value points">
+          <span class="hero-proof-pill">Persistent Campaign State</span>
+          <span class="hero-proof-pill">Fast Action Resolution</span>
+          <span class="hero-proof-pill">Solo + GM Friendly</span>
+          <span class="hero-proof-pill">No Feature Lockout</span>
+        </div>
+      </div>
+      <aside class="hero-firstpath" aria-label="First-time path">
+        <strong>First Session Path</strong>
+        <div class="hero-step"><span class="hero-step-num">1</span><span>Generate your Wayfarer and confirm core stats.</span></div>
+        <div class="hero-step"><span class="hero-step-num">2</span><span>Open onboarding and run your first mission objective.</span></div>
+        <div class="hero-step"><span class="hero-step-num">3</span><span>Enter Combat or Province to begin active play loops.</span></div>
+        <button class="btn btn-sm btn-teal" style="width:100%;" onclick="startGuidedCharacterBuild();switchTab('howto',document.getElementById('tabnav-howto'))">Begin First-Time Path</button>
+      </aside>
     </div>
     <div class="hero-meta-grid">
       <div class="hero-meta-card"><strong>Characters</strong><span>Identity, stats, resources, trauma, and condition management.</span></div>

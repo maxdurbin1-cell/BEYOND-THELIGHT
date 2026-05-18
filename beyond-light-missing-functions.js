@@ -1307,7 +1307,8 @@ function rollReason() {
 }
 
 function rollFlavor() {
-  var nextFlavor = pick(PERSONAL_FLAVORS);
+  var flavorPool = (typeof getCodexFlavorList === 'function') ? getCodexFlavorList() : PERSONAL_FLAVORS;
+  var nextFlavor = pick(flavorPool);
   if (typeof setFlavor === 'function') {
     setFlavor(nextFlavor);
   } else {
@@ -1319,6 +1320,7 @@ function rollFlavor() {
 function rollMutation() {
   S.mutation = pick(MUTATIONS);
   setInputValue("charMutation", S.mutation);
+  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
 }
 
 function rollRandomItem() {
@@ -1452,6 +1454,13 @@ function generateCharacter() {
   assignArray();
   rollBackpack();
   rollAllTraits();
+  if (typeof window.generateBackstory === 'function') {
+    try {
+      window.generateBackstory();
+    } catch (_err) {
+      // Backstory generation is best-effort and should never block character creation.
+    }
+  }
   S.stats.valor = pick([4, 6, 8]);
   S.credits = rollMulti(6, 2) * 10;
   S.health = 0;

@@ -1240,7 +1240,12 @@
       return next;
     });
     if (target.isPlayer && window.S) {
-      window.S.health = Math.max(0, Number(window.S.health || 0) - amount);
+      // Core sheet health is tracked as damage taken, so incoming damage increments it.
+      if (typeof window.setHealth === 'function') {
+        window.setHealth(Number(window.S.health || 0) + amount);
+      } else {
+        window.S.health = Math.max(0, Number(window.S.health || 0) + amount);
+      }
       if (typeof window.updateCombatUI === 'function') {
         try { window.updateCombatUI(); } catch (_err) {}
       }
@@ -1665,7 +1670,8 @@
     if (v.indexOf('strike') >= 0) return Number(range || 0) <= 1;
     if (v.indexOf('shoot') >= 0) {
       var r = Number(range || 0);
-      return r >= 2 && r <= 3;
+      // Shooting can pressure close through far bands in the scene editor.
+      return r >= 1 && r <= 3;
     }
     return true;
   }
@@ -3730,10 +3736,17 @@
       var idx = Number(String(actionId).split(':')[1]);
       selected = skills.find(function (row) { return Number(row.idx) === idx; }) || null;
       if (selected && !selected.inRange) {
-        addHistory((actor.name || 'Enemy') + ' tried ' + selected.name + ' but target is out of range.');
-        safeNotif('Selected enemy skill is out of range.', 'warn');
-        updateUiPanels();
-        return false;
+        var inRangeFallback = skills.filter(function (row) { return !!row.inRange; });
+        if (inRangeFallback.length) {
+          selected = inRangeFallback[0];
+          addHistory((actor.name || 'Enemy') + ' swapped to in-range action: ' + selected.name + '.');
+          safeNotif('Selected skill was out of range. Using an in-range skill instead.', 'warn');
+        } else {
+          addHistory((actor.name || 'Enemy') + ' tried ' + selected.name + ' but target is out of range.');
+          safeNotif('Selected enemy skill is out of range.', 'warn');
+          updateUiPanels();
+          return false;
+        }
       }
     }
     if (!selected) {

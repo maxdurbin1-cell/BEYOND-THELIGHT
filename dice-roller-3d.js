@@ -58,11 +58,11 @@
       const container = document.createElement('div');
       container.id = 'diceRollerContainer';
       container.innerHTML = `
-        <div id="diceRollerModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:2000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);">
+        <div id="diceRollerModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:2000;align-items:center;justify-content:center;backdrop-filter:blur(8px);">
           <div style="background:rgba(11,12,26,.98);border:2px solid rgba(201,162,39,.4);border-radius:12px;overflow:hidden;box-shadow:0 40px 80px rgba(0,0,0,.6),0 0 1px rgba(201,162,39,.3) inset;max-width:680px;width:90%;">
             <div style="background:linear-gradient(180deg,rgba(201,162,39,.12) 0%,rgba(201,162,39,.02) 100%);border-bottom:1px solid rgba(201,162,39,.2);padding:1rem;display:flex;justify-content:space-between;align-items:center;">
               <div style="font-family:'Cinzel',serif;font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gold2);">⚄ Roll Dice</div>
-              <button onclick="document.getElementById('diceRollerModal').style.display='none'" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:1.4rem;">✕</button>
+              <button onclick="closeDiceRoller()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:1.4rem;">✕</button>
             </div>
             <div style="padding:1.2rem;background:rgba(6,7,14,.5);">
               <canvas id="diceRollerCanvas" width="640" height="480" style="max-width:100%;border-radius:8px;display:block;margin:0 auto;border:1px solid rgba(201,162,39,.15);"></canvas>

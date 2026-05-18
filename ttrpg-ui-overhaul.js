@@ -1187,6 +1187,13 @@
         modeBtn.classList.toggle('btn-teal', state.mapTools.manualFogMode);
       });
     }
+
+    var clearTrailBtn = document.getElementById('coTrailClearBtn');
+    if (clearTrailBtn) {
+      clearTrailBtn.addEventListener('click', function() {
+        clearTrail(); // Assuming clearTrail is a defined function
+      });
+    }
   }
 
   function renderMapOverlays() {

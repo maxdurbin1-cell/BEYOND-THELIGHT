@@ -2037,27 +2037,18 @@
       + '<div class="combat-topbar">'
       + '<div>'
       + '<div class="combat-topbar-title">Combat Scene · Round <span id="combatRoundDisplay">1</span></div>'
-      + '<div class="combat-mini" id="combatTopMeta">No active scene. | Turn: <span id="combatTurnDisplay">Awaiting start</span> · <span id="combatSharedSyncBadge">Sync --</span></div>'
-      + '</div>'
-      + '<div style="display:flex;gap:.28rem;align-items:center;">'
-      + '<button class="btn btn-xs btn-primary" id="combatStartSceneBtn">Start Scene</button>'
-      + '<button class="btn btn-xs" id="combatPlayModeBtn">Play View</button>'
-      + '<button class="btn btn-xs" id="combatAddWayfarerBtn" title="Add Wayfarer to board">+ Wayfarer</button>'
-      + '<button class="btn btn-xs combat-editor-only" id="combatExportSceneBtn">Export</button>'
-      + '<button class="btn btn-xs combat-editor-only" id="combatImportSceneBtn">Import</button>'
-      + '<select class="combat-select combat-editor-only" id="combatRecoverySlotSel" style="max-width:10.5rem;"></select>'
-      + '<button class="btn btn-xs combat-editor-only" id="combatRecoverSceneBtn">Recover Slot</button>'
-      + '<button class="btn btn-xs combat-editor-only" id="combatUploadMapBtn">Upload Battlemap</button>'
-      + '<button class="btn btn-xs combat-editor-only" id="combatClearMapBtn">Remove Battlemap</button>'
-      + '<button class="btn btn-xs combat-editor-only" id="combatAddTokenBtn">+ Add Enemy</button>'
-      + '<button class="btn btn-xs btn-red" id="combatCloseBtn">End Scene</button>'
-        + '<div style="display:flex;gap:.28rem;align-items:center;margin-left:.4rem;border-left:1px solid rgba(227,188,94,.2);padding-left:.4rem;">'
-        + '<button class="btn btn-xs" id="combatRulesReferenceBtn" title="Combat Rules Reference">📖 Rules</button>'
-        + '<button class="btn btn-xs combat-editor-only" id="combatSaveSceneCardBtn" title="Save current scene as card">💾 Save Scene</button>'
-        + '<button class="btn btn-xs combat-editor-only" id="combatLoadSceneCardBtn" title="Load a saved scene card">📂 Load Scene</button>'
-        + '<button class="btn btn-xs combat-editor-only" id="combatNewSceneTemplateBtn" title="Create new scene from template">✨ New Scene</button>'
-        + '</div>'
-      + '</div>'
+            + '<div class="combat-mini" id="combatTopMeta">No active scene. | Turn: <span id="combatTurnDisplay">Awaiting start</span>  b7 <span id="combatSharedSyncBadge">Sync --</span></div>'
+            + '</div>'
+            + '<div style="display:flex;gap:.28rem;align-items:center;">'
+            + '<button class="btn btn-xs btn-primary" id="combatStartSceneBtn">Start Scene</button>'
+            + '<button class="btn btn-xs" id="combatPlayModeBtn">Play View</button>'
+            + '<button class="btn btn-xs" id="combatAddWayfarerBtn" title="Add Wayfarer to board">+ Wayfarer</button>'
+            + '<button class="btn btn-xs combat-editor-only" id="combatUploadMapBtn">Upload Battlemap</button>'
+            + '<button class="btn btn-xs combat-editor-only" id="combatClearMapBtn">Remove Battlemap</button>'
+            + '<button class="btn btn-xs combat-editor-only" id="combatAddTokenBtn">+ Add Enemy</button>'
+            + '<button class="btn btn-xs btn-red" id="combatCloseBtn">End Scene</button>'
+              + '<div style="display:flex;gap:.28rem;align-items:center;margin-left:.4rem;border-left:1px solid rgba(227,188,94,.2);padding-left:.4rem;">'
+              + '<button class="btn btn-xs" id="combatRulesReferenceBtn" title="Combat Rules Reference">📖 Rules</button>'
       + '</div>'
       + '<input id="combatMapImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatTokenImageInput" type="file" accept="image/*" style="display:none;">'
@@ -2964,6 +2955,19 @@
     if (playModeBtn) {
       playModeBtn.textContent = state.playMode ? 'Play View' : 'Build View';
       playModeBtn.className = state.playMode ? 'btn btn-xs btn-teal' : 'btn btn-xs';
+      if (!playModeBtn._bound) {
+        playModeBtn._bound = true;
+        playModeBtn.addEventListener('click', function() {
+          // Toggle playMode in the store and update UI
+          var currentState = store.getState();
+          var newPlayMode = !currentState.playMode;
+          store.setState({ playMode: newPlayMode });
+          // Optionally, call a function to handle mode switching UI if needed
+          if (typeof window.togglePlayMode === 'function') {
+            window.togglePlayMode(newPlayMode);
+          }
+        });
+      }
     }
 
     var layers = ['terrain', 'objects', 'hazards', 'elevation', 'lighting', 'weather', 'foreground', 'interactives', 'spawns'];

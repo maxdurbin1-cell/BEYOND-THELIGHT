@@ -148,6 +148,48 @@
   box-shadow: 0 2px 8px rgba(0,0,0,0.10);
 }
 
+.combat-icon-btn[data-hover-label],
+.combat-chip[data-hover-label],
+.combat-panel-header[data-hover-label],
+.combat-topbar .btn[data-hover-label] {
+  position: relative;
+}
+
+.combat-icon-btn[data-hover-label]::after,
+.combat-chip[data-hover-label]::after,
+.combat-panel-header[data-hover-label]::after,
+.combat-topbar .btn[data-hover-label]::after {
+  content: attr(data-hover-label);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 8px);
+  transform: translateX(-50%) translateY(-2px);
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  padding: 0.22rem 0.42rem;
+  border: 1px solid rgba(227, 188, 94, 0.28);
+  background: rgba(4, 7, 15, 0.96);
+  color: #f5ecd2;
+  font: 700 0.68rem "Rajdhani", sans-serif;
+  letter-spacing: 0.05em;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  transition: opacity 120ms ease, transform 120ms ease;
+  z-index: 20;
+}
+
+.combat-icon-btn[data-hover-label]:hover::after,
+.combat-icon-btn[data-hover-label]:focus-visible::after,
+.combat-chip[data-hover-label]:hover::after,
+.combat-chip[data-hover-label]:focus-visible::after,
+.combat-panel-header[data-hover-label]:hover::after,
+.combat-panel-header[data-hover-label]:focus-visible::after,
+.combat-topbar .btn[data-hover-label]:hover::after,
+.combat-topbar .btn[data-hover-label]:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 .combat-svg-icon {
   display: inline-flex;
   align-items: center;

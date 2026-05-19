@@ -170,6 +170,134 @@ async function run() {
       throw new Error(`Asset drag/drop did not stamp an object: ${JSON.stringify(dragResult)}`);
     }
 
+    const hoverLabels = await page.evaluate(() => {
+      const icon = document.getElementById("combatRailSelectBtn");
+      const tools = document.getElementById("combatToolsPanel")?.querySelector(".combat-panel-header");
+      const feed = document.getElementById("combatFeedPanel")?.querySelector(".combat-panel-header");
+      return {
+        icon: icon?.getAttribute("data-hover-label") || "",
+        tools: tools?.getAttribute("data-hover-label") || "",
+        feed: feed?.getAttribute("data-hover-label") || ""
+      };
+    });
+
+    if (!hoverLabels.icon || !hoverLabels.tools || !hoverLabels.feed) {
+      throw new Error(`Hover labels missing on side panels: ${JSON.stringify(hoverLabels)}`);
+    }
+
+    const seededMapItems = await page.evaluate(() => {
+      window.applyCombatAssetActionAt("set-tool", "hazards:trap", 3, 3, true);
+      window.applyCombatAssetActionAt("stock-cache", "balanced", 4, 4, true);
+      const st = window.CombatSceneStore.getState();
+      window.CombatSceneStore.setState(Object.assign({}, st, {
+        autoRoll: false,
+        selectedTokenId: "player-1",
+        selectedTokenIds: ["player-1"],
+        selectedMapItem: { layer: "hazards", key: "3,3" }
+      }));
+      const next = window.CombatSceneStore.getState();
+      return {
+        hazard: next.layers?.hazards?.["3,3"] || "",
+        cache: next.layers?.objects?.["4,4"] || ""
+      };
+    });
+
+    if (seededMapItems.hazard !== "trap" || seededMapItems.cache !== "loot-cache") {
+      throw new Error(`Failed to seed hazard/cache items: ${JSON.stringify(seededMapItems)}`);
+    }
+
+    await page.evaluate(() => window.openCombatHazardConfigModal(3, 3));
+    await page.waitForFunction(() => {
+      const modal = document.getElementById("rollModal");
+      return !!(modal && modal.style.display !== "none" && /Hazard Configuration/.test(modal.textContent || ""));
+    }, null, { timeout: 10000 });
+    await page.locator("#combatHazardConfigLabel").fill("Trap Lattice");
+    await page.locator("#combatHazardConfigDd").fill("11");
+    await page.locator("#combatHazardConfigDamage").fill("2");
+    await page.locator("#combatHazardConfigDie").selectOption("mind");
+    await page.locator("#combatHazardConfigDie").evaluate((node) => node.value);
+    await page.locator("#combatHazardConfigDie").blur();
+    await page.getByRole("button", { name: "Apply Hazard" }).click();
+
+    const hazardConfigState = await page.evaluate(() => {
+      const row = window.CombatSceneStore.getState().sceneRules?.hazardChecks?.["3,3"] || null;
+      return row ? { dd: row.dd, damage: row.onFailDamage, dieKey: row.dieKey, label: row.label } : null;
+    });
+
+    if (!hazardConfigState || hazardConfigState.dd !== 11 || hazardConfigState.damage !== 2 || hazardConfigState.dieKey !== "mind" || hazardConfigState.label !== "Trap Lattice") {
+      throw new Error(`Hazard config modal did not persist correctly: ${JSON.stringify(hazardConfigState)}`);
+    }
+
+    const hpBeforeHazard = await page.evaluate(() => {
+      const token = (window.CombatSceneStore.getState().tokens || []).find((row) => row && row.id === "player-1") || null;
+      return Number(token?.hp || 0);
+    });
+
+    await page.evaluate(() => window.applyCombatAssetActionAt("hazard-check", "", 3, 3, false));
+    await page.waitForFunction(() => {
+      const modal = document.getElementById("rollModal");
+      return !!(modal && modal.style.display !== "none" && /Hazard Check/.test(modal.textContent || ""));
+    }, null, { timeout: 10000 });
+    await page.locator("#combatHazardRunDie").selectOption("mind");
+    await page.locator("#combatHazardRunTotal").fill("1");
+    await page.locator("#combatHazardResolveBtn").click();
+
+    const hazardResolution = await page.evaluate(() => {
+      const st = window.CombatSceneStore.getState();
+      const token = (st.tokens || []).find((row) => row && row.id === "player-1") || null;
+      return {
+        hp: token?.hp,
+        lastLog: (st.actionHistory || []).slice(-1)[0] || ""
+      };
+    });
+
+    if (Number(hazardResolution.hp || 0) !== hpBeforeHazard - 2) {
+      throw new Error(`Hazard resolution modal did not apply fail damage: ${JSON.stringify(hazardResolution)}`);
+    }
+
+    await page.evaluate(() => window.openCombatLootCacheModal(4, 4));
+    await page.waitForFunction(() => {
+      const modal = document.getElementById("rollModal");
+      return !!(modal && modal.style.display !== "none" && /Loot Cache Controls/.test(modal.textContent || ""));
+    }, null, { timeout: 10000 });
+    await page.locator("#combatLootCacheMode").selectOption("items-affixes");
+    await page.locator("#combatLootCacheTier").fill("10");
+    await page.locator("#combatLootCacheStockBtn").click();
+
+    const cacheState = await page.evaluate(() => {
+      const row = window.CombatSceneStore.getState().sceneRules?.mapLootCaches?.["4,4"] || null;
+      return row ? { count: Array.isArray(row.items) ? row.items.length : 0, items: row.items || [] } : null;
+    });
+
+    if (!cacheState || cacheState.count < 2 || !cacheState.items.some((item) => String(item || "").includes("Affix Sigil ["))) {
+      throw new Error(`Loot cache modal did not stock expected rewards: ${JSON.stringify(cacheState)}`);
+    }
+
+    const mapItemOps = await page.evaluate(() => {
+      const st = window.CombatSceneStore.getState();
+      window.CombatSceneStore.setState(Object.assign({}, st, {
+        selectedTokenId: "",
+        selectedTokenIds: [],
+        selectedMapItem: { layer: "hazards", key: "3,3" }
+      }));
+      const copied = window.copySelectedCombatMapItem();
+      const moved = window.moveCombatMapItemByKey("hazards", "3,3", 5, 3);
+      const pasted = window.pasteCombatMapItemAt(6, 3);
+      const next = window.CombatSceneStore.getState();
+      return {
+        copied,
+        moved,
+        pasted,
+        movedHazard: next.layers?.hazards?.["5,3"] || "",
+        pastedHazard: next.layers?.hazards?.["6,3"] || "",
+        movedConfig: next.sceneRules?.hazardChecks?.["5,3"] || null
+      };
+    });
+
+    if (!mapItemOps.copied || !mapItemOps.moved || !mapItemOps.pasted || mapItemOps.movedHazard !== "trap" || mapItemOps.pastedHazard !== "trap" || !mapItemOps.movedConfig) {
+      throw new Error(`Map item manipulation failed: ${JSON.stringify(mapItemOps)}`);
+    }
+
     await page.evaluate(() => {
       const modal = document.getElementById("rollModal");
       if (modal && typeof window.closeModal === "function") window.closeModal();
@@ -178,9 +306,13 @@ async function run() {
     await page.evaluate(() => {
       const canvas = document.getElementById("combatSceneCanvas");
       if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      const cx = Math.round(rect.left + (rect.width / 2));
-      const cy = Math.round(rect.top + (rect.height / 2));
+      const st = window.CombatSceneStore.getState();
+      const token = (st.tokens || []).find((row) => row && row.id === "player-1") || null;
+      if (!token) return;
+      const board = st.board || {};
+      const size = Number(board.size || 42) * Number(board.zoom || 1);
+      const cx = Math.round(size * (Math.sqrt(3) * Number(token.q || 0) + (Math.sqrt(3) / 2) * Number(token.r || 0)) + Number(board.panX || 0));
+      const cy = Math.round(size * (1.5 * Number(token.r || 0)) + Number(board.panY || 0));
       const first = new MouseEvent("dblclick", {
         bubbles: true,
         cancelable: true,

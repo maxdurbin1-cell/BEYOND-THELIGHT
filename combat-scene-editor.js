@@ -87,6 +87,23 @@
     setCombatAssetDragGhost(null);
   }
 
+  function primeCombatAssetDragPayload(kind, payload, label) {
+    window.__combatAssetDragPayload = {
+      kind: String(kind || ''),
+      payload: String(payload || ''),
+      label: String(label || 'Dragging asset')
+    };
+  }
+
+  function applyCombatHoverLabels(root) {
+    if (!root || !root.querySelectorAll) return;
+    Array.prototype.slice.call(root.querySelectorAll('.combat-icon-btn, .combat-chip, .combat-panel-header, .combat-topbar .btn')).forEach(function (node) {
+      if (!node || !node.setAttribute) return;
+      var label = String(node.getAttribute('data-hover-label') || node.getAttribute('title') || node.getAttribute('aria-label') || node.textContent || '').replace(/\s+/g, ' ').trim();
+      if (label) node.setAttribute('data-hover-label', label.replace(/\s+[◀✕X]$/, '').trim());
+    });
+  }
+
   function applyBattlemapFile(file, contextLabel) {
     if (!file || String(file.type || '').indexOf('image/') !== 0) return false;
     var reader = new FileReader();
@@ -191,8 +208,342 @@
     next.targetCoverOverrides = Object.assign({}, next.targetCoverOverrides || {});
     next.mapLootCaches = Object.assign({}, next.mapLootCaches || {});
     next.hazardChecks = Object.assign({}, next.hazardChecks || {});
+    next.mapItemMeta = Object.assign({}, next.mapItemMeta || {});
     next.assetFolders = normalizeCombatAssetFolders(next.assetFolders || {});
     return next;
+  }
+
+  function isSelectableMapLayer(layerName) {
+    return ['terrain', 'objects', 'hazards'].indexOf(String(layerName || '')) >= 0;
+  }
+
+  function normalizeMapItemSelection(selection, state) {
+    if (!selection || typeof selection !== 'object') return null;
+    var layer = String(selection.layer || '');
+    var key = String(selection.key || '');
+    if (!isSelectableMapLayer(layer) || !key) return null;
+    if (state && (!state.layers || !state.layers[layer] || !state.layers[layer][key])) return null;
+    return { layer: layer, key: key };
+  }
+
+  function mapItemMetaKey(layerName, key) {
+    return String(layerName || '') + ':' + String(key || '');
+  }
+
+  function getMapItemMeta(state, layerName, key) {
+    var rules = ensureCombatSceneRulesExtensions(state && state.sceneRules || {});
+    return Object.assign({}, rules.mapItemMeta && rules.mapItemMeta[mapItemMetaKey(layerName, key)] || {});
+  }
+
+  function isMapItemLocked(state, layerName, key) {
+    return !!getMapItemMeta(state, layerName, key).locked;
+  }
+
+  function describeMapItemLabel(layerName, value) {
+    var layer = String(layerName || '');
+    var raw = String(value || '').trim();
+    if (!raw) return 'Map Item';
+    if (layer === 'terrain' && raw.indexOf('hexasset:') === 0) return 'Hex Asset';
+    return raw.replace(/[-_]+/g, ' ').replace(/\b\w/g, function (chr) { return chr.toUpperCase(); });
+  }
+
+  function getMapItemValue(state, layerName, key) {
+    return String(state && state.layers && state.layers[layerName] && state.layers[layerName][key] || '');
+  }
+
+  function getSelectedMapItemRecord(state) {
+    var selection = normalizeMapItemSelection(state && state.selectedMapItem, state);
+    if (!selection) return null;
+    var value = getMapItemValue(state, selection.layer, selection.key);
+    if (!value) return null;
+    var coords = fromKeyString(selection.key);
+    return {
+      layer: selection.layer,
+      key: selection.key,
+      q: Number(coords.q || 0),
+      r: Number(coords.r || 0),
+      value: value,
+      label: describeMapItemLabel(selection.layer, value),
+      locked: isMapItemLocked(state, selection.layer, selection.key)
+    };
+  }
+
+  function findSelectableMapItemAt(state, q, r) {
+    var key = toKey(q, r);
+    var hazard = getMapItemValue(state, 'hazards', key);
+    if (hazard) {
+      return { layer: 'hazards', key: key, q: Number(q || 0), r: Number(r || 0), value: hazard, label: describeMapItemLabel('hazards', hazard), locked: isMapItemLocked(state, 'hazards', key) };
+    }
+    var object = getMapItemValue(state, 'objects', key);
+    if (object) {
+      return { layer: 'objects', key: key, q: Number(q || 0), r: Number(r || 0), value: object, label: describeMapItemLabel('objects', object), locked: isMapItemLocked(state, 'objects', key) };
+    }
+    var terrain = getMapItemValue(state, 'terrain', key);
+    if (terrain.indexOf('hexasset:') === 0) {
+      return { layer: 'terrain', key: key, q: Number(q || 0), r: Number(r || 0), value: terrain, label: describeMapItemLabel('terrain', terrain), locked: isMapItemLocked(state, 'terrain', key) };
+    }
+    return null;
+  }
+
+  function clearMapItemSelection() {
+    store.setState({ selectedMapItem: null, draggingMapItem: null });
+  }
+
+  function syncMapItemSupportForKey(rules, layerName, fromKey, toKey, value) {
+    var nextRules = ensureCombatSceneRulesExtensions(rules);
+    var metaMap = Object.assign({}, nextRules.mapItemMeta || {});
+    var oldMetaKey = mapItemMetaKey(layerName, fromKey);
+    var newMetaKey = mapItemMetaKey(layerName, toKey);
+    if (metaMap[oldMetaKey]) {
+      metaMap[newMetaKey] = Object.assign({}, metaMap[oldMetaKey]);
+      delete metaMap[oldMetaKey];
+    }
+    nextRules.mapItemMeta = metaMap;
+    if (String(layerName || '') === 'hazards') {
+      var hazardChecks = Object.assign({}, nextRules.hazardChecks || {});
+      if (hazardChecks[fromKey]) {
+        hazardChecks[toKey] = Object.assign({}, hazardChecks[fromKey], { label: String(hazardChecks[fromKey].label || describeMapItemLabel(layerName, value)) });
+        delete hazardChecks[fromKey];
+      }
+      nextRules.hazardChecks = hazardChecks;
+    }
+    if (String(layerName || '') === 'objects' && String(value || '') === 'loot-cache') {
+      var caches = Object.assign({}, nextRules.mapLootCaches || {});
+      if (caches[fromKey]) {
+        var coords = fromKeyString(toKey);
+        caches[toKey] = Object.assign({}, caches[fromKey], { q: Number(coords.q || 0), r: Number(coords.r || 0) });
+        delete caches[fromKey];
+      }
+      nextRules.mapLootCaches = caches;
+    }
+    return nextRules;
+  }
+
+  function fromKeyString(key) {
+    var parts = String(key || '0,0').split(',');
+    return {
+      q: Number(parts[0] || 0),
+      r: Number(parts[1] || 0)
+    };
+  }
+
+  function deleteMapItemAt(layerName, key, opts) {
+    var state = store.getState();
+    var layer = String(layerName || '');
+    var current = getMapItemValue(state, layer, key);
+    if (!current) return false;
+    var options = opts && typeof opts === 'object' ? opts : {};
+    if (isMapItemLocked(state, layer, key) && !options.force) {
+      safeNotif('Unlock this map item before editing it.', 'warn');
+      return false;
+    }
+    if (options.captureUndo !== false) captureUndoSnapshot('Delete Map Item');
+    store.setState(function (inner) {
+      var next = normalizeCombatSceneState(Object.assign({}, inner));
+      next.layers[layer] = Object.assign({}, inner.layers && inner.layers[layer] || {});
+      delete next.layers[layer][key];
+      var rules = ensureCombatSceneRulesExtensions(inner.sceneRules);
+      rules.mapItemMeta = Object.assign({}, rules.mapItemMeta || {});
+      delete rules.mapItemMeta[mapItemMetaKey(layer, key)];
+      if (layer === 'hazards') {
+        rules.hazardChecks = Object.assign({}, rules.hazardChecks || {});
+        delete rules.hazardChecks[key];
+      }
+      if (layer === 'objects' && current === 'loot-cache') {
+        rules.mapLootCaches = Object.assign({}, rules.mapLootCaches || {});
+        delete rules.mapLootCaches[key];
+      }
+      next.sceneRules = rules;
+      if (next.selectedMapItem && String(next.selectedMapItem.layer || '') === layer && String(next.selectedMapItem.key || '') === String(key || '')) {
+        next.selectedMapItem = null;
+      }
+      persist(next);
+      return next;
+    });
+    addHistory(describeMapItemLabel(layer, current) + ' removed from ' + key + '.');
+    drawBoard();
+    updateUiPanels();
+    return true;
+  }
+
+  function moveMapItemTo(layerName, fromKey, targetQ, targetR) {
+    var state = store.getState();
+    var layer = String(layerName || '');
+    var value = getMapItemValue(state, layer, fromKey);
+    if (!value) return false;
+    if (isMapItemLocked(state, layer, fromKey)) {
+      safeNotif('Unlock this map item before moving it.', 'warn');
+      return false;
+    }
+    var targetKey = toKey(targetQ, targetR);
+    if (targetKey === String(fromKey || '')) return false;
+    if (getMapItemValue(state, layer, targetKey)) {
+      safeNotif('That hex already has a ' + describeMapItemLabel(layer, value).toLowerCase() + ' on this layer.', 'warn');
+      return false;
+    }
+    store.setState(function (inner) {
+      var next = normalizeCombatSceneState(Object.assign({}, inner));
+      next.layers[layer] = Object.assign({}, inner.layers && inner.layers[layer] || {});
+      delete next.layers[layer][fromKey];
+      next.layers[layer][targetKey] = value;
+      next.sceneRules = syncMapItemSupportForKey(inner.sceneRules, layer, fromKey, targetKey, value);
+      next.selectedMapItem = { layer: layer, key: targetKey };
+      next.draggingMapItem = { layer: layer, key: targetKey };
+      persist(next);
+      return next;
+    });
+    drawBoard();
+    updateUiPanels();
+    return true;
+  }
+
+  function copySelectedMapItemToClipboard() {
+    var state = store.getState();
+    var item = getSelectedMapItemRecord(state);
+    if (!item) {
+      safeNotif('Select a map item first.', 'warn');
+      return false;
+    }
+    var rules = ensureCombatSceneRulesExtensions(state.sceneRules);
+    var payload = {
+      layer: item.layer,
+      value: item.value,
+      label: item.label,
+      meta: getMapItemMeta(state, item.layer, item.key)
+    };
+    if (item.layer === 'hazards' && rules.hazardChecks[item.key]) payload.hazardCheck = Object.assign({}, rules.hazardChecks[item.key]);
+    if (item.layer === 'objects' && item.value === 'loot-cache' && rules.mapLootCaches[item.key]) payload.lootCache = Object.assign({}, rules.mapLootCaches[item.key]);
+    store.setState(function (inner) {
+      var next = Object.assign({}, inner, { clipboardMapItem: payload });
+      persist(next);
+      return next;
+    });
+    safeNotif(item.label + ' copied.', 'good');
+    return true;
+  }
+
+  function pasteMapItemFromClipboard(targetQ, targetR) {
+    var state = store.getState();
+    var clip = state && state.clipboardMapItem && typeof state.clipboardMapItem === 'object' ? state.clipboardMapItem : null;
+    if (!clip || !isSelectableMapLayer(clip.layer) || !String(clip.value || '')) {
+      safeNotif('Map item clipboard is empty.', 'warn');
+      return false;
+    }
+    var targetKey = toKey(targetQ, targetR);
+    if (getMapItemValue(state, clip.layer, targetKey)) {
+      safeNotif('That hex already has a map item on the ' + clip.layer + ' layer.', 'warn');
+      return false;
+    }
+    captureUndoSnapshot('Paste Map Item');
+    store.setState(function (inner) {
+      var next = normalizeCombatSceneState(Object.assign({}, inner));
+      next.layers[clip.layer] = Object.assign({}, inner.layers && inner.layers[clip.layer] || {});
+      next.layers[clip.layer][targetKey] = String(clip.value || '');
+      var rules = ensureCombatSceneRulesExtensions(inner.sceneRules);
+      rules.mapItemMeta = Object.assign({}, rules.mapItemMeta || {});
+      if (clip.meta && typeof clip.meta === 'object' && Object.keys(clip.meta).length) {
+        rules.mapItemMeta[mapItemMetaKey(clip.layer, targetKey)] = Object.assign({}, clip.meta, { locked: false });
+      }
+      if (clip.layer === 'hazards' && clip.hazardCheck) {
+        rules.hazardChecks = Object.assign({}, rules.hazardChecks || {});
+        rules.hazardChecks[targetKey] = Object.assign({}, clip.hazardCheck, { label: String(clip.hazardCheck.label || describeMapItemLabel(clip.layer, clip.value)) });
+      }
+      if (clip.layer === 'objects' && clip.value === 'loot-cache' && clip.lootCache) {
+        var coords = fromKeyString(targetKey);
+        rules.mapLootCaches = Object.assign({}, rules.mapLootCaches || {});
+        rules.mapLootCaches[targetKey] = Object.assign({}, clip.lootCache, { id: uid('cache'), q: Number(coords.q || 0), r: Number(coords.r || 0), stockedAt: Date.now() });
+      }
+      next.sceneRules = rules;
+      next.selectedMapItem = { layer: clip.layer, key: targetKey };
+      persist(next);
+      return next;
+    });
+    addHistory((clip.label || 'Map item') + ' pasted at ' + targetKey + '.');
+    drawBoard();
+    updateUiPanels();
+    return true;
+  }
+
+  function toggleSelectedMapItemLock(forceValue) {
+    var state = store.getState();
+    var item = getSelectedMapItemRecord(state);
+    if (!item) {
+      safeNotif('Select a map item first.', 'warn');
+      return false;
+    }
+    captureUndoSnapshot('Toggle Map Item Lock');
+    var nextLocked = typeof forceValue === 'boolean' ? forceValue : !item.locked;
+    store.setState(function (inner) {
+      var next = normalizeCombatSceneState(Object.assign({}, inner));
+      var rules = ensureCombatSceneRulesExtensions(inner.sceneRules);
+      rules.mapItemMeta = Object.assign({}, rules.mapItemMeta || {});
+      rules.mapItemMeta[mapItemMetaKey(item.layer, item.key)] = Object.assign({}, rules.mapItemMeta[mapItemMetaKey(item.layer, item.key)] || {}, { locked: nextLocked });
+      next.sceneRules = rules;
+      persist(next);
+      return next;
+    });
+    safeNotif(nextLocked ? 'Map item locked.' : 'Map item unlocked.', 'good');
+    drawBoard();
+    updateUiPanels();
+    return true;
+  }
+
+  function saveHazardCheckConfigAt(q, r, config) {
+    var cfg = Object.assign({}, config && typeof config === 'object' ? config : {});
+    var state = store.getState();
+    var profile = getLayerGameplayProfile(state, q, r);
+    var current = getHazardCheckConfigAt(state, q, r, profile);
+    var normalizedDie = String(cfg.dieKey || current.dieKey || 'defend').trim().toLowerCase();
+    var allowed = getCombatActionDieOptions().map(function (entry) { return entry.key; });
+    if (allowed.indexOf(normalizedDie) < 0) normalizedDie = 'defend';
+    var label = String(cfg.label || current.label || 'Hazard').trim() || 'Hazard';
+    var dd = Math.max(4, Math.min(20, Number(cfg.dd == null ? current.dd : cfg.dd)));
+    var damage = Math.max(1, Math.min(10, Number(cfg.onFailDamage == null ? current.onFailDamage : cfg.onFailDamage)));
+    store.setState(function (inner) {
+      var next = Object.assign({}, inner);
+      var rules = ensureCombatSceneRulesExtensions(inner.sceneRules);
+      rules.hazardChecks = Object.assign({}, rules.hazardChecks || {});
+      rules.hazardChecks[toKey(q, r)] = {
+        dd: dd,
+        dieKey: normalizedDie,
+        label: label,
+        onFailDamage: damage
+      };
+      next.sceneRules = rules;
+      persist(next);
+      return next;
+    });
+    addHistory('Hazard check configured at ' + toKey(q, r) + ': DD' + dd + ', default ' + normalizedDie + ', fail ' + damage + ' damage.');
+    safeNotif('Hazard check configured.', 'good');
+    drawBoard();
+    updateUiPanels();
+    return true;
+  }
+
+  function clearHazardCheckConfigAt(q, r) {
+    var key = toKey(q, r);
+    store.setState(function (inner) {
+      var next = Object.assign({}, inner);
+      var rules = ensureCombatSceneRulesExtensions(inner.sceneRules);
+      rules.hazardChecks = Object.assign({}, rules.hazardChecks || {});
+      delete rules.hazardChecks[key];
+      next.sceneRules = rules;
+      persist(next);
+      return next;
+    });
+    addHistory('Hazard check cleared at ' + key + '.');
+    safeNotif('Hazard check cleared.', 'info');
+    drawBoard();
+    updateUiPanels();
+    return true;
+  }
+
+  function getRaidSoulforgeAffixPool() {
+    return [
+      'Keen', 'Swift', 'Sturdy', 'Brutal', 'Agile', 'Reinforce', 'Fierce', 'Nimble', 'Resilient', 'Balanced', 'Accuracy', 'Range', 'Stealth', 'Piercing', 'Lethal', 'Vicious', 'Silent', 'Distance',
+      'Dragon\'s Breath', 'Stormcaller', 'Frostheart', 'Lifedrinker', 'Doombringer', 'Griffin', 'Valkyrie', 'Leviathan', 'Basilisk', 'Djinn', 'Phoenix\'s Resurgence', 'Gorgon\'s Glare', 'Thunderbird\'s Squall', 'Gryphon\'s Roar', 'Behemoth\'s Rage', 'Sphinx\'s Riddle', 'Minotaur\'s Strength', 'Basilisk\'s Venom', 'Pegasus\' Flight', 'Hydra\'s Growth',
+      'Eternity\'s Edge', 'Void', 'Celestial', 'Abyssal', 'Primal', 'Ancestral', 'Ghost', 'Soul Eater', 'Arachnid\'s Web', 'Beholder\'s Gaze', 'Unicorn\'s Grace', 'Golem\'s Fist', 'Salamander\'s Flame', 'Roc\'s Wind', 'Basilisk\'s Stare', 'Chimera\'s Chaos', 'Phoenix\'s Ashes', 'Yeti\'s Cold', 'Siren\'s Song', 'Wendigo\'s Hunger'
+    ];
   }
 
   function appendCombatAssetToFolder(folderKey, file, contextLabel, options) {
@@ -1503,6 +1854,9 @@
     if (next.selectedTokenId && next.selectedTokenIds.indexOf(String(next.selectedTokenId)) < 0) {
       next.selectedTokenIds.unshift(String(next.selectedTokenId));
     }
+    next.selectedMapItem = normalizeMapItemSelection(next.selectedMapItem, next);
+    next.clipboardMapItem = next.clipboardMapItem && typeof next.clipboardMapItem === 'object' ? clone(next.clipboardMapItem) : null;
+    next.draggingMapItem = normalizeMapItemSelection(next.draggingMapItem, next);
     next.clipboardTokens = Array.isArray(next.clipboardTokens) ? clone(next.clipboardTokens) : [];
     next.undoStack = Array.isArray(next.undoStack) ? clone(next.undoStack).slice(0, 40) : [];
     next.redoStack = Array.isArray(next.redoStack) ? clone(next.redoStack).slice(0, 40) : [];
@@ -1590,6 +1944,8 @@
       paintBrushSize: synced.paintBrushSize,
       drawColor: synced.drawColor,
       selectedTokenIds: synced.selectedTokenIds,
+      selectedMapItem: synced.selectedMapItem,
+      clipboardMapItem: synced.clipboardMapItem,
       clipboardTokens: synced.clipboardTokens,
       undoStack: synced.undoStack,
       redoStack: synced.redoStack
@@ -1769,9 +2125,12 @@
     drawColor: '#e3bc5e',
     selectedTokenId: '',
     selectedTokenIds: [],
+    selectedMapItem: null,
     draggingTokenId: '',
+    draggingMapItem: null,
     draggingGroupIds: [],
     dragTokenOrigins: {},
+    clipboardMapItem: null,
     clipboardTokens: [],
     undoStack: [],
     redoStack: [],
@@ -2040,6 +2399,8 @@
       round: Number(state.round || 1),
       selectedTokenId: String(state.selectedTokenId || ''),
       selectedTokenIds: clone(state.selectedTokenIds || []),
+      selectedMapItem: clone(state.selectedMapItem || null),
+      clipboardMapItem: clone(state.clipboardMapItem || null),
       activeSceneId: String(state.activeSceneId || ''),
       scenes: clone(state.scenes || [])
     };
@@ -2079,6 +2440,8 @@
       next.round = Math.max(1, Number(target.round || 1));
       next.selectedTokenId = String(target.selectedTokenId || '');
       next.selectedTokenIds = Array.isArray(target.selectedTokenIds) ? clone(target.selectedTokenIds) : [];
+      next.selectedMapItem = normalizeMapItemSelection(target.selectedMapItem, next);
+      next.clipboardMapItem = target.clipboardMapItem && typeof target.clipboardMapItem === 'object' ? clone(target.clipboardMapItem) : null;
       next.activeSceneId = String(target.activeSceneId || next.activeSceneId || '');
       next.scenes = Array.isArray(target.scenes) ? clone(target.scenes) : clone(next.scenes || []);
       persist(next);
@@ -2137,7 +2500,7 @@
     var lead = String(primaryId || '');
     if (!lead || !valid[lead]) lead = list[0] || '';
     if (lead && list.indexOf(lead) < 0) list.unshift(lead);
-    store.setState({ selectedTokenId: lead, selectedTokenIds: list });
+    store.setState({ selectedTokenId: lead, selectedTokenIds: list, selectedMapItem: null, draggingMapItem: null });
     return { primary: lead, list: list };
   }
 
@@ -2681,7 +3044,7 @@
   }
 
   function rollLootCacheAffixLabel() {
-    var catalog = ['Ashbound', 'Moonchained', 'Thornwake', 'Hollowglass', 'Dreadforged', 'Graven', 'Saltfire', 'Umbral'];
+    var catalog = getRaidSoulforgeAffixPool();
     return String(catalog[Math.floor(Math.random() * catalog.length)] || 'Ashbound');
   }
 
@@ -2729,67 +3092,50 @@
     };
   }
 
-  function configureHazardCheckAt(q, r) {
-    if (!isGmController()) {
-      safeNotif('Only the GM can configure hazard checks.', 'warn');
+  function buildHazardConfigModalHtml(q, r) {
+    var state = store.getState();
+    var profile = getLayerGameplayProfile(state, q, r);
+    var current = getHazardCheckConfigAt(state, q, r, profile);
+    var dieOptions = getCombatActionDieOptions().map(function (entry) {
+      return '<option value="' + entry.key + '" ' + (entry.key === current.dieKey ? 'selected' : '') + '>' + escapeHtml(entry.label) + '</option>';
+    }).join('');
+    return ''
+      + '<div class="combat-rules-shell" data-hazard-config-key="' + toKey(q, r) + '">'
+      + '<div style="display:grid;gap:.5rem;">'
+      + '<div class="combat-mini">Configure the hazard at <strong>' + toKey(q, r) + '</strong>. Players can choose which die to risk when the check resolves.</div>'
+      + '<label style="display:grid;gap:.2rem;"><span class="combat-mini">Hazard Label</span><input id="combatHazardConfigLabel" class="combat-input" type="text" value="' + escapeHtml(String(current.label || 'Hazard')) + '"></label>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.45rem;">'
+      + '<label style="display:grid;gap:.2rem;"><span class="combat-mini">Difficulty (DD)</span><input id="combatHazardConfigDd" class="combat-input" type="number" min="4" max="20" value="' + Number(current.dd || 4) + '"></label>'
+      + '<label style="display:grid;gap:.2rem;"><span class="combat-mini">Fail Damage</span><input id="combatHazardConfigDamage" class="combat-input" type="number" min="1" max="10" value="' + Number(current.onFailDamage || 1) + '"></label>'
+      + '</div>'
+      + '<label style="display:grid;gap:.2rem;"><span class="combat-mini">Suggested Die</span><select id="combatHazardConfigDie" class="combat-select">' + dieOptions + '</select></label>'
+      + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;justify-content:flex-end;">'
+      + '<button class="btn btn-xs" type="button" onclick="window.clearCombatHazardConfig&&window.clearCombatHazardConfig(' + Number(q || 0) + ',' + Number(r || 0) + ')">Clear</button>'
+      + '<button class="btn btn-xs btn-primary" type="button" onclick="window.applyCombatHazardConfig&&window.applyCombatHazardConfig(' + Number(q || 0) + ',' + Number(r || 0) + ')">Apply Hazard</button>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  }
+
+  function resolveHazardCheckForToken(tokenId, q, r, config) {
+    var token = byId(tokenId);
+    if (!token) {
+      safeNotif('Select a token to run hazard checks.', 'warn');
       return false;
     }
     var state = store.getState();
     var profile = getLayerGameplayProfile(state, q, r);
-    var current = getHazardCheckConfigAt(state, q, r, profile);
-    var dd = promptManualDieTotal('Hazard DD at ' + toKey(q, r) + ' (4-20):', current.dd, 4, 20);
-    if (dd === null) return false;
-    var damage = promptManualDieTotal('On fail damage (1-10):', current.onFailDamage, 1, 10);
-    if (damage === null) return false;
-    var diePrompt = window.prompt('Default suggested die key (strike/shoot/defend/control/body/mind/spirit/lead):', String(current.dieKey || 'defend'));
-    if (diePrompt === null) return false;
-    var normalizedDie = String(diePrompt || 'defend').trim().toLowerCase();
-    var allowed = getCombatActionDieOptions().map(function (entry) { return entry.key; });
-    if (allowed.indexOf(normalizedDie) < 0) normalizedDie = 'defend';
-    store.setState(function (inner) {
-      var next = Object.assign({}, inner);
-      var rules = ensureCombatSceneRulesExtensions(inner.sceneRules);
-      rules.hazardChecks = Object.assign({}, rules.hazardChecks || {});
-      rules.hazardChecks[toKey(q, r)] = {
-        dd: Number(dd),
-        dieKey: normalizedDie,
-        label: current.label,
-        onFailDamage: Number(damage)
-      };
-      next.sceneRules = rules;
-      persist(next);
-      return next;
-    });
-    addHistory('Hazard check configured at ' + toKey(q, r) + ': DD' + dd + ', default ' + normalizedDie + ', fail ' + damage + ' damage.');
-    safeNotif('Hazard check configured.', 'good');
-    return true;
-  }
-
-  function runHazardCheckDialogForToken(token, q, r, profile, options) {
-    if (!token) return false;
-    var opts = options && typeof options === 'object' ? options : {};
-    var state = store.getState();
-    var cfg = getHazardCheckConfigAt(state, q, r, profile || getLayerGameplayProfile(state, q, r));
+    var cfg = getHazardCheckConfigAt(state, q, r, profile);
     var actionDice = getCombatActionDieOptions();
-    var suggestedIdx = Math.max(0, actionDice.findIndex(function (entry) { return entry.key === cfg.dieKey; }));
-    var menu = actionDice.map(function (entry, idx) {
-      var sides = Math.max(2, Number(getWayfarerEffectiveDie(entry.key, 6) || 6));
-      return String(idx + 1) + '. ' + entry.label + ' (d' + sides + ')';
-    }).join('\n');
-    var pickRaw = window.prompt('Hazard Check at ' + toKey(q, r) + ' vs DD' + cfg.dd + '\nChoose action die:\n' + menu, String(suggestedIdx + 1));
-    if (pickRaw === null) {
-      safeNotif('Hazard check cancelled.', 'info');
-      return false;
-    }
-    var pickIdx = Math.max(1, Math.min(actionDice.length, Number(pickRaw || suggestedIdx + 1))) - 1;
-    var dieChoice = actionDice[pickIdx] || actionDice[suggestedIdx] || actionDice[2];
+    var requestedDie = String(config && config.dieKey || cfg.dieKey || 'defend');
+    var dieChoice = actionDice.find(function (entry) { return entry.key === requestedDie; }) || actionDice[0];
     var dieSides = Math.max(2, Number(getWayfarerEffectiveDie(dieChoice.key, 6) || 6));
     var manualMode = !state.autoRoll || isManualRollModeActive();
     var total = manualMode
-      ? promptManualDieTotal('Manual hazard check total for ' + dieChoice.label + ' vs DD' + cfg.dd + ':', Math.max(1, Math.floor(dieSides / 2)), 1, 40)
+      ? Number(config && config.manualTotal)
       : rollCombatDieTotal(dieSides, 'action', 'Hazard Check (' + dieChoice.label + ')');
-    if (total === null) {
-      safeNotif('Hazard check cancelled.', 'info');
+    if (!Number.isFinite(total)) {
+      safeNotif('Enter a valid hazard total before resolving.', 'warn');
       return false;
     }
     var success = Number(total) >= Number(cfg.dd);
@@ -2798,11 +3144,100 @@
       safeNotif('Hazard check passed.', 'good');
       return true;
     }
-    var failDamage = Math.max(1, Number(opts.failDamage || cfg.onFailDamage || profile && profile.hazardDamage || 1));
+    var failDamage = Math.max(1, Number(config && config.failDamage || cfg.onFailDamage || profile && profile.hazardDamage || 1));
     applyDamageToToken(token.id, failDamage, 'Hazard');
     addHistory(String(token.name || 'Token') + ' fails hazard check (' + cfg.label + ') with ' + dieChoice.label + ' ' + total + ' vs DD' + cfg.dd + ' and takes ' + failDamage + ' damage.');
     safeNotif('Hazard check failed: ' + failDamage + ' damage.', 'warn');
     return false;
+  }
+
+  function buildHazardCheckModalHtml(token, q, r, profile, options) {
+    var opts = options && typeof options === 'object' ? options : {};
+    var state = store.getState();
+    var cfg = getHazardCheckConfigAt(state, q, r, profile || getLayerGameplayProfile(state, q, r));
+    var actionDice = getCombatActionDieOptions().map(function (entry) {
+      var sides = Math.max(2, Number(getWayfarerEffectiveDie(entry.key, 6) || 6));
+      return '<option value="' + entry.key + '" ' + (entry.key === cfg.dieKey ? 'selected' : '') + '>' + escapeHtml(entry.label) + ' (d' + sides + ')</option>';
+    }).join('');
+    var manualMode = !state.autoRoll || isManualRollModeActive();
+    return ''
+      + '<div class="combat-rules-shell" data-hazard-check-key="' + toKey(q, r) + '">'
+      + '<div style="display:grid;gap:.5rem;">'
+      + '<div class="combat-mini"><strong>' + escapeHtml(String(token && token.name || 'Token')) + '</strong> is resolving <strong>' + escapeHtml(String(cfg.label || 'Hazard')) + '</strong> at ' + toKey(q, r) + ' against DD ' + Number(cfg.dd || 4) + '.</div>'
+      + '<label style="display:grid;gap:.2rem;"><span class="combat-mini">Chosen Die</span><select id="combatHazardRunDie" class="combat-select">' + actionDice + '</select></label>'
+      + '<label style="display:grid;gap:.2rem;"><span class="combat-mini">' + (manualMode ? 'Manual Total' : 'Override Total (optional)') + '</span><input id="combatHazardRunTotal" class="combat-input" type="number" min="1" max="40" value="' + (manualMode ? Math.max(1, Math.floor(Number(getWayfarerEffectiveDie(cfg.dieKey, 6) || 6) / 2)) : '') + '" placeholder="' + (manualMode ? 'Required in manual mode' : 'Leave blank to auto-roll') + '"></label>'
+      + '<div class="combat-mini">Fail damage: ' + Number(opts.failDamage || cfg.onFailDamage || 1) + '</div>'
+      + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;justify-content:flex-end;">'
+      + '<button class="btn btn-xs" type="button" onclick="window.closeModal&&window.closeModal()">Cancel</button>'
+      + '<button class="btn btn-xs btn-primary" id="combatHazardResolveBtn" type="button" onclick="window.resolveCombatHazardCheck&&window.resolveCombatHazardCheck(\'' + String(token && token.id || '').replace(/'/g, "\\'") + '\',' + Number(q || 0) + ',' + Number(r || 0) + ',' + Number(opts.failDamage || cfg.onFailDamage || 1) + ')">Resolve Check</button>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  }
+
+  function openHazardCheckModal(token, q, r, profile, options) {
+    if (!token) {
+      safeNotif('Select a token to run hazard checks.', 'warn');
+      return false;
+    }
+    if (typeof window.openModal === 'function') {
+      window.openModal('Hazard Check', buildHazardCheckModalHtml(token, q, r, profile, options), null, { preventScroll: true, focusTrap: true });
+      return true;
+    }
+    return false;
+  }
+
+  function buildLootCacheModalHtml(q, r) {
+    var state = store.getState();
+    var key = toKey(q, r);
+    var rules = ensureCombatSceneRulesExtensions(state.sceneRules);
+    var cache = rules.mapLootCaches && rules.mapLootCaches[key] || null;
+    var items = cache && Array.isArray(cache.items) ? cache.items : [];
+    var itemHtml = items.length
+      ? '<div class="combat-feed" style="max-height:160px;">' + items.map(function (item) { return '<div class="combat-feed-line">' + escapeHtml(String(item || '')) + '</div>'; }).join('') + '</div>'
+      : '<div class="combat-mini">No generated rewards yet. Stock the cache to seed raid and Soul Forge rewards.</div>';
+    return ''
+      + '<div class="combat-rules-shell" data-loot-cache-key="' + key + '">'
+      + '<div style="display:grid;gap:.5rem;">'
+      + '<div class="combat-mini">Manage the loot cache at <strong>' + key + '</strong>.</div>'
+      + '<label style="display:grid;gap:.2rem;"><span class="combat-mini">Stocking Mode</span><select id="combatLootCacheMode" class="combat-select"><option value="balanced">Balanced</option><option value="credits">Credits Only</option><option value="items-affixes">Items + Affixes</option></select></label>'
+      + '<label style="display:grid;gap:.2rem;"><span class="combat-mini">Tier</span><input id="combatLootCacheTier" class="combat-input" type="number" min="1" max="20" value="8"></label>'
+      + '<div><div class="combat-mini" style="margin-bottom:.2rem;">Current Cache</div>' + itemHtml + '</div>'
+      + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;justify-content:flex-end;">'
+      + '<button class="btn btn-xs" type="button" onclick="window.deleteCombatMapItemByKey&&window.deleteCombatMapItemByKey(\'objects\',\'' + key + '\')">Delete Cache</button>'
+      + '<button class="btn btn-xs btn-primary" id="combatLootCacheStockBtn" type="button" onclick="window.applyCombatLootCacheModal&&window.applyCombatLootCacheModal(' + Number(q || 0) + ',' + Number(r || 0) + ')">Stock Cache</button>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  }
+
+  function openLootCacheModal(q, r) {
+    if (!isGmController()) {
+      safeNotif('Only the GM can stock loot caches.', 'warn');
+      return false;
+    }
+    ensureLootCacheObjectAt(q, r);
+    if (typeof window.openModal === 'function') {
+      window.openModal('Loot Cache Controls', buildLootCacheModalHtml(q, r), null, { preventScroll: true, focusTrap: true });
+      return true;
+    }
+    return false;
+  }
+
+  function configureHazardCheckAt(q, r) {
+    if (!isGmController()) {
+      safeNotif('Only the GM can configure hazard checks.', 'warn');
+      return false;
+    }
+    if (typeof window.openModal === 'function') {
+      window.openModal('Hazard Configuration', buildHazardConfigModalHtml(q, r), null, { preventScroll: true, focusTrap: true });
+      return true;
+    }
+    return false;
+  }
+
+  function runHazardCheckDialogForToken(token, q, r, profile, options) {
+    return openHazardCheckModal(token, q, r, profile, options);
   }
 
   function stockLootCacheAt(q, r, options) {
@@ -4634,6 +5069,7 @@
       + '</div>'
       + '</div>'
       + '</aside>';
+    applyCombatHoverLabels(root);
     document.body.appendChild(root);
     return root;
   }
@@ -4992,6 +5428,71 @@
     });
   }
 
+  function runMapItemContextAction(actionKey, mapItem, q, r) {
+    if (!mapItem) return;
+    if (actionKey === 'copy') {
+      store.setState({ selectedMapItem: { layer: mapItem.layer, key: mapItem.key }, selectedTokenId: '', selectedTokenIds: [] });
+      copySelectedMapItemToClipboard();
+    } else if (actionKey === 'paste') {
+      pasteMapItemFromClipboard(Number(q || mapItem.q || 0), Number(r || mapItem.r || 0));
+    } else if (actionKey === 'lock') {
+      store.setState({ selectedMapItem: { layer: mapItem.layer, key: mapItem.key }, selectedTokenId: '', selectedTokenIds: [] });
+      toggleSelectedMapItemLock();
+    } else if (actionKey === 'delete') {
+      deleteMapItemAt(mapItem.layer, mapItem.key);
+    } else if (actionKey === 'configure-hazard') {
+      configureHazardCheckAt(mapItem.q, mapItem.r);
+    } else if (actionKey === 'run-hazard') {
+      var selectedToken = byId(store.getState().selectedTokenId);
+      if (!selectedToken) safeNotif('Select a token to run hazard checks.', 'warn');
+      else runHazardCheckDialogForToken(selectedToken, mapItem.q, mapItem.r, getLayerGameplayProfile(store.getState(), mapItem.q, mapItem.r));
+    } else if (actionKey === 'manage-cache') {
+      openLootCacheModal(mapItem.q, mapItem.r);
+    }
+  }
+
+  function showMapItemContextMenu(mapItem, screenX, screenY) {
+    var menu = document.getElementById('combatTokenContextMenu');
+    if (!menu || !mapItem) return;
+    if (tokenContextMenuHideTimer) {
+      clearTimeout(tokenContextMenuHideTimer);
+      tokenContextMenuHideTimer = null;
+    }
+    var actions = [
+      { key: 'copy', label: 'Copy' },
+      { key: 'paste', label: 'Paste Here' },
+      { key: 'lock', label: mapItem.locked ? 'Unlock Placement' : 'Lock Placement' },
+      { key: 'delete', label: 'Delete' }
+    ];
+    if (mapItem.layer === 'hazards') {
+      actions.unshift({ key: 'run-hazard', label: 'Run Hazard Check' });
+      actions.unshift({ key: 'configure-hazard', label: 'Configure Hazard' });
+    }
+    if (mapItem.layer === 'objects' && mapItem.value === 'loot-cache') {
+      actions.unshift({ key: 'manage-cache', label: 'Manage Loot Cache' });
+    }
+    menu.innerHTML = actions.map(function (entry) {
+      return '<button class="combat-token-menu-item" data-menu-action="' + entry.key + '">' + entry.label + '</button>';
+    }).join('');
+    menu.setAttribute('data-map-layer', String(mapItem.layer || ''));
+    menu.setAttribute('data-map-key', String(mapItem.key || ''));
+    menu.setAttribute('data-opened-at', String(Date.now()));
+    menu.style.display = 'grid';
+    menu.style.left = Math.max(6, Number(screenX || 0)) + 'px';
+    menu.style.top = Math.max(6, Number(screenY || 0)) + 'px';
+    menu.classList.remove('open');
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(function () { menu.classList.add('open'); });
+    else menu.classList.add('open');
+    Array.prototype.slice.call(menu.querySelectorAll('[data-menu-action]')).forEach(function (btn) {
+      btn.onclick = function (ev) {
+        ev.preventDefault();
+        var action = String(btn.getAttribute('data-menu-action') || '');
+        hideTokenContextMenu();
+        runMapItemContextAction(action, mapItem, mapItem.q, mapItem.r);
+      };
+    });
+  }
+
   function showInlineBubbleEditor(hit, token, canvas) {
     var input = document.getElementById('combatBubbleInlineInput');
     if (!input || !hit || !token) return;
@@ -5335,6 +5836,17 @@
         ctx.lineWidth = 1;
         ctx.strokeStyle = 'rgba(255,255,255,.1)';
         ctx.stroke();
+
+        if (state.selectedMapItem && String(state.selectedMapItem.key || '') === key) {
+          var selectedLayer = String(state.selectedMapItem.layer || '');
+          var highlightColor = selectedLayer === 'hazards' ? accentGlow : (selectedLayer === 'objects' ? dangerStrong : accentGlow);
+          ctx.save();
+          drawHex(ctx, p.x, p.y, size - 3.4);
+          ctx.lineWidth = 2.2;
+          ctx.strokeStyle = highlightColor;
+          ctx.stroke();
+          ctx.restore();
+        }
 
         if (object && isLayerVisible(state, 'objects')) {
           ctx.save();
@@ -6278,7 +6790,7 @@
       assetFeed.innerHTML = filtered.length
         ? filtered.map(function (item) {
           var icon = assetEmoji(item.name, ab.category);
-          return '<article class="combat-feed-line combat-asset-card" draggable="true" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '" data-asset-label="' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '">'
+          return '<article class="combat-feed-line combat-asset-card" draggable="true" title="Drag onto the battlemap to place this asset" aria-label="Drag ' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + ' onto the battlemap" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '" data-asset-label="' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '">'
             + '<div class="combat-asset-card-main"><strong>' + icon + ' ' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</strong><span class="combat-mini">' + (ab.category === 'battlemaps' ? 'Drop to update the board background or click to apply.' : (ab.category === 'utilities' ? 'Click to run utility workflow.' : 'Drop to place directly on the board.')) + '</span></div>'
             + '<button class="btn btn-xs" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '">Use</button>'
             + '</article>';
@@ -6370,11 +6882,11 @@
         };
       });
       Array.prototype.slice.call(assetFeed.querySelectorAll('.combat-asset-card')).forEach(function (card) {
-        card.ondragstart = function (ev) {
+        function resolveDragDescriptor() {
           var action = String(card.getAttribute('data-asset-action') || '');
           var id = String(card.getAttribute('data-asset-id') || '');
           var chosen = filtered.find(function (item) { return String(item.id || '') === id; }) || null;
-          if (!chosen) return;
+          if (!chosen) return null;
           var dragKind = '';
           var dragPayload = '';
           if (action === 'spawn-ally') {
@@ -6402,9 +6914,23 @@
             dragKind = 'stock-cache';
             dragPayload = String(chosen.payload || 'balanced');
           }
-          if (dragKind) {
-            window.__combatAssetDragPayload = { kind: String(dragKind || ''), payload: String(dragPayload || '') };
-            window.startCombatAssetDrag(ev, dragKind, dragPayload);
+          if (!dragKind) return null;
+          return {
+            kind: dragKind,
+            payload: dragPayload,
+            label: String(chosen.name || card.getAttribute('data-asset-label') || 'Dragging asset')
+          };
+        }
+        card.onpointerdown = function () {
+          var descriptor = resolveDragDescriptor();
+          if (!descriptor) return;
+          primeCombatAssetDragPayload(descriptor.kind, descriptor.payload, descriptor.label);
+        };
+        card.ondragstart = function (ev) {
+          var descriptor = resolveDragDescriptor();
+          if (descriptor) {
+            primeCombatAssetDragPayload(descriptor.kind, descriptor.payload, descriptor.label);
+            window.startCombatAssetDrag(ev, descriptor.kind, descriptor.payload);
           }
         };
         card.ondragend = function () {
@@ -7355,6 +7881,7 @@
         return;
       }
       var clickedToken = findTokenAtCanvasPoint(state, canvasX, canvasY) || nearestTokenAt(ax.q, ax.r);
+      var clickedMapItem = !clickedToken ? findSelectableMapItemAt(state, ax.q, ax.r) : null;
 
       if (clickedToken && isTokenDead(clickedToken) && state.activeTool === 'select') {
         var corpseDrop = getLootDropForToken(state, clickedToken.id);
@@ -7408,6 +7935,26 @@
         updateUiPanels();
         drawBoard();
         return;
+      }
+
+      if (clickedMapItem && state.activeTool === 'select') {
+        store.setState({
+          selectedTokenId: '',
+          selectedTokenIds: [],
+          selectedMapItem: { layer: clickedMapItem.layer, key: clickedMapItem.key },
+          draggingMapItem: clickedMapItem.locked ? null : { layer: clickedMapItem.layer, key: clickedMapItem.key }
+        });
+        if (!clickedMapItem.locked) captureUndoSnapshot('Move Map Item');
+        closeLootPopup();
+        updateUiPanels();
+        drawBoard();
+        return;
+      }
+
+      if (!clickedMapItem && state.activeTool === 'select' && state.selectedMapItem) {
+        clearMapItemSelection();
+        drawBoard();
+        updateUiPanels();
       }
 
       if (state.activeTool === 'paint' || state.activeTool === 'erase') {
@@ -7533,6 +8080,16 @@
         return;
       }
 
+      if (state.draggingMapItem) {
+        clearPingHold();
+        var rectMap = canvas.getBoundingClientRect();
+        var boardMap = state.board;
+        var sizeMap = Number(boardMap.size || 42) * Number(boardMap.zoom || 1);
+        var axMap = pixelToAxial(ev.clientX - rectMap.left, ev.clientY - rectMap.top, sizeMap, boardMap.panX, boardMap.panY);
+        moveMapItemTo(state.draggingMapItem.layer, state.draggingMapItem.key, axMap.q, axMap.r);
+        return;
+      }
+
       if (state.activeTool === 'ruler' && state.ruler && state.ruler.active) {
         var rect2 = canvas.getBoundingClientRect();
         var board2 = state.board;
@@ -7579,6 +8136,9 @@
       if (state.draggingTokenId) {
         store.setState({ draggingTokenId: '', draggingGroupIds: [], dragTokenOrigins: {} });
       }
+      if (state.draggingMapItem) {
+        store.setState({ draggingMapItem: null });
+      }
       if (state.activeTool === 'ruler' && state.ruler && state.ruler.active) {
         var ro3 = Object.assign({ fadeDelay: 'linger' }, state.rulerOptions || {});
         if (String(ro3.fadeDelay || 'linger') === 'instant') {
@@ -7612,24 +8172,12 @@
       var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, board.panX, board.panY);
       var token = findTokenAtCanvasPoint(state, ev.clientX - rect.left, ev.clientY - rect.top) || nearestTokenAt(ax.q, ax.r);
       if (!token) {
-        var cellKey = toKey(ax.q, ax.r);
-        var cellObject = String(state.layers && state.layers.objects && state.layers.objects[cellKey] || '');
-        var cellHazard = String(state.layers && state.layers.hazards && state.layers.hazards[cellKey] || '');
-        if (cellObject === 'loot-cache') {
-          var mode = window.prompt('Loot cache controls at ' + cellKey + ':\n1) Stock balanced (credits/items/affixes)\n2) Stock credits only\n3) Stock items + affixes', '1');
-          if (mode === '2') stockLootCacheAt(ax.q, ax.r, { credits: true, items: false, affixes: false, tier: 8 });
-          else if (mode === '3') stockLootCacheAt(ax.q, ax.r, { credits: false, items: true, affixes: true, tier: 8 });
-          else if (mode !== null) stockLootCacheAt(ax.q, ax.r, { credits: true, items: true, affixes: true, tier: 8 });
-        }
-        if (cellHazard) {
-          var selectedToken = byId(state.selectedTokenId);
-          var hazardMode = window.prompt('Hazard controls at ' + cellKey + ':\n1) Run hazard check (selected token)\n2) Configure hazard DD/damage', '1');
-          if (hazardMode === '2') {
-            configureHazardCheckAt(ax.q, ax.r);
-          } else if (hazardMode !== null) {
-            if (!selectedToken) safeNotif('Select a token to run hazard checks.', 'warn');
-            else runHazardCheckDialogForToken(selectedToken, ax.q, ax.r, getLayerGameplayProfile(state, ax.q, ax.r));
-          }
+        var mapItem = findSelectableMapItemAt(state, ax.q, ax.r);
+        if (mapItem) {
+          store.setState({ selectedMapItem: { layer: mapItem.layer, key: mapItem.key }, selectedTokenId: '', selectedTokenIds: [] });
+          showMapItemContextMenu(mapItem, ev.clientX - rect.left, ev.clientY - rect.top);
+          drawBoard();
+          updateUiPanels();
         }
         hideTokenContextMenu();
         return;
@@ -8818,6 +9366,70 @@
 
     window.applyCombatAssetActionAt = applyCombatAssetActionAt;
 
+    window.applyCombatHazardConfig = function (q, r) {
+      var labelEl = document.getElementById('combatHazardConfigLabel');
+      var ddEl = document.getElementById('combatHazardConfigDd');
+      var damageEl = document.getElementById('combatHazardConfigDamage');
+      var dieEl = document.getElementById('combatHazardConfigDie');
+      var ok = saveHazardCheckConfigAt(q, r, {
+        label: String(labelEl && labelEl.value || ''),
+        dd: Number(ddEl && ddEl.value || 4),
+        onFailDamage: Number(damageEl && damageEl.value || 1),
+        dieKey: String(dieEl && dieEl.value || 'defend')
+      });
+      if (ok && typeof window.closeModal === 'function') window.closeModal();
+      return ok;
+    };
+
+    window.clearCombatHazardConfig = function (q, r) {
+      var ok = clearHazardCheckConfigAt(q, r);
+      if (ok && typeof window.closeModal === 'function') window.closeModal();
+      return ok;
+    };
+
+    window.resolveCombatHazardCheck = function (tokenId, q, r, failDamage) {
+      var dieEl = document.getElementById('combatHazardRunDie');
+      var totalEl = document.getElementById('combatHazardRunTotal');
+      var rawTotal = String(totalEl && totalEl.value || '').trim();
+      var manualTotal = rawTotal ? Number(rawTotal) : NaN;
+      var ok = resolveHazardCheckForToken(tokenId, q, r, {
+        dieKey: String(dieEl && dieEl.value || 'defend'),
+        manualTotal: manualTotal,
+        failDamage: Number(failDamage || 1)
+      });
+      if (ok || Number.isFinite(manualTotal) || !isManualRollModeActive()) {
+        if (typeof window.closeModal === 'function') window.closeModal();
+      }
+      return ok;
+    };
+
+    window.applyCombatLootCacheModal = function (q, r) {
+      var modeEl = document.getElementById('combatLootCacheMode');
+      var tierEl = document.getElementById('combatLootCacheTier');
+      var mode = String(modeEl && modeEl.value || 'balanced');
+      var tier = Math.max(1, Math.min(20, Number(tierEl && tierEl.value || 8)));
+      var cfg = { credits: true, items: true, affixes: true, tier: tier };
+      if (mode === 'credits') cfg = { credits: true, items: false, affixes: false, tier: tier };
+      else if (mode === 'items-affixes') cfg = { credits: false, items: true, affixes: true, tier: tier };
+      var ok = stockLootCacheAt(q, r, cfg);
+      if (ok && typeof window.openModal === 'function') {
+        window.openModal('Loot Cache Controls', buildLootCacheModalHtml(q, r), null, { preventScroll: true, focusTrap: true });
+      }
+      return ok;
+    };
+
+    window.deleteCombatMapItemByKey = function (layerName, key) {
+      var ok = deleteMapItemAt(layerName, key, { force: true });
+      if (ok && typeof window.closeModal === 'function') window.closeModal();
+      return ok;
+    };
+
+    window.openCombatHazardConfigModal = configureHazardCheckAt;
+    window.openCombatLootCacheModal = openLootCacheModal;
+    window.moveCombatMapItemByKey = moveMapItemTo;
+    window.copySelectedCombatMapItem = copySelectedMapItemToClipboard;
+    window.pasteCombatMapItemAt = pasteMapItemFromClipboard;
+
     window.combatAssetAction = function combatAssetAction(kind, payload) {
       var action = String(kind || '');
       var value = String(payload || '');
@@ -9974,6 +10586,11 @@
             return;
           }
           if (key === 'delete' || key === 'backspace') {
+            if (!selectedId && stLocal.selectedMapItem) {
+              deleteMapItemAt(String(stLocal.selectedMapItem.layer || ''), String(stLocal.selectedMapItem.key || ''));
+              ev.preventDefault();
+              return;
+            }
             var selectedIdsForDelete = Array.isArray(stLocal.selectedTokenIds) && stLocal.selectedTokenIds.length
               ? stLocal.selectedTokenIds.slice()
               : (selectedId ? [selectedId] : []);
@@ -9999,12 +10616,23 @@
         }
         if ((ev.ctrlKey || ev.metaKey) && key === 'c') {
           var st = store.getState();
+          if (!st.selectedTokenId && st.selectedMapItem) {
+            copySelectedMapItemToClipboard();
+            ev.preventDefault();
+            return;
+          }
           copyTokensToClipboard(st.selectedTokenId || '');
           ev.preventDefault();
           return;
         }
         if ((ev.ctrlKey || ev.metaKey) && key === 'v') {
           var st2 = store.getState();
+          if (!st2.selectedTokenId && st2.selectedMapItem) {
+            var mapCoords = fromKeyString(String(st2.selectedMapItem.key || '0,0'));
+            pasteMapItemFromClipboard(Number(mapCoords.q || 0) + 1, Number(mapCoords.r || 0) + 1);
+            ev.preventDefault();
+            return;
+          }
           var anchor = byId(st2.selectedTokenId) || { q: 0, r: 0 };
           pasteTokensFromClipboard(Number(anchor.q || 0) + 1, Number(anchor.r || 0) + 1);
           ev.preventDefault();

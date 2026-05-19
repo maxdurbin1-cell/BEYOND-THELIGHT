@@ -437,6 +437,9 @@ function updateDieDisplay(key) {
   if (gearBonus.advDice && gearBonus.advDice.length) displayText += '/Ad' + Math.max.apply(null, gearBonus.advDice);
   if (gearBonus.addDice && gearBonus.addDice.length) displayText += '+d' + gearBonus.addDice.join('+d');
   if (gearBonus.flat > 0) displayText += '+' + gearBonus.flat;
+  if (S && S.rollMod && Array.isArray(S.rollMod.valorDice) && S.rollMod.valorDice.length) {
+    displayText += '+V.D.' + (S.rollMod.valorDice.length > 1 ? 'x' + S.rollMod.valorDice.length : '');
+  }
   const relicBonusCount = typeof getPermanentAdventureBonusCount === 'function' ? getPermanentAdventureBonusCount(key) : 0;
   if (relicBonusCount > 0) displayText += '+V.D.' + (relicBonusCount > 1 ? 'x' + relicBonusCount : '');
 
@@ -554,6 +557,10 @@ function quickRollStat(key) {
 
   // +N flat bonus
   let withFlat = ra.total + flatBonus;
+  const queuedValor = (typeof consumeQueuedRollModValorDice === 'function')
+    ? consumeQueuedRollModValorDice(label + ' Queued Valor')
+    : { total: 0 };
+  withFlat += Number(queuedValor.total || 0);
   // Holy Shield: add spirit die (Flavor)
   const holyShieldRoll = flB.holyShield ? explodingRoll(S.stats.spirit || 4) : null;
   if (holyShieldRoll) withFlat += holyShieldRoll.total;
@@ -573,13 +580,14 @@ function quickRollStat(key) {
   if (ra.advRolls.length) details.push(ra.breakdown.replace(/<[^>]+>/g, '').trim()); // plain-text from breakdown
   if (ra.advRolls.length === 0 && advDiceArr.length === 0) {} // no adv dice, no note needed
   if (flatBonus > 0) details.push('+' + flatBonus + ' (weapon/flavor/mutation/mod)');
+  if (Number(queuedValor.total || 0) > 0) details.push('Queued Valor Dice total = +' + Number(queuedValor.total || 0));
   if (holyShieldRoll) details.push('Holy Shield +Spirit d' + (S.stats.spirit||4) + ' = ' + holyShieldRoll.total);
   if (valorBonus) details.push('+V.D. d' + (S.stats.valor || 4) + ' = ' + valorBonus.total + ' (additive)');
   gearAddRolls.forEach(function(rollObj, idx){ details.push('+d' + gearBonus.addDice[idx] + ' gear = ' + rollObj.total); });
   if (augRoll) details.push('+d' + augDie + ' aug = ' + augRoll.total);
   if (radPenalty > 0) details.push('-' + radPenalty + ' Radiation penalty');
   if (gearBonus.notes && gearBonus.notes.length) details.push(gearBonus.notes.join(' · '));
-  if (mod.advDice.length || mod.flat) details.push('Manual modifier active');
+  if ((Array.isArray(mod.advDice) && mod.advDice.length) || mod.flat || (Array.isArray(mod.valorDice) && mod.valorDice.length)) details.push('Manual modifier active');
 
   const detailHtml = (ra.breakdown || details.length)
     ? '<div style="font-size:.8rem;color:var(--muted2);margin-top:.3rem;">' + (ra.breakdown || '') + (details.slice(1).length ? '<br>' + details.slice(1).join('<br>') : '') + '</div>'

@@ -5375,12 +5375,9 @@ function applySpecificFlavorActionOverride(entry){
   }
 
   if(base.indexOf('circuit saint')>=0){
-    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
-    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
     var adCircuit=Math.max(4,Number((S.stats&&S.stats.adventure)||4));
-    S.rollMod.advDice.push(adCircuit);
-    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
-    return 'Circuit Saint: +Ad'+adCircuit+' queued for your next Hack or old-world device interaction this phase.';
+    queueRollModValorDice(1,adCircuit);
+    return 'Circuit Saint: +V.D. (d'+adCircuit+') queued additively for your next Hack or old-world device interaction this phase.';
   }
 
   // ── VAMPIRE ───────────────────────────────────────────────────────────────
@@ -5390,15 +5387,13 @@ function applySpecificFlavorActionOverride(entry){
     if(isNightV){
       var bDie=Number((S.stats&&S.stats.body)||4);
       var vDie=Math.min(20,bDie===4?6:bDie===6?8:bDie===8?10:bDie===10?12:20);
-      if(!S.rollMod)S.rollMod={advDice:[],flat:0};
-      if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
-      S.rollMod.advDice.push(vDie);
+      queueRollModValorDice(1,vDie);
       if(hasHostiles){
         var healed=roll(4);
         if(typeof changeHealth==='function')changeHealth(-healed);else if(typeof changeStress==='function')changeStress(-healed);
-        return 'Vampiric Surge (night): +Ad'+vDie+' queued, nocturnal power peaks — drained '+healed+' Stress from combat pressure. 🧛 aura on map.';
+        return 'Vampiric Surge (night): +V.D. (d'+vDie+') queued additively, nocturnal power peaks — drained '+healed+' Stress from combat pressure. 🧛 aura on map.';
       }
-      return 'Vampiric presence awakens at night: +Ad'+vDie+' queued for your next action. 🧛 aura on Stars map.';
+      return 'Vampiric presence awakens at night: +V.D. (d'+vDie+') queued additively for your next action. 🧛 aura on Stars map.';
     }
     return 'Vampire: daylight limits power. Gain +1 flat for your next roll but plan action for nightfall when surge peaks. 🧛 aura on map.';
   }
@@ -5420,13 +5415,9 @@ function applySpecificFlavorActionOverride(entry){
 
   // ── RUNESMITH — Valor Die as bonus damage on next Strike/Shoot ────────
   if(base.indexOf('runesmith')>=0){
-    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
-    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
     var ad=Math.max(4,Number((S.stats&&S.stats.adventure)||4));
-    S.rollMod.advDice.push(ad);
-    S.rollMod.advDice.push(ad); // double push: one for the attack die bonus, labelled via notify
-    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
-    return 'Runesmith: weapon rune active — +2×Ad'+ad+' queued (Valor Die bonus to Strike/Shoot damage this scene).';
+    queueRollModValorDice(2,ad);
+    return 'Runesmith: weapon rune active — +2×V.D. (d'+ad+') queued additively (Valor Die bonus to Strike/Shoot damage this scene).';
   }
 
   // ── SCAVENGER MEMORY — reroll loot + Valor Die queued ────────────────
@@ -5495,24 +5486,17 @@ function applySpecificFlavorActionOverride(entry){
 
   // ── RUIN SCHOLAR — Valor Die to all checks in ruins this phase ────────
   if(base.indexOf('ruin scholar')>=0){
-    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
-    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
     var adRS=Math.max(4,Number((S.stats&&S.stats.adventure)||4));
-    S.rollMod.advDice.push(adRS);
-    S.rollMod.advDice.push(adRS);
-    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
-    return 'Ruin Scholar: +2×Ad'+adRS+' queued — bonus applies to checks made within Ruins or the Lost City this phase.';
+    queueRollModValorDice(2,adRS);
+    return 'Ruin Scholar: +2×V.D. (d'+adRS+') queued additively — bonus applies to checks made within Ruins or the Lost City this phase.';
   }
 
   // ── PATHFINDER — Valor Die on Barrier traversal ──────────────────────
   if(base.indexOf('pathfinder')>=0){
-    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
-    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
     var adPF=Math.max(4,Number((S.stats&&S.stats.adventure)||4));
-    S.rollMod.advDice.push(adPF);
+    queueRollModValorDice(1,adPF);
     if(typeof changeCounter==='function')changeCounter('pathTokens',1);
-    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
-    return 'Pathfinder: +Ad'+adPF+' queued for your next Barrier or traversal check, +1 Path Token.';
+    return 'Pathfinder: +V.D. (d'+adPF+') queued additively for your next Barrier or traversal check, +1 Path Token.';
   }
 
   // ── DUST PROPHET — reveal and reroll weather ──────────────────────────────
@@ -5526,38 +5510,29 @@ function applySpecificFlavorActionOverride(entry){
 
   // ── MOON LISTENER — Valor Die bonus during night/evening ─────────────
   if(base.indexOf('moon listener')>=0){
-    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
-    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
     var adML=Math.max(4,Number((S.stats&&S.stats.adventure)||4));
-    S.rollMod.advDice.push(adML);
-    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
+    queueRollModValorDice(1,adML);
     var isNightML=(typeof isNightPhase==='function')?isNightPhase():false;
     if(isNightML){
-      return 'Moon Listener: Night phase active \u2014 +Ad'+adML+' queued as bonus to any roll.';
+      return 'Moon Listener: Night phase active \u2014 +V.D. (d'+adML+') queued additively as bonus to any roll.';
     }
-    return 'Moon Listener: +Ad'+adML+' queued. Full bonus triggers during Evening or Night phase.';
+    return 'Moon Listener: +V.D. (d'+adML+') queued additively. Full bonus triggers during Evening or Night phase.';
   }
 
   // ── QUICK DRAW — Valor Die on first Strike/Shoot ─────────────────────
   if(base.indexOf('quick draw')>=0){
     if(!hasHostiles)return 'Quick Draw activates in combat \u2014 use on your first Strike or Shoot this scene.';
-    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
-    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
     var adQD=Math.max(4,Number((S.stats&&S.stats.adventure)||4));
-    S.rollMod.advDice.push(adQD);
-    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
-    return 'Quick Draw: +Ad'+adQD+' queued for your first Strike or Shoot this combat.';
+    queueRollModValorDice(1,adQD);
+    return 'Quick Draw: +V.D. (d'+adQD+') queued additively for your first Strike or Shoot this combat.';
   }
 
   // ── SIGNAL CALLER — Valor Die on Lead caravan/trade checks ───────────
   if(base.indexOf('signal caller')>=0){
-    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
-    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
     var adSC=Math.max(4,Number((S.stats&&S.stats.lead)||4));
-    S.rollMod.advDice.push(adSC);
+    queueRollModValorDice(1,adSC);
     if(typeof changeCounter==='function')changeCounter('tmw',1);
-    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
-    return 'Signal Caller: +Ad'+adSC+' queued for your next Lead check on caravan or trade routes, +1 Teamwork.';
+    return 'Signal Caller: +V.D. (d'+adSC+') queued additively for your next Lead check on caravan or trade routes, +1 Teamwork.';
   }
 
   // ── SCRAP ALCHEMIST — pick item from backpack, transform into remedy ──────
@@ -5589,14 +5564,11 @@ function applySpecificFlavorActionOverride(entry){
   // ── SILENT KNIFE — Valor Die on Strike when no ally engaged ───────────
   if(base.indexOf('silent knife')>=0){
     var hasAllyEngaged=Array.isArray(S.enemies)&&S.enemies.some(function(e){return e&&e.ally;});
-    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
-    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
     var adSK=Math.max(4,Number((S.stats&&S.stats.adventure)||4));
-    S.rollMod.advDice.push(adSK);
-    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
+    queueRollModValorDice(1,adSK);
     return hasAllyEngaged
-      ? 'Silent Knife: +Ad'+adSK+' queued. Warning: an ally is engaged — full bonus applies when fighting alone.'
-      : 'Silent Knife: Solo — +Ad'+adSK+' queued for your next Strike.';
+      ? 'Silent Knife: +V.D. (d'+adSK+') queued additively. Warning: an ally is engaged — full bonus applies when fighting alone.'
+      : 'Silent Knife: Solo — +V.D. (d'+adSK+') queued additively for your next Strike.';
   }
 
   // ── WILD EMPATHY — beast enemies distracted on turn 1 ────────────────────
@@ -5614,24 +5586,18 @@ function applySpecificFlavorActionOverride(entry){
     var maxH=Number((S.stats&&S.stats.body&&typeof S.maxHealth!=='undefined')?S.maxHealth:(S.stats&&S.stats.body?S.stats.body*2:12));
     var curH=Number(S.health||S.stress||maxH);
     var atHalf=curH<=(maxH/2);
-    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
-    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
     var adGR=Math.max(4,Number((S.stats&&S.stats.adventure)||4));
-    S.rollMod.advDice.push(adGR);
-    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
+    queueRollModValorDice(1,adGR);
     return atHalf
-      ? 'Grim Resolve: You are at half Health — +Ad'+adGR+' queued for your next Defend check.'
-      : 'Grim Resolve: +Ad'+adGR+' queued. Note: full bonus when Health is half or below.';
+      ? 'Grim Resolve: You are at half Health — +V.D. (d'+adGR+') queued additively for your next Defend check.'
+      : 'Grim Resolve: +V.D. (d'+adGR+') queued additively. Note: full bonus when Health is half or below.';
   }
 
   // ── COLD READER — Valor Die on Spirit/social checks ──────────────────
   if(base.indexOf('cold reader')>=0){
-    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
-    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
     var adCR=Math.max(4,Number((S.stats&&S.stats.spirit)||4));
-    S.rollMod.advDice.push(adCR);
-    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
-    return 'Cold Reader: +Ad'+adCR+' queued for your next Spirit check in this social or deception scene.';
+    queueRollModValorDice(1,adCR);
+    return 'Cold Reader: +V.D. (d'+adCR+') queued additively for your next Spirit check in this social or deception scene.';
   }
 
   // ── IRON STOMACH — consume an item for unpredictable gain ────────────────
@@ -5702,24 +5668,18 @@ function applySpecificFlavorActionOverride(entry){
 
   // ── VAULT MEMORY — Valor Die on returning to visited locations ─────────
   if(base.indexOf('vault memory')>=0){
-    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
-    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
     var adVM=Math.max(4,Number((S.stats&&S.stats.adventure)||4));
-    S.rollMod.advDice.push(adVM);
+    queueRollModValorDice(1,adVM);
     if(typeof changeCounter==='function')changeCounter('pathTokens',1);
-    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
-    return 'Vault Memory: familiar territory \u2014 +Ad'+adVM+' queued for your next traversal or check on a previously visited route. +1 Path Token.';
+    return 'Vault Memory: familiar territory \u2014 +V.D. (d'+adVM+') queued additively for your next traversal or check on a previously visited route. +1 Path Token.';
   }
 
   // ── HUNT RHYTHM — Valor Die on Strike after successful Defend ─────────
   if(base.indexOf('hunt rhythm')>=0){
     if(!hasHostiles)return 'Hunt Rhythm: activates after a successful Defend in combat.';
-    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
-    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
     var adHR=Math.max(4,Number((S.stats&&S.stats.adventure)||4));
-    S.rollMod.advDice.push(adHR);
-    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
-    return 'Hunt Rhythm: hunter state \u2014 +Ad'+adHR+' queued for your next Strike after this defensive exchange.';
+    queueRollModValorDice(1,adHR);
+    return 'Hunt Rhythm: hunter state \u2014 +V.D. (d'+adHR+') queued additively for your next Strike after this defensive exchange.';
   }
 
   if(base.indexOf('reverse time')>=0){
@@ -5735,14 +5695,12 @@ function applySpecificFlavorActionOverride(entry){
   }
 
   if(base.indexOf('enhance abilities')>=0){
-    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
-    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
     var nextDie=stepUp(Math.max(4,Number((S.stats&&S.stats.adventure)||4)));
-    S.rollMod.advDice.push(nextDie);
+    queueRollModValorDice(1,nextDie);
     if(S.conditions)S.conditions.focused=true;
     if(typeof updateConditionButtons==='function')updateConditionButtons();
     if(typeof changeCounter==='function')changeCounter('tmw',1);
-    return 'Enhance Abilities: the next allied action is stepped up with +Ad'+nextDie+' and Focused support.';
+    return 'Enhance Abilities: the next allied action gains +V.D. (d'+nextDie+') additively with Focused support.';
   }
 
   if(base.indexOf('shed skin')>=0){
@@ -5854,13 +5812,10 @@ function applySpecificFlavorActionOverride(entry){
     'beacon heart','clockmind'];
   for(var gki=0;gki<adGenericKeys.length;gki++){
     if(base.indexOf(adGenericKeys[gki])>=0){
-      if(!S.rollMod)S.rollMod={advDice:[],flat:0};
-      if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
       var adGen=Math.max(4,Number((S.stats&&S.stats.adventure)||4));
-      S.rollMod.advDice.push(adGen);
+      queueRollModValorDice(1,adGen);
       if(typeof changeCounter==='function')changeCounter('tmw',(entry.archetype==='leader'||entry.archetype==='combat')?1:0);
-      if(typeof updateRollModDisplay==='function')updateRollModDisplay();
-      return (entry.actionLabel||adGenericKeys[gki])+': +Ad'+adGen+' queued for your next relevant roll.';
+      return (entry.actionLabel||adGenericKeys[gki])+': +V.D. (d'+adGen+') queued additively for your next relevant roll.';
     }
   }
 
@@ -9832,19 +9787,47 @@ function setRollModFlat(inpId){
   updateRollModDisplay();
 }
 function clearRollMod(){
-  S.rollMod={advDice:[],flat:0,holyShieldDie:0};
+  S.rollMod={advDice:[],flat:0,holyShieldDie:0,valorDice:[]};
   ['rollModFlatInp-combat','rollModFlatInp-char','rollModFlatInp-dice'].forEach(function(id){
     var inp=document.getElementById(id);if(inp)inp.value='0';
   });
   updateRollModDisplay();
 }
+function ensureRollModState(){
+  if(!S.rollMod||typeof S.rollMod!=='object')S.rollMod={advDice:[],flat:0,holyShieldDie:0,valorDice:[]};
+  if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
+  if(!Array.isArray(S.rollMod.valorDice))S.rollMod.valorDice=[];
+  if(!Number.isFinite(Number(S.rollMod.flat||0)))S.rollMod.flat=0;
+  if(!Number.isFinite(Number(S.rollMod.holyShieldDie||0)))S.rollMod.holyShieldDie=0;
+}
+function queueRollModValorDice(count, dieSize){
+  ensureRollModState();
+  var queued=Math.max(1, Number(count||1));
+  var die=Math.max(4, Number(dieSize||getValorDieSize()));
+  for(var i=0;i<queued;i++)S.rollMod.valorDice.push(die);
+  if(typeof updateRollModDisplay==='function')updateRollModDisplay();
+}
+function consumeQueuedRollModValorDice(label){
+  ensureRollModState();
+  var dice=S.rollMod.valorDice.slice();
+  S.rollMod.valorDice=[];
+  if(!dice.length)return {dice:[],rolls:[],total:0};
+  var rolls=dice.map(function(die,idx){
+    return explodingRoll(die,{type:'action',major:true,label:String(label||'Queued Valor Bonus')+' #'+(idx+1)});
+  });
+  var total=rolls.reduce(function(sum,row){return sum+Number(row&&row.total||0);},0);
+  if(typeof updateRollModDisplay==='function')updateRollModDisplay();
+  return {dice:dice,rolls:rolls,total:total};
+}
 function updateRollModDisplay(){
-  var none=!S.rollMod||(!S.rollMod.advDice.length&&!S.rollMod.flat&&!Number(S.rollMod.holyShieldDie||0));
+  ensureRollModState();
+  var none=!S.rollMod||(!S.rollMod.advDice.length&&!S.rollMod.flat&&!Number(S.rollMod.holyShieldDie||0)&&!S.rollMod.valorDice.length);
   var parts=[];
   if(!none){
     if(S.rollMod.advDice.length)parts.push('Adv: '+S.rollMod.advDice.map(function(d){return 'Ad'+d;}).join('+'));
     if(S.rollMod.flat)parts.push((S.rollMod.flat>0?'+':'')+S.rollMod.flat+' flat');
     if(Number(S.rollMod.holyShieldDie||0)>0)parts.push('Holy Shield: +Spirit d'+Number(S.rollMod.holyShieldDie||0));
+    if(S.rollMod.valorDice.length)parts.push('+V.D.: '+S.rollMod.valorDice.map(function(d){return 'd'+d;}).join('+'));
   }
   var text=none?'None active':parts.join(' | ');
   var color=none?'var(--muted2)':'var(--gold)';
@@ -9943,6 +9926,7 @@ function getEffectiveCombatDie(type) {
 }
 
 function rollAttack(type) {
+  ensureRollModState();
   if(!requireCampaignTurn('wayfarer'))return;
   if(type==='shoot'&&S.combat&&S.combat.weaponLockRounds>0){showNotif('Weapon Glitch: your weapons are locked this round.','warn');return;}
   if(!canUseAttackAtCurrentRange(type)){
@@ -10000,6 +9984,8 @@ function rollAttack(type) {
   var flatTotal = wpBonus.flat + flBonus.flat + mtBonus.flat + (S.rollMod ? S.rollMod.flat : 0);
   if(type==='shoot'&&getPrimaryEnemyZoneRelative()==='close')flatTotal+=Number(affixBonus.shootCloseBonus||0);
   var baseTotal = ra.total + flatTotal;
+  var queuedValor = consumeQueuedRollModValorDice(type==='strike'?'Strike Queued Valor':'Shoot Queued Valor');
+  baseTotal += Number(queuedValor.total||0);
   // +V.D. additive Valor die
   var adBonus = wpBonus.addAdvDie ? explodingRoll(getValorDieSize(),{type:'action',major:true,label:'Valor Bonus'}) : null;
   if(adBonus) baseTotal += adBonus.total;
@@ -10072,6 +10058,7 @@ function rollAttack(type) {
   var breakdown = ra.breakdown;
   breakdown += affixBreakdown;
   if(flatTotal > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+'+flatTotal+')</span>';
+  if(Number(queuedValor.total||0)>0) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(Queued V.D. +'+Number(queuedValor.total||0)+')</span>';
   if(adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+V.D.='+adBonus.total+')</span>';
   if(preciseBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+V.D.='+preciseBonus.total+')</span>';
   breakdown += formatAdventureBonusRolls(relicRolls);
@@ -10111,7 +10098,8 @@ function rollAttack(type) {
     if(mtBonus.flat > 0) modNotes.push('Mutation: +'+mtBonus.flat);
   }
   if(mtBonus.advDice.length) modNotes.push('Mutation Adv: '+mtBonus.advDice.map(function(x){return 'Ad'+x;}).join('+'));
-  if(S.rollMod && (S.rollMod.advDice.length||S.rollMod.flat)) modNotes.push('Manual Mod active');
+  if(Number(queuedValor.total||0)>0) modNotes.push('Queued Valor: +'+Number(queuedValor.total||0));
+  if(S.rollMod && (S.rollMod.advDice.length||S.rollMod.flat||(Array.isArray(S.rollMod.valorDice)&&S.rollMod.valorDice.length))) modNotes.push('Manual Mod active');
   var modHtml = modNotes.length ? '<br><span style="font-size:.72rem;color:var(--gold);">'+modNotes.join(' · ')+'</span>' : '';
 
   var el = document.getElementById('attackResult');
@@ -10195,6 +10183,7 @@ function rollAttack(type) {
 }
 
 function rollDefend(skipEnemyTurnTick) {
+  ensureRollModState();
   if(!skipEnemyTurnTick) maybeResetActionsAfterDefend();
 
   var armorAdv = parseArmorAdvDie();
@@ -10214,8 +10203,15 @@ function rollDefend(skipEnemyTurnTick) {
 
   var ra = rollWithAdvantage(S.stats.defend, advDiceArr, {type:'action',major:true,label:'Defend'});
   var a = ra.base;
-  var flatTotal = wpBonus.flat + flBonus.flat + mtBonus.flat + (gearBonus.flat || 0) + (S.rollMod ? S.rollMod.flat : 0);
+  var weaponFlat = Number(wpBonus.flat||0);
+  var flavorFlat = Number(flBonus.flat||0);
+  var mutationFlat = Number(mtBonus.flat||0);
+  var gearFlat = Number(gearBonus.flat||0);
+  var manualFlat = Number(S.rollMod ? S.rollMod.flat : 0);
+  var flatTotal = weaponFlat + flavorFlat + mutationFlat + gearFlat + manualFlat;
   var baseTotal = ra.total + flatTotal;
+  var queuedValor = consumeQueuedRollModValorDice('Defend Queued Valor');
+  baseTotal += Number(queuedValor.total||0);
   // Holy Shield: add spirit die value
   var queuedHolyShieldDie = Math.max(0, Number(S && S.rollMod && S.rollMod.holyShieldDie || 0));
   var holyShieldRoll = queuedHolyShieldDie ? explodingRoll(queuedHolyShieldDie,{type:'action',major:true,label:'Holy Shield'}) : null;
@@ -10224,17 +10220,26 @@ function rollDefend(skipEnemyTurnTick) {
   var adBonus = wpBonus.addAdvDie ? explodingRoll(getValorDieSize(),{type:'action',major:true,label:'Valor Bonus'}) : null;
   if(adBonus) baseTotal += adBonus.total;
   var relicRolls = getPermanentAdventureBonusRolls('defend', 'Defend Relic');
-  baseTotal += sumAdventureBonusRolls(relicRolls);
+  var relicTotal = sumAdventureBonusRolls(relicRolls);
+  baseTotal += relicTotal;
   var gearAddRolls = (gearBonus.addDice || []).map(function(dieSize){ return explodingRoll(dieSize,{type:'action',major:true,label:'Gear Bonus'}); });
-  gearAddRolls.forEach(function(rollObj){ baseTotal += rollObj.total; });
+  var gearAddTotal = 0;
+  gearAddRolls.forEach(function(rollObj){
+    var row = Number(rollObj&&rollObj.total||0);
+    gearAddTotal += row;
+    baseTotal += row;
+  });
   // Augmentation bonus (SUBDERMAL ARMOR +d4) always additive
   var augRoll = augDie > 0 ? explodingRoll(augDie,{type:'action',major:true,label:'Augment'}) : null;
-  var total = baseTotal + (augRoll ? augRoll.total : 0);
-  if(S.combat&&S.combat.sceneDefendBonus)total += Number(S.combat.sceneDefendBonus||0);
+  var augTotal = Number(augRoll ? augRoll.total : 0);
+  var total = baseTotal + augTotal;
+  var sceneDefendBonus = Number(S.combat&&S.combat.sceneDefendBonus||0);
+  if(sceneDefendBonus)total += sceneDefendBonus;
   var radPenalty = (typeof getRadPenaltyForStat === 'function') ? getRadPenaltyForStat('defend') : 0;
   var effectiveTotal = Math.max(0, total - radPenalty);
   var sceneDefMod=getLegacyCombatSceneModifier('defend',null);
-  effectiveTotal=Math.max(0,effectiveTotal+Number(sceneDefMod.total||0));
+  var sceneModTotal = Number(sceneDefMod.total||0);
+  effectiveTotal=Math.max(0,effectiveTotal+sceneModTotal);
 
   var d = explodingRoll(S.combat.enemyDread,{type:'dread',major:true,label:'Enemy DD'});
   var success = effectiveTotal >= d.total;
@@ -10243,11 +10248,12 @@ function rollDefend(skipEnemyTurnTick) {
 
   var breakdown = ra.breakdown;
   if(flatTotal > 0) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+'+flatTotal+')</span>';
+  if(Number(queuedValor.total||0)>0) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(Queued V.D. +'+Number(queuedValor.total||0)+')</span>';
   if(holyShieldRoll) breakdown += ' <span style="font-size:.7rem;color:var(--gold);">(Holy Shield +Spirit d'+(S.stats.spirit||4)+'='+holyShieldRoll.total+')</span>';
   if(adBonus) breakdown += ' <span style="font-size:.7rem;color:var(--muted2);">(+V.D.='+adBonus.total+')</span>';
   breakdown += formatAdventureBonusRolls(relicRolls);
   if(gearAddRolls.length) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(' + gearAddRolls.map(function(rollObj, idx){ return '+d'+gearBonus.addDice[idx]+'='+rollObj.total; }).join(' ') + ')</span>';
-  if(S.combat&&S.combat.sceneDefendBonus) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(+AEGIES '+S.combat.sceneDefendBonus+')</span>';
+  if(sceneDefendBonus) breakdown += ' <span style="font-size:.7rem;color:var(--gold2);">(+AEGIES '+sceneDefendBonus+')</span>';
   if(radPenalty > 0) breakdown += ' <span style="font-size:.7rem;color:var(--red2);">(-'+radPenalty+' Rad)</span>';
   breakdown += formatLegacySceneModBreakdown(sceneDefMod);
   var augNote = augRoll ? ' <span style="color:var(--gold2);font-size:.78rem;">(+d'+augDie+'='+augRoll.total+')</span>' : '';
@@ -10256,14 +10262,39 @@ function rollDefend(skipEnemyTurnTick) {
   if(flBonus.advDice.length) defNotes.push('Flavor Adv: '+flBonus.advDice.map(function(x){return 'Ad'+x;}).join('+'));
   if(mtBonus.flat > 0) defNotes.push('Mutation: +'+mtBonus.flat);
   if(gearBonus.notes && gearBonus.notes.length) defNotes.push(gearBonus.notes.join(' · '));
-  if(S.rollMod && (S.rollMod.advDice.length||S.rollMod.flat)) defNotes.push('Manual Mod active');
+  if(Number(queuedValor.total||0)>0) defNotes.push('Queued Valor: +'+Number(queuedValor.total||0));
+  if(S.rollMod && (S.rollMod.advDice.length||S.rollMod.flat||(Array.isArray(S.rollMod.valorDice)&&S.rollMod.valorDice.length))) defNotes.push('Manual Mod active');
   var defNoteHtml = defNotes.length ? '<br><span style="font-size:.72rem;color:var(--gold);">'+defNotes.join(' · ')+'</span>' : '';
+  var defendSourceLines=[];
+  var sign=function(n){return (Number(n)>=0?'+':'')+Number(n);};
+  defendSourceLines.push('Base Defend roll: +'+Number(ra.total||0));
+  if(armorAdv>0)defendSourceLines.push('Armor Adv Die: Ad'+armorAdv+' (included in base roll)');
+  if(wpBonus.advDie>0)defendSourceLines.push('Weapon Adv Die: Ad'+wpBonus.advDie+' (included in base roll)');
+  if((flBonus.advDice||[]).length)defendSourceLines.push('Flavor Adv Dice: '+flBonus.advDice.map(function(x){return 'Ad'+x;}).join('+')+' (included in base roll)');
+  if((mtBonus.advDice||[]).length)defendSourceLines.push('Mutation Adv Dice: '+mtBonus.advDice.map(function(x){return 'Ad'+x;}).join('+')+' (included in base roll)');
+  if((gearBonus.advDice||[]).length)defendSourceLines.push('Gear Adv Dice: '+gearBonus.advDice.map(function(x){return 'Ad'+x;}).join('+')+' (included in base roll)');
+  if(S.rollMod&&Array.isArray(S.rollMod.advDice)&&S.rollMod.advDice.length)defendSourceLines.push('Manual Adv Dice: '+S.rollMod.advDice.map(function(x){return 'Ad'+x;}).join('+')+' (included in base roll)');
+  if(weaponFlat)defendSourceLines.push('Weapon flat: '+sign(weaponFlat));
+  if(flavorFlat)defendSourceLines.push('Flavor flat: '+sign(flavorFlat));
+  if(mutationFlat)defendSourceLines.push('Mutation flat: '+sign(mutationFlat));
+  if(gearFlat)defendSourceLines.push('Gear flat: '+sign(gearFlat));
+  if(manualFlat)defendSourceLines.push('Manual flat: '+sign(manualFlat));
+  if(Number(queuedValor.total||0)>0)defendSourceLines.push('Queued Valor Dice total: +'+Number(queuedValor.total||0));
+  if(holyShieldRoll)defendSourceLines.push('Holy Shield roll: +'+Number(holyShieldRoll.total||0));
+  if(adBonus)defendSourceLines.push('Shield Valor roll: +'+Number(adBonus.total||0));
+  if(relicTotal)defendSourceLines.push('Permanent Relic rolls: +'+Number(relicTotal||0));
+  if(gearAddTotal)defendSourceLines.push('Gear additive dice total: +'+Number(gearAddTotal||0));
+  if(augTotal)defendSourceLines.push('Augment roll: +'+Number(augTotal||0));
+  if(sceneDefendBonus)defendSourceLines.push('Scene Defend bonus: '+sign(sceneDefendBonus));
+  if(radPenalty)defendSourceLines.push('Radiation penalty: -'+Number(radPenalty||0));
+  if(sceneModTotal)defendSourceLines.push('Scene modifier: '+sign(sceneModTotal));
+  var defendLinesHtml=defendSourceLines.length?'<div style="margin-top:.22rem;font-size:.7rem;color:var(--muted2);line-height:1.45;">'+defendSourceLines.join('<br>')+'</div>':'';
 
   var el = document.getElementById('defendResult');
   if(el) el.innerHTML = '<span style="color:var(--teal);">'+effectiveTotal+'</span>'+breakdown+augNote
     +' vs <span style="color:var(--red);">'+d.total+'</span> — '
     +(success ? '<strong style="color:var(--green2);">Defended!</strong>' : '<strong style="color:var(--red);">−'+diff+' Stress</strong>')
-    +(ra.exploded ? ' ✦ Perfect!' : '')+defNoteHtml;
+    +(ra.exploded ? ' ✦ Perfect!' : '')+defNoteHtml+defendLinesHtml;
 
   if(!success){
     if(typeof showDccFailureOutcome==='function'){
@@ -10560,6 +10591,8 @@ function rollPlayerReactionTotal(statKey,label){
   var ra=rollWithAdvantage(baseDie,advDiceArr,{type:'action',major:true,label:label||'Reaction'});
   var flatTotal=Number(wpBonus.flat||0)+Number(flBonus.flat||0)+Number(mtBonus.flat||0)+Number(gearBonus.flat||0)+((S&&S.rollMod)?Number(S.rollMod.flat||0):0);
   var total=Number(ra.total||0)+flatTotal;
+  var queuedValor=consumeQueuedRollModValorDice((label||'Reaction')+' Queued Valor');
+  total+=Number(queuedValor.total||0);
   var adBonus=wpBonus.addAdvDie?explodingRoll(getValorDieSize(),{type:'action',major:true,label:(label||'Reaction')+' Valor Bonus'}):null;
   if(adBonus)total+=Number(adBonus.total||0);
   var queuedHolyShieldDie=(key==='defend'&&S&&S.rollMod)?Math.max(0,Number(S.rollMod.holyShieldDie||0)):0;

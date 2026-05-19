@@ -55,6 +55,7 @@
     r: null,
     at: 0
   };
+  var lastCombatBoardHex = null;
 
   function currentCombatDragPayloadSnapshot() {
     if (window.__combatAssetDragPayload && typeof window.__combatAssetDragPayload === 'object') {
@@ -149,7 +150,21 @@
     setCombatAssetDragGhost(null);
   }
 
-  function getDefaultAssetDropHex(state, selectedTokenId) {
+  function getDefaultAssetDropHex(state, selectedTokenId, options) {
+    var opts = options && typeof options === 'object' ? options : {};
+    var preferSelection = !!opts.preferSelection;
+    if (preferSelection) {
+      var selectedMapItem = state && state.selectedMapItem && typeof state.selectedMapItem === 'object'
+        ? state.selectedMapItem
+        : null;
+      if (selectedMapItem && selectedMapItem.key) {
+        var selectedCoords = fromKeyString(String(selectedMapItem.key || '0,0'));
+        return { q: Number(selectedCoords.q || 0), r: Number(selectedCoords.r || 0), source: 'selected-map-item' };
+      }
+      if (lastCombatBoardHex && Number.isFinite(Number(lastCombatBoardHex.q)) && Number.isFinite(Number(lastCombatBoardHex.r))) {
+        return { q: Number(lastCombatBoardHex.q || 0), r: Number(lastCombatBoardHex.r || 0), source: 'last-board-hex' };
+      }
+    }
     var board = normalizeBoard(state && state.board);
     var token = byId(selectedTokenId);
     if (token) return { q: Number(token.q || 0) + 1, r: Number(token.r || 0) + 1, source: 'token' };
@@ -632,6 +647,7 @@
     if (!file || String(file.type || '').indexOf('image/') !== 0) return false;
     var cfg = options && typeof options === 'object' ? options : {};
     var applyAsBackground = !!cfg.applyAsBackground;
+    var placeOnSelection = !!cfg.placeOnSelection;
     var reader = new FileReader();
     var kindLabel = folderKey === 'mapAssets' ? 'map folder' : 'hex folder';
     setCombatAssetUpload({
@@ -701,7 +717,15 @@
           var newState = store.getState();
           var hexRows = newState && newState.sceneRules && newState.sceneRules.assetFolders && newState.sceneRules.assetFolders.hexAssets || [];
           var newestEntry = hexRows[0] || null;
-          if (newestEntry && newestEntry.id) getHexAssetSprite(newestEntry);
+          if (newestEntry && newestEntry.id) {
+            getHexAssetSprite(newestEntry);
+            if (placeOnSelection) {
+              var targetState = store.getState();
+              var targetHex = getDefaultAssetDropHex(targetState, targetState && targetState.selectedTokenId, { preferSelection: true });
+              applyCombatAssetActionAt('set-tool', 'terrain:hexasset:' + String(newestEntry.id || ''), Number(targetHex.q || 0), Number(targetHex.r || 0), true);
+              safeNotif('Uploaded hex placed at ' + toKey(Number(targetHex.q || 0), Number(targetHex.r || 0)) + '.', 'good');
+            }
+          }
         }
       }
       drawBoard();
@@ -6136,6 +6160,33 @@
       ctx.restore();
     }
 
+    // Highlight upload landing hex so placement intent is obvious.
+    var uiState = normalizeCombatUi(state && state.ui);
+    if (uiState.assetDrawerOpen) {
+      var uploadTarget = getDefaultAssetDropHex(state, state && state.selectedTokenId, { preferSelection: true });
+      if (uploadTarget && Number.isFinite(Number(uploadTarget.q)) && Number.isFinite(Number(uploadTarget.r))) {
+        var uploadPoint = axialToPixel(Number(uploadTarget.q), Number(uploadTarget.r), size, board.panX, board.panY);
+        var pulse = (Math.sin(Date.now() / 220) + 1) / 2;
+        var ringRadius = Math.max(10, size * (0.58 + pulse * 0.12));
+        ctx.save();
+        ctx.strokeStyle = 'rgba(73,201,187,.95)';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.arc(uploadPoint.x, uploadPoint.y, ringRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(227,188,94,.86)';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.arc(uploadPoint.x, uploadPoint.y, Math.max(6, ringRadius - 7), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(73,201,187,.9)';
+        ctx.font = '10px Rajdhani, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('TARGET', uploadPoint.x, uploadPoint.y - Math.max(14, ringRadius + 4));
+        ctx.restore();
+      }
+    }
+
     var selectedForMove = byId(state.selectedTokenId);
     var moveBudget = getMovementActionsAvailable(state, selectedForMove);
     if (selectedForMove && moveBudget > 0) {
@@ -7109,6 +7160,12 @@
           primeCombatAssetDragPayload(descriptor.kind, descriptor.payload, descriptor.label);
           primeCombatAssetDockDescriptor(descriptor.kind, descriptor.payload, descriptor.label);
         };
+        card.onmousedown = function () {
+          var descriptor = resolveDragDescriptor();
+          if (!descriptor) return;
+          primeCombatAssetDragPayload(descriptor.kind, descriptor.payload, descriptor.label);
+          primeCombatAssetDockDescriptor(descriptor.kind, descriptor.payload, descriptor.label);
+        };
         card.ondragstart = function (ev) {
           var descriptor = resolveDragDescriptor();
           if (descriptor) {
@@ -8041,6 +8098,7 @@
       var canvasX = ev.clientX - rect.left;
       var canvasY = ev.clientY - rect.top;
       var ax = pixelToAxial(canvasX, canvasY, size, board.panX, board.panY);
+      lastCombatBoardHex = { q: Number(ax.q || 0), r: Number(ax.r || 0), at: Date.now() };
       if (ev.button === 2) {
         return;
       }
@@ -9480,7 +9538,6 @@
         + '</select></label>'
         + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;">'
         + '<button class="btn btn-xs" onclick="window.combatOpenAssetsHub&&window.combatOpenAssetsHub()">Assets</button>'
-        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'template\',\'quick\')">Quick Setup</button>'
         + '</div>'
         + '</div>'
         + '</article>'
@@ -9598,6 +9655,7 @@
           return next4;
         });
         addHistory('Battlemap preset applied: ' + String(value || 'urban') + '.');
+        safeNotif('Battlemap preset applied.', 'good');
       } else if (action === 'set-map') {
         var mapEntry = (ensureCombatSceneRulesExtensions(store.getState().sceneRules).assetFolders.mapAssets || []).find(function (entry) {
           return String(entry.id || '') === String(value || '');
@@ -9613,6 +9671,7 @@
           backgroundCache.src = '';
           backgroundCache.img = null;
           addHistory('Battlemap applied from uploaded folder: ' + String(mapEntry.name || 'Uploaded Map') + '.');
+          safeNotif('Battlemap applied from asset dock.', 'good');
         }
       } else if (action === 'stock-cache') {
         ensureLootCacheObjectAt(q, r);
@@ -10671,7 +10730,7 @@
       uploadHexAssetInput.onchange = function () {
         var file = uploadHexAssetInput.files && uploadHexAssetInput.files[0];
         if (!file) return;
-        appendCombatAssetToFolder('hexAssets', file, 'asset dock upload', { applyAsBackground: false });
+        appendCombatAssetToFolder('hexAssets', file, 'asset dock upload', { applyAsBackground: false, placeOnSelection: true });
         uploadHexAssetInput.value = '';
       };
     }

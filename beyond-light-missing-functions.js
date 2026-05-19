@@ -2883,6 +2883,25 @@ function rollCredits() {
 
 window.selectedDice = window.selectedDice || { action: 4, dread: 6 };
 
+function getManualPanelEquipmentSummary() {
+  if (typeof S === 'undefined' || !S) return [];
+  var equip = S.equipment && typeof S.equipment === 'object' ? S.equipment : {};
+  var out = [];
+  var w1 = String(equip.weapon1 || '').trim();
+  var w2 = String(equip.weapon2 || '').trim();
+  var armor = String(equip.armor || '').trim();
+  var readied = String(equip.readied || '').trim();
+  if (w1) out.push('Weapon 1: ' + w1);
+  if (w2) out.push('Weapon 2: ' + w2);
+  if (armor) out.push('Armor: ' + armor);
+  if (readied) out.push('Readied Item: ' + readied);
+  var flavor = String(S.flavor || '').trim();
+  if (flavor) out.push('Personal Flavor: ' + flavor);
+  var backpack = Array.isArray(S.backpack) ? S.backpack.filter(function (item) { return String(item || '').trim(); }) : [];
+  if (backpack.length) out.push('Backpack: ' + backpack.slice(0, 6).join(' | '));
+  return out;
+}
+
 function syncManualCheckPanel() {
   var panel = document.getElementById("manualCheckPanel");
   if (!panel) {
@@ -2898,6 +2917,7 @@ function syncManualCheckPanel() {
   var actionInput = document.getElementById("manualActionValue");
   var dreadInput = document.getElementById("manualDreadValue");
   var prompt = document.getElementById("manualCheckPrompt");
+  var modifiersHost = document.getElementById("manualCheckModifiers");
 
   if (actionLabel) actionLabel.textContent = "Action d" + actionDie;
   if (dreadLabel) dreadLabel.textContent = "Dread d" + dreadDie;
@@ -2912,9 +2932,44 @@ function syncManualCheckPanel() {
     dreadInput.placeholder = "1+ (explode ok)";
   }
   if (prompt) {
-    prompt.textContent = manualMode
-      ? "Enter your physical Action and Dread results, then compare them or mark the outcome below."
-      : "Turn on Manual Roll Mode in Settings to enter physical dice results here.";
+    if (manualMode) {
+      var equipLines = getManualPanelEquipmentSummary();
+      var summaryHtml = equipLines.length
+        ? ('<div style="margin-top:.18rem;font-size:.7rem;color:var(--muted2);line-height:1.5;">'
+          + equipLines.map(function (line) { return '<div>• ' + String(line) + '</div>'; }).join('')
+          + '</div>')
+        : '';
+      prompt.innerHTML = 'Reminder: Dice explode when you roll max. Example: d6 -> 6, roll again and add.'
+        + '<div style="margin-top:.16rem;"><strong>Roll:</strong> Action d' + actionDie + ' vs Dread d' + dreadDie + '</div>'
+        + '<div style="margin-top:.16rem;font-size:.7rem;color:var(--muted2);">Enter final totals, then use Compare for math or override with Success/Failure.</div>'
+        + summaryHtml;
+    } else {
+      prompt.textContent = "Turn on Manual Roll Mode in Settings to enter physical dice results here.";
+    }
+  }
+
+  if (modifiersHost) {
+    if (!manualMode) {
+      modifiersHost.style.display = "none";
+      modifiersHost.innerHTML = "";
+    } else {
+      var statHint = actionDie === Number((S && S.stats && S.stats.defend) || -1) ? 'defend' : 'adventure';
+      var lines = (typeof window.buildManualRollModifierLines === 'function')
+        ? (window.buildManualRollModifierLines(statHint, actionDie, {
+          extraLines: ['Include armor, flavor, affix, augmentation, spell, and item effects before entering totals.']
+        }) || [])
+        : [];
+      if (lines.length) {
+        modifiersHost.style.display = "block";
+        modifiersHost.innerHTML = '<div style="font-size:.69rem;color:var(--teal);margin-bottom:.12rem;"><strong>Active Modifiers</strong></div>'
+          + lines.map(function (line) {
+            return '<div style="font-size:.69rem;color:var(--text2);line-height:1.45;">- ' + String(line) + '</div>';
+          }).join('');
+      } else {
+        modifiersHost.style.display = "none";
+        modifiersHost.innerHTML = "";
+      }
+    }
   }
 }
 

@@ -1470,6 +1470,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
       <div id="manualCheckPanel" style="display:none;margin-top:.7rem;padding:.55rem .6rem;border:1px solid rgba(232,192,80,.35);background:rgba(232,192,80,.06);">
         <div style="font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:var(--gold2);text-transform:uppercase;">Manual Check Entry</div>
         <div id="manualCheckPrompt" style="font-size:.75rem;color:var(--text2);margin-top:.2rem;line-height:1.45;">Enter physical dice results here.</div>
+        <div id="manualCheckModifiers" style="display:none;margin-top:.35rem;padding:.34rem .42rem;border:1px solid var(--border2);background:rgba(46,196,182,.05);border-radius:3px;"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-top:.45rem;">
           <label style="display:block;">
             <div id="manualActionLabel" class="sub-label" style="margin-bottom:.22rem;">Action d4</div>
@@ -1481,7 +1482,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
           </label>
         </div>
         <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.5rem;">
-          <button class="btn btn-sm" onclick="compareManualCheckValues()">Compare Entered Dice</button>
+          <button class="btn btn-sm" onclick="compareManualCheckValues()">Compare</button>
           <button class="btn btn-sm btn-red" onclick="handleEnhancedManualFailure()">Failure</button>
           <button class="btn btn-sm btn-primary" onclick="handleEnhancedManualSuccess()">Success</button>
         </div>
@@ -13911,6 +13912,20 @@ function buildManualRollModifierLines(statKey,actionDie,cfg){
   var die=Math.max(2,Number(actionDie||4));
   var opts=cfg&&typeof cfg==='object'?cfg:{};
   var lines=[];
+  var equip=(S&&S.equipment&&typeof S.equipment==='object')?S.equipment:{};
+  var weapon1=String(equip.weapon1||'').trim();
+  var weapon2=String(equip.weapon2||'').trim();
+  var armor=String(equip.armor||'').trim();
+  var readied=String(equip.readied||'').trim();
+  if(weapon1)lines.push('Loadout Weapon 1: '+weapon1+'.');
+  if(weapon2)lines.push('Loadout Weapon 2: '+weapon2+'.');
+  if(armor)lines.push('Loadout Armor: '+armor+'.');
+  if(readied)lines.push('Readied Item: '+readied+'.');
+  if(S&&String(S.flavor||'').trim())lines.push('Personal Flavor: '+String(S.flavor||'').trim()+'.');
+  if(Array.isArray(S&&S.backpack)){
+    var packItems=S.backpack.filter(function(item){return String(item||'').trim();}).slice(0,8);
+    if(packItems.length)lines.push('Backpack items available: '+packItems.join(' | ')+'.');
+  }
   var condFx=getManualRollConditionEffects(key);
   var baseDie=(S&&S.stats&&typeof S.stats==='object'&&Number(S.stats[key])>0)?Number(S.stats[key]):die;
   var effectiveDie=(typeof getEffectiveDie==='function')?Number(getEffectiveDie(key)||die):die;

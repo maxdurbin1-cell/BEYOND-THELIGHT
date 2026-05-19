@@ -173,10 +173,15 @@
     var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, state.board.panX, state.board.panY);
     var assetKind = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-kind') || '');
     var assetPayload = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-payload') || '');
+    if (!assetKind && window.__combatAssetDragPayload && typeof window.__combatAssetDragPayload === 'object') {
+      assetKind = String(window.__combatAssetDragPayload.kind || '');
+      assetPayload = String(window.__combatAssetDragPayload.payload || '');
+    }
     if (assetKind) {
       if (typeof window.applyCombatAssetActionAt === 'function') {
         window.applyCombatAssetActionAt(assetKind, assetPayload, ax.q, ax.r, true);
       }
+      window.__combatAssetDragPayload = null;
       clearCombatAssetDragPreview();
       return true;
     }
@@ -189,6 +194,7 @@
         return true;
       }
     }
+    window.__combatAssetDragPayload = null;
     clearCombatAssetDragPreview();
     return false;
   }
@@ -5918,6 +5924,7 @@
           if (dragKind) window.startCombatAssetDrag(ev, dragKind, dragPayload);
         };
         card.ondragend = function () {
+          window.__combatAssetDragPayload = null;
           clearCombatAssetDragGhost();
           clearCombatAssetDragPreview();
         };
@@ -7205,10 +7212,12 @@
 
     canvas.addEventListener('drop', function (ev) {
       handleCombatBoardDropEvent(ev, canvas);
+      window.__combatAssetDragPayload = null;
       clearCombatAssetDragGhost();
     });
 
     canvas.addEventListener('dragleave', function () {
+      window.__combatAssetDragPayload = null;
       clearCombatAssetDragPreview();
       clearCombatAssetDragGhost();
     });
@@ -8173,6 +8182,8 @@
       ev.dataTransfer.effectAllowed = 'copy';
       ev.dataTransfer.setData('text/combat-asset-kind', String(kind || ''));
       ev.dataTransfer.setData('text/combat-asset-payload', String(payload || ''));
+      ev.dataTransfer.setData('text/plain', String(kind || '') + ':' + String(payload || ''));
+      window.__combatAssetDragPayload = { kind: String(kind || ''), payload: String(payload || '') };
       var source = ev.currentTarget || ev.target;
       var label = source && source.getAttribute && source.getAttribute('data-asset-label') || source && source.textContent || 'Dragging asset';
       setCombatAssetDrawerOpen(true);

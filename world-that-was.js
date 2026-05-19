@@ -2258,11 +2258,17 @@
       + "<div style='font-size:.84rem;color:var(--text2);line-height:1.6;'>"
       + "<div style='font-family:Cinzel,serif;font-size:.78rem;letter-spacing:.08em;color:var(--gold2);margin-bottom:.28rem;'>" + context + "</div>"
       + "<div><strong>" + statLabel + " d" + actionDie + "</strong> vs <strong style='color:var(--red2);'>Dread d" + dreadDie + "</strong></div>"
-      + "<div style='font-size:.72rem;color:var(--muted2);margin-top:.12rem;'>Roll physically, apply modifiers listed below, then enter final totals.</div>"
+      + "<div style='font-size:.72rem;color:var(--muted2);margin-top:.12rem;'>Reminder: dice explode on max. Example d6 = 6, roll again and add. Enter exploded totals as needed.</div>"
       + "<div style='display:grid;grid-template-columns:1fr 1fr;gap:.32rem;margin-top:.4rem;'>"
-      + "<div><div style='font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;'>" + statLabel + " d" + actionDie + "</div><input type='number' id='wtwManualActionValue' min='1' max='" + actionDie + "' placeholder='1-" + actionDie + "' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
-      + "<div><div style='font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;'>Dread d" + dreadDie + "</div><input type='number' id='wtwManualDreadValue' min='1' max='" + dreadDie + "' placeholder='1-" + dreadDie + "' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
+      + "<div><div style='font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;'>" + statLabel + " d" + actionDie + " (base total)</div><input type='number' id='wtwManualActionValue' min='1' placeholder='1+' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
+      + "<div><div style='font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;'>Dread d" + dreadDie + " (total)</div><input type='number' id='wtwManualDreadValue' min='1' placeholder='1+' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
       + "</div>"
+      + "<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:.32rem;margin-top:.3rem;'>"
+      + "<div><div style='font-size:.68rem;color:var(--muted2);margin-bottom:.14rem;'>Advantage total (optional)</div><input type='number' id='wtwManualAdvValue' min='0' placeholder='0+' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.8rem;border-radius:3px;'></div>"
+      + "<div><div style='font-size:.68rem;color:var(--muted2);margin-bottom:.14rem;'>Bonus total 1 (optional)</div><input type='number' id='wtwManualBonus1Value' min='0' placeholder='0+' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.8rem;border-radius:3px;'></div>"
+      + "<div><div style='font-size:.68rem;color:var(--muted2);margin-bottom:.14rem;'>Bonus total 2 (optional)</div><input type='number' id='wtwManualBonus2Value' min='0' placeholder='0+' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.8rem;border-radius:3px;'></div>"
+      + "</div>"
+      + "<div id='wtwManualCompareMath' style='margin-top:.24rem;font-size:.72rem;color:var(--muted2);'>Compare uses max(Base, Advantage) + Bonus 1 + Bonus 2 vs Dread. Leave optional fields empty to use Base vs Dread.</div>"
       + modifiersHtml
       + "<div style='margin-top:.34rem;padding:.28rem .36rem;border:1px solid rgba(232,192,80,.35);background:rgba(232,192,80,.08);'>"
       + "<div style='font-size:.74rem;color:var(--gold2);'><strong>Teamwork:</strong> " + tmw + " TMW</div>"
@@ -2286,18 +2292,32 @@
     if (!pending) return;
     const actionInput = document.getElementById('wtwManualActionValue');
     const dreadInput = document.getElementById('wtwManualDreadValue');
+    const advInput = document.getElementById('wtwManualAdvValue');
+    const bonus1Input = document.getElementById('wtwManualBonus1Value');
+    const bonus2Input = document.getElementById('wtwManualBonus2Value');
     const actionValue = parseInt(actionInput && actionInput.value, 10);
     const dreadValue = parseInt(dreadInput && dreadInput.value, 10);
+    const advValue = parseInt(advInput && advInput.value, 10);
+    const bonus1Value = parseInt(bonus1Input && bonus1Input.value, 10);
+    const bonus2Value = parseInt(bonus2Input && bonus2Input.value, 10);
     const actionDie = Math.max(4, Number(pending.actionDie || 4));
     const baseDreadDie = Math.max(4, Number(pending.dreadDie || 6));
     if (!Number.isFinite(actionValue) || !Number.isFinite(dreadValue)) {
       if (typeof showNotif === 'function') showNotif('Enter both manual dice values first.', 'warn');
       return;
     }
-    if (actionValue < 1 || actionValue > actionDie || dreadValue < 1 || dreadValue > baseDreadDie) {
-      if (typeof showNotif === 'function') showNotif('Manual dice values are out of range.', 'warn');
+    if (actionValue < 1 || dreadValue < 1) {
+      if (typeof showNotif === 'function') showNotif('Manual totals must be 1 or higher.', 'warn');
       return;
     }
+
+    const hasBreakdown = Number.isFinite(advValue) || Number.isFinite(bonus1Value) || Number.isFinite(bonus2Value);
+    const advTotal = Number.isFinite(advValue) ? Math.max(0, advValue) : actionValue;
+    const bonus1Total = Number.isFinite(bonus1Value) ? Math.max(0, bonus1Value) : 0;
+    const bonus2Total = Number.isFinite(bonus2Value) ? Math.max(0, bonus2Value) : 0;
+    const computedAction = hasBreakdown
+      ? (Math.max(actionValue, advTotal) + bonus1Total + bonus2Total)
+      : actionValue;
     let usedPush = false;
     let finalDreadDie = baseDreadDie;
     if (pushLuck) {
@@ -2312,9 +2332,12 @@
       finalDreadDie = stepWtwManualDreadDie(baseDreadDie);
     }
     const modeKey = String(mode || 'compare').toLowerCase();
-    const success = modeKey === 'success' ? true : (modeKey === 'failure' ? false : (actionValue >= dreadValue));
+    const success = modeKey === 'success' ? true : (modeKey === 'failure' ? false : (computedAction >= dreadValue));
     window._pendingWtwManualActionCheck = null;
     if (typeof closeModal === 'function') closeModal();
+    if (hasBreakdown && typeof showNotif === 'function') {
+      showNotif('Manual compare: max(' + actionValue + ', ' + advTotal + ') + ' + bonus1Total + ' + ' + bonus2Total + ' = ' + computedAction + ' vs Dread ' + dreadValue + '.', success ? 'good' : 'warn');
+    }
     if (typeof pending.resolver === 'function') {
       pending.resolver({
         success: success,
@@ -2324,7 +2347,10 @@
         statLabel: pending.statLabel,
         actionDie: actionDie,
         dreadDie: finalDreadDie,
-        actionTotal: actionValue,
+        actionTotal: computedAction,
+        baseActionTotal: actionValue,
+        advantageTotal: hasBreakdown ? advTotal : 0,
+        bonusTotal: hasBreakdown ? (bonus1Total + bonus2Total) : 0,
         dreadTotal: dreadValue,
         mode: modeKey
       });

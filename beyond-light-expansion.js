@@ -491,6 +491,7 @@
               <button class="btn" onclick="navalSurvey()">Navigator Survey</button>
               <button class="btn" onclick="rollShipPerception()">Ship Perception (d6)</button>
               <button class="btn" onclick="navalDiplomacy()">Captain Diplomacy</button>
+                <button class="btn btn-teal" onclick="startNavalBoardingAction()">Board Enemy Ship</button>
               <button class="btn" onclick="enemyNavalAttack()">Enemy Attack</button>
               <button class="btn btn-red" onclick="wreckEnemyShip()">Wreck Enemy</button>
             </div>
@@ -5511,6 +5512,114 @@
     renderNaval();
   }
 
+  function canStartNavalBoarding() {
+    ensureExpansionState();
+    return !!(
+      S.naval
+      && S.naval.combatActive
+      && S.naval.ship
+      && S.naval.enemyShip
+      && !S.naval.ship.wrecked
+      && !S.naval.enemyShip.wrecked
+      && S.naval.zone === "Engaged"
+      && Number(S.naval.boardingReadyRound || 0) > 0
+      && Number(S.naval.round || 1) >= Number(S.naval.boardingReadyRound || 0)
+    );
+  }
+
+  function buildNavalBoardingSeed() {
+    const playerName = String((S && S.name) || "Wayfarer").trim() || "Wayfarer";
+    const playerHealth = Math.max(8, Number((S && S.health) || 12));
+    const enemyDread = getNavalEnemyDreadDie();
+    const allyCount = Math.max(1, Math.min(4, Number((S.naval.crew && S.naval.crew.length) || 1)));
+    const enemyCount = Math.max(1, Math.min(4, Math.ceil(enemyDread / 4)));
+    const tokens = [];
+
+    tokens.push({
+      id: `board-player-${Date.now()}`,
+      name: playerName,
+      faction: "player",
+      hp: playerHealth,
+      maxHp: playerHealth,
+      status: [],
+      q: 4,
+      r: 7,
+      image: '',
+      size: 1,
+      isPlayer: true
+    });
+
+    for (let i = 0; i < allyCount; i += 1) {
+      tokens.push({
+        id: `board-ally-${i}-${Date.now()}`,
+        name: `Boarding Ally ${i + 1}`,
+        faction: "player",
+        hp: 8,
+        maxHp: 8,
+        status: [],
+        q: 3,
+        r: 6 + i,
+        image: '',
+        size: 1,
+        isPlayer: false
+      });
+    }
+
+    for (let j = 0; j < enemyCount; j += 1) {
+      tokens.push({
+        id: `board-enemy-${j}-${Date.now()}`,
+        name: `Enemy Boarder ${j + 1}`,
+        faction: "monster",
+        hp: Math.max(6, enemyDread),
+        maxHp: Math.max(6, enemyDread),
+        status: [],
+        q: 10,
+        r: 6 + j,
+        image: '',
+        size: 1,
+        dread: enemyDread,
+        deathNumber: enemyDread
+      });
+    }
+
+    return {
+      name: `Boarding Action - ${String(S.naval.enemyClass || "Enemy Ship")}`,
+      tokens,
+      history: [
+        `Boarding launched in naval round ${Number(S.naval.round || 1)} from Engaged range.`,
+        `Player ship: ${String((S.naval.ship && S.naval.ship.name) || S.naval.selectedClass || "Unknown")}.`,
+        `Enemy ship: ${String((S.naval.enemyShip && S.naval.enemyShip.name) || S.naval.enemyClass || "Unknown")}.`
+      ]
+    };
+  }
+
+  function startNavalBoardingAction() {
+    ensureExpansionState();
+    if (!canStartNavalBoarding()) {
+      showNotif("Boarding requires Engaged range and next-round readiness.", "warn");
+      return;
+    }
+    if (!spendNavalAction("player")) return;
+
+    S.naval.boardingReadyRound = Number(S.naval.round || 1) + 1;
+    navalLog("Boarding party launched. Personal combat scene opened in VTT Combat Mode.", "good");
+
+    if (S && S.combat && typeof S.combat === "object") {
+      S.combat.active = true;
+      S.combat.spacing = "Engaged";
+      S.combat.enemyDread = getNavalEnemyDreadDie();
+    }
+
+    const seed = buildNavalBoardingSeed();
+    if (typeof window.openCombatSceneEditor === "function") {
+      window.openCombatSceneEditor(seed);
+    } else {
+      showNotif("Combat Scene Editor is unavailable. Boarding log recorded.", "warn");
+    }
+
+    renderNaval();
+  }
+
   function wreckEnemyShip() {
     ensureExpansionState();
     if (!S.naval.enemyShip) {
@@ -5842,6 +5951,7 @@
   window.navalSurvey = navalSurvey;
   window.rollShipPerception = rollShipPerception;
   window.navalDiplomacy = navalDiplomacy;
+  window.startNavalBoardingAction = startNavalBoardingAction;
   window.wreckEnemyShip = wreckEnemyShip;
   window.repairPlayerShipToFull = repairPlayerShipToFull;
   window.setGamblingDifficulty = setGamblingDifficulty;

@@ -1,6 +1,41 @@
 (function () {
   var KEY = 'btl-combat-scene-editor-v1';
   var RECOVERY_KEY = KEY + '-recovery';
+
+  // Theme toggling
+  function toggleTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }
+
+  // Load saved theme on page load
+  const savedTheme = localStorage.getItem('theme') || 'light';
+  toggleTheme(savedTheme);
+
+  // Example usage: toggleTheme('dark'); or toggleTheme('light');
+
+  // Animation hooks for token movement, context menus, and page transitions
+  function animateTokenMove(tokenId, newPosition) {
+    const tokenElement = document.querySelector(`[data-token-id="${tokenId}"]`);
+    if (tokenElement) {
+      tokenElement.style.transform = `translate(${newPosition.x}px, ${newPosition.y}px)`;
+    }
+  }
+
+  function showContextMenu(menuElement) {
+    menuElement.classList.add('open');
+  }
+
+  function hideContextMenu(menuElement) {
+    menuElement.classList.remove('open');
+  }
+
+  function triggerPageTransition(pageElement) {
+    pageElement.classList.add('page-transition');
+    setTimeout(() => {
+      pageElement.classList.add('active');
+    }, 50);
+  }
   var RECOVERY_MAX = 3;
   var RECOVERY_MIN_INTERVAL_MS = 4000;
   var SQRT3 = Math.sqrt(3);
@@ -6707,22 +6742,287 @@
     }
   }
 
-  function showCombatRulesReference() {
-    var html = ''
-      + '<div style="font-size:.82rem;line-height:1.55;color:var(--text2);">'
-      + '<div style="margin-bottom:.25rem;"><strong style="color:var(--gold2);">Quick Rules Reference</strong></div>'
-      + '<div><strong>Core Check:</strong> roll Action vs enemy Dread. Beat to succeed.</div>'
-      + '<div><strong>Combat Turns:</strong> each token acts once per round by initiative order.</div>'
-      + '<div><strong>Movement:</strong> terrain and hazards can increase action cost.</div>'
-      + '<div><strong>Cover:</strong> use terrain and object layers to reduce incoming damage.</div>'
-      + '<div><strong>Fog:</strong> use Fog tools to reveal tactical visibility.</div>'
-      + '<div style="margin-top:.28rem;"><strong style="color:var(--teal2);">Personal Flavors:</strong> trigger in-fiction perks once per scene when conditions are met.</div>'
-      + '<div><strong>Caravan/Ship:</strong> treat them as mobile objectives: protect, repair, or board as scene goals.</div>'
-      + '<div><strong>Dice:</strong> manual mode supports physical dice; auto mode resolves rolls instantly with logs.</div>'
-      + '<div><strong>Character Sheet Sync:</strong> Wayfarer HP/actions sync from combat rules and sheet state.</div>'
+  var COMBAT_RULES_REFERENCE_SECTIONS = [
+    {
+      key: 'core',
+      label: 'Core',
+      cards: [
+        {
+          title: 'Resolution Loop',
+          icon: 'd20',
+          chips: ['Action vs Dread', 'Beat to succeed'],
+          body: [
+            'Roll the relevant action or stat against the opposing Dread value.',
+            'Each token normally acts once per round in initiative order.',
+            'Use the VTT log and turn tracker to keep the whole table aligned.'
+          ]
+        },
+        {
+          title: 'Movement and Range',
+          icon: 'HEX',
+          chips: ['Terrain cost', 'Zone pressure'],
+          body: [
+            'Movement happens on the hex board. Terrain, hazards, and locks can increase the cost of repositioning.',
+            'Strike pressure is strongest when engaged. Shoot pressure is best once you have lanes and distance.',
+            'Use pings, focus ping, and layer controls to keep sightlines readable.'
+          ]
+        },
+        {
+          title: 'Recovery and Sync',
+          icon: 'HP',
+          chips: ['Sheet sync', 'Manual or auto dice'],
+          body: [
+            'Wayfarer health and actions in Combat Mode mirror the character sheet rules state.',
+            'Manual mode supports physical dice at the table; auto mode resolves instantly in-app.',
+            'Long Rest, sheet views, and rules all open as modal overlays on top of the VTT.'
+          ]
+        }
+      ]
+    },
+    {
+      key: 'tactical',
+      label: 'Tactical',
+      cards: [
+        {
+          title: 'Cover, Fog, and Layers',
+          icon: 'MAP',
+          chips: ['Objects', 'Terrain', 'Fog'],
+          body: [
+            'Treat terrain and object layers as tactical cover that can justify defense edges or blocked lines.',
+            'Fog of war is your visibility tool: reveal what the party can actually press or react to.',
+            'Use lock placement and front/back ordering so the board stays readable during dense fights.'
+          ]
+        },
+        {
+          title: 'Token Workflow',
+          icon: 'TOK',
+          chips: ['Multi-select', 'Copy/paste', 'Enumerate'],
+          body: [
+            'Shift-select tokens to move formations, rotate a whole squad, or scale tokens for half and quarter occupancy.',
+            'Copy and paste auto-space tokens to avoid overlap, then enumerate duplicates to keep target calls clean.',
+            'Use Character Sheet from the context menu when a player or enemy needs fast inspection mid-turn.'
+          ]
+        },
+        {
+          title: 'Turn Running',
+          icon: 'INIT',
+          chips: ['Add turn', 'Reaction-ready'],
+          body: [
+            'Add Turn is useful for elite enemies, reinforcements, summons, or staged boss phases.',
+            'Use reaction-ready notes and the combat log to track interrupts without breaking initiative order.',
+            'Keep the active token selected so the sheet mirror and action panels stay relevant.'
+          ]
+        }
+      ]
+    },
+    {
+      key: 'caravan',
+      label: 'Caravan',
+      cards: [
+        {
+          title: 'Run a Caravan Combat Scene',
+          icon: 'CAR',
+          chips: ['Driver Control', 'Chase zones'],
+          body: [
+            'Frame the caravan as the mobile objective. The Driver rolls Control versus enemy Dread to shift the chase zone.',
+            'Other Wayfarers still take their own turns: protect cargo, board enemies, repair damage, or clear the route.',
+            'Use the VTT page tools to split approach, pursuit, and final clash into linked scene cards.'
+          ]
+        },
+        {
+          title: 'Caravan Zone Reference',
+          icon: 'ZON',
+          chips: ['Engaged', 'Close', 'Nearby', 'Far'],
+          body: [
+            'Engaged: melee pressure and Strike actions.',
+            'Close: spells, items, and immediate support plays.',
+            'Nearby: ranged Shoot lanes open up. Far: enemies are outside immediate pressure unless the scene changes.'
+          ]
+        },
+        {
+          title: 'Caravan Stats and Damage',
+          icon: 'DD',
+          chips: ['Small 2/12/DD6', 'Medium 4/16/DD8', 'Large 6/20/DD10'],
+          body: [
+            'Small caravan: 2 crew, 12 cargo, DD6, 12 stress, 1 mod slot.',
+            'Medium caravan: 4 crew, 16 cargo, DD8, 16 stress, 2 mod slots. Large caravan: 6 crew, 20 cargo, DD10, 20 stress, 3 mod slots.',
+            'Heavy hits can cost cargo, wheels, Dread steps, or disable the transporter. Keep those outcomes visible on a side card while you play.'
+          ]
+        }
+      ]
+    },
+    {
+      key: 'starship',
+      label: 'Starship',
+      cards: [
+        {
+          title: 'Run a Ship or Starship Combat Scene',
+          icon: 'NAV',
+          chips: ['Crew roles', 'Hull pressure'],
+          body: [
+            'Ship combat works best when each round spotlights a role: Captain, Gunner, Navigator, and Engineer.',
+            'Treat the ship as both battlefield and shared character. Crew actions should move range, repair systems, and create windows for strikes.',
+            'Use separate pages for approach, broadside exchange, boarding, and escape so scene state stays clean.'
+          ]
+        },
+        {
+          title: 'Naval Role Reference',
+          icon: 'ROL',
+          chips: ['Captain Lead/Spirit', 'Gunner Strike/Shoot', 'Navigator Control/Mind', 'Engineer Body/Defend'],
+          body: [
+            'Captain drives morale, tactics, diplomacy, and command under pressure.',
+            'Gunner runs short-barrel cannons at Close range and crossbows at Nearby range. Navigator moves between zones and threads hazards.',
+            'Engineer repairs the ship, braces the hull, and absorbs incoming punishment.'
+          ]
+        },
+        {
+          title: 'Ship Stats and Break Rules',
+          icon: 'HULL',
+          chips: ['Hull Stress = 2x Defend', 'Break = Defend step down'],
+          body: [
+            'Hull Stress equals twice the ship\'s current Defend die.',
+            'Cannons use Strike at Close. Crossbows use Shoot at Nearby.',
+            'When the hull breaks, step Defend down and apply +1 crew Trauma. If a broken d4 hull breaks again, the ship is out of action.'
+          ]
+        }
+      ]
+    },
+    {
+      key: 'tools',
+      label: 'Tools',
+      cards: [
+        {
+          title: 'Fast GM Workflow',
+          icon: 'GM',
+          chips: ['Context menu', 'Pages', 'Assets'],
+          body: [
+            'Right-click tokens for ping, place party, copy/paste, turn edits, layers, locks, sheet access, and vision settings.',
+            'Use Build Map for fast page generation, then rename pages to match scene beats.',
+            'Keep assets and rules open in modal overlays so no one has to leave the VTT to answer a rules question.'
+          ]
+        },
+        {
+          title: 'Teach the Table',
+          icon: 'REF',
+          chips: ['Search', 'Cards', 'Sheet jump'],
+          body: [
+            'Use the search field to filter mechanics live while players are asking questions.',
+            'Open the selected token sheet directly from this reference when a rule needs a character-specific answer.',
+            'These cards are meant to explain the game in play, not just store disconnected lore text.'
+          ]
+        }
+      ]
+    }
+  ];
+
+  function buildCombatRulesReferenceHtml() {
+    var sections = [{ key: 'all', label: 'All' }].concat(COMBAT_RULES_REFERENCE_SECTIONS.map(function (entry) {
+      return { key: entry.key, label: entry.label };
+    }));
+    var buttons = sections.map(function (entry) {
+      return '<button class="combat-rules-tab" type="button" data-rules-tab="' + entry.key + '" onclick="window.setCombatRulesReferenceTab&&window.setCombatRulesReferenceTab(\'' + entry.key + '\')">' + escapeHtml(entry.label) + '</button>';
+    }).join('');
+    var cards = COMBAT_RULES_REFERENCE_SECTIONS.map(function (section) {
+      return (section.cards || []).map(function (card) {
+        var search = [section.label, card.title].concat(card.chips || []).concat(card.body || []).join(' ').toLowerCase();
+        var chips = (card.chips || []).map(function (chip) {
+          return '<span class="combat-rules-chip">' + escapeHtml(String(chip || '')) + '</span>';
+        }).join('');
+        var body = (card.body || []).map(function (line) {
+          return '<div class="combat-rules-line">' + escapeHtml(String(line || '')) + '</div>';
+        }).join('');
+        return ''
+          + '<article class="combat-rules-card" data-rules-card="true" data-rules-section="' + escapeHtml(section.key) + '" data-search="' + escapeHtml(search) + '">'
+          + '<div class="combat-rules-meta"><span class="combat-rules-icon">' + escapeHtml(String(card.icon || 'REF')) + '</span><span class="combat-rules-section-label">' + escapeHtml(section.label) + '</span></div>'
+          + '<div class="combat-rules-title">' + escapeHtml(card.title) + '</div>'
+          + '<div class="combat-rules-chip-row">' + chips + '</div>'
+          + '<div class="combat-rules-body">' + body + '</div>'
+          + '</article>';
+      }).join('');
+    }).join('');
+    return ''
+      + '<div id="combatRulesReferencePanel" class="combat-rules-panel">'
+      + '<div class="combat-rules-toolbar">'
+      + '<div>'
+      + '<div class="combat-rules-kicker">Embedded Play Reference</div>'
+      + '<div class="combat-rules-heading">Searchable rules, scene procedures, and quick stat cards for play at the table.</div>'
+      + '</div>'
+      + '<div class="combat-rules-actions">'
+      + '<input id="combatRulesReferenceSearch" class="combat-rules-search" type="search" placeholder="Search rules, caravan, ship, fog, turns..." oninput="window.filterCombatRulesReference&&window.filterCombatRulesReference(this.value)">'
+      + '<button class="btn btn-xs" type="button" onclick="window.openSelectedCombatSheetFromRulesReference&&window.openSelectedCombatSheetFromRulesReference()">Selected Sheet</button>'
+      + '</div>'
+      + '</div>'
+      + '<div class="combat-rules-tab-row">' + buttons + '</div>'
+      + '<div class="combat-rules-summary">Showing <span id="combatRulesReferenceMatchCount">0</span> quick-reference cards.</div>'
+      + '<div class="combat-rules-grid">' + cards + '</div>'
       + '</div>';
+  }
+
+  function applyCombatRulesReferenceFilter(query) {
+    var panel = document.getElementById('combatRulesReferencePanel');
+    if (!panel) return;
+    var searchValue = typeof query === 'string' ? query : String(window._combatRulesReferenceQuery || '');
+    window._combatRulesReferenceQuery = searchValue;
+    var activeTab = String(window._combatRulesReferenceTab || 'all');
+    var cards = panel.querySelectorAll('[data-rules-card]');
+    var matchCount = 0;
+    for (var i = 0; i < cards.length; i += 1) {
+      var card = cards[i];
+      var sectionKey = String(card.getAttribute('data-rules-section') || '');
+      var haystack = String(card.getAttribute('data-search') || '').toLowerCase();
+      var matchesTab = activeTab === 'all' || sectionKey === activeTab;
+      var matchesSearch = !searchValue || haystack.indexOf(String(searchValue).toLowerCase()) >= 0;
+      var visible = matchesTab && matchesSearch;
+      card.style.display = visible ? '' : 'none';
+      if (visible) matchCount += 1;
+    }
+    var buttons = panel.querySelectorAll('[data-rules-tab]');
+    for (var j = 0; j < buttons.length; j += 1) {
+      var btn = buttons[j];
+      btn.setAttribute('data-active', String(btn.getAttribute('data-rules-tab') || '') === activeTab ? 'true' : 'false');
+    }
+    var countEl = document.getElementById('combatRulesReferenceMatchCount');
+    if (countEl) countEl.textContent = String(matchCount);
+  }
+
+  window.setCombatRulesReferenceTab = function (tabKey) {
+    window._combatRulesReferenceTab = String(tabKey || 'all');
+    applyCombatRulesReferenceFilter(window._combatRulesReferenceQuery || '');
+  };
+
+  window.filterCombatRulesReference = function (query) {
+    applyCombatRulesReferenceFilter(String(query || ''));
+  };
+
+  window.openSelectedCombatSheetFromRulesReference = function () {
+    var state = store.getState();
+    var selected = Array.isArray(state.selectedTokenIds) && state.selectedTokenIds.length
+      ? state.selectedTokenIds
+      : [state.selectedTokenId];
+    var token = byId(selected[0]);
+    if (!token) {
+      safeNotif('Select a token in the VTT to open its Character Sheet.', 'info');
+      return;
+    }
+    openTokenSheetQuickView(token.id);
+  };
+
+  function showCombatRulesReference() {
     if (typeof window.openModal === 'function') {
-      window.openModal('Combat Rules Reference', html, null, { preventScroll: true, focusTrap: true });
+      window._combatRulesReferenceTab = String(window._combatRulesReferenceTab || 'all');
+      window._combatRulesReferenceQuery = '';
+      window.openModal('Combat Rules Reference', buildCombatRulesReferenceHtml(), null, { preventScroll: true, focusTrap: true });
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(function () {
+          applyCombatRulesReferenceFilter('');
+          var input = document.getElementById('combatRulesReferenceSearch');
+          if (input) {
+            try { input.focus({ preventScroll: true }); } catch (_err) { input.focus(); }
+          }
+        });
+      } else {
+        applyCombatRulesReferenceFilter('');
+      }
     } else {
       safeNotif('Combat rules reference is available in modal-enabled views.', 'info');
     }

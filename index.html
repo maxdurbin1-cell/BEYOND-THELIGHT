@@ -236,7 +236,7 @@ select option{background:#0f1020;}
 .res-lbl{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;}
 .res-outcome{font-family:'Cinzel',serif;font-size:1.1rem;font-weight:600;letter-spacing:.14em;margin-top:.5rem;}
 .res-outcome.success{color:var(--green2);}.res-outcome.fail{color:var(--red2);}.res-outcome.crit{color:var(--gold3);}
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:2600;display:flex;align-items:center;justify-content:center;padding:1rem;opacity:0;pointer-events:none;transition:opacity .2s;}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:5200;display:flex;align-items:center;justify-content:center;padding:1rem;opacity:0;pointer-events:none;transition:opacity .2s;}
 .overlay.open{opacity:1;pointer-events:all;}
 .modal{background:var(--card);border:1px solid var(--border2);max-width:760px;width:100%;padding:1.1rem;max-height:88vh;overflow-y:auto;line-height:1.62;}
 .modal-header{font-family:'Cinzel',serif;font-size:1rem;letter-spacing:.11em;color:var(--gold2);margin-bottom:.92rem;padding-bottom:.62rem;border-bottom:1px solid var(--border);font-weight:700;}
@@ -19622,6 +19622,7 @@ function openModal(title, content, restoreCallback, options) {
   document.getElementById('modalTitle').textContent = title;
   document.getElementById('modalContent').innerHTML = content;
   var overlay = document.getElementById('rollModal');
+  if (overlay) overlay.style.zIndex = '5200';
   overlay.classList.add('open');
   // Keep the page anchored while opening overlays.
   var rootEl = document.scrollingElement || document.documentElement || document.body;

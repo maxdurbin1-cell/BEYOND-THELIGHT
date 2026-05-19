@@ -8338,7 +8338,7 @@ function applyEnemyHackToPlayer(hackName, enemy){
 function resolveEnemyHackEvent(enemy){
   if(!enemy)return;
   var pendingHack=pick(['Javelin','Ember','Short Circuit','Reboot Optics','Weapon Glitch']);
-  var adventureDie=(typeof getEffectiveDie==='function')?getEffectiveDie('adventure'):(S.stats.adventure||4);
+  var adventureDie=(typeof getEffectiveDie==='function')?getEffectiveDie('valor'):((S.stats&&(S.stats.valor||S.stats.adventure))||4);
   var r1=roll(adventureDie),r2=roll(adventureDie);
   var low=Math.min(r1,r2),high=Math.max(r1,r2);
   var dreadRoll=rollEnemyDreadWithEffects(enemy,'Enemy Hack DD');
@@ -8384,8 +8384,8 @@ function finishEnemyHackEvent(countered){
 function parseArmorActions(){var a=(S&&S.equipment)?S.equipment.armor||'':'';var m=a.match(/(\d+)\s+Action(?:\s*Points?)?/i);return m?parseInt(m[1],10):3;}
 
 function getValorDieSize(){
-  if(typeof getEffectiveDie==='function')return Math.max(4,Number(getEffectiveDie('adventure')||4));
-  return Math.max(4,Number((S&&S.stats&&S.stats.adventure)||4));
+  if(typeof getEffectiveDie==='function')return Math.max(4,Number(getEffectiveDie('valor')||4));
+  return Math.max(4,Number((S&&S.stats&&(S.stats.valor||S.stats.adventure))||4));
 }
 
 function normalizeAffixLabel(text){
@@ -13893,7 +13893,7 @@ function getManualRollEquipmentModifierLines(statKey,effectiveDie){
     if(Number(wpBonus.flat||0)!==0)lines.push('Weapon bonus: '+(Number(wpBonus.flat||0)>0?'+':'')+Number(wpBonus.flat||0)+' to your final Action total.');
     if(Number(wpBonus.advDie||0)>0)lines.push('Weapon advantage: roll Ad'+Number(wpBonus.advDie||0)+' with your normal die and keep the highest result.');
     if(wpBonus.addAdvDie){
-      var advDie=Math.max(4,Number(S&&S.stats&&S.stats.adventure||4));
+      var advDie=Math.max(4,Number(S&&S.stats&&(S.stats.valor||S.stats.adventure)||4));
       lines.push('Weapon A.D. bonus: roll your Adventure/Valor Die d'+advDie+' and add it to the final total.');
     }
   }
@@ -13946,7 +13946,7 @@ function openProvinceManualCheckPrompt(config){
   const cfg=config&&typeof config==='object'?config:{};
   const title=String(cfg.title||'Manual Check');
   const context=String(cfg.context||title);
-  const statKey=String(cfg.statKey||'adventure').toLowerCase();
+  const statKey=String(cfg.statKey||'valor').toLowerCase();
   const statLabel=String(cfg.statLabel||statKey.charAt(0).toUpperCase()+statKey.slice(1));
   const actionDie=Math.max(4,Number(cfg.actionDie||4));
   const dreadDie=Math.max(4,Number(cfg.dreadDie||6));
@@ -23703,7 +23703,7 @@ window.addEventListener('DOMContentLoaded', function() {
       return;
     }
     const dreadForRoom = room.type==='Boss Chamber'?12:room.type==='Trap'||room.type==='Obstacle'?6:8;
-    const actionDie=(S.stats&&S.stats.adventure)?S.stats.adventure:4;
+    const actionDie=(typeof getEffectiveDie==='function')?getEffectiveDie('valor'):((S.stats&&(S.stats.valor||S.stats.adventure))||4);
     const a=explodingRoll(actionDie,{type:'action',major:true,label:'Ruin '+room.type});
     const d=explodingRoll(dreadForRoom,{type:'dread',major:true,label:'Ruin DD'+dreadForRoom});
     if(a.total>=d.total){
@@ -23940,7 +23940,7 @@ window.addEventListener('DOMContentLoaded', function() {
       openProvinceDepthsPopup(col,row);
       return;
     }
-    const actionDie=(S.stats&&S.stats.adventure)?S.stats.adventure:4;
+    const actionDie=(typeof getEffectiveDie==='function')?getEffectiveDie('valor'):((S.stats&&(S.stats.valor||S.stats.adventure))||4);
     const dreadDie=floorState.die||4;
     const a=explodingRoll(actionDie,{type:'action',major:true,label:'Depths '+segment.kind});
     const d=explodingRoll(dreadDie,{type:'dread',major:true,label:'Depths DD'+dreadDie});
@@ -24047,7 +24047,7 @@ window.addEventListener('DOMContentLoaded', function() {
     }
     if(S&&S.equipment&&S.equipment.readied)list.push(String(S.equipment.readied));
 
-    const bonus={advDice:[],flat:0,addAdventure:0,notes:[]};
+    const bonus={advDice:[],flat:0,addValor:0,notes:[]};
     const key=String(statKey||'lead').toLowerCase();
     list.forEach(function(txt){
       const t=String(txt||'');
@@ -24066,17 +24066,17 @@ window.addEventListener('DOMContentLoaded', function() {
           bonus.notes.push('Ad'+d+' '+key+' ('+t.split('(')[0].trim()+')');
         }
       }
-      if((/a\.d\./i.test(t)&&new RegExp(key,'i').test(t))||low.indexOf('adventure die advantage to '+key)>=0){
-        bonus.addAdventure+=1;
-        bonus.notes.push('+A.D. ('+t.split('(')[0].trim()+')');
+      if((/a\.d\./i.test(t)&&new RegExp(key,'i').test(t))||low.indexOf('adventure die advantage to '+key)>=0||low.indexOf('valor die advantage to '+key)>=0){
+        bonus.addValor+=1;
+        bonus.notes.push('+V.D. ('+t.split('(')[0].trim()+')');
       }
       if(key==='lead'&&(low.indexOf('compass')>=0||low.indexOf('spyglass')>=0||low.indexOf('survival')>=0)){
-        bonus.addAdventure+=1;
-        bonus.notes.push('+A.D. ('+t.split('(')[0].trim()+')');
+        bonus.addValor+=1;
+        bonus.notes.push('+V.D. ('+t.split('(')[0].trim()+')');
       }
       if(key==='control'&&(low.indexOf('lockpick')>=0||low.indexOf('e-picks')>=0||low.indexOf('scavenger\'s pouch')>=0)){
-        bonus.addAdventure+=1;
-        bonus.notes.push('+A.D. ('+t.split('(')[0].trim()+')');
+        bonus.addValor+=1;
+        bonus.notes.push('+V.D. ('+t.split('(')[0].trim()+')');
       }
     });
     return bonus;
@@ -24136,10 +24136,10 @@ window.addEventListener('DOMContentLoaded', function() {
     const gearAddRolls=(gearBonus.addDice||[]).map(function(d){return explodingRoll(d,{type:'action',major:true,label:'Gear'});});
     gearAddRolls.forEach(function(r){total+=r.total;});
 
-    const advDie=(S.stats&&S.stats.adventure)||4;
+    const advDie=(typeof getEffectiveDie==='function')?getEffectiveDie('valor'):((S.stats&&(S.stats.valor||S.stats.adventure))||4);
     const adAddRolls=[];
-    for(let i=0;i<invBonus.addAdventure;i++){
-      const r=explodingRoll(advDie,{type:'action',major:true,label:'Adventure Bonus'});
+    for(let i=0;i<Number(invBonus.addValor||0);i++){
+      const r=explodingRoll(advDie,{type:'action',major:true,label:'Valor Bonus'});
       adAddRolls.push(r);
       total+=r.total;
     }

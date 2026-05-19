@@ -48,9 +48,7 @@ function performWildernessObservation(col,row,directionKey){
   
   // Check if manual roll mode is enabled
   if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
-    // Set up dice selection and show manual roll prompt
-    window.selectedDice={action:leadDie,dread:6};
-    performWildernessObservationManualRoll(col,row,directionKey,target);
+    openWildernessObservationRollChoice(col,row,directionKey,target,leadDie);
     return;
   }
   
@@ -91,6 +89,66 @@ function performWildernessObservation(col,row,directionKey){
   
   openModal('Observation — Adjacent Hexes',html);
   appendHexNote(col,row,`[Observation] Lead vs DD6 (${directionKey||'adjacent'}): ${leadRoll.total} vs ${dreadRoll.total} => ${success?'success':'failure'}`);
+}
+
+function openWildernessObservationRollChoice(col,row,directionKey,target,leadDie){
+  window.selectedDice={action:leadDie,dread:6};
+  const html=''
+    +'<div style="font-size:.84rem;color:var(--text2);line-height:1.55;">'
+    +'Manual Roll Mode is enabled. For this low-stakes observation, choose how to resolve it.'
+    +'<div style="margin-top:.34rem;font-size:.76rem;color:var(--muted2);">'
+    +'<strong>Auto Roll:</strong> system rolls Lead vs DD6 now.<br>'
+    +'<strong>Manual Roll:</strong> you enter physical dice totals with modifier guidance.'
+    +'</div>'
+    +'</div>'
+    +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;margin-top:.46rem;">'
+    +'<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
+    +'<button class="btn btn-sm btn-gold" onclick="resolveWildernessObservationRollChoice('+col+','+row+',\''+String(directionKey||'').replace(/'/g,"\\'")+'\',false)">Auto Roll</button>'
+    +'<button class="btn btn-sm btn-primary" onclick="resolveWildernessObservationRollChoice('+col+','+row+',\''+String(directionKey||'').replace(/'/g,"\\'")+'\',true)">Manual Roll</button>'
+    +'</div>';
+  openModal('Observation — Roll Mode',html);
+}
+
+function resolveWildernessObservationRollChoice(col,row,directionKey,useManual){
+  closeModal();
+  const target=getAdjacentHexByDirection(col,row,directionKey);
+  if(useManual){
+    performWildernessObservationManualRoll(col,row,directionKey,target);
+    return;
+  }
+  const leadDie=typeof getEffectiveDie==='function'?getEffectiveDie('lead'):((S&&S.stats&&S.stats.lead)||4);
+  const leadRoll=explodingRoll(leadDie);
+  const dreadRoll=explodingRoll(6);
+  const success=leadRoll.total>=dreadRoll.total;
+  let html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;">'
+    +'<div style="text-align:center;"><div style="font-family:\'Cinzel\',serif;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);">Lead Die</div>'
+    +'<div style="font-family:\'Rajdhani\',sans-serif;font-size:2rem;font-weight:700;color:var(--teal);">'+leadRoll.total+'</div></div>'
+    +'<div style="text-align:center;"><div style="font-family:\'Cinzel\',serif;font-size:.52rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);">Dread Die</div>'
+    +'<div style="font-family:\'Rajdhani\',sans-serif;font-size:2rem;font-weight:700;color:var(--red);">'+dreadRoll.total+'</div></div>'
+    +'</div>';
+  if(success){
+    if(typeof window.registerSecretPadClue==='function')window.registerSecretPadClue('province','intel');
+    if(typeof addSuccessRoll==='function')addSuccessRoll();
+    if(!target){
+      html+='<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">No Adjacent Hex</div>There is no mapped hex in that direction.</div>';
+    }else{
+      if(typeof window.revealMapFogHex==='function')window.revealMapFogHex('province',String(target.hex.col)+','+String(target.hex.row));
+      if(target.hex.type==='wilderness'&&!target.hex.data.wonder&&target.hex.terrain&&typeof pick==='function'){
+        const terrainData=TERRAIN_DESC[target.hex.terrain.name];
+        if(terrainData&&terrainData.wonder&&Array.isArray(terrainData.wonder)){
+          if(!target.hex.data)target.hex.data={};
+          target.hex.data.wonder=pick(terrainData.wonder);
+        }
+      }
+      html+='<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--green2);font-weight:700;margin-bottom:.25rem;">✓ Successful Observation ('+target.label+')</div><div style="padding:.22rem .42rem;border-left:2px solid rgba(201,162,39,.4);">'+formatObservedHexSummary(target.hex)+'</div></div>';
+    }
+  }else{
+    if(typeof addTMWOnFail==='function')addTMWOnFail();
+    html+='<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">✗ Observation Failed</div>The horizon is obscured. No details visible.</div>';
+  }
+  if(typeof renderHexMap==='function')renderHexMap();
+  openModal('Observation — Adjacent Hexes',html);
+  appendHexNote(col,row,'[Observation] Lead vs DD6 ('+(directionKey||'adjacent')+'): '+leadRoll.total+' vs '+dreadRoll.total+' => '+(success?'success':'failure')+' [auto]');
 }
 
 function getAvailableObservationDirections(col,row){

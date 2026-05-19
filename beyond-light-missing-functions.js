@@ -381,15 +381,24 @@ function getConditionStep(key) {
 }
 
 function getEffectiveDie(key) {
-  const base = S.stats[key] || 4;
-  let totalSteps = getConditionStep(key);
+  var rawKey = String(key || '').toLowerCase();
+  var resolvedKey = rawKey === 'adventure' ? 'valor' : rawKey;
+  var base = 4;
+  if (S && S.stats) {
+    if (resolvedKey === 'valor') {
+      base = Number(S.stats.valor || S.stats.adventure || 4) || 4;
+    } else {
+      base = Number(S.stats[resolvedKey] || 4) || 4;
+    }
+  }
+  let totalSteps = getConditionStep(resolvedKey);
   if (typeof getEquippedAffixCombatBonuses === 'function') {
     const affix = getEquippedAffixCombatBonuses() || {};
-    if (key === 'strike') totalSteps += Number(affix.strikeDieSteps || 0);
-    if (key === 'mind') totalSteps += Number(affix.mindDieSteps || 0);
-    if (key === 'spirit') totalSteps += Number(affix.spiritDieSteps || 0);
-    if (key === 'lead') totalSteps += Number(affix.leadDieSteps || 0);
-    if (key === 'body') totalSteps += Number(affix.bodyDieSteps || 0);
+    if (resolvedKey === 'strike') totalSteps += Number(affix.strikeDieSteps || 0);
+    if (resolvedKey === 'mind') totalSteps += Number(affix.mindDieSteps || 0);
+    if (resolvedKey === 'spirit') totalSteps += Number(affix.spiritDieSteps || 0);
+    if (resolvedKey === 'lead') totalSteps += Number(affix.leadDieSteps || 0);
+    if (resolvedKey === 'body') totalSteps += Number(affix.bodyDieSteps || 0);
   }
   return applyDieSteps(base, totalSteps);
 }
@@ -2953,7 +2962,7 @@ function syncManualCheckPanel() {
       modifiersHost.style.display = "none";
       modifiersHost.innerHTML = "";
     } else {
-      var statHint = actionDie === Number((S && S.stats && S.stats.defend) || -1) ? 'defend' : 'adventure';
+      var statHint = actionDie === Number((S && S.stats && S.stats.defend) || -1) ? 'defend' : 'valor';
       var lines = (typeof window.buildManualRollModifierLines === 'function')
         ? (window.buildManualRollModifierLines(statHint, actionDie, {
           extraLines: ['Include armor, flavor, affix, augmentation, spell, and item effects before entering totals.']

@@ -1163,7 +1163,7 @@ window.playCustomMusicFromSettings = function() {
     if (typeof showNotif === 'function') {
       showNotif(
         Settings.manualRollMode
-          ? 'Manual Roll Mode enabled: all roll calls now prompt for manual dice entry.'
+          ? 'Manual Roll Mode enabled: major checks prompt for manual entry; lightweight checks may offer Auto Roll or Manual Roll.'
           : 'Manual Roll Mode disabled: all roll calls now use auto-rolls.',
         'info'
       );

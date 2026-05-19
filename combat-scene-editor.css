@@ -1,23 +1,4 @@
 :root {
-  --background-color: #ffffff;
-  --text-color: #000000;
-  --primary-color: #007bff;
-  --secondary-color: #6c757d;
-}
-
-[data-theme="dark"] {
-  --background-color: #121212;
-  --text-color: #ffffff;
-  --primary-color: #1e90ff;
-  --secondary-color: #adb5bd;
-}
-
-body {
-  background-color: var(--background-color);
-  color: var(--text-color);
-}
-
-:root {
   --combat-bg: #05060d;
   --combat-surface: rgba(12, 14, 26, 0.86);
   --combat-border: rgba(227, 188, 94, 0.3);
@@ -36,9 +17,24 @@ body {
   background:
     radial-gradient(120% 90% at 50% 10%, rgba(227, 188, 94, 0.1), transparent 60%),
     radial-gradient(80% 70% at 5% 95%, rgba(73, 201, 187, 0.1), transparent 55%),
-    linear-gradient(180deg, #070913 0%, #04050a 100%);
+    linear-gradient(180deg, var(--combat-bg-start, #070913) 0%, var(--combat-bg-end, #04050a) 100%);
   color: var(--combat-text);
   overflow: hidden;
+}
+
+.combat-mode-overlay[data-theme="dawn"] {
+  color-scheme: light;
+}
+
+.combat-mode-overlay[data-motion="off"] *,
+.combat-mode-overlay[data-motion="off"] *::before,
+.combat-mode-overlay[data-motion="off"] *::after {
+  transition-duration: 0ms !important;
+  animation-duration: 0ms !important;
+}
+
+.combat-mode-overlay[data-motion="reduced"] .combat-entry-splash {
+  backdrop-filter: blur(1px);
 }
 
 .combat-mode-overlay.open {
@@ -907,6 +903,34 @@ body {
   color: var(--combat-text);
   font-size: 0.79rem;
   line-height: 1.55;
+}
+
+.combat-sheet-panel .combat-rules-grid {
+  align-items: start;
+}
+
+.combat-sheet-card {
+  min-height: 100%;
+}
+
+.combat-sheet-card[draggable="true"] {
+  cursor: grab;
+}
+
+.combat-sheet-card[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.combat-sheet-card .combat-rules-body > .combat-rules-line + .combat-rules-line {
+  margin-top: 0.18rem;
+}
+
+.combat-sheet-card .combat-feed-line {
+  color: var(--combat-text);
+}
+
+.combat-sheet-card button {
+  align-self: start;
 }
 
 @media (max-width: 720px) {

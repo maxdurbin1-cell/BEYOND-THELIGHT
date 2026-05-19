@@ -1,40 +1,194 @@
 (function () {
   var KEY = 'btl-combat-scene-editor-v1';
   var RECOVERY_KEY = KEY + '-recovery';
-
-  // Theme toggling
-  function toggleTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
-  }
-
-  // Load saved theme on page load
-  const savedTheme = localStorage.getItem('theme') || 'light';
-  toggleTheme(savedTheme);
-
-  // Example usage: toggleTheme('dark'); or toggleTheme('light');
-
-  // Animation hooks for token movement, context menus, and page transitions
-  function animateTokenMove(tokenId, newPosition) {
-    const tokenElement = document.querySelector(`[data-token-id="${tokenId}"]`);
-    if (tokenElement) {
-      tokenElement.style.transform = `translate(${newPosition.x}px, ${newPosition.y}px)`;
+  var COMBAT_THEME_PRESETS = {
+    obsidian: {
+      accent: '#e3bc5e',
+      accent2: '#49c9bb',
+      surface: 'rgba(12, 14, 26, 0.86)',
+      text: '#e9e0cf',
+      muted: '#9fa7bc',
+      border: 'rgba(227, 188, 94, 0.3)',
+      danger: '#d05353',
+      bgStart: '#070913',
+      bgEnd: '#04050a'
+    },
+    dawn: {
+      accent: '#b86f32',
+      accent2: '#2b6b8f',
+      surface: 'rgba(247, 241, 229, 0.92)',
+      text: '#271d14',
+      muted: '#6d6259',
+      border: 'rgba(184, 111, 50, 0.28)',
+      danger: '#a04034',
+      bgStart: '#f5e7d4',
+      bgEnd: '#d9c4aa'
+    },
+    'high-contrast': {
+      accent: '#ffe600',
+      accent2: '#00f0ff',
+      surface: 'rgba(0, 0, 0, 0.94)',
+      text: '#ffffff',
+      muted: '#d0d0d0',
+      border: 'rgba(255, 255, 255, 0.42)',
+      danger: '#ff4f4f',
+      bgStart: '#050505',
+      bgEnd: '#000000'
     }
+  };
+
+  function setCombatAssetDragPreview(preview) {
+    store.setState({ assetDragPreview: preview || null });
+    drawBoard();
   }
 
-  function showContextMenu(menuElement) {
-    menuElement.classList.add('open');
+  function clearCombatAssetDragPreview() {
+    setCombatAssetDragPreview(null);
   }
 
-  function hideContextMenu(menuElement) {
-    menuElement.classList.remove('open');
+  function applyBattlemapDrop(fileList) {
+    var files = Array.prototype.slice.call(fileList || []).filter(function (file) {
+      return file && String(file.type || '').indexOf('image/') === 0;
+    });
+    if (!files.length) return false;
+    var file = files[0];
+    var reader = new FileReader();
+    reader.onload = function () {
+      captureUndoSnapshot('Drop Battlemap');
+      store.setState(function (state) {
+        var next = Object.assign({}, state);
+        next.board = Object.assign({}, state.board || {}, { background: String(reader.result || '') });
+        persist(next);
+        return next;
+      });
+      clearCombatAssetDragPreview();
+      drawBoard();
+      updateUiPanels();
+      addHistory('Battlemap dropped: ' + String(file.name || 'image') + '.');
+      safeNotif('Battlemap applied from dropped image.', 'good');
+    };
+    reader.readAsDataURL(file);
+    return true;
+  }
+
+  function handleCombatBoardDropEvent(ev, canvas) {
+    if (!canvas) return false;
+    ev.preventDefault();
+    var state = store.getState();
+    if (ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files.length && applyBattlemapDrop(ev.dataTransfer.files)) {
+      return true;
+    }
+    var rect = canvas.getBoundingClientRect();
+    var size = Number(state.board.size || 42) * Number(state.board.zoom || 1);
+    var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, state.board.panX, state.board.panY);
+    var assetKind = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-kind') || '');
+    var assetPayload = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-payload') || '');
+    if (assetKind) {
+      applyCombatAssetActionAt(assetKind, assetPayload, ax.q, ax.r, true);
+      clearCombatAssetDragPreview();
+      return true;
+    }
+    var bestiaryId = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-bestiary-id') || '');
+    if (bestiaryId) {
+      var profile = (state.codexBestiary || []).find(function (entry) { return String(entry.id) === bestiaryId; }) || null;
+      if (profile) {
+        spawnBestiaryToken(profile, ax.q, ax.r);
+        clearCombatAssetDragPreview();
+        return true;
+      }
+    }
+    clearCombatAssetDragPreview();
+    return false;
+  }
+  var COMBAT_TUTORIAL_KEY = KEY + '-tutorial';
+  var COMBAT_UI_DEFAULTS = {
+    motionMode: 'full',
+    themePreset: 'obsidian',
+    themeTokens: {},
+    tutorialSeen: false,
+    tutorialStep: 0
+  };
+  var tokenMotionCache = {};
+
+  function normalizeCombatUi(ui) {
+    var next = Object.assign({}, COMBAT_UI_DEFAULTS, ui && typeof ui === 'object' ? ui : {});
+    try {
+      var raw = localStorage.getItem(COMBAT_TUTORIAL_KEY);
+      if (raw) {
+        var persistedTutorial = JSON.parse(raw);
+        if (persistedTutorial && typeof persistedTutorial === 'object') {
+          if (typeof persistedTutorial.seen !== 'undefined') next.tutorialSeen = !!persistedTutorial.seen;
+          if (typeof persistedTutorial.step !== 'undefined') next.tutorialStep = Number(persistedTutorial.step || 0);
+        }
+      }
+    } catch (_err) {}
+    var presetKey = String(next.themePreset || 'obsidian');
+    if (!COMBAT_THEME_PRESETS[presetKey]) presetKey = 'obsidian';
+    next.themePreset = presetKey;
+    var mode = String(next.motionMode || 'full');
+    if (['full', 'reduced', 'off'].indexOf(mode) < 0) mode = 'full';
+    next.motionMode = mode;
+    next.themeTokens = next.themeTokens && typeof next.themeTokens === 'object' ? Object.assign({}, next.themeTokens) : {};
+    next.tutorialSeen = !!next.tutorialSeen;
+    next.tutorialStep = Math.max(0, Math.min(6, Number(next.tutorialStep || 0)));
+    return next;
+  }
+
+  function getCombatThemeTokens(ui) {
+    var normalized = normalizeCombatUi(ui);
+    var preset = Object.assign({}, COMBAT_THEME_PRESETS[normalized.themePreset] || COMBAT_THEME_PRESETS.obsidian);
+    if (normalized.themeTokens.accent) preset.accent = String(normalized.themeTokens.accent);
+    if (normalized.themeTokens.accent2) preset.accent2 = String(normalized.themeTokens.accent2);
+    if (normalized.themeTokens.surface) preset.surface = String(normalized.themeTokens.surface);
+    if (normalized.themeTokens.text) preset.text = String(normalized.themeTokens.text);
+    return preset;
+  }
+
+  function getCombatMotionMode(state) {
+    return String(state && state.ui && state.ui.motionMode || COMBAT_UI_DEFAULTS.motionMode);
+  }
+
+  function shouldAnimateCombatMotion(state) {
+    return getCombatMotionMode(state) !== 'off';
+  }
+
+  function getCombatMotionDuration(state, fullMs, reducedMs) {
+    var mode = getCombatMotionMode(state);
+    if (mode === 'off') return 0;
+    if (mode === 'reduced') return Number(reducedMs || Math.max(40, Math.round(Number(fullMs || 0) * 0.5)));
+    return Number(fullMs || 0);
+  }
+
+  function applyCombatUiState(state) {
+    var root = document.getElementById('combatModeOverlay');
+    if (!root) return;
+    var ui = normalizeCombatUi(state && state.ui);
+    var theme = getCombatThemeTokens(ui);
+    root.setAttribute('data-theme', ui.themePreset);
+    root.setAttribute('data-motion', ui.motionMode);
+    root.style.setProperty('--combat-accent', theme.accent);
+    root.style.setProperty('--combat-accent-2', theme.accent2);
+    root.style.setProperty('--combat-surface', theme.surface);
+    root.style.setProperty('--combat-text', theme.text);
+    root.style.setProperty('--combat-muted', theme.muted);
+    root.style.setProperty('--combat-border', theme.border);
+    root.style.setProperty('--combat-danger', theme.danger);
+    root.style.setProperty('--combat-bg-start', theme.bgStart);
+    root.style.setProperty('--combat-bg-end', theme.bgEnd);
   }
 
   function triggerPageTransition(pageElement) {
+    if (!pageElement) return;
+    var duration = getCombatMotionDuration(window.CombatSceneStore && window.CombatSceneStore.getState && window.CombatSceneStore.getState(), 180, 90);
+    pageElement.classList.remove('page-transition', 'active');
+    if (!duration) return;
     pageElement.classList.add('page-transition');
-    setTimeout(() => {
+    setTimeout(function () {
       pageElement.classList.add('active');
-    }, 50);
+    }, 20);
+    setTimeout(function () {
+      pageElement.classList.remove('page-transition', 'active');
+    }, duration + 60);
   }
   var RECOVERY_MAX = 3;
   var RECOVERY_MIN_INTERVAL_MS = 4000;
@@ -540,6 +694,7 @@
       feed: { x: 980, y: 58 },
       actions: { x: 290, y: 560 }
     }, next.panelPos && typeof next.panelPos === 'object' ? next.panelPos : {});
+    next.ui = normalizeCombatUi(next.ui);
     return next;
   }
 
@@ -595,6 +750,7 @@
       activeSceneId: synced.activeSceneId,
       rulerOptions: synced.rulerOptions,
       assetBrowser: synced.assetBrowser,
+      ui: synced.ui,
       selectedTokenIds: synced.selectedTokenIds,
       clipboardTokens: synced.clipboardTokens,
       undoStack: synced.undoStack,
@@ -785,6 +941,7 @@
     round: 1,
     currentTurnIndex: 0,
     collapsedPanels: { 'combatActionsPanel': false, 'combatEnemyLedger': true, 'combatWayfarerRulesPanel': true },
+    ui: persisted.ui,
     scenes: [{ id: 'scene-1', name: 'Main Scene', isActive: true }],
     activeSceneId: 'scene-1',
     ruler: { active: false, start: null, end: null, distance: 0, label: 'Engaged' },
@@ -2077,27 +2234,153 @@
     return html;
   }
 
+  function buildCombatSheetCard(card, token, sectionKey) {
+    var search = [String(sectionKey || ''), String(card && card.title || '')]
+      .concat(card && card.chips || [])
+      .concat(card && card.lines || [])
+      .join(' ')
+      .toLowerCase();
+    var chips = (card && card.chips || []).map(function (chip) {
+      return '<span class="combat-rules-chip">' + escapeHtml(String(chip || '')) + '</span>';
+    }).join('');
+    var lines = (card && card.lines || []).map(function (line) {
+      return '<div class="combat-rules-line">' + escapeHtml(String(line || '')) + '</div>';
+    }).join('');
+    var html = card && card.html ? String(card.html) : '<div class="combat-rules-body">' + lines + '</div>';
+    return ''
+      + '<article class="combat-rules-card combat-sheet-card" data-sheet-card="true" data-sheet-search="' + escapeHtml(search) + '">'
+      + '<div class="combat-rules-meta"><span class="combat-rules-icon">' + escapeHtml(String(card && card.icon || 'SHT')) + '</span><span class="combat-rules-section-label">' + escapeHtml(String(sectionKey || 'Sheet')) + '</span></div>'
+      + '<div class="combat-rules-title">' + escapeHtml(String(card && card.title || 'Card')) + '</div>'
+      + '<div class="combat-rules-chip-row">' + chips + '</div>'
+      + html
+      + '</article>';
+  }
+
+  function buildCombatSheetCards(token) {
+    var cards = [];
+    var lines = buildCharacterSheetCombatSummary(token && token.id);
+    var activeEffects = (store.getState().tokenRoundEffects || []).filter(function (effect) {
+      return effect && String(effect.targetTokenId || '') === String(token && token.id || '') && Number(effect.roundsLeft || 0) > 0;
+    });
+    var activeLabels = activeEffects.map(function (effect) {
+      return String(effect.label || 'Effect') + ' (' + Math.max(1, Number(effect.roundsLeft || 1)) + 'r)';
+    });
+    if (token && (token.isPlayer || String(token.faction || '') === 'player')) {
+      cards.push({
+        title: 'Wayfarer Snapshot',
+        icon: 'SHT',
+        chips: [String(token.name || 'Wayfarer'), 'Player Token'],
+        lines: [lines[0] || '', lines[1] || '']
+      });
+      cards.push({
+        title: 'Attack Math',
+        icon: 'DMG',
+        chips: ['Strike', 'Shoot'],
+        lines: [lines[2] || '', lines[3] || '']
+      });
+      cards.push({
+        title: 'Loadout and Flavor',
+        icon: 'KIT',
+        chips: ['Equipment', 'Flavor'],
+        lines: [lines[4] || '', lines[5] || '']
+      });
+      cards.push({
+        title: 'Conditions and Effects',
+        icon: 'FX',
+        chips: activeLabels.length ? activeLabels : ['No active effects'],
+        lines: activeLabels.length
+          ? activeLabels.concat(['Use the context menu or quick effects to add, clear, and time conditions during a scene.'])
+          : ['No active combat effects are running on this wayfarer.', 'Long Rest and recovery actions still use the province, sea region, and map systems outside the VTT.']
+      });
+    } else {
+      cards.push({
+        title: 'Threat Snapshot',
+        icon: 'MON',
+        chips: [String(token && token.name || 'Enemy'), 'Enemy Token'],
+        lines: [
+          'Faction: ' + String(token && token.faction || 'monster'),
+          'HP: ' + Math.max(0, Number(token && token.hp || 0)) + '/' + Math.max(1, Number(token && token.maxHp || token && token.hp || 1)),
+          'Dread Die: d' + Math.max(4, Number(token && (token.dread || token.codexDread) || 6)),
+          'Death Number: ' + Math.max(1, Number(token && (token.deathNumber || token.dread || token.codexDread) || 6))
+        ]
+      });
+      cards.push({
+        title: 'Enemy Skill Inspector',
+        icon: 'SKL',
+        chips: ['Range checks', 'Save targets'],
+        html: '<div class="combat-rules-body">' + buildEnemySkillInspector(token) + '</div>'
+      });
+      cards.push({
+        title: 'Quick Actions',
+        icon: 'ACT',
+        chips: ['Advance', 'Skill', 'Pass'],
+        html: '<div class="combat-rules-body">' + buildEnemyTokenQuickActions(token) + '</div>'
+      });
+      cards.push({
+        title: 'Loot and Status',
+        icon: 'LOOT',
+        chips: activeLabels.length ? activeLabels : ['No active effects'],
+        html: '<div class="combat-rules-body">'
+          + (activeLabels.length ? activeLabels.map(function (line) { return '<div class="combat-rules-line">' + escapeHtml(line) + '</div>'; }).join('') : '<div class="combat-rules-line">No active timed effects on this enemy.</div>')
+          + buildLootShortcuts(token)
+          + '</div>'
+      });
+    }
+    return cards;
+  }
+
+  function buildCombatSheetModalHtml(token) {
+    var sectionKey = token && (token.isPlayer || String(token.faction || '') === 'player') ? 'Wayfarer Sheet' : 'Enemy Sheet';
+    var cards = buildCombatSheetCards(token).map(function (card) {
+      return buildCombatSheetCard(card, token, sectionKey);
+    }).join('');
+    return ''
+      + '<div id="combatSheetModalPanel" class="combat-rules-panel combat-sheet-panel">'
+      + '<div class="combat-rules-toolbar">'
+      + '<div>'
+      + '<div class="combat-rules-kicker">Character Sheet</div>'
+      + '<div class="combat-rules-heading">Fast-reference character and enemy cards for play. Search, inspect, and jump straight into the rules.</div>'
+      + '</div>'
+      + '<div class="combat-rules-actions">'
+      + '<input id="combatSheetSearch" class="combat-rules-search" type="search" placeholder="Search sheet, strike, armor, loot, effects..." oninput="window.filterCombatSheetModal&&window.filterCombatSheetModal(this.value)">'
+      + '<button class="btn btn-xs" type="button" onclick="window.showCombatRulesReference&&window.showCombatRulesReference()">Rules</button>'
+      + '</div>'
+      + '</div>'
+      + '<div class="combat-rules-summary">Showing <span id="combatSheetMatchCount">0</span> sheet cards for ' + escapeHtml(String(token && token.name || 'token')) + '.</div>'
+      + '<div class="combat-rules-grid">' + cards + '</div>'
+      + '</div>';
+  }
+
+  window.filterCombatSheetModal = function (query) {
+    var panel = document.getElementById('combatSheetModalPanel');
+    if (!panel) return;
+    var value = String(query || '').toLowerCase();
+    var cards = panel.querySelectorAll('[data-sheet-card]');
+    var count = 0;
+    for (var i = 0; i < cards.length; i += 1) {
+      var card = cards[i];
+      var match = !value || String(card.getAttribute('data-sheet-search') || '').indexOf(value) >= 0;
+      card.style.display = match ? '' : 'none';
+      if (match) count += 1;
+    }
+    var countEl = document.getElementById('combatSheetMatchCount');
+    if (countEl) countEl.textContent = String(count);
+  };
+
   function openTokenSheetQuickView(tokenId) {
     var token = byId(tokenId);
     if (!token) return;
-    var body = '';
-    if (token.isPlayer || String(token.faction || '') === 'player') {
-      body = buildCharacterSheetCombatSummary(token.id).map(function (line) {
-        return '<div class="combat-feed-line">' + String(line) + '</div>';
-      }).join('');
-    } else {
-      body = ''
-        + '<div class="combat-feed-line"><strong>' + String(token.name || 'Enemy') + '</strong></div>'
-        + '<div class="combat-feed-line">Faction: ' + String(token.faction || 'monster') + '</div>'
-        + '<div class="combat-feed-line">HP: ' + Math.max(0, Number(token.hp || 0)) + '/' + Math.max(1, Number(token.maxHp || token.hp || 1)) + '</div>'
-        + '<div class="combat-feed-line">Dread Die: d' + Math.max(4, Number(token.dread || token.codexDread || 6)) + '</div>'
-        + '<div class="combat-feed-line">Death Number: ' + Math.max(1, Number(token.deathNumber || token.dread || token.codexDread || 6)) + '</div>'
-        + buildEnemySkillInspector(token)
-        + buildEnemyTokenQuickActions(token)
-        + buildLootShortcuts(token);
-    }
     if (typeof window.openModal === 'function') {
-      window.openModal('Combat Sheet · ' + String(token.name || 'Token'), '<div style="display:grid;gap:.2rem;max-height:58vh;overflow:auto;">' + body + '</div>', null, { preventScroll: true, focusTrap: true });
+      window.openModal('Combat Sheet · ' + String(token.name || 'Token'), buildCombatSheetModalHtml(token), null, { preventScroll: true, focusTrap: true });
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(function () {
+          window.filterCombatSheetModal('');
+          var input = document.getElementById('combatSheetSearch');
+          if (input) {
+            try { input.focus({ preventScroll: true }); } catch (_err) { input.focus(); }
+          }
+        });
+      }
     } else {
       safeNotif('Token Sheet: ' + String(token.name || 'Token'), 'info');
     }
@@ -2866,9 +3149,18 @@
   function hideTokenContextMenu() {
     var menu = document.getElementById('combatTokenContextMenu');
     if (!menu) return;
-    menu.style.display = 'none';
-    menu.innerHTML = '';
-    menu.removeAttribute('data-token-id');
+    menu.classList.remove('open');
+    var duration = getCombatMotionDuration(store.getState(), 120, 60);
+    var cleanup = function () {
+      menu.style.display = 'none';
+      menu.innerHTML = '';
+      menu.removeAttribute('data-token-id');
+    };
+    if (!duration) {
+      cleanup();
+      return;
+    }
+    setTimeout(cleanup, duration);
   }
 
   function runTokenContextAction(actionKey, tokenId, q, r) {
@@ -2968,6 +3260,9 @@
     menu.style.display = 'grid';
     menu.style.left = Math.max(6, Number(screenX || 0)) + 'px';
     menu.style.top = Math.max(6, Number(screenY || 0)) + 'px';
+    menu.classList.remove('open');
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(function () { menu.classList.add('open'); });
+    else menu.classList.add('open');
     Array.prototype.slice.call(menu.querySelectorAll('[data-menu-action]')).forEach(function (btn) {
       btn.onclick = function (ev) {
         ev.preventDefault();
@@ -3196,6 +3491,41 @@
     ctx.restore();
   }
 
+  function getAnimatedTokenPoint(token, targetPoint, state) {
+    var id = String(token && token.id || '');
+    if (!id || !targetPoint) return targetPoint;
+    var duration = getCombatMotionDuration(state, 180, 90);
+    if (!duration || String(state.draggingTokenId || '') === id) {
+      tokenMotionCache[id] = { startX: targetPoint.x, startY: targetPoint.y, targetX: targetPoint.x, targetY: targetPoint.y, at: Date.now(), x: targetPoint.x, y: targetPoint.y };
+      return targetPoint;
+    }
+    var now = Date.now();
+    var cache = tokenMotionCache[id];
+    if (!cache) {
+      tokenMotionCache[id] = { startX: targetPoint.x, startY: targetPoint.y, targetX: targetPoint.x, targetY: targetPoint.y, at: now, x: targetPoint.x, y: targetPoint.y };
+      return targetPoint;
+    }
+    if (Math.abs(Number(cache.targetX || targetPoint.x) - targetPoint.x) > 0.5 || Math.abs(Number(cache.targetY || targetPoint.y) - targetPoint.y) > 0.5) {
+      cache = tokenMotionCache[id] = {
+        startX: Number(cache.x || cache.targetX || targetPoint.x),
+        startY: Number(cache.y || cache.targetY || targetPoint.y),
+        targetX: targetPoint.x,
+        targetY: targetPoint.y,
+        at: now,
+        x: Number(cache.x || cache.targetX || targetPoint.x),
+        y: Number(cache.y || cache.targetY || targetPoint.y)
+      };
+    }
+    var progress = Math.min(1, Math.max(0, (now - Number(cache.at || now)) / duration));
+    var eased = 1 - Math.pow(1 - progress, 3);
+    var x = Number(cache.startX || targetPoint.x) + (targetPoint.x - Number(cache.startX || targetPoint.x)) * eased;
+    var y = Number(cache.startY || targetPoint.y) + (targetPoint.y - Number(cache.startY || targetPoint.y)) * eased;
+    cache.x = x;
+    cache.y = y;
+    if (progress < 1 && typeof requestAnimationFrame === 'function') requestAnimationFrame(drawBoard);
+    return { x: x, y: y };
+  }
+
   function drawBoard() {
     var canvas = document.getElementById('combatSceneCanvas');
     if (!canvas) return;
@@ -3323,6 +3653,18 @@
       }
     }
 
+    if (state.assetDragPreview && Number.isFinite(Number(state.assetDragPreview.q)) && Number.isFinite(Number(state.assetDragPreview.r))) {
+      var previewPoint = axialToPixel(Number(state.assetDragPreview.q), Number(state.assetDragPreview.r), size, board.panX, board.panY);
+      ctx.save();
+      drawHex(ctx, previewPoint.x, previewPoint.y, size - 3.5);
+      ctx.fillStyle = 'rgba(73,201,187,.14)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(227,188,94,.85)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+    }
+
     var selectedForMove = byId(state.selectedTokenId);
     var moveBudget = getMovementActionsAvailable(state, selectedForMove);
     if (selectedForMove && moveBudget > 0) {
@@ -3357,7 +3699,8 @@
     });
 
     tokensToDraw.forEach(function (token) {
-      var p = axialToPixel(Number(token.q || 0), Number(token.r || 0), size, board.panX, board.panY);
+      var targetPoint = axialToPixel(Number(token.q || 0), Number(token.r || 0), size, board.panX, board.panY);
+      var p = getAnimatedTokenPoint(token, targetPoint, state);
       var tokenScale = Math.max(0.25, Math.min(2, Number(token.scale || 1)));
       var radius = Math.max(10, (size * 0.32) * Math.max(1, Number(token.size || 1)) * tokenScale);
       var dead = isTokenDead(token);
@@ -4971,20 +5314,39 @@
 
     canvas.addEventListener('dragover', function (ev) {
       ev.preventDefault();
-    });
-
-    canvas.addEventListener('drop', function (ev) {
-      ev.preventDefault();
-      var id = String(ev.dataTransfer.getData('text/combat-bestiary-id') || '');
-      if (!id) return;
       var state = store.getState();
-      var profile = (state.codexBestiary || []).find(function (entry) { return String(entry.id) === id; }) || null;
-      if (!profile) return;
       var rect = canvas.getBoundingClientRect();
       var size = Number(state.board.size || 42) * Number(state.board.zoom || 1);
       var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, state.board.panX, state.board.panY);
-      spawnBestiaryToken(profile, ax.q, ax.r);
+      setCombatAssetDragPreview({ q: ax.q, r: ax.r });
     });
+
+    canvas.addEventListener('drop', function (ev) {
+      handleCombatBoardDropEvent(ev, canvas);
+    });
+
+    canvas.addEventListener('dragleave', function () {
+      clearCombatAssetDragPreview();
+    });
+
+    var rollModal = document.getElementById('rollModal');
+    if (rollModal && !rollModal._combatAssetDropBound) {
+      rollModal._combatAssetDropBound = true;
+      rollModal.addEventListener('dragover', function (ev) {
+        var state = store.getState();
+        var rect = canvas.getBoundingClientRect();
+        var size = Number(state.board.size || 42) * Number(state.board.zoom || 1);
+        var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, state.board.panX, state.board.panY);
+        ev.preventDefault();
+        setCombatAssetDragPreview({ q: ax.q, r: ax.r });
+      });
+      rollModal.addEventListener('drop', function (ev) {
+        handleCombatBoardDropEvent(ev, canvas);
+      });
+      rollModal.addEventListener('dragleave', function () {
+        clearCombatAssetDragPreview();
+      });
+    }
   }
 
   function bindDragPanels() {
@@ -5643,29 +6005,138 @@
       } else safeNotif('Effects modal requires modal support.', 'warn');
     }
 
-    function openCombatAssetsModal() {
-      var html = ''
-        + '<div style="display:grid;gap:.34rem;font-size:.82rem;color:var(--text2);line-height:1.55;">'
-        + '<div><strong style="color:var(--gold2);">GM Assets Hub</strong> · one-click prep actions and quick placement tools.</div>'
-        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.24rem;">'
-        + '<button class="btn btn-xs btn-teal" onclick="window.combatAssetAction&&window.combatAssetAction(\'set-tool\',\'terrain:forest\')">🌲 Paint Forest</button>'
-        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'set-tool\',\'terrain:ruins\')">🏛 Paint Ruins</button>'
-        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'set-tool\',\'objects:obstacle\')">🧱 Paint Obstacle</button>'
-        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'set-tool\',\'hazards:trap\')">⚠ Paint Trap</button>'
-        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'spawn\',\'npc:Guide\')">🧭 Spawn Guide</button>'
-        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'spawn\',\'npc:Merchant\')">🛒 Spawn Merchant</button>'
-        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'preset\',\'urban\')">🏙 Urban Preset</button>'
-        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'preset\',\'storm\')">⛈ Storm Preset</button>'
+    var COMBAT_ASSET_LIBRARY = [
+      { kind: 'spawn', payload: 'npc:Guide', icon: 'NPC', label: 'Guide Token', chips: ['Token', 'Drop on hex'], description: 'Spawn a neutral guide exactly where you drop it.' },
+      { kind: 'spawn', payload: 'npc:Merchant', icon: 'NPC', label: 'Merchant Token', chips: ['Token', 'Support'], description: 'Spawn a merchant or quartermaster near the party.' },
+      { kind: 'set-tool', payload: 'terrain:forest', icon: 'MAP', label: 'Forest Tile', chips: ['Terrain', 'Paint on drop'], description: 'Drop onto a hex to stamp forest terrain, or click to arm the terrain painter.' },
+      { kind: 'set-tool', payload: 'objects:obstacle', icon: 'OBJ', label: 'Obstacle', chips: ['Object', 'Cover'], description: 'Place an obstacle directly on a hex to create instant cover.' },
+      { kind: 'set-tool', payload: 'hazards:trap', icon: 'TRP', label: 'Trap Marker', chips: ['Hazard', 'Trigger'], description: 'Drop a trap marker on a hex for immediate hazard setup.' },
+      { kind: 'preset', payload: 'urban', icon: 'PRE', label: 'Urban Preset', chips: ['Board preset', '20x20'], description: 'Apply the urban board footprint and weather profile.' },
+      { kind: 'preset', payload: 'storm', icon: 'PRE', label: 'Storm Preset', chips: ['Board preset', 'Weather'], description: 'Apply storm framing for naval or desperate road encounters.' }
+    ];
+    var COMBAT_TUTORIAL_STEPS = [
+      { title: 'Board and Selection', body: ['Click a token to make it primary. Shift-click to multi-select and move formations together.', 'Right-click any token for ping, sheet, lock, layer, turn, and transform actions.'] },
+      { title: 'Pages and Scene Beats', body: ['Use the page switcher to separate approach, clash, and aftermath into clean scenes.', 'Build Map creates linked encounter pages fast; rename them to match your actual beat structure.'] },
+      { title: 'Rules Embedded in Play', body: ['Use the Rules button for searchable quick-reference cards, caravan procedures, and ship combat roles.', 'Character Sheet now mirrors that same card layout so the table stays inside the VTT.'] },
+      { title: 'Assets and Drag Drop', body: ['Drag bestiary entries or asset cards directly onto the board.', 'Drop an image file onto the board to set a battlemap background without leaving Combat Mode.'] },
+      { title: 'Fog and Vision', body: ['Set fog mode, vision radius, and reveal behavior from Combat Settings.', 'Use Fog and object layers together to control what players can realistically act on.'] },
+      { title: 'Token Ops and Undo', body: ['Copy/paste auto-spaces tokens. Enumerate cleans up duplicate enemies. Rotate and scale help with occupied space.', 'Undo and redo are wired for scene editing so you can prep quickly and recover safely.'] },
+      { title: 'Running the Encounter', body: ['Keep the active token selected so the sheet, actions, and log stay focused.', 'Long Rest and day progression still belong to the Province, Sea Region, and other world-map systems outside this VTT layer.'] }
+    ];
+
+    function writeCombatTutorialState(ui) {
+      try {
+        localStorage.setItem(COMBAT_TUTORIAL_KEY, JSON.stringify({ seen: !!ui.tutorialSeen, step: Math.max(0, Number(ui.tutorialStep || 0)) }));
+      } catch (_err) {}
+    }
+
+    function buildCombatTutorialHtml(stepIndex) {
+      var safeIndex = Math.max(0, Math.min(COMBAT_TUTORIAL_STEPS.length - 1, Number(stepIndex || 0)));
+      var step = COMBAT_TUTORIAL_STEPS[safeIndex] || COMBAT_TUTORIAL_STEPS[0];
+      var body = (step.body || []).map(function (line) {
+        return '<div class="combat-rules-line">' + escapeHtml(String(line || '')) + '</div>';
+      }).join('');
+      return ''
+        + '<div class="combat-rules-panel">'
+        + '<div class="combat-rules-toolbar">'
+        + '<div><div class="combat-rules-kicker">First-Run Tutorial</div><div class="combat-rules-heading">Step ' + (safeIndex + 1) + ' of ' + COMBAT_TUTORIAL_STEPS.length + ' · ' + escapeHtml(String(step.title || 'Combat Mode')) + '</div></div>'
+        + '<div class="combat-rules-actions"><button class="btn btn-xs" onclick="window.deferCombatTutorial&&window.deferCombatTutorial()">Resume Later</button></div>'
         + '</div>'
-        + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;">'
-        + '<button class="btn btn-xs btn-primary" onclick="window.combatAssetAction&&window.combatAssetAction(\'template\',\'quick\')">⚡ Quick Setup (Random)</button>'
-        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'upload-map\',\'\')">🗺 Upload Battlemap</button>'
-        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'open-drawer\',\'\')">📚 Open Bestiary Drawer</button>'
+        + '<article class="combat-rules-card combat-sheet-card">'
+        + '<div class="combat-rules-meta"><span class="combat-rules-icon">TOUR</span><span class="combat-rules-section-label">Guided Setup</span></div>'
+        + '<div class="combat-rules-title">' + escapeHtml(String(step.title || 'Combat Mode')) + '</div>'
+        + '<div class="combat-rules-body">' + body + '</div>'
+        + '</article>'
+        + '<div style="display:flex;justify-content:space-between;gap:.35rem;flex-wrap:wrap;">'
+        + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
+        + (safeIndex > 0 ? '<button class="btn btn-xs" onclick="window.stepCombatTutorial&&window.stepCombatTutorial(-1)">Back</button>' : '<button class="btn btn-xs" onclick="window.skipCombatTutorial&&window.skipCombatTutorial()">Skip Intro</button>')
+        + '<button class="btn btn-xs" onclick="window.skipCombatTutorial&&window.skipCombatTutorial()">Do Not Auto-Open</button>'
         + '</div>'
-        + '<div style="font-size:.74rem;color:var(--muted2);">Tip: use Asset Browser category filters in the right panel for heroes, villains, battlemaps, and objects.</div>'
+        + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;">'
+        + (safeIndex < COMBAT_TUTORIAL_STEPS.length - 1
+          ? '<button class="btn btn-xs btn-primary" onclick="window.stepCombatTutorial&&window.stepCombatTutorial(1)">Next</button>'
+          : '<button class="btn btn-xs btn-primary" onclick="window.finishCombatTutorial&&window.finishCombatTutorial()">Finish Tour</button>')
+        + '</div>'
+        + '</div>'
         + '</div>';
+    }
+
+    function updateCombatTutorialState(mutator) {
+      store.setState(function (state) {
+        var next = normalizeCombatSceneState(Object.assign({}, state));
+        next.ui = normalizeCombatUi(Object.assign({}, next.ui || {}));
+        if (typeof mutator === 'function') mutator(next.ui, next);
+        persist(next);
+        writeCombatTutorialState(next.ui);
+        return next;
+      });
+    }
+
+    window.openCombatTutorial = function (stepIndex) {
+      var safeIndex = Math.max(0, Math.min(COMBAT_TUTORIAL_STEPS.length - 1, Number(stepIndex || 0)));
+      updateCombatTutorialState(function (ui) {
+        ui.tutorialStep = safeIndex;
+      });
       if (typeof window.openModal === 'function') {
-        window.openModal('Combat Assets', html, null, { preventScroll: true, focusTrap: true });
+        window.openModal('Combat Mode Tour', buildCombatTutorialHtml(safeIndex), null, { preventScroll: true, focusTrap: true });
+      }
+    };
+
+    window.stepCombatTutorial = function (delta) {
+      var state = store.getState();
+      var nextIndex = Math.max(0, Math.min(COMBAT_TUTORIAL_STEPS.length - 1, Number(state.ui && state.ui.tutorialStep || 0) + Number(delta || 0)));
+      window.openCombatTutorial(nextIndex);
+    };
+
+    window.deferCombatTutorial = function () {
+      updateCombatTutorialState(function (ui) {
+        ui.tutorialSeen = false;
+      });
+      if (typeof window.closeModal === 'function') window.closeModal();
+      safeNotif('Tutorial progress saved. Resume it from Combat Settings.', 'info');
+    };
+
+    window.skipCombatTutorial = function () {
+      updateCombatTutorialState(function (ui) {
+        ui.tutorialSeen = true;
+      });
+      if (typeof window.closeModal === 'function') window.closeModal();
+      safeNotif('Tutorial auto-open disabled. You can reopen it from Combat Settings.', 'info');
+    };
+
+    window.finishCombatTutorial = function () {
+      updateCombatTutorialState(function (ui) {
+        ui.tutorialSeen = true;
+        ui.tutorialStep = COMBAT_TUTORIAL_STEPS.length - 1;
+      });
+      if (typeof window.closeModal === 'function') window.closeModal();
+      safeNotif('Combat tutorial complete.', 'good');
+    };
+
+    function buildCombatAssetsModalHtml() {
+      var cards = COMBAT_ASSET_LIBRARY.map(function (entry) {
+        return ''
+          + '<article class="combat-rules-card combat-sheet-card" draggable="true" ondragstart="window.startCombatAssetDrag&&window.startCombatAssetDrag(event,\'' + String(entry.kind) + '\',\'' + String(entry.payload) + '\')">'
+          + '<div class="combat-rules-meta"><span class="combat-rules-icon">' + escapeHtml(String(entry.icon || 'AST')) + '</span><span class="combat-rules-section-label">Asset</span></div>'
+          + '<div class="combat-rules-title">' + escapeHtml(String(entry.label || 'Asset')) + '</div>'
+          + '<div class="combat-rules-chip-row">' + (entry.chips || []).map(function (chip) { return '<span class="combat-rules-chip">' + escapeHtml(String(chip)) + '</span>'; }).join('') + '</div>'
+          + '<div class="combat-rules-body"><div class="combat-rules-line">' + escapeHtml(String(entry.description || '')) + '</div></div>'
+          + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.55rem;"><button class="btn btn-xs btn-primary" type="button" onclick="window.combatAssetAction&&window.combatAssetAction(\'' + String(entry.kind) + '\',\'' + String(entry.payload) + '\')">Use</button><span class="combat-rules-line" style="font-size:.72rem;">Drag onto the board to place directly.</span></div>'
+          + '</article>';
+      }).join('');
+      return ''
+        + '<div class="combat-rules-panel">'
+        + '<div class="combat-rules-toolbar">'
+        + '<div><div class="combat-rules-kicker">Asset Hub</div><div class="combat-rules-heading">Drag tokens, terrain stamps, and presets straight onto the board. Drop image files anywhere on the canvas to set battlemaps.</div></div>'
+        + '<div class="combat-rules-actions"><button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'upload-map\',\'\')">Upload Map</button><button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'open-drawer\',\'\')">Bestiary Drawer</button></div>'
+        + '</div>'
+        + '<div class="combat-rules-grid">' + cards + '</div>'
+        + '</div>';
+    }
+
+    function openCombatAssetsModal() {
+      if (typeof window.openModal === 'function') {
+        window.openModal('Combat Assets', buildCombatAssetsModalHtml(), null, { preventScroll: true, focusTrap: true });
       }
     }
 
@@ -5673,8 +6144,39 @@
       var state = store.getState();
       var mode = String(state.fog && state.fog.revealMode || 'manual');
       var radius = Math.max(1, Math.min(8, Number(state.fog && state.fog.visionRadius || 3)));
+      var ui = normalizeCombatUi(state.ui);
+      var theme = getCombatThemeTokens(ui);
       var html = ''
-        + '<div style="display:grid;gap:.28rem;">'
+        + '<div class="combat-rules-panel">'
+        + '<div class="combat-rules-toolbar">'
+        + '<div><div class="combat-rules-kicker">Combat Settings</div><div class="combat-rules-heading">Tune motion, theme tokens, tutorial behavior, fog, and auto-rolls for this VTT layer.</div></div>'
+        + '<div class="combat-rules-actions"><button class="btn btn-xs" onclick="window.openCombatTutorial&&window.openCombatTutorial(' + Number(ui.tutorialStep || 0) + ')">Tutorial</button><button class="btn btn-xs" onclick="window.showCombatRulesReference&&window.showCombatRulesReference()">Rules</button></div>'
+        + '</div>'
+        + '<div class="combat-rules-grid">'
+        + '<article class="combat-rules-card combat-sheet-card">'
+        + '<div class="combat-rules-meta"><span class="combat-rules-icon">UI</span><span class="combat-rules-section-label">Motion</span></div>'
+        + '<div class="combat-rules-title">Motion and Theme</div>'
+        + '<div style="display:grid;gap:.45rem;">'
+        + '<label style="display:flex;align-items:center;gap:.4rem;">Motion Mode'
+        + '<select id="combatSettingsMotionMode" class="combat-select" style="max-width:160px;">'
+        + '<option value="full" ' + (ui.motionMode === 'full' ? 'selected' : '') + '>Full</option>'
+        + '<option value="reduced" ' + (ui.motionMode === 'reduced' ? 'selected' : '') + '>Reduced</option>'
+        + '<option value="off" ' + (ui.motionMode === 'off' ? 'selected' : '') + '>Off</option>'
+        + '</select></label>'
+        + '<label style="display:flex;align-items:center;gap:.4rem;">Theme Preset'
+        + '<select id="combatSettingsThemePreset" class="combat-select" style="max-width:180px;">'
+        + '<option value="obsidian" ' + (ui.themePreset === 'obsidian' ? 'selected' : '') + '>Obsidian</option>'
+        + '<option value="dawn" ' + (ui.themePreset === 'dawn' ? 'selected' : '') + '>Dawn</option>'
+        + '<option value="high-contrast" ' + (ui.themePreset === 'high-contrast' ? 'selected' : '') + '>High Contrast</option>'
+        + '</select></label>'
+        + '<label style="display:flex;align-items:center;gap:.4rem;">Accent <input id="combatSettingsAccent" type="color" value="' + escapeHtml(String(theme.accent || '#e3bc5e')) + '"></label>'
+        + '<label style="display:flex;align-items:center;gap:.4rem;">Support Accent <input id="combatSettingsAccent2" type="color" value="' + escapeHtml(String(theme.accent2 || '#49c9bb')) + '"></label>'
+        + '</div>'
+        + '</article>'
+        + '<article class="combat-rules-card combat-sheet-card">'
+        + '<div class="combat-rules-meta"><span class="combat-rules-icon">FOG</span><span class="combat-rules-section-label">Encounter</span></div>'
+        + '<div class="combat-rules-title">Fog, Vision, and Dice</div>'
+        + '<div style="display:grid;gap:.45rem;">'
         + '<label style="display:flex;align-items:center;gap:.4rem;"><input id="combatSettingsFogEnabled" type="checkbox" ' + ((state.fog && state.fog.enabled) ? 'checked' : '') + '> Fog of War enabled</label>'
         + '<label style="display:flex;align-items:center;gap:.4rem;"><input id="combatSettingsAutoRoll" type="checkbox" ' + (state.autoRoll ? 'checked' : '') + '> Auto roll mode</label>'
         + '<label style="display:flex;align-items:center;gap:.4rem;">Vision Radius'
@@ -5686,9 +6188,11 @@
         + '<option value="ordered" ' + (mode === 'ordered' ? 'selected' : '') + '>Ordered Reveal</option>'
         + '</select></label>'
         + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;">'
-        + '<button class="btn btn-xs" onclick="window.showCombatRulesReference&&window.showCombatRulesReference()">Rules</button>'
         + '<button class="btn btn-xs" onclick="window.combatOpenAssetsHub&&window.combatOpenAssetsHub()">Assets</button>'
         + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'template\',\'quick\')">Quick Setup</button>'
+        + '</div>'
+        + '</div>'
+        + '</article>'
         + '</div>'
         + '<button class="btn btn-xs btn-primary" onclick="(function(){if(window.applyCombatSettingsFromModal)window.applyCombatSettingsFromModal();if(typeof window.closeModal===\'function\')window.closeModal();})();">Apply</button>'
         + '</div>';
@@ -5698,49 +6202,67 @@
     }
 
     window.combatOpenAssetsHub = openCombatAssetsModal;
-    window.combatAssetAction = function combatAssetAction(kind, payload) {
-      var action = String(kind || '');
-      var value = String(payload || '');
-      var st = store.getState();
-      var actor = byId(st.selectedTokenId);
-      var baseQ = actor ? Number(actor.q || 0) : 0;
-      var baseR = actor ? Number(actor.r || 0) : 0;
+    window.startCombatAssetDrag = function (ev, kind, payload) {
+      if (!ev || !ev.dataTransfer) return;
+      ev.dataTransfer.effectAllowed = 'copy';
+      ev.dataTransfer.setData('text/combat-asset-kind', String(kind || ''));
+      ev.dataTransfer.setData('text/combat-asset-payload', String(payload || ''));
+      safeNotif('Drop the asset onto the battlemap to place it directly.', 'info');
+    };
+
+    function applyCombatAssetActionAt(action, value, baseQ, baseR, directDrop) {
+      var q = Number(baseQ || 0);
+      var r = Number(baseR || 0);
       if (action === 'set-tool') {
-        var parts = value.split(':');
+        var parts = String(value || '').split(':');
         var layer = String(parts[0] || 'terrain');
         var paint = String(parts[1] || 'forest');
-        store.setState(function (inner) {
-          var next = Object.assign({}, inner, { activeLayer: layer, activeTool: 'paint', paintValue: paint });
-          persist(next);
-          return next;
-        });
-        safeNotif('Painter armed: ' + layer + ' · ' + paint + '.', 'good');
+        if (directDrop) {
+          captureUndoSnapshot('Drop Asset');
+          store.setState(function (inner) {
+            var next = normalizeCombatSceneState(Object.assign({}, inner));
+            next.layers[layer] = Object.assign({}, next.layers[layer] || {}, (function () { var out = {}; out[toKey(q, r)] = paint; return out; })());
+            persist(next);
+            return next;
+          });
+          addHistory('Asset stamped: ' + paint + ' at ' + toKey(q, r) + '.');
+        } else {
+          store.setState(function (inner2) {
+            var next2 = Object.assign({}, inner2, { activeLayer: layer, activeTool: 'paint', paintValue: paint });
+            persist(next2);
+            return next2;
+          });
+          safeNotif('Painter armed: ' + layer + ' · ' + paint + '.', 'good');
+        }
       } else if (action === 'spawn') {
-        var spawnParts = value.split(':');
+        var spawnParts = String(value || '').split(':');
         var faction = String(spawnParts[0] || 'npc');
         var name = String(spawnParts[1] || 'Token');
-        store.setState(function (inner2) {
-          var next2 = Object.assign({}, inner2);
-          var token = { id: uid(faction), name: name, faction: faction, hp: 8, maxHp: 8, status: [], q: baseQ + 1, r: baseR + 1, image: '', size: 1 };
-          next2.tokens = (inner2.tokens || []).concat([token]);
-          next2.selectedTokenId = token.id;
-          persist(next2);
-          return next2;
+        captureUndoSnapshot('Spawn Asset');
+        store.setState(function (inner3) {
+          var next3 = Object.assign({}, inner3);
+          var token = { id: uid(faction), name: name, faction: faction, hp: 8, maxHp: 8, status: [], q: q, r: r, image: '', size: 1 };
+          next3.tokens = (inner3.tokens || []).concat([token]);
+          next3.selectedTokenId = token.id;
+          next3.selectedTokenIds = [token.id];
+          persist(next3);
+          return next3;
         });
-        addHistory('Asset placed: ' + name + '.');
+        addHistory('Asset placed: ' + name + ' at ' + toKey(q, r) + '.');
       } else if (action === 'preset') {
         var presets = {
           urban: { cols: 20, rows: 20, weather: 'none' },
           storm: { cols: 18, rows: 10, weather: 'storm' }
         };
-        var p = presets[value] || presets.urban;
-        store.setState(function (inner3) {
-          var next3 = Object.assign({}, inner3);
-          next3.board = Object.assign({}, inner3.board || {}, { cols: Number(p.cols || 15), rows: Number(p.rows || 15), weatherOverlay: String(p.weather || 'none') });
-          persist(next3);
-          return next3;
+        var preset = presets[String(value || '')] || presets.urban;
+        captureUndoSnapshot('Apply Preset');
+        store.setState(function (inner4) {
+          var next4 = Object.assign({}, inner4);
+          next4.board = Object.assign({}, inner4.board || {}, { cols: Number(preset.cols || 15), rows: Number(preset.rows || 15), weatherOverlay: String(preset.weather || 'none') });
+          persist(next4);
+          return next4;
         });
-        addHistory('Battlemap preset applied: ' + value + '.');
+        addHistory('Battlemap preset applied: ' + String(value || 'urban') + '.');
       } else if (action === 'template') {
         if (typeof window.setupSceneTemplate === 'function') window.setupSceneTemplate(value || 'quick');
       } else if (action === 'upload-map') {
@@ -5752,6 +6274,16 @@
       }
       drawBoard();
       updateUiPanels();
+    }
+
+    window.combatAssetAction = function combatAssetAction(kind, payload) {
+      var action = String(kind || '');
+      var value = String(payload || '');
+      var st = store.getState();
+      var actor = byId(st.selectedTokenId);
+      var baseQ = actor ? Number(actor.q || 0) : 0;
+      var baseR = actor ? Number(actor.r || 0) : 0;
+      applyCombatAssetActionAt(action, value, baseQ + 1, baseR + 1, false);
     };
 
     var toolbarSelectBtn = document.getElementById('combatToolbarSelectBtn');
@@ -7080,6 +7612,8 @@
   function loadSceneCard(sceneId) {
     var targetId = String(sceneId || '');
     if (!targetId) return;
+    var wrap = document.getElementById('combatCanvasWrap');
+    triggerPageTransition(wrap);
     var loaded = false;
     store.setState(function (state) {
       var next = normalizeCombatSceneState(Object.assign({}, state));
@@ -7389,12 +7923,13 @@
 
     store.setState({ open: true, entering: true });
     var splash = document.getElementById('combatEntrySplash');
+    applyCombatUiState(store.getState());
     if (splash) {
       splash.classList.remove('hidden');
       setTimeout(function () {
         splash.classList.add('hidden');
         store.setState({ entering: false });
-      }, 900);
+      }, getCombatMotionDuration(store.getState(), 900, 450) || 20);
     }
     store.setState(function (state) {
       var activeCombat = !!(window.S && window.S.combat && window.S.combat.active);
@@ -7414,6 +7949,14 @@
 
     var hasExistingScene = !!(seed && typeof seed === 'object' && seed.id);
     addHistory('Entering encounter. Combat mode online.' + (hasExistingScene ? ' Scene loaded.' : ' Fresh canvas ready.'));
+    if (!store.getState().ui || !store.getState().ui.tutorialSeen) {
+      setTimeout(function () {
+        var current = store.getState();
+        if (current.open && (!current.ui || !current.ui.tutorialSeen) && typeof window.openCombatTutorial === 'function') {
+          window.openCombatTutorial(Number(current.ui && current.ui.tutorialStep || 0));
+        }
+      }, getCombatMotionDuration(store.getState(), 980, 520) || 40);
+    }
   }
 
   function closeOverlay() {
@@ -7941,6 +8484,12 @@
     var fogMode = String(fogModeEl && fogModeEl.value || 'manual');
     var visionEl = document.getElementById('combatSettingsVisionRadius');
     var visionRadius = Math.max(1, Math.min(8, Number(visionEl && visionEl.value || 3)));
+    var motionEl = document.getElementById('combatSettingsMotionMode');
+    var motionMode = String(motionEl && motionEl.value || 'full');
+    var themePresetEl = document.getElementById('combatSettingsThemePreset');
+    var themePreset = String(themePresetEl && themePresetEl.value || 'obsidian');
+    var accentEl = document.getElementById('combatSettingsAccent');
+    var accent2El = document.getElementById('combatSettingsAccent2');
     store.setState(function (state) {
       var next = Object.assign({}, state, { autoRoll: autoRoll });
       next.fog = Object.assign({
@@ -7953,9 +8502,19 @@
         revealSeq: 0,
         revealStep: 0
       }, state.fog || {}, { enabled: fogEnabled, revealMode: fogMode, visionRadius: visionRadius });
+      next.ui = normalizeCombatUi(Object.assign({}, state.ui || {}, {
+        motionMode: motionMode,
+        themePreset: themePreset,
+        themeTokens: Object.assign({}, state.ui && state.ui.themeTokens || {}, {
+          accent: String(accentEl && accentEl.value || ''),
+          accent2: String(accent2El && accent2El.value || '')
+        })
+      }));
       persist(next);
       return next;
     });
+    writeCombatTutorialState(store.getState().ui || {});
+    applyCombatUiState(store.getState());
     drawBoard();
     updateUiPanels();
   };

@@ -8,6 +8,15 @@ const START_TIMEOUT_MS = 20000;
 const COMBAT_KEY = "btl-combat-scene-editor-v1";
 const TUTORIAL_KEY = COMBAT_KEY + "-tutorial";
 
+function resolveAuditRole() {
+  const arg = (process.argv || []).find((row) => /^--role=/.test(String(row || "")));
+  const fromArg = arg ? String(arg).split("=")[1] : "";
+  const raw = String(fromArg || process.env.VTT_AUDIT_ROLE || "gm").toLowerCase();
+  return raw === "player" || raw === "player-safe" ? "player" : "gm";
+}
+
+const AUDIT_ROLE = resolveAuditRole();
+
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -208,6 +217,7 @@ async function run() {
     await page.evaluate(({ combatKey, tutorialKey }) => {
       localStorage.removeItem(combatKey);
       localStorage.removeItem(tutorialKey);
+      window.__vttAuditRole = window.__vttAuditRole || "gm";
       const originalPrompt = window.prompt;
       window.__auditPromptOriginal = originalPrompt;
       window.prompt = function (message, fallback) {
@@ -219,6 +229,10 @@ async function run() {
       };
       window.confirm = function () { return true; };
     }, { combatKey: COMBAT_KEY, tutorialKey: TUTORIAL_KEY });
+
+    await page.evaluate((role) => {
+      window.__vttAuditRole = String(role || "gm");
+    }, AUDIT_ROLE);
 
     await page.evaluate(() => {
       window.openCombatSceneEditor({
@@ -242,19 +256,29 @@ async function run() {
         const st = window.CombatSceneStore.getState();
         return Object.assign({}, st, { selectedTokenId: "player-1", selectedTokenIds: ["player-1"] });
       })());
-      window.applyCombatAssetActionAt("set-tool", "hazards:trap", 3, 3, true);
-      window.applyCombatAssetActionAt("stock-cache", "balanced", 9, 2, true);
+      if (window.__vttAuditRole === "gm") {
+        window.applyCombatAssetActionAt("set-tool", "hazards:trap", 3, 3, true);
+        window.applyCombatAssetActionAt("stock-cache", "balanced", 9, 2, true);
+      }
     });
 
-    const toolbarToolChecks = [
-      ["combatToolbarSelectBtn", "select"],
-      ["combatToolbarDrawBtn", "paint"],
-      ["combatToolbarTextBtn", "text"],
-      ["combatToolbarMeasureBtn", "ruler"],
-      ["combatToolbarRulerBtn", "ruler"],
-      ["combatToolbarPanBtn", "pan"],
-      ["combatToolbarPingBtn", "ping"]
-    ];
+    const toolbarToolChecks = AUDIT_ROLE === "gm"
+      ? [
+        ["combatToolbarSelectBtn", "select"],
+        ["combatToolbarDrawBtn", "paint"],
+        ["combatToolbarTextBtn", "text"],
+        ["combatToolbarMeasureBtn", "ruler"],
+        ["combatToolbarRulerBtn", "ruler"],
+        ["combatToolbarPanBtn", "pan"],
+        ["combatToolbarPingBtn", "ping"]
+      ]
+      : [
+        ["combatToolbarSelectBtn", "select"],
+        ["combatToolbarMeasureBtn", "ruler"],
+        ["combatToolbarRulerBtn", "ruler"],
+        ["combatToolbarPanBtn", "pan"],
+        ["combatToolbarPingBtn", "ping"]
+      ];
     for (const [id, expected] of toolbarToolChecks) {
       await clickId("toolbar", id, async () => {
         const activeTool = await page.evaluate(() => String(window.CombatSceneStore.getState().activeTool || ""));
@@ -280,14 +304,20 @@ async function run() {
     await clickId("toolbar", "combatToolbarTurnOrderBtn", async () => ({ ok: true, detail: "opened/scroll attempt" }));
     await clickId("toolbar", "combatToolbarDiceBtn", async () => ({ ok: true, detail: "prompt-driven roll attempted" }));
 
-    const railToolChecks = [
-      ["combatRailSelectBtn", "select"],
-      ["combatRailPanBtn", "pan"],
-      ["combatRailDrawBtn", "paint"],
-      ["combatRailTextBtn", "text"],
-      ["combatRailMeasureBtn", "ruler"],
-      ["combatRailFogBtn", "fog"]
-    ];
+    const railToolChecks = AUDIT_ROLE === "gm"
+      ? [
+        ["combatRailSelectBtn", "select"],
+        ["combatRailPanBtn", "pan"],
+        ["combatRailDrawBtn", "paint"],
+        ["combatRailTextBtn", "text"],
+        ["combatRailMeasureBtn", "ruler"],
+        ["combatRailFogBtn", "fog"]
+      ]
+      : [
+        ["combatRailSelectBtn", "select"],
+        ["combatRailPanBtn", "pan"],
+        ["combatRailMeasureBtn", "ruler"]
+      ];
     for (const [id, expected] of railToolChecks) {
       await clickId("rail", id, async () => {
         const activeTool = await page.evaluate(() => String(window.CombatSceneStore.getState().activeTool || ""));
@@ -313,14 +343,16 @@ async function run() {
       return { ok: open, detail: open ? "rules modal opened" : "rules modal missing" };
     });
 
-    await clickId("modal", "combatSettingsBtn", async () => {
-      const open = await page.evaluate(() => {
-        const modal = document.getElementById("rollModal");
-        return !!(modal && modal.style.display !== "none" && /Combat Settings/.test(modal.textContent || ""));
+    if (AUDIT_ROLE === "gm") {
+      await clickId("modal", "combatSettingsBtn", async () => {
+        const open = await page.evaluate(() => {
+          const modal = document.getElementById("rollModal");
+          return !!(modal && modal.style.display !== "none" && /Combat Settings/.test(modal.textContent || ""));
+        });
+        await page.evaluate(() => { if (typeof window.closeModal === "function") window.closeModal(); });
+        return { ok: open, detail: open ? "settings modal opened" : "settings modal missing" };
       });
-      await page.evaluate(() => { if (typeof window.closeModal === "function") window.closeModal(); });
-      return { ok: open, detail: open ? "settings modal opened" : "settings modal missing" };
-    });
+    }
 
     await clickId("modal", "combatAssetsBtn", async () => {
       const state = await page.evaluate(() => {
@@ -358,24 +390,26 @@ async function run() {
     });
 
     await clickContextAction("context-token", "token", "player-1", "ping");
-    await clickContextAction("context-token", "token", "player-1", "copy");
-    await clickContextAction("context-token", "token", "player-1", "paste");
-    await clickContextAction("context-token", "token", "player-1", "undo");
-    await clickContextAction("context-token", "token", "player-1", "redo");
     await clickContextAction("context-token", "token", "player-1", "sheet");
     await closeModalIfOpen();
-    await clickContextAction("context-token", "token", "player-1", "hold-turn");
-    await clickContextAction("context-token", "token", "player-1", "delay-turn");
-    await clickContextAction("context-token", "token", "player-1", "add-turn");
-    await clickContextAction("context-token", "token", "player-1", "reactions");
-    await clickContextAction("context-token", "token", "player-1", "change-layer");
-    await clickContextAction("context-token", "token", "player-1", "front");
-    await clickContextAction("context-token", "token", "player-1", "back");
-    await clickContextAction("context-token", "token", "player-1", "lock");
-    await clickContextAction("context-token", "token", "player-1", "enumerate");
-    await clickContextAction("context-token", "token", "player-1", "rotate");
-    await clickContextAction("context-token", "token", "player-1", "half");
-    await clickContextAction("context-token", "token", "player-1", "quarter");
+    if (AUDIT_ROLE === "gm") {
+      await clickContextAction("context-token", "token", "player-1", "copy");
+      await clickContextAction("context-token", "token", "player-1", "paste");
+      await clickContextAction("context-token", "token", "player-1", "undo");
+      await clickContextAction("context-token", "token", "player-1", "redo");
+      await clickContextAction("context-token", "token", "player-1", "hold-turn");
+      await clickContextAction("context-token", "token", "player-1", "delay-turn");
+      await clickContextAction("context-token", "token", "player-1", "add-turn");
+      await clickContextAction("context-token", "token", "player-1", "reactions");
+      await clickContextAction("context-token", "token", "player-1", "change-layer");
+      await clickContextAction("context-token", "token", "player-1", "front");
+      await clickContextAction("context-token", "token", "player-1", "back");
+      await clickContextAction("context-token", "token", "player-1", "lock");
+      await clickContextAction("context-token", "token", "player-1", "enumerate");
+      await clickContextAction("context-token", "token", "player-1", "rotate");
+      await clickContextAction("context-token", "token", "player-1", "half");
+      await clickContextAction("context-token", "token", "player-1", "quarter");
+    }
 
     await page.evaluate(() => {
       window.CombatSceneStore.setState((function () {
@@ -384,18 +418,20 @@ async function run() {
       })());
     });
 
-    await clickContextAction("context-map", "hex", { q: 3, r: 3 }, "configure-hazard");
-    await closeModalIfOpen();
-    await clickContextAction("context-map", "hex", { q: 3, r: 3 }, "run-hazard");
-    await closeModalIfOpen();
-    await page.evaluate(() => {
-      window.applyCombatAssetActionAt("stock-cache", "balanced", 9, 2, true);
-    });
-    await clickContextAction("context-map", "hex", { q: 9, r: 2 }, "manage-cache");
-    await closeModalIfOpen();
-    await clickContextAction("context-map", "hex", { q: 9, r: 2 }, "copy");
-    await clickContextAction("context-map", "hex", { q: 9, r: 2 }, "paste");
-    await clickContextAction("context-map", "hex", { q: 9, r: 2 }, "lock");
+    if (AUDIT_ROLE === "gm") {
+      await clickContextAction("context-map", "hex", { q: 3, r: 3 }, "configure-hazard");
+      await closeModalIfOpen();
+      await clickContextAction("context-map", "hex", { q: 3, r: 3 }, "run-hazard");
+      await closeModalIfOpen();
+      await page.evaluate(() => {
+        window.applyCombatAssetActionAt("stock-cache", "balanced", 9, 2, true);
+      });
+      await clickContextAction("context-map", "hex", { q: 9, r: 2 }, "manage-cache");
+      await closeModalIfOpen();
+      await clickContextAction("context-map", "hex", { q: 9, r: 2 }, "copy");
+      await clickContextAction("context-map", "hex", { q: 9, r: 2 }, "paste");
+      await clickContextAction("context-map", "hex", { q: 9, r: 2 }, "lock");
+    }
 
     await page.evaluate(() => {
       const st = window.CombatSceneStore.getState();
@@ -409,6 +445,7 @@ async function run() {
 
     const summary = {
       ok: true,
+      role: AUDIT_ROLE,
       passCount: results.filter((row) => row.ok).length,
       failCount: results.filter((row) => !row.ok).length,
       failures: orderedFailures(results)

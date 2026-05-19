@@ -43,7 +43,7 @@
 
 ### Thievery System
 - [x] `attemptThievery(targetName)` implements Control D12 vs Player Die roll
-- [x] Adventure Die bonus: Hoods grant +d6 roll  
+- [x] Valor Die bonus: Hoods grant +d6 roll  
 - [x] Success: steal item to backpack with notification
 - [x] Failure: +1 TMW (Terror, Misery, Worry), escape check triggers
 - [x] Track in Quick Notes: shows roll totals and result
@@ -89,7 +89,7 @@
 - [ ] Add "Steal" button to Holdings/Dwellings/Temples NPC interfaces
 - [ ] Steal success: Item to backpack, notify player
 - [ ] Steal failure: +1 TMW, encounter starts or flee option
-- [ ] Items with "Hood" get Adventure Die advantage
+- [ ] Items with "Hood" get Valor Die advantage
 
 ### Trade Route Specifics
 - [ ] Define trade goods list (separate from regular shop items)
@@ -145,7 +145,7 @@ showNotif(msg, type)                              // Toast notification
 ## Known Limitations
 
 - Hex info blocked by Quick Panel is intentional design (toggleable panel)
-- Adventure Die bonus currently only detected via "Hood" in equipment name
+- Valor Die bonus currently only detected via "Hood" in equipment name
   - Could expand to regex for other item types
 - Black Market provider selection not yet randomized
   - Should select random NPC when hex generated

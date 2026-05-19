@@ -382,7 +382,16 @@ function getConditionStep(key) {
 
 function getEffectiveDie(key) {
   const base = S.stats[key] || 4;
-  return applyDieSteps(base, getConditionStep(key));
+  let totalSteps = getConditionStep(key);
+  if (typeof getEquippedAffixCombatBonuses === 'function') {
+    const affix = getEquippedAffixCombatBonuses() || {};
+    if (key === 'strike') totalSteps += Number(affix.strikeDieSteps || 0);
+    if (key === 'mind') totalSteps += Number(affix.mindDieSteps || 0);
+    if (key === 'spirit') totalSteps += Number(affix.spiritDieSteps || 0);
+    if (key === 'lead') totalSteps += Number(affix.leadDieSteps || 0);
+    if (key === 'body') totalSteps += Number(affix.bodyDieSteps || 0);
+  }
+  return applyDieSteps(base, totalSteps);
 }
 
 function updateDieDisplay(key) {

@@ -168,6 +168,15 @@
     window.__combatAssetDragPayloadLastKnown = stamped;
   }
 
+  function primeCombatAssetDockDescriptor(kind, payload, label) {
+    window.__combatAssetDockDescriptor = {
+      kind: String(kind || ''),
+      payload: String(payload || ''),
+      label: String(label || 'Dragging asset'),
+      at: Date.now()
+    };
+  }
+
   function applyCombatHoverLabels(root) {
     if (!root || !root.querySelectorAll) return;
     Array.prototype.slice.call(root.querySelectorAll('.combat-icon-btn, .combat-chip, .combat-panel-header, .combat-topbar .btn')).forEach(function (node) {
@@ -754,6 +763,14 @@
         assetKind = String(window.__combatAssetDragPayloadLastKnown.kind || '');
         assetPayload = String(window.__combatAssetDragPayloadLastKnown.payload || '');
         source = 'last-known payload';
+      }
+    }
+    if (!assetKind && window.__combatAssetDockDescriptor && typeof window.__combatAssetDockDescriptor === 'object') {
+      var dockAgeMs = Date.now() - Number(window.__combatAssetDockDescriptor.at || 0);
+      if (dockAgeMs >= 0 && dockAgeMs < 15000) {
+        assetKind = String(window.__combatAssetDockDescriptor.kind || '');
+        assetPayload = String(window.__combatAssetDockDescriptor.payload || '');
+        source = 'dock-descriptor';
       }
     }
     setCombatDragDebugState({
@@ -7035,11 +7052,13 @@
           var descriptor = resolveDragDescriptor();
           if (!descriptor) return;
           primeCombatAssetDragPayload(descriptor.kind, descriptor.payload, descriptor.label);
+          primeCombatAssetDockDescriptor(descriptor.kind, descriptor.payload, descriptor.label);
         };
         card.ondragstart = function (ev) {
           var descriptor = resolveDragDescriptor();
           if (descriptor) {
             primeCombatAssetDragPayload(descriptor.kind, descriptor.payload, descriptor.label);
+            primeCombatAssetDockDescriptor(descriptor.kind, descriptor.payload, descriptor.label);
             window.startCombatAssetDrag(ev, descriptor.kind, descriptor.payload);
           }
         };

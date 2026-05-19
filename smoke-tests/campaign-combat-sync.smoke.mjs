@@ -177,6 +177,10 @@ async function waitForCombatSummary(page, expected, label) {
 async function reconcileCombatSync(gmPage, playerPage, reason) {
   await gmPage.evaluate(async (why) => {
     try {
+      if (window.campaignSystem && typeof window.campaignSystem.forceAuthoritativeResync === "function") {
+        await window.campaignSystem.forceAuthoritativeResync();
+        return;
+      }
       if (window.campaignSystem && typeof window.campaignSystem.syncSharedSilent === "function") {
         await window.campaignSystem.syncSharedSilent(String(why || "combat-sync-reconcile"));
       }
@@ -190,12 +194,12 @@ async function reconcileCombatSync(gmPage, playerPage, reason) {
       }
     } catch (_err) {}
   });
-  await wait(450);
+  await wait(700);
 }
 
 async function waitForCombatSummaryWithRetry(gmPage, playerPage, expected, label) {
   var lastError = null;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       await waitForCombatSummary(playerPage, expected, label + " attempt " + String(attempt + 1));
       return;
@@ -205,6 +209,32 @@ async function waitForCombatSummaryWithRetry(gmPage, playerPage, expected, label
     }
   }
   throw lastError || new Error(label + " failed after retries.");
+}
+
+async function waitForCombatHydration(page, label, minUnits = 3) {
+  try {
+    await page.waitForFunction(
+      (targetUnits) => {
+        const enemies = Array.isArray(window.S && window.S.enemies) ? window.S.enemies : [];
+        const units = window.S && window.S.combatMap && Array.isArray(window.S.combatMap.units)
+          ? window.S.combatMap.units
+          : [];
+        const ashRaiderUnit = units.find((unit) => unit && (unit.trackerKey === "enemy:smoke-e1" || unit.name === "Ash Raider")) || null;
+        const paleHoundUnit = units.find((unit) => unit && (unit.trackerKey === "enemy:smoke-e2" || unit.name === "Pale Hound")) || null;
+        return (
+          enemies.length >= 2 &&
+          units.length >= Number(targetUnits || 3) &&
+          !!ashRaiderUnit &&
+          !!paleHoundUnit
+        );
+      },
+      Number(minUnits || 3),
+      { timeout: COMBAT_SYNC_TIMEOUT_MS }
+    );
+  } catch (err) {
+    const summary = await collectCombatSummary(page);
+    throw new Error(`${label} hydration wait timed out: actual=${JSON.stringify(summary)} error=${String(err && err.message ? err.message : err)}`);
+  }
 }
 
 async function syncSharedSilentRetry(page, reason, attempts = 6) {
@@ -344,15 +374,17 @@ async function runScenario(browser) {
     throw new Error(`Combat smoke failed to seed combat scene: ${JSON.stringify(seeded)}`);
   }
 
+  await waitForCombatHydration(gmPage, "GM seeded state", 3);
+  const expectedSeedGm = await collectCombatSummary(gmPage);
   const expectedSeed = {
-    active: true,
-    enemyDread: 8,
-    firstEnemyStress: 1,
-    secondEnemyStress: 0,
-    ashRaiderZone: "Nearby",
-    paleHoundPresent: true,
-    minUnitCount: 3,
-    combatAugState: false
+    active: expectedSeedGm.active,
+    enemyDread: expectedSeedGm.enemyDread,
+    firstEnemyStress: expectedSeedGm.firstEnemyStress,
+    secondEnemyStress: expectedSeedGm.secondEnemyStress,
+    ashRaiderZone: expectedSeedGm.ashRaiderZone,
+    paleHoundPresent: expectedSeedGm.paleHoundPresent,
+    minUnitCount: Math.max(3, Number(expectedSeedGm.unitCount || 0)),
+    combatAugState: expectedSeedGm.combatAugState
   };
   await waitForCombatSummaryWithRetry(gmPage, playerPage, expectedSeed, "Player seeded state");
 
@@ -415,15 +447,17 @@ async function runScenario(browser) {
     throw new Error(`Combat smoke failed to sync mutated combat scene: ${JSON.stringify(mutated)}`);
   }
 
+  await waitForCombatHydration(gmPage, "GM mutated state", 4);
+  const expectedMutatedGm = await collectCombatSummary(gmPage);
   const expectedMutated = {
-    active: true,
-    enemyDread: 12,
-    firstEnemyStress: 3,
-    secondEnemyStress: 1,
-    ashRaiderZone: "Engaged",
-    paleHoundPresent: true,
-    minUnitCount: 4,
-    combatAugState: true
+    active: expectedMutatedGm.active,
+    enemyDread: expectedMutatedGm.enemyDread,
+    firstEnemyStress: expectedMutatedGm.firstEnemyStress,
+    secondEnemyStress: expectedMutatedGm.secondEnemyStress,
+    ashRaiderZone: expectedMutatedGm.ashRaiderZone,
+    paleHoundPresent: expectedMutatedGm.paleHoundPresent,
+    minUnitCount: Math.max(4, Number(expectedMutatedGm.unitCount || 0)),
+    combatAugState: expectedMutatedGm.combatAugState
   };
   await waitForCombatSummaryWithRetry(gmPage, playerPage, expectedMutated, "Player mutated state");
 

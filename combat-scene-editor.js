@@ -162,6 +162,132 @@
     return applyBattlemapFile(files[0], 'dropped image');
   }
 
+  function normalizeCombatAssetFolders(folders) {
+    var src = folders && typeof folders === 'object' ? folders : {};
+    var mapAssets = Array.isArray(src.mapAssets) ? src.mapAssets : [];
+    var hexAssets = Array.isArray(src.hexAssets) ? src.hexAssets : [];
+    function normalizeEntry(entry, prefix) {
+      if (!entry || typeof entry !== 'object') return null;
+      var id = String(entry.id || uid(prefix || 'asset'));
+      var name = String(entry.name || 'Asset');
+      var srcUrl = String(entry.src || '');
+      if (!srcUrl) return null;
+      return {
+        id: id,
+        name: name,
+        src: srcUrl,
+        uploadedAt: Number(entry.uploadedAt || Date.now())
+      };
+    }
+    return {
+      mapAssets: mapAssets.map(function (row) { return normalizeEntry(row, 'map'); }).filter(Boolean).slice(-60),
+      hexAssets: hexAssets.map(function (row) { return normalizeEntry(row, 'hex'); }).filter(Boolean).slice(-120)
+    };
+  }
+
+  function ensureCombatSceneRulesExtensions(rules) {
+    var next = Object.assign({ rollMode: 'auto', defaultActionType: 'ranged', targetCoverOverrides: {}, lootDrops: {} }, rules && typeof rules === 'object' ? rules : {});
+    next.lootDrops = Object.assign({}, next.lootDrops || {});
+    next.targetCoverOverrides = Object.assign({}, next.targetCoverOverrides || {});
+    next.mapLootCaches = Object.assign({}, next.mapLootCaches || {});
+    next.hazardChecks = Object.assign({}, next.hazardChecks || {});
+    next.assetFolders = normalizeCombatAssetFolders(next.assetFolders || {});
+    return next;
+  }
+
+  function appendCombatAssetToFolder(folderKey, file, contextLabel, options) {
+    if (!file || String(file.type || '').indexOf('image/') !== 0) return false;
+    var cfg = options && typeof options === 'object' ? options : {};
+    var applyAsBackground = !!cfg.applyAsBackground;
+    var reader = new FileReader();
+    var kindLabel = folderKey === 'mapAssets' ? 'map folder' : 'hex folder';
+    setCombatAssetUpload({
+      name: String(file.name || 'image'),
+      kind: folderKey === 'mapAssets' ? 'battlemap-folder' : 'hex-folder',
+      loaded: 0,
+      total: Math.max(1, Number(file.size || 1)),
+      pct: 0,
+      status: 'Reading...'
+    });
+    reader.onprogress = function (ev) {
+      var total = Math.max(1, Number(ev && ev.total || file.size || 1));
+      var loaded = Math.max(0, Number(ev && ev.loaded || 0));
+      setCombatAssetUpload({
+        name: String(file.name || 'image'),
+        kind: folderKey === 'mapAssets' ? 'battlemap-folder' : 'hex-folder',
+        loaded: loaded,
+        total: total,
+        pct: Math.max(0, Math.min(100, Math.round((loaded / total) * 100))),
+        status: 'Uploading...'
+      });
+    };
+    reader.onload = function () {
+      var dataUrl = String(reader.result || '');
+      if (!dataUrl) {
+        safeNotif('Image upload failed.', 'warn');
+        return;
+      }
+      captureUndoSnapshot('Upload ' + (folderKey === 'mapAssets' ? 'Map Asset' : 'Hex Asset'));
+      store.setState(function (state) {
+        var next = Object.assign({}, state);
+        var rules = ensureCombatSceneRulesExtensions(state.sceneRules);
+        var entry = {
+          id: uid(folderKey === 'mapAssets' ? 'map' : 'hex'),
+          name: String(file.name || (folderKey === 'mapAssets' ? 'Uploaded Map' : 'Uploaded Hex')),
+          src: dataUrl,
+          uploadedAt: Date.now()
+        };
+        var folder = normalizeCombatAssetFolders(rules.assetFolders || {});
+        var rows = Array.isArray(folder[folderKey]) ? folder[folderKey].slice() : [];
+        rows.unshift(entry);
+        folder[folderKey] = rows.slice(0, folderKey === 'mapAssets' ? 60 : 120);
+        rules.assetFolders = folder;
+        next.sceneRules = rules;
+        if (applyAsBackground && folderKey === 'mapAssets') {
+          next.board = Object.assign({}, state.board || {}, { background: dataUrl });
+        }
+        persist(next);
+        return next;
+      });
+      setCombatAssetUpload({
+        name: String(file.name || 'image'),
+        kind: folderKey === 'mapAssets' ? 'battlemap-folder' : 'hex-folder',
+        loaded: Math.max(1, Number(file.size || 1)),
+        total: Math.max(1, Number(file.size || 1)),
+        pct: 100,
+        status: applyAsBackground && folderKey === 'mapAssets' ? 'Stored + Applied' : 'Stored'
+      });
+      if (applyAsBackground && folderKey === 'mapAssets') {
+        addHistory('Battlemap applied from uploaded map folder: ' + String(file.name || 'image') + '.');
+        safeNotif('Battlemap uploaded and applied from ' + String(contextLabel || 'asset dock') + '.', 'good');
+      } else {
+        addHistory('Asset saved to ' + kindLabel + ': ' + String(file.name || 'image') + '.');
+        safeNotif('Asset saved to ' + kindLabel + '.', 'good');
+      }
+      drawBoard();
+      updateUiPanels();
+      setTimeout(function () {
+        var current = store.getState();
+        if (current && current.assetUpload && String(current.assetUpload.name || '') === String(file.name || '')) {
+          setCombatAssetUpload(null);
+        }
+      }, 1200);
+    };
+    reader.onerror = function () {
+      setCombatAssetUpload({
+        name: String(file.name || 'image'),
+        kind: folderKey === 'mapAssets' ? 'battlemap-folder' : 'hex-folder',
+        loaded: 0,
+        total: Math.max(1, Number(file.size || 1)),
+        pct: 0,
+        status: 'Failed'
+      });
+      safeNotif('Asset upload failed.', 'warn');
+    };
+    reader.readAsDataURL(file);
+    return true;
+  }
+
   function handleCombatBoardDropEvent(ev, canvas) {
     if (!canvas) return false;
     ev.preventDefault();
@@ -543,6 +669,19 @@
       hazardDamage: hazardDamage,
       interactive: interactive
     };
+  }
+
+  function getUploadedHexAssetById(state, assetId) {
+    var id = String(assetId || '').toLowerCase();
+    if (!id) return null;
+    var rules = ensureCombatSceneRulesExtensions(state && state.sceneRules || {});
+    var rows = rules.assetFolders && Array.isArray(rules.assetFolders.hexAssets) ? rules.assetFolders.hexAssets : [];
+    for (var i = 0; i < rows.length; i++) {
+      var entry = rows[i];
+      if (!entry) continue;
+      if (String(entry.id || '').toLowerCase() === id) return entry;
+    }
+    return null;
   }
 
   function isHexRevealed(state, q, r) {
@@ -1339,7 +1478,7 @@
     next.fog.seen = Object.assign({}, next.fog.seen || {});
     next.fog.revealed = Object.assign({}, next.fog.revealed || {});
     next.fog.revealOrder = Object.assign({}, next.fog.revealOrder || {});
-    next.sceneRules = Object.assign({ rollMode: 'auto', defaultActionType: 'ranged' }, next.sceneRules && typeof next.sceneRules === 'object' ? next.sceneRules : {});
+    next.sceneRules = ensureCombatSceneRulesExtensions(next.sceneRules);
     next.rulerOptions = Object.assign({ shape: 'line', fadeDelay: 'linger', snapToGrid: true }, next.rulerOptions && typeof next.rulerOptions === 'object' ? next.rulerOptions : {});
     next.assetBrowser = Object.assign({ category: 'heroes', query: '' }, next.assetBrowser && typeof next.assetBrowser === 'object' ? next.assetBrowser : {});
     next.tokens = Array.isArray(next.tokens) ? next.tokens : [];
@@ -1678,7 +1817,10 @@
       rollMode: 'auto',
       defaultActionType: 'ranged',
       targetCoverOverrides: {},
-      lootDrops: {}
+      lootDrops: {},
+      mapLootCaches: {},
+      hazardChecks: {},
+      assetFolders: { mapAssets: [], hexAssets: [] }
     },
     layers: {
       terrain: {},
@@ -2033,7 +2175,7 @@
   }
 
   function ensureLootDrops(state) {
-    var rules = Object.assign({}, state.sceneRules || {});
+    var rules = ensureCombatSceneRulesExtensions(state && state.sceneRules || {});
     rules.lootDrops = Object.assign({}, rules.lootDrops || {});
     return rules;
   }
@@ -2511,24 +2653,179 @@
     return true;
   }
 
-  function stockLootCacheAt(q, r) {
+  function getCombatActionDieOptions() {
+    return [
+      { key: 'strike', label: 'Strike' },
+      { key: 'shoot', label: 'Shoot' },
+      { key: 'defend', label: 'Defend' },
+      { key: 'control', label: 'Control' },
+      { key: 'body', label: 'Body' },
+      { key: 'mind', label: 'Mind' },
+      { key: 'spirit', label: 'Spirit' },
+      { key: 'lead', label: 'Lead' }
+    ];
+  }
+
+  function ensureLootCacheObjectAt(q, r) {
+    var key = toKey(q, r);
+    store.setState(function (state) {
+      var current = String(state.layers && state.layers.objects && state.layers.objects[key] || '');
+      if (current === 'loot-cache') return state;
+      var next = Object.assign({}, state);
+      next.layers = Object.assign({}, state.layers || {});
+      next.layers.objects = Object.assign({}, state.layers && state.layers.objects || {});
+      next.layers.objects[key] = 'loot-cache';
+      persist(next);
+      return next;
+    });
+  }
+
+  function rollLootCacheAffixLabel() {
+    var catalog = ['Ashbound', 'Moonchained', 'Thornwake', 'Hollowglass', 'Dreadforged', 'Graven', 'Saltfire', 'Umbral'];
+    return String(catalog[Math.floor(Math.random() * catalog.length)] || 'Ashbound');
+  }
+
+  function buildLootCacheItems(config) {
+    var cfg = Object.assign({ credits: true, items: true, affixes: true, tier: 8 }, config && typeof config === 'object' ? config : {});
+    var out = [];
+    var tier = Math.max(1, Number(cfg.tier || 8));
+    if (cfg.credits) {
+      var minCredits = Math.max(10, tier * 4);
+      var maxCredits = Math.max(minCredits, tier * 10);
+      var credits = Math.max(minCredits, minCredits + Math.floor(Math.random() * (maxCredits - minCredits + 1)));
+      out.push('Credits x' + String(credits));
+    }
+    if (cfg.items) {
+      var rolled = pickMerchantLootItemsForToken(tier);
+      if (rolled.length) {
+        rolled.forEach(function (entry) { out.push(entry); });
+      } else {
+        out.push('Traveler Supplies');
+      }
+    }
+    if (cfg.affixes) {
+      var affixCount = Math.max(1, Math.min(2, Math.ceil(tier / 8)));
+      for (var i = 0; i < affixCount; i++) {
+        out.push('Affix Sigil [' + rollLootCacheAffixLabel() + ']');
+      }
+    }
+    return out;
+  }
+
+  function getHazardCheckConfigAt(state, q, r, profile) {
+    var rules = ensureCombatSceneRulesExtensions(state && state.sceneRules || {});
+    var key = toKey(q, r);
+    var fromRules = rules.hazardChecks && rules.hazardChecks[key] || null;
+    var objects = layerTextValue(state, 'objects', q, r);
+    var hazards = layerTextValue(state, 'hazards', q, r);
+    var hazardLabel = String(hazards || objects || 'Hazard').trim() || 'Hazard';
+    var defaultDd = Math.max(4, Math.min(20, 4 + Math.max(1, Number(profile && profile.hazardDamage || 1)) * 2));
+    return {
+      key: key,
+      label: String(fromRules && fromRules.label || hazardLabel),
+      dd: Math.max(4, Math.min(20, Number(fromRules && fromRules.dd || defaultDd))),
+      dieKey: String(fromRules && fromRules.dieKey || 'defend'),
+      onFailDamage: Math.max(1, Number(fromRules && fromRules.onFailDamage || profile && profile.hazardDamage || 1))
+    };
+  }
+
+  function configureHazardCheckAt(q, r) {
+    if (!isGmController()) {
+      safeNotif('Only the GM can configure hazard checks.', 'warn');
+      return false;
+    }
+    var state = store.getState();
+    var profile = getLayerGameplayProfile(state, q, r);
+    var current = getHazardCheckConfigAt(state, q, r, profile);
+    var dd = promptManualDieTotal('Hazard DD at ' + toKey(q, r) + ' (4-20):', current.dd, 4, 20);
+    if (dd === null) return false;
+    var damage = promptManualDieTotal('On fail damage (1-10):', current.onFailDamage, 1, 10);
+    if (damage === null) return false;
+    var diePrompt = window.prompt('Default suggested die key (strike/shoot/defend/control/body/mind/spirit/lead):', String(current.dieKey || 'defend'));
+    if (diePrompt === null) return false;
+    var normalizedDie = String(diePrompt || 'defend').trim().toLowerCase();
+    var allowed = getCombatActionDieOptions().map(function (entry) { return entry.key; });
+    if (allowed.indexOf(normalizedDie) < 0) normalizedDie = 'defend';
+    store.setState(function (inner) {
+      var next = Object.assign({}, inner);
+      var rules = ensureCombatSceneRulesExtensions(inner.sceneRules);
+      rules.hazardChecks = Object.assign({}, rules.hazardChecks || {});
+      rules.hazardChecks[toKey(q, r)] = {
+        dd: Number(dd),
+        dieKey: normalizedDie,
+        label: current.label,
+        onFailDamage: Number(damage)
+      };
+      next.sceneRules = rules;
+      persist(next);
+      return next;
+    });
+    addHistory('Hazard check configured at ' + toKey(q, r) + ': DD' + dd + ', default ' + normalizedDie + ', fail ' + damage + ' damage.');
+    safeNotif('Hazard check configured.', 'good');
+    return true;
+  }
+
+  function runHazardCheckDialogForToken(token, q, r, profile, options) {
+    if (!token) return false;
+    var opts = options && typeof options === 'object' ? options : {};
+    var state = store.getState();
+    var cfg = getHazardCheckConfigAt(state, q, r, profile || getLayerGameplayProfile(state, q, r));
+    var actionDice = getCombatActionDieOptions();
+    var suggestedIdx = Math.max(0, actionDice.findIndex(function (entry) { return entry.key === cfg.dieKey; }));
+    var menu = actionDice.map(function (entry, idx) {
+      var sides = Math.max(2, Number(getWayfarerEffectiveDie(entry.key, 6) || 6));
+      return String(idx + 1) + '. ' + entry.label + ' (d' + sides + ')';
+    }).join('\n');
+    var pickRaw = window.prompt('Hazard Check at ' + toKey(q, r) + ' vs DD' + cfg.dd + '\nChoose action die:\n' + menu, String(suggestedIdx + 1));
+    if (pickRaw === null) {
+      safeNotif('Hazard check cancelled.', 'info');
+      return false;
+    }
+    var pickIdx = Math.max(1, Math.min(actionDice.length, Number(pickRaw || suggestedIdx + 1))) - 1;
+    var dieChoice = actionDice[pickIdx] || actionDice[suggestedIdx] || actionDice[2];
+    var dieSides = Math.max(2, Number(getWayfarerEffectiveDie(dieChoice.key, 6) || 6));
+    var manualMode = !state.autoRoll || isManualRollModeActive();
+    var total = manualMode
+      ? promptManualDieTotal('Manual hazard check total for ' + dieChoice.label + ' vs DD' + cfg.dd + ':', Math.max(1, Math.floor(dieSides / 2)), 1, 40)
+      : rollCombatDieTotal(dieSides, 'action', 'Hazard Check (' + dieChoice.label + ')');
+    if (total === null) {
+      safeNotif('Hazard check cancelled.', 'info');
+      return false;
+    }
+    var success = Number(total) >= Number(cfg.dd);
+    if (success) {
+      addHistory(String(token.name || 'Token') + ' clears hazard check (' + cfg.label + ') with ' + dieChoice.label + ' ' + total + ' vs DD' + cfg.dd + '.');
+      safeNotif('Hazard check passed.', 'good');
+      return true;
+    }
+    var failDamage = Math.max(1, Number(opts.failDamage || cfg.onFailDamage || profile && profile.hazardDamage || 1));
+    applyDamageToToken(token.id, failDamage, 'Hazard');
+    addHistory(String(token.name || 'Token') + ' fails hazard check (' + cfg.label + ') with ' + dieChoice.label + ' ' + total + ' vs DD' + cfg.dd + ' and takes ' + failDamage + ' damage.');
+    safeNotif('Hazard check failed: ' + failDamage + ' damage.', 'warn');
+    return false;
+  }
+
+  function stockLootCacheAt(q, r, options) {
     if (!isGmController()) {
       safeNotif('Only the GM can stock loot caches.', 'warn');
       return false;
     }
+    var cfg = Object.assign({ credits: true, items: true, affixes: true, tier: 8 }, options && typeof options === 'object' ? options : {});
     var key = toKey(q, r);
     var stocked = [];
+    ensureLootCacheObjectAt(q, r);
     store.setState(function (state) {
       var next = Object.assign({}, state);
-      var rules = ensureLootDrops(state);
+      var rules = ensureCombatSceneRulesExtensions(ensureLootDrops(state));
       rules.mapLootCaches = Object.assign({}, rules.mapLootCaches || {});
-      stocked = pickMerchantLootItemsForToken(8);
+      stocked = buildLootCacheItems(cfg);
       if (!stocked.length) stocked = ['Credits x40', 'Traveler Supplies'];
       rules.mapLootCaches[key] = {
         id: uid('cache'),
         q: Number(q || 0),
         r: Number(r || 0),
         items: stocked.slice(),
+        config: Object.assign({}, cfg),
         stockedAt: Date.now()
       };
       next.sceneRules = rules;
@@ -2536,7 +2833,7 @@
       return next;
     });
     addHistory('Loot cache stocked at ' + key + ': ' + stocked.join(', ') + '.');
-    safeNotif('Loot cache stocked from merchant tables.', 'good');
+    safeNotif('Loot cache stocked with generated rewards.', 'good');
     return true;
   }
 
@@ -3717,6 +4014,8 @@
       return;
     }
     var destinationProfile = getLayerGameplayProfile(state, q, r);
+    var destinationObject = layerTextValue(state, 'objects', q, r);
+    var hasObstacleCheck = /obstacle|trap|turret|barricade|crate|pillar/.test(destinationObject);
     var movementCost = Math.max(1, distance + Math.max(0, Number(destinationProfile.moveTax || 0)));
     var boardSize = Number(state.board && state.board.size || 42) * Number(state.board && state.board.zoom || 1);
     var offsetX = actor.freeform ? clampTokenOffset(placement && placement.offsetX, boardSize) : 0;
@@ -3738,10 +4037,9 @@
     var token = byId(tokenId);
     if (token) {
       addHistory(String(token.name || 'Token') + ' moved to ' + toKey(q, r) + ' (cost ' + movementCost + ' action' + (movementCost === 1 ? '' : 's') + ').');
-      if (Number(destinationProfile.hazardDamage || 0) > 0) {
-        var hz = Math.max(1, Number(destinationProfile.hazardDamage || 0));
-        applyDamageToToken(token.id, hz, 'Hazard');
-        addHistory(String(token.name || 'Token') + ' takes ' + hz + ' hazard damage from tile effects.');
+      if (Number(destinationProfile.hazardDamage || 0) > 0 || hasObstacleCheck) {
+        var hz = Math.max(1, Number(destinationProfile.hazardDamage || 0) || (hasObstacleCheck ? 1 : 0));
+        runHazardCheckDialogForToken(token, q, r, destinationProfile, { failDamage: hz });
       }
     }
     if (activeMovement && actor && String(actor.faction || '') === 'monster') {
@@ -4123,6 +4421,7 @@
       + '</div>'
       + '</div>'
       + '<input id="combatMapImageInput" type="file" accept="image/*" style="display:none;">'
+      + '<input id="combatHexAssetImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatTokenImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatImportSceneInput" type="file" accept="application/json,.json" style="display:none;">'
       + '<div id="combatAriaLive" aria-live="polite" aria-atomic="true" class="combat-sr-only"></div>'
@@ -4259,6 +4558,7 @@
       + '<div><div class="combat-label">Asset Dock</div><div class="combat-mini" id="combatAssetDockMeta">Drag from the drawer straight onto the board.</div></div>'
       + '<div style="display:flex;gap:.24rem;align-items:center;">'
       + '<button class="btn btn-xs" id="combatAssetDockUploadBtn">Upload Map</button>'
+      + '<button class="btn btn-xs" id="combatAssetDockUploadHexBtn">Upload Hex</button>'
       + '<button class="btn btn-xs" id="combatAssetDockToggleBtn" title="Collapse asset dock">Hide</button>'
       + '</div>'
       + '</div>'
@@ -5015,6 +5315,21 @@
           ctx.globalAlpha = getLayerOpacity(state, 'terrain');
           ctx.fillStyle = colorForTerrain(terrain);
           ctx.fill();
+          if (terrain.indexOf('hexasset:') === 0) {
+            var hexAssetId = terrain.split(':')[1] || '';
+            var hexAssetEntry = getUploadedHexAssetById(state, hexAssetId);
+            if (hexAssetEntry && hexAssetEntry.src) {
+              var hexSprite = getTokenSprite(String(hexAssetEntry.src || ''));
+              if (hexSprite && hexSprite.loaded && hexSprite.image && !hexSprite.errored) {
+                ctx.save();
+                drawHex(ctx, p.x, p.y, size - 1.6);
+                ctx.clip();
+                ctx.globalAlpha = 0.95 * getLayerOpacity(state, 'terrain');
+                ctx.drawImage(hexSprite.image, p.x - size, p.y - size, size * 2, size * 2);
+                ctx.restore();
+              }
+            }
+          }
           ctx.restore();
         }
         ctx.lineWidth = 1;
@@ -5833,8 +6148,10 @@
     var assetUploadBar = document.getElementById('combatAssetUploadBar');
     var assetUploadLabel = document.getElementById('combatAssetUploadLabel');
     if (assetCategoryRow && assetSearch && assetFeed) {
-      var cats = ['heroes', 'villains', 'townsfolk', 'battlemaps', 'objects', 'terrain'];
+      var cats = ['heroes', 'villains', 'townsfolk', 'battlemaps', 'objects', 'terrain', 'utilities'];
       var ab = Object.assign({ category: 'heroes', query: '' }, state.assetBrowser || {});
+      var rules = ensureCombatSceneRulesExtensions(state.sceneRules);
+      var folders = normalizeCombatAssetFolders(rules.assetFolders || {});
       var uiState = normalizeCombatUi(state.ui);
       if (assetDock) assetDock.classList.toggle('open', !!uiState.assetDrawerOpen);
       if (assetDockToggleBtn) assetDockToggleBtn.textContent = uiState.assetDrawerOpen ? 'Hide' : 'Show';
@@ -5896,13 +6213,26 @@
         { id: 'map-urban', name: 'Urban Grid 20x20', action: 'map-preset', payload: { cols: 20, rows: 20, weather: 'none' } },
         { id: 'map-fog', name: 'Fog Valley 18x12', action: 'map-preset', payload: { cols: 18, rows: 12, weather: 'fog' } },
         { id: 'map-storm', name: 'Storm Deck 18x10', action: 'map-preset', payload: { cols: 18, rows: 10, weather: 'storm' } }
-      ];
+      ].concat((folders.mapAssets || []).map(function (entry) {
+        return { id: 'map-upload-' + String(entry.id || ''), name: String(entry.name || 'Uploaded Map'), action: 'map-uploaded', payload: String(entry.id || '') };
+      }));
       var objectAssets = ['obstacle', 'door', 'turret', 'trap', 'shrine', 'spawn', 'wall', 'vision-blocker', 'crate', 'pillar', 'barricade', 'altar', 'console', 'loot-cache', 'beacon'].map(function (name) {
         return { id: 'obj-' + name, name: name, action: 'paint-object', payload: name };
-      });
+      }).concat([
+        { id: 'obj-loot-cache-stocked', name: 'loot-cache (stocked)', action: 'stock-cache', payload: 'balanced' },
+        { id: 'obj-loot-cache-credits', name: 'loot-cache (credits only)', action: 'stock-cache', payload: 'credits' }
+      ]);
       var terrainAssets = ['road', 'forest', 'marsh', 'crags', 'water', 'lava', 'ruins', 'difficult terrain', 'cobblestone'].map(function (name) {
         return { id: 'terrain-' + name.replace(/\s+/g, '-'), name: name, action: 'paint-terrain', payload: name };
-      });
+      }).concat((folders.hexAssets || []).map(function (entry) {
+        return { id: 'hex-upload-' + String(entry.id || ''), name: 'hex · ' + String(entry.name || 'Uploaded Hex'), action: 'paint-terrain', payload: 'hexasset:' + String(entry.id || '') };
+      }));
+      var utilityAssets = [
+        { id: 'util-hazard-check', name: 'Hazard Check Dialog', action: 'hazard-check', payload: '' },
+        { id: 'util-config-hazard', name: 'Configure Hazard DD', action: 'hazard-config', payload: '' },
+        { id: 'util-upload-map', name: 'Upload to Map Folder', action: 'upload-map-folder', payload: '' },
+        { id: 'util-upload-hex', name: 'Upload to Hex Folder', action: 'upload-hex-folder', payload: '' }
+      ];
 
       function assetEmoji(itemName, category) {
         var n = String(itemName || '').toLowerCase();
@@ -5910,9 +6240,15 @@
           if (n.indexOf('urban') >= 0) return '🏙';
           if (n.indexOf('storm') >= 0) return '⛈';
           if (n.indexOf('fog') >= 0) return '🌫';
+          if (n.indexOf('uploaded') >= 0) return '🖼';
           return '🗺';
         }
         if (category === 'terrain') return getCombatAssetGlyph(itemName, 'terrain');
+        if (category === 'utilities') {
+          if (n.indexOf('hazard') >= 0) return '☣';
+          if (n.indexOf('upload') >= 0) return '⬆';
+          return '🧰';
+        }
         if (category === 'heroes') return '🛡';
         if (category === 'villains') return '☠';
         if (category === 'townsfolk') return '👥';
@@ -5932,6 +6268,7 @@
       else if (ab.category === 'battlemaps') pool = battlemapsAssets;
       else if (ab.category === 'objects') pool = objectAssets;
       else if (ab.category === 'terrain') pool = terrainAssets;
+      else if (ab.category === 'utilities') pool = utilityAssets;
 
       var qLower = String(ab.query || '').toLowerCase();
       var filtered = pool.filter(function (item) {
@@ -5942,7 +6279,7 @@
         ? filtered.map(function (item) {
           var icon = assetEmoji(item.name, ab.category);
           return '<article class="combat-feed-line combat-asset-card" draggable="true" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '" data-asset-label="' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '">'
-            + '<div class="combat-asset-card-main"><strong>' + icon + ' ' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</strong><span class="combat-mini">' + (ab.category === 'battlemaps' ? 'Drop to update the board background or click to apply.' : 'Drop to place directly on the board.') + '</span></div>'
+            + '<div class="combat-asset-card-main"><strong>' + icon + ' ' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</strong><span class="combat-mini">' + (ab.category === 'battlemaps' ? 'Drop to update the board background or click to apply.' : (ab.category === 'utilities' ? 'Click to run utility workflow.' : 'Drop to place directly on the board.')) + '</span></div>'
             + '<button class="btn btn-xs" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '">Use</button>'
             + '</article>';
         }).join('')
@@ -5990,6 +6327,19 @@
               return next3;
             });
             addHistory('Battlemap preset applied: ' + chosen.name + '.');
+          } else if (action === 'map-uploaded') {
+            var selectedMap = (folders.mapAssets || []).find(function (entry) { return String(entry.id || '') === String(chosen.payload || ''); }) || null;
+            if (selectedMap && selectedMap.src) {
+              store.setState(function (innerMap) {
+                var nextMap = Object.assign({}, innerMap);
+                nextMap.board = Object.assign({}, innerMap.board || {}, { background: String(selectedMap.src || '') });
+                persist(nextMap);
+                return nextMap;
+              });
+              backgroundCache.src = '';
+              backgroundCache.img = null;
+              addHistory('Battlemap applied from folder: ' + String(selectedMap.name || 'Uploaded Map') + '.');
+            }
           } else if (action === 'paint-object') {
             store.setState(function (inner4) {
               var next4 = Object.assign({}, inner4, { activeLayer: 'objects', activeTool: 'paint', paintValue: String(chosen.payload || 'obstacle') });
@@ -5997,6 +6347,8 @@
               return next4;
             });
             safeNotif('Object painter ready: ' + String(chosen.payload || 'object') + '.', 'good');
+          } else if (action === 'stock-cache') {
+            window.applyCombatAssetActionAt('stock-cache', String(chosen.payload || 'balanced'), baseQ + 1, baseR + 1, true);
           } else if (action === 'paint-terrain') {
             store.setState(function (inner5) {
               var next5 = Object.assign({}, inner5, { activeLayer: 'terrain', activeTool: 'paint', paintValue: String(chosen.payload || 'road') });
@@ -6004,6 +6356,14 @@
               return next5;
             });
             safeNotif('Terrain painter ready: ' + String(chosen.payload || 'terrain') + '.', 'good');
+          } else if (action === 'hazard-check') {
+            window.applyCombatAssetActionAt('hazard-check', '', baseQ, baseR, false);
+          } else if (action === 'hazard-config') {
+            window.applyCombatAssetActionAt('hazard-config', '', baseQ, baseR, false);
+          } else if (action === 'upload-map-folder') {
+            window.applyCombatAssetActionAt('upload-map-folder', '', baseQ, baseR, false);
+          } else if (action === 'upload-hex-folder') {
+            window.applyCombatAssetActionAt('upload-hex-folder', '', baseQ, baseR, false);
           }
           drawBoard();
           updateUiPanels();
@@ -6029,12 +6389,18 @@
           } else if (action === 'map-preset') {
             dragKind = 'preset';
             dragPayload = String(chosen.name || 'urban').toLowerCase().indexOf('storm') >= 0 ? 'storm' : 'urban';
+          } else if (action === 'map-uploaded') {
+            dragKind = 'set-map';
+            dragPayload = String(chosen.payload || '');
           } else if (action === 'paint-object') {
             dragKind = 'set-tool';
             dragPayload = 'objects:' + String(chosen.payload || 'obstacle');
           } else if (action === 'paint-terrain') {
             dragKind = 'set-tool';
             dragPayload = 'terrain:' + String(chosen.payload || 'road');
+          } else if (action === 'stock-cache') {
+            dragKind = 'stock-cache';
+            dragPayload = String(chosen.payload || 'balanced');
           }
           if (dragKind) {
             window.__combatAssetDragPayload = { kind: String(dragKind || ''), payload: String(dragPayload || '') };
@@ -7247,8 +7613,23 @@
       var token = findTokenAtCanvasPoint(state, ev.clientX - rect.left, ev.clientY - rect.top) || nearestTokenAt(ax.q, ax.r);
       if (!token) {
         var cellKey = toKey(ax.q, ax.r);
-        if (String(state.layers && state.layers.objects && state.layers.objects[cellKey] || '') === 'loot-cache') {
-          stockLootCacheAt(ax.q, ax.r);
+        var cellObject = String(state.layers && state.layers.objects && state.layers.objects[cellKey] || '');
+        var cellHazard = String(state.layers && state.layers.hazards && state.layers.hazards[cellKey] || '');
+        if (cellObject === 'loot-cache') {
+          var mode = window.prompt('Loot cache controls at ' + cellKey + ':\n1) Stock balanced (credits/items/affixes)\n2) Stock credits only\n3) Stock items + affixes', '1');
+          if (mode === '2') stockLootCacheAt(ax.q, ax.r, { credits: true, items: false, affixes: false, tier: 8 });
+          else if (mode === '3') stockLootCacheAt(ax.q, ax.r, { credits: false, items: true, affixes: true, tier: 8 });
+          else if (mode !== null) stockLootCacheAt(ax.q, ax.r, { credits: true, items: true, affixes: true, tier: 8 });
+        }
+        if (cellHazard) {
+          var selectedToken = byId(state.selectedTokenId);
+          var hazardMode = window.prompt('Hazard controls at ' + cellKey + ':\n1) Run hazard check (selected token)\n2) Configure hazard DD/damage', '1');
+          if (hazardMode === '2') {
+            configureHazardCheckAt(ax.q, ax.r);
+          } else if (hazardMode !== null) {
+            if (!selectedToken) safeNotif('Select a token to run hazard checks.', 'warn');
+            else runHazardCheckDialogForToken(selectedToken, ax.q, ax.r, getLayerGameplayProfile(state, ax.q, ax.r));
+          }
         }
         hideTokenContextMenu();
         return;
@@ -8386,12 +8767,46 @@
           return next4;
         });
         addHistory('Battlemap preset applied: ' + String(value || 'urban') + '.');
+      } else if (action === 'set-map') {
+        var mapEntry = (ensureCombatSceneRulesExtensions(store.getState().sceneRules).assetFolders.mapAssets || []).find(function (entry) {
+          return String(entry.id || '') === String(value || '');
+        }) || null;
+        if (mapEntry && mapEntry.src) {
+          captureUndoSnapshot('Apply Uploaded Map');
+          store.setState(function (innerSetMap) {
+            var nextSetMap = Object.assign({}, innerSetMap);
+            nextSetMap.board = Object.assign({}, innerSetMap.board || {}, { background: String(mapEntry.src || '') });
+            persist(nextSetMap);
+            return nextSetMap;
+          });
+          backgroundCache.src = '';
+          backgroundCache.img = null;
+          addHistory('Battlemap applied from uploaded folder: ' + String(mapEntry.name || 'Uploaded Map') + '.');
+        }
+      } else if (action === 'stock-cache') {
+        ensureLootCacheObjectAt(q, r);
+        if (String(value || '') === 'credits') stockLootCacheAt(q, r, { credits: true, items: false, affixes: false, tier: 8 });
+        else stockLootCacheAt(q, r, { credits: true, items: true, affixes: true, tier: 8 });
+      } else if (action === 'hazard-check') {
+        var hazardToken = byId(store.getState().selectedTokenId);
+        if (!hazardToken) safeNotif('Select a token to run hazard checks.', 'warn');
+        else runHazardCheckDialogForToken(hazardToken, q, r, getLayerGameplayProfile(store.getState(), q, r));
+      } else if (action === 'hazard-config') {
+        configureHazardCheckAt(q, r);
       } else if (action === 'template') {
         if (typeof window.setupSceneTemplate === 'function') window.setupSceneTemplate(value || 'quick');
       } else if (action === 'upload-map') {
         var uploadMapBtn = document.getElementById('combatUploadMapBtn');
         setCombatAssetDrawerOpen(true);
         if (uploadMapBtn && typeof uploadMapBtn.click === 'function') uploadMapBtn.click();
+      } else if (action === 'upload-map-folder') {
+        var mapFolderInput = document.getElementById('combatMapImageInput');
+        setCombatAssetDrawerOpen(true);
+        if (mapFolderInput && typeof mapFolderInput.click === 'function') mapFolderInput.click();
+      } else if (action === 'upload-hex-folder') {
+        var hexFolderInput = document.getElementById('combatHexAssetImageInput');
+        setCombatAssetDrawerOpen(true);
+        if (hexFolderInput && typeof hexFolderInput.click === 'function') hexFolderInput.click();
       } else if (action === 'open-drawer') {
         setCombatAssetDrawerOpen(true);
         var drawer = document.getElementById('combatBestiaryDrawer');
@@ -9323,7 +9738,9 @@
     var uploadMapBtn = document.getElementById('combatUploadMapBtn');
     var clearMapBtn = document.getElementById('combatClearMapBtn');
     var uploadMapInput = document.getElementById('combatMapImageInput');
+    var uploadHexAssetInput = document.getElementById('combatHexAssetImageInput');
     var assetDockUploadBtn = document.getElementById('combatAssetDockUploadBtn');
+    var assetDockUploadHexBtn = document.getElementById('combatAssetDockUploadHexBtn');
     var assetDockToggleBtn = document.getElementById('combatAssetDockToggleBtn');
     if (uploadMapBtn && uploadMapInput && !uploadMapBtn._bound) {
       uploadMapBtn._bound = true;
@@ -9331,7 +9748,7 @@
       uploadMapInput.onchange = function () {
         var file = uploadMapInput.files && uploadMapInput.files[0];
         if (!file) return;
-        applyBattlemapFile(file, 'asset dock upload');
+        appendCombatAssetToFolder('mapAssets', file, 'asset dock upload', { applyAsBackground: true });
         uploadMapInput.value = '';
       };
     }
@@ -9341,6 +9758,24 @@
       assetDockUploadBtn.onclick = function () {
         setCombatAssetDrawerOpen(true);
         uploadMapInput.click();
+      };
+    }
+
+    if (assetDockUploadHexBtn && uploadHexAssetInput && !assetDockUploadHexBtn._bound) {
+      assetDockUploadHexBtn._bound = true;
+      assetDockUploadHexBtn.onclick = function () {
+        setCombatAssetDrawerOpen(true);
+        uploadHexAssetInput.click();
+      };
+    }
+
+    if (uploadHexAssetInput && !uploadHexAssetInput._bound) {
+      uploadHexAssetInput._bound = true;
+      uploadHexAssetInput.onchange = function () {
+        var file = uploadHexAssetInput.files && uploadHexAssetInput.files[0];
+        if (!file) return;
+        appendCombatAssetToFolder('hexAssets', file, 'asset dock upload', { applyAsBackground: false });
+        uploadHexAssetInput.value = '';
       };
     }
 

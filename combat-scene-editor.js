@@ -1909,7 +1909,7 @@
         + buildLootShortcuts(token);
     }
     if (typeof window.openModal === 'function') {
-      window.openModal('Combat Sheet · ' + String(token.name || 'Token'), '<div style="display:grid;gap:.2rem;max-height:58vh;overflow:auto;">' + body + '</div>');
+      window.openModal('Combat Sheet · ' + String(token.name || 'Token'), '<div style="display:grid;gap:.2rem;max-height:58vh;overflow:auto;">' + body + '</div>', null, { preventScroll: true, focusTrap: true });
     } else {
       safeNotif('Token Sheet: ' + String(token.name || 'Token'), 'info');
     }
@@ -2045,6 +2045,10 @@
     var root = document.createElement('section');
     root.id = 'combatModeOverlay';
     root.className = 'combat-mode-overlay';
+    root.setAttribute('tabindex', '-1');
+    setTimeout(function() {
+      try { root.focus({ preventScroll: true }); } catch (e) { root.focus(); }
+    }, 0);
     root.innerHTML = ''
       + '<div class="combat-entry-splash" id="combatEntrySplash">'
       + '<div class="combat-entry-card">'
@@ -2449,16 +2453,25 @@
     if (!card || !wrap) return;
     if (!renderLootPopupForToken(tokenId)) return;
     card.style.display = 'block';
-    var fallbackX = Math.round(wrap.clientWidth / 2);
-    var fallbackY = Math.round(wrap.clientHeight / 2);
-    var x = typeof anchorX === 'number' ? anchorX : fallbackX;
-    var y = typeof anchorY === 'number' ? anchorY : fallbackY;
+    card.style.position = 'fixed'; // Ensure overlay is fixed to viewport
+    // Calculate viewport-relative position
+    var rect = wrap.getBoundingClientRect();
+    var fallbackX = Math.round(rect.left + rect.width / 2);
+    var fallbackY = Math.round(rect.top + rect.height / 2);
+    var x = typeof anchorX === 'number' ? anchorX + rect.left : fallbackX;
+    var y = typeof anchorY === 'number' ? anchorY + rect.top : fallbackY;
     var cw = Math.max(220, Number(card.offsetWidth || 260));
     var ch = Math.max(120, Number(card.offsetHeight || 220));
-    var left = Math.min(Math.max(8, x + 14), Math.max(8, wrap.clientWidth - cw - 8));
-    var top = Math.min(Math.max(8, y + 14), Math.max(8, wrap.clientHeight - ch - 8));
+    var left = Math.min(Math.max(8, x + 14), window.innerWidth - cw - 8);
+    var top = Math.min(Math.max(8, y + 14), window.innerHeight - ch - 8);
     card.style.left = left + 'px';
     card.style.top = top + 'px';
+    card.setAttribute('tabindex', '-1');
+    try { card.focus({ preventScroll: true }); } catch (e) { card.focus(); }
+    // Prevent scroll jumps on open
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
+    }
   }
 
   function takeLootFromTokenDrop(tokenId, selectedIndexes, sourceLabel) {
@@ -4860,8 +4873,17 @@
         + '<input id="combatFxRounds" class="combat-input" type="number" min="1" max="20" value="2">'
         + '<button class="btn btn-xs btn-primary" onclick="(function(){var n=document.getElementById(\'combatFxName\');var s=document.getElementById(\'combatFxStress\');var r=document.getElementById(\'combatFxRounds\');if(window.applyCombatQuickEffect){window.applyCombatQuickEffect(String(n&&n.value||\'Condition\'),Number(s&&s.value||1),Number(r&&r.value||2));}if(typeof window.closeModal===\'function\')window.closeModal();})();">Apply</button>'
         + '</div>';
-      if (typeof window.openModal === 'function') window.openModal('Combat Effects', html);
-      else safeNotif('Effects modal requires modal support.', 'warn');
+      if (typeof window.openModal === 'function') {
+        window.openModal('Combat Effects', html, null, { preventScroll: true, focusTrap: true });
+        // Focus modal overlay for accessibility and scroll stability
+        setTimeout(function() {
+          var modal = document.getElementById('rollModal') || document.querySelector('.modal, .overlay, [role="dialog"]');
+          if (modal) {
+            modal.setAttribute('tabindex', '-1');
+            try { modal.focus({ preventScroll: true }); } catch (e) { modal.focus(); }
+          }
+        }, 0);
+      } else safeNotif('Effects modal requires modal support.', 'warn');
     }
 
     var toolbarSelectBtn = document.getElementById('combatToolbarSelectBtn');
@@ -5127,7 +5149,7 @@
           + '<label style="display:flex;align-items:center;gap:.4rem;"><input id="combatSettingsAutoRoll" type="checkbox" ' + (state.autoRoll ? 'checked' : '') + '> Auto roll mode</label>'
           + '<button class="btn btn-xs btn-primary" onclick="(function(){if(window.applyCombatSettingsFromModal)window.applyCombatSettingsFromModal();if(typeof window.closeModal===\'function\')window.closeModal();})();">Apply</button>'
           + '</div>';
-        if (typeof window.openModal === 'function') window.openModal('Combat Settings', html);
+        if (typeof window.openModal === 'function') window.openModal('Combat Settings', html, null, { preventScroll: true, focusTrap: true });
       };
     }
 
@@ -5839,7 +5861,7 @@
       + '<div><strong>Cover:</strong> use terrain and object layers to reduce incoming damage.</div>'
       + '</div>';
     if (typeof window.openModal === 'function') {
-      window.openModal('Combat Rules Reference', html);
+      window.openModal('Combat Rules Reference', html, null, { preventScroll: true, focusTrap: true });
     } else {
       safeNotif('Combat rules reference is available in modal-enabled views.', 'info');
     }
@@ -6050,7 +6072,7 @@
         }).join('');
         var modal = '<div style="font-size:.78rem;"><select id="sceneLoadSelect" style="width:100%;padding:.3rem;margin:.2rem 0;border:1px solid rgba(227,188,94,.5);background:rgba(9,13,24,.95);color:#fff;">' + options + '</select><div style="margin-top:.3rem;display:flex;gap:.2rem;"><button class="btn btn-xs btn-primary" onclick="(function(){var sel=document.getElementById(\'sceneLoadSelect\');if(sel&&window.loadSceneCard)window.loadSceneCard(sel.value);if(typeof window.closeModal===\'function\')window.closeModal();})();">Load</button><button class="btn btn-xs" onclick="if(typeof window.closeModal===\'function\')window.closeModal();">Cancel</button></div></div>';
         if (typeof window.openModal === 'function') {
-          window.openModal('Load Scene Card', modal);
+          window.openModal('Load Scene Card', modal, null, { preventScroll: true, focusTrap: true });
         }
       };
     }
@@ -6061,7 +6083,7 @@
       newSceneBtn.onclick = function () {
         var modal = '<div style="font-size:.78rem;display:grid;gap:.3rem;"><div style="margin-bottom:.15rem;">Choose a scene template:</div><button class="btn btn-xs btn-primary" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'blank\');if(typeof window.closeModal===\'function\')window.closeModal();">Blank Canvas</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'dungeon\');if(typeof window.closeModal===\'function\')window.closeModal();">Dungeon Chamber</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'spaceship\');if(typeof window.closeModal===\'function\')window.closeModal();">Space Ship Interior</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'navalship\');if(typeof window.closeModal===\'function\')window.closeModal();">Naval Vessel Deck</button><button class="btn btn-xs" style="width:100%;" onclick="if(typeof window.closeModal===\'function\')window.closeModal();">Cancel</button></div>';
         if (typeof window.openModal === 'function') {
-          window.openModal('New Scene from Template', modal);
+          window.openModal('New Scene from Template', modal, null, { preventScroll: true, focusTrap: true });
         } else {
           createSceneFromTemplate('blank');
         }

@@ -574,7 +574,9 @@ function quickRollStat(key) {
       (ra.exploded ? ' <span style="color:var(--gold);">✦ Critical!</span>' : '') +
       '<br>Result: <strong style="color:var(--gold2);">' + finalTotal + '</strong>' +
       detailHtml +
-      "</div>"
+      "</div>",
+    null,
+    { preventScroll: true, focusTrap: true }
   );
 
   // Clear positive condition on use (one-shot mechanic)
@@ -922,7 +924,7 @@ function openFailedRollFollowup(reason) {
     + '<button class="btn btn-sm btn-teal" ' + (canBoost ? '' : 'disabled title="Need enough Teamwork to cover the gap"') + ' onclick="applyFailedRollRecovery(\'convert\')">Spend Teamwork to Succeed</button>'
     + '<button class="btn btn-sm btn-primary" ' + (canPush ? '' : 'disabled title="Need 2 Teamwork"') + ' onclick="applyFailedRollRecovery(\'reroll\')">Push Your Luck Reroll</button>'
     + '</div>';
-  openModal('Failed Roll Options', html);
+  openModal('Failed Roll Options', html, null, { preventScroll: true, focusTrap: true });
 }
 
 function addTMWOnFail(reason, opts) {
@@ -1015,7 +1017,7 @@ window.applyFailedRollRecovery = function(mode) {
       + '<div><div style="font-size:.68rem;color:var(--muted2);">Dread</div><div style="font-size:1.35rem;color:var(--red2);font-family:Rajdhani,sans-serif;font-weight:700;">' + dreadRoll.total + '</div></div>'
       + '</div>'
       + '<div style="margin-top:.4rem;font-size:.9rem;font-weight:700;color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">' + (success ? 'Success' : 'Failure') + '</div>';
-    if (typeof openModal === 'function') openModal('Push Your Luck Result', html);
+    if (typeof openModal === 'function') openModal('Push Your Luck Result', html, null, { preventScroll: true, focusTrap: true });
     if (!success && typeof addTMWOnFail === 'function') addTMWOnFail('push-luck-failure', { skipPrompt: true });
     _failedRollContext = null;
     return;
@@ -1816,7 +1818,7 @@ function openClearCharacterConfirmModal() {
       + '<button class="btn btn-sm" onclick="saveCharacter(); closeModal();">Save Instead</button>'
       + '<button class="btn btn-sm btn-red" onclick="closeModal(); clearCharacter({force:true})">Clear Anyway</button>'
       + '</div>'
-      + '</div>');
+      + '</div>', null, { preventScroll: true, focusTrap: true });
     return;
   }
   if (confirm("Unsaved changes detected. Clear anyway?")) {
@@ -2039,7 +2041,7 @@ function openWayfarerExportModal() {
     + '<button class="btn btn-sm" onclick="closeModal(); exportWayfarerSheetPDF({compact:true});">PDF (Compact Print Layout)</button>'
     + '<button class="btn btn-sm" onclick="closeModal(); exportWayfarerSheetImage();">PNG Image</button>'
     + '</div>'
-    + '</div>');
+    + '</div>', null, { preventScroll: true, focusTrap: true });
 }
 
 function loadScriptOnce(url, globalName, cb) {
@@ -2136,7 +2138,7 @@ function openGMStoryComposer() {
     + '<button class="btn btn-sm" onclick="openGMStoryLibrary()">Library</button>'
     + '<button class="btn btn-sm btn-teal" onclick="saveGMStoryNode()">Save Scene</button>'
     + '</div>'
-    + '</div>');
+    + '</div>', null, { preventScroll: true, focusTrap: true });
 }
 
 function saveGMStoryNode() {
@@ -2189,14 +2191,14 @@ function openGMStoryLibrary() {
     + '<div style="margin-top:.45rem;display:flex;justify-content:flex-end;">'
     + '<button class="btn btn-sm" onclick="openGMStoryGraph()">Open Graph</button>'
     + '<button class="btn btn-sm" onclick="openGMStoryComposer()">Back To Composer</button>'
-    + '</div></div>');
+    + '</div></div>', null, { preventScroll: true, focusTrap: true });
 }
 
 function openGMStoryGraph() {
   ensureGMStoryState();
   const nodes = S.gmStoryState.nodes || [];
   if (!nodes.length) {
-    openModal('GM Story Graph', '<div style="font-size:.82rem;color:var(--muted2);">No story nodes yet. Save at least one scene first.</div>');
+    openModal('GM Story Graph', '<div style="font-size:.82rem;color:var(--muted2);">No story nodes yet. Save at least one scene first.</div>', null, { preventScroll: true, focusTrap: true });
     return;
   }
   const width = 860;
@@ -2247,7 +2249,7 @@ function openGMStoryGraph() {
     + '<div style="display:flex;justify-content:flex-end;gap:.3rem;margin-top:.45rem;">'
     + '<button class="btn btn-sm" onclick="openGMStoryLibrary()">Open Library</button>'
     + '<button class="btn btn-sm btn-teal" onclick="openGMStoryComposer()">Add Node</button>'
-    + '</div>');
+    + '</div>', null, { preventScroll: true, focusTrap: true });
 }
 
 function runGMStoryByTrigger(triggerType, triggerValue, options) {
@@ -2519,7 +2521,7 @@ function runGMStoryNode(index) {
     + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
     + '<div style="margin-bottom:.45rem;">' + node.prompt + '</div>'
     + '<div style="display:grid;gap:.25rem;">' + choiceBtns + '</div>'
-    + '</div>');
+    + '</div>', null, { preventScroll: true, focusTrap: true });
 }
 
 function resolveGMStoryChoice(nodeIndex, choiceIndex) {
@@ -2537,7 +2539,7 @@ function resolveGMStoryChoice(nodeIndex, choiceIndex) {
       + '<div style="margin-bottom:.35rem;"><strong>' + choice.text + '</strong></div>'
       + '<div>' + choice.outcome + '</div>'
       + (node.dreadOverride ? '<div style="margin-top:.35rem;color:var(--gold2);">Enemy Dread set to d' + node.dreadOverride + '.</div>' : '')
-      + '</div>');
+      + '</div>', null, { preventScroll: true, focusTrap: true });
   }
 }
 
@@ -2555,7 +2557,7 @@ function openGMHexMarkerEditor() {
     + '<div style="display:flex;justify-content:flex-end;gap:.35rem;margin-top:.5rem;">'
     + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
     + '<button class="btn btn-sm btn-teal" onclick="saveGMHexMarker()">Save Marker</button>'
-    + '</div></div>');
+    + '</div></div>', null, { preventScroll: true, focusTrap: true });
 }
 
 function saveGMHexMarker() {
@@ -2584,7 +2586,7 @@ function openGMDreadDirector() {
       return '<button class="btn btn-xs ' + (active ? 'btn-teal' : '') + '" onclick="if(typeof setEnemyDread===\'function\'){setEnemyDread(' + d + ');} showNotif(\'Enemy Dread set to d' + d + '\',\'good\'); if(typeof openGMDreadDirector===\'function\'){openGMDreadDirector();}">d' + d + '</button>';
     }).join('')
     + '</div>'
-    + '</div>');
+    + '</div>', null, { preventScroll: true, focusTrap: true });
 }
 
 function importCharacterSavePrompt() {
@@ -2595,7 +2597,7 @@ function importCharacterSavePrompt() {
       + '<div style="display:flex;justify-content:flex-end;gap:.35rem;margin-top:.55rem;">'
       + '<button class="btn btn-sm" onclick="closeModal()">Cancel</button>'
       + '<button class="btn btn-sm btn-teal" onclick="confirmImportCharacterSave()">Import Save</button>'
-      + '</div>');
+      + '</div>', null, { preventScroll: true, focusTrap: true });
     return;
   }
   const raw = prompt("Paste exported save JSON:");
@@ -2655,7 +2657,7 @@ function verifySoloSaveHealth() {
       + '<button class="btn btn-xs" onclick="openSoloRecoveryCenter()">Open Recovery Center</button>'
       + '</div>'
       + '<div style="margin-top:.45rem;color:var(--muted2);">If primary is corrupted, load uses backup automatically and quarantines the bad payload.</div>'
-      + '</div>');
+      + '</div>', null, { preventScroll: true, focusTrap: true });
   }
   showNotif(primaryOk ? "Save health verified" : "Primary save issue detected", primaryOk ? "good" : "warn");
 }
@@ -2695,7 +2697,7 @@ function openSoloRecoveryCenter() {
     + '<div style="margin-top:.45rem;color:var(--muted2);">Tip: use checkpoint before major branch choices to preserve a fallback branch.</div>'
     + '</div>';
   if (typeof openModal === "function") {
-    openModal("Solo Recovery Center", html);
+    openModal("Solo Recovery Center", html, null, { preventScroll: true, focusTrap: true });
   }
 }
 
@@ -2721,7 +2723,7 @@ function showSoloGuidance() {
     + '</div>'
     + '</div>';
   if (typeof openModal === "function") {
-    openModal("Solo Guidance", html);
+    openModal("Solo Guidance", html, null, { preventScroll: true, focusTrap: true });
   }
 }
 
@@ -2739,7 +2741,7 @@ function maybePromptSoloGuidance() {
         + '<button class="btn btn-sm" onclick="localStorage.setItem(\'beyond-light-solo-guide-dismissed\',\'1\'); closeModal();">Dismiss</button>'
         + '<button class="btn btn-sm btn-teal" onclick="localStorage.setItem(\'beyond-light-solo-guide-dismissed\',\'1\'); closeModal(); showSoloGuidance();">Open Solo Guide</button>'
         + '</div>'
-        + '</div>');
+        + '</div>', null, { preventScroll: true, focusTrap: true });
     }
   } catch (_err) {
     // Ignore first-run guidance failures.
@@ -3339,7 +3341,9 @@ function rollWilderness() {
       + '<strong style="color:var(--teal);">Wilderness d' + die + '</strong>'
       + '<br>Result: <strong style="color:var(--gold2);">' + result + '</strong>'
       + detailHtml
-      + '</div>'
+      + '</div>',
+    null,
+    { preventScroll: true, focusTrap: true }
   );
 }
 

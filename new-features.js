@@ -1111,7 +1111,7 @@
       + '<button class="btn btn-xs btn-primary" onclick="equipCaravanCargoItem(' + i + ',\'armor\');closeModal();">⚔ Armor</button>'
       + '<button class="btn btn-xs btn-primary" onclick="equipCaravanCargoItem(' + i + ',\'readied\');closeModal();">⚔ Readied</button>'
       + '</div></div>';
-    openModal('Caravan Cargo Item', html);
+    openModal('Caravan Cargo Item', html, null, { preventScroll: true, focusTrap: true });
   }
 
   function installMod(modId) {
@@ -3226,7 +3226,7 @@
       + "<button class='btn btn-sm btn-warn' " + (tmw >= 2 ? '' : "disabled title='Need 2 Teamwork'") + " onclick='resolveExpedSaveManualPrompt(\"failure\",true)'>Push Luck + Failure</button>"
       + "</div>"
       + "</div>";
-    openModal(title, html);
+    openModal(title, html, null, { preventScroll: true, focusTrap: true });
     return true;
   }
 
@@ -3403,7 +3403,7 @@
     if (!match) return false;
     if (match.expedition) match.expedition.uiTab = 'combat';
     if (typeof openModal === 'function') {
-      openModal('Expedition Combat', buildCrucibleExpeditionPopupHtml(match));
+      openModal('Expedition Combat', buildCrucibleExpeditionPopupHtml(match), null, { preventScroll: true, focusTrap: true });
       return true;
     }
     if (typeof renderHoldingCruciblePopup === 'function') {
@@ -4254,7 +4254,7 @@
       + '<button class="btn btn-sm btn-primary" onclick="resolveCrucibleManualActionRoll()">Resolve</button>'
       + '</div>'
       + '</div>';
-    openModal('Manual ' + (pendingKind === 'hack' ? 'Hack' : 'Spell') + ' Roll', html);
+    openModal('Manual ' + (pendingKind === 'hack' ? 'Hack' : 'Spell') + ' Roll', html, null, { preventScroll: true, focusTrap: true });
     return true;
   }
 
@@ -5078,7 +5078,7 @@
       + '<div style="font-size:.76rem;color:var(--text2);">' + String(profile.desc || 'It moves like memory, not muscle.') + '</div>'
       + '</div>'
       + '</div>';
-    if (typeof openModal === 'function') openModal('Enemy Archive', html);
+    if (typeof openModal === 'function') openModal('Enemy Archive', html, null, { preventScroll: true, focusTrap: true });
     return true;
   }
 
@@ -5592,7 +5592,7 @@
           + '</div>';
       }).join('')
       + '</div>';
-    if (typeof openModal === 'function') openModal('Crucible Mode Select', html);
+    if (typeof openModal === 'function') openModal('Crucible Mode Select', html, null, { preventScroll: true, focusTrap: true });
     return true;
   }
 
@@ -5609,12 +5609,12 @@
     var match = getHoldingCrucibleMatch() || createHoldingCrucibleMatch();
     var isControlNewMatch = String(match.mode || '') === 'control' && Number(match.round || 1) === 1 && !match.controlLoaded;
     if (isControlNewMatch && typeof openModal === 'function') {
-      openModal('Control Briefing & Loadout', buildCrucibleControlLoadoutSelectionHtml());
+      openModal('Control Briefing & Loadout', buildCrucibleControlLoadoutSelectionHtml(), null, { preventScroll: true, focusTrap: true });
     } else {
       if (typeof openModal === 'function') {
         var openMode = getCrucibleModeSpec(match && match.mode);
         var teamSize = getCrucibleModeTeamSize(openMode.id);
-        openModal('Crucible ' + teamSize + 'v' + teamSize + ' Tactical Simulator', buildHoldingCruciblePopupHtml());
+        openModal('Crucible ' + teamSize + 'v' + teamSize + ' Tactical Simulator', buildHoldingCruciblePopupHtml(), null, { preventScroll: true, focusTrap: true });
       }
       if (typeof showNotif === 'function' && match && Number(match.round || 1) === 1) {
         var openedSpec = getCrucibleModeSpec(match.mode);
@@ -6105,7 +6105,7 @@
                 + '</div>';
             }).join('')
             + '</div>';
-          openModal('Roaming Merchant', merchantHtml);
+          openModal('Roaming Merchant', merchantHtml, null, { preventScroll: true, focusTrap: true });
         }
         if (typeof showNotif === 'function') showNotif('Roaming merchant found. You can buy from the encounter pop-up.', 'good');
       } else if (encounterRoll === 8) {
@@ -6231,7 +6231,7 @@
         + '<div style="font-size:.8rem;color:var(--text2);">The province haze obscures that lane.</div>'
         + '</div>';
     }
-    if (typeof openModal === 'function') openModal('Observe Adjacent Province Hex', html);
+    if (typeof openModal === 'function') openModal('Observe Adjacent Province Hex', html, null, { preventScroll: true, focusTrap: true });
     return true;
   }
 
@@ -6260,7 +6260,7 @@
       html += '<button class="btn btn-sm btn-teal" onclick="holdingCrucibleExpeditionObserveDirection(\'' + String(opt.key || '') + '\')">' + String(opt.label || 'Direction') + '</button>';
     });
     html += '</div>';
-    if (typeof openModal === 'function') openModal('Observe Adjacent Province Hex', html);
+    if (typeof openModal === 'function') openModal('Observe Adjacent Province Hex', html, null, { preventScroll: true, focusTrap: true });
     return true;
   }
 
@@ -6654,7 +6654,7 @@
       'Control briefing complete: weapon=' + weapon + ', armor=' + armor + '. Capture each zone by holding it for 3 rounds.'
     ]).slice(-120);
     if (typeof openModal === 'function') {
-      openModal('Crucible 3v3 Tactical Simulator', buildHoldingCruciblePopupHtml());
+      openModal('Crucible 3v3 Tactical Simulator', buildHoldingCruciblePopupHtml(), null, { preventScroll: true, focusTrap: true });
     }
     if (typeof showNotif === 'function') {
       showNotif('Control started: ' + weapon + ' loadout with ' + armor + ' armor.', 'good');
@@ -7023,7 +7023,7 @@
     expedition.loaded = true;
     match.log = (match.log || []).concat(['Loadout applied: ' + armor + ' armor (' + (armorOpt ? armorOpt.defendDie + ' Defend, ' + armorOpt.actions + ' Actions' : '?') + '), ' + weapon + ' weapon, personal flavor: ' + flavor + '.']).slice(-120);
     if (typeof openModal === 'function') {
-      openModal('Expedition Province', buildCrucibleExpeditionPopupHtml(match));
+      openModal('Expedition Province', buildCrucibleExpeditionPopupHtml(match), null, { preventScroll: true, focusTrap: true });
     } else if (typeof renderHoldingCruciblePopup === 'function') {
       renderHoldingCruciblePopup();
     }
@@ -8461,7 +8461,7 @@
       var rootEl = document.scrollingElement || document.documentElement || document.body;
       if (rootEl) prevPageScrollTop = Number(rootEl.scrollTop || 0);
     }
-    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal(opts || { advanceVisit: false }));
+    openModal('Holding Settlement Hexcrawl', buildHoldingSettlementHexcrawlModal(opts || { advanceVisit: false }), null, { preventScroll: true, focusTrap: true });
     if (typeof setTimeout === 'function') {
       setTimeout(function () {
         if (typeof document === 'undefined') return;
@@ -8613,7 +8613,7 @@
           return '<div style="font-size:.7rem;color:var(--text2);margin-top:.12rem;">• ' + String(entry) + '</div>';
         }).join('') : '<div style="font-size:.7rem;color:var(--muted2);margin-top:.12rem;">No deposits yet.</div>')
       + '</div>';
-    if (typeof openModal === 'function') openModal('Holdings Treasury', html);
+    if (typeof openModal === 'function') openModal('Holdings Treasury', html, null, { preventScroll: true, focusTrap: true });
     return true;
   }
 
@@ -9687,7 +9687,7 @@
     var title = regionMode === 'sea'
       ? 'Sea Settlement Hexcrawl'
       : (regionMode === 'space' ? 'Space Hub Hexcrawl' : (regionMode === 'ruins' ? 'Ruin Encampment Hexcrawl' : 'Holding Settlement Hexcrawl'));
-    openModal(title, buildHoldingSettlementHexcrawlModal({ advanceVisit: true }));
+    openModal(title, buildHoldingSettlementHexcrawlModal({ advanceVisit: true }), null, { preventScroll: true, focusTrap: true });
   }
 
   function openRuinEncampmentHexcrawl(label) {
@@ -10084,7 +10084,7 @@
         + '<button class="btn btn-sm btn-teal" onclick="completeHoldingQuestStep1(' + success + ',decodeURIComponent(\'' + encoded + '\'));goBackOrCloseModal();">Confirm</button>',
         { cancelLabel: 'Close' }
       );
-    openModal('Step 1 — Gather Information', html);
+    openModal('Step 1 — Gather Information', html, null, { preventScroll: true, focusTrap: true });
   }
 
   function completeHoldingQuestStep1(success, encodedResult) {
@@ -10203,7 +10203,7 @@
       + '<div style="font-size:.84rem;color:var(--muted3);margin-bottom:.45rem;">Step 2 — Site Layout — 2-6 Rooms</div>'
       + roomsHtml
       + '<div style="margin-top:.45rem;">' + actionButtons + '</div>';
-    openModal('Step 2 — Go to Site', html);
+    openModal('Step 2 — Go to Site', html, null, { preventScroll: true, focusTrap: true });
   }
 
   function holdingQuestExploreRoom(roomIdx) {
@@ -10285,7 +10285,7 @@
         + '<button class="btn btn-sm btn-primary" onclick="resolveHoldingQuestOutcome(true)">\u2713 Success — Roll Succeeded</button>',
         { cancelLabel: 'Close' }
       );
-    openModal('Step 3 — Confrontation', html);
+    openModal('Step 3 — Confrontation', html, null, { preventScroll: true, focusTrap: true });
   }
 
   function stepHoldingQuestDreadDie(current, dir) {
@@ -10413,7 +10413,7 @@
         { cancelLabel: 'Close' }
       )
       + '</div>';
-    openModal('Holding Confrontation Failure', html);
+    openModal('Holding Confrontation Failure', html, null, { preventScroll: true, focusTrap: true });
     return true;
   }
 
@@ -10449,7 +10449,9 @@
               + '<button class="btn btn-sm btn-primary" onclick="resolveHoldingQuestPushLuck(true)">Push Luck Succeeded</button>',
               { cancelLabel: 'Close' }
             )
-        + '</div>'
+        + '</div>',
+        null,
+        { preventScroll: true, focusTrap: true }
       );
     }
   }
@@ -11053,7 +11055,7 @@
     openModal("Step Up Action Die — 15 Path Tokens",
       '<div style="font-size:.85rem;color:var(--muted3);margin-bottom:.6rem;">Choose which Action Die to step up. Current tokens: <strong style="color:var(--teal);">' + S.pathTokens + '</strong></div>'
       + '<div style="display:flex;flex-wrap:wrap;">' + opts + '</div>'
-    );
+    , null, { preventScroll: true, focusTrap: true });
   }
 
   function doPathUpgrade15(stat) {
@@ -11087,7 +11089,7 @@
       '<div style="font-size:.85rem;color:var(--muted3);margin-bottom:.4rem;">You have gained a new Personal Trait:</div>'
       + '<div style="background:var(--surface);border:1px solid var(--gold);padding:.6rem .8rem;font-family:\'Cinzel\',serif;font-size:.85rem;color:var(--gold2);">' + newTrait + '</div>'
       + '<div style="font-size:.76rem;color:var(--muted2);margin-top:.4rem;">Remaining Path Tokens: ' + S.pathTokens + '</div>'
-    );
+    , null, { preventScroll: true, focusTrap: true });
   }
 
   function renderExtraTraits() {
@@ -11943,13 +11945,13 @@
     var mods = (typeof SHOP_DATA !== 'undefined' && SHOP_DATA.weapon_mods) ? SHOP_DATA.weapon_mods : [];
     var item = null;
     for (var i = 0; i < mods.length; i++) { if (mods[i].name === modName) { item = mods[i]; break; } }
-    if (!item) { openModal('Weapon Mod', '<div style="font-size:.9rem;color:var(--text2);">' + modName + '</div>'); return; }
+    if (!item) { openModal('Weapon Mod', '<div style="font-size:.9rem;color:var(--text2);">' + modName + '</div>', null, { preventScroll: true, focusTrap: true }); return; }
     var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
       + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">🔩 ' + item.name + '</div>'
       + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.4rem;">' + item.stat + '</div>'
       + '<div>' + item.desc + '</div>'
       + '</div>';
-    openModal(item.name, html);
+    openModal(item.name, html, null, { preventScroll: true, focusTrap: true });
   }
 
   // ── AUGMENTATIONS PANEL ───────────────────────────────────────────────────────
@@ -11980,13 +11982,13 @@
     var list = (typeof SHOP_DATA !== 'undefined' && SHOP_DATA.augmentations) ? SHOP_DATA.augmentations : [];
     var item = null;
     for (var i = 0; i < list.length; i++) { if (list[i].name === augName) { item = list[i]; break; } }
-    if (!item) { openModal('Augmentation', '<div style="font-size:.9rem;color:var(--text2);">' + augName + '</div>'); return; }
+    if (!item) { openModal('Augmentation', '<div style="font-size:.9rem;color:var(--text2);">' + augName + '</div>', null, { preventScroll: true, focusTrap: true }); return; }
     var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
       + '<div style="font-family:\'Cinzel\',serif;font-size:.75rem;letter-spacing:.1em;color:var(--gold);margin-bottom:.3rem;">🦾 ' + item.name + '</div>'
       + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.4rem;">' + item.stat + '</div>'
       + '<div>' + item.desc + '</div>'
       + '</div>';
-    openModal(item.name, html);
+    openModal(item.name, html, null, { preventScroll: true, focusTrap: true });
   }
 
   function removeAugmentation(idx) {
@@ -12251,7 +12253,7 @@
         )
       + '</div>'
       + '</div>';
-    if (typeof openModal === 'function') openModal('Manual Hack Cast', html);
+    if (typeof openModal === 'function') openModal('Manual Hack Cast', html, null, { preventScroll: true, focusTrap: true });
   }
 
   function resolveManualHackCast() {
@@ -12502,7 +12504,7 @@
       + '<button class="btn btn-sm btn-warn" ' + (currentTMW >= 2 ? '' : 'disabled') + ' onclick="manualRollOutcomeFailure(' + actionDieNum + ',' + dreadDieNum + ',\'' + skillLabel.replace(/'/g, "\\'") + '\',false,true)">Push Luck + Failure</button>'
       + '</div>';
 
-    openModal('Manual Roll: ' + skillLabel + ' Check', html);
+    openModal('Manual Roll: ' + skillLabel + ' Check', html, null, { preventScroll: true, focusTrap: true });
   }
 
   function stepEnhancedManualDreadDie(current) {
@@ -12671,7 +12673,7 @@
       + '</div>';
 
     html += '</div>';
-    openModal('Failed Roll: ' + skillLabel + ' Check', html);
+    openModal('Failed Roll: ' + skillLabel + ' Check', html, null, { preventScroll: true, focusTrap: true });
   }
 
   function awardFailureTeamwork() {
@@ -12831,7 +12833,7 @@
       + '<button class="btn btn-sm btn-teal" onclick="finalizeCombatManualRoll(\'' + type + '\')">⚄ Resolve</button>'
       + '</div>';
 
-    openModal('Manual ' + skillLabel + ' Roll', html);
+    openModal('Manual ' + skillLabel + ' Roll', html, null, { preventScroll: true, focusTrap: true });
   };
 
   window.finalizeCombatManualRoll = function(type) {

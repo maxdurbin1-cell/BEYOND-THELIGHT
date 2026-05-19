@@ -854,6 +854,44 @@
     return out;
   }
 
+  function normalizeCombatLogEntries(entries, fallbackRound) {
+    var list = Array.isArray(entries) ? entries : [];
+    return list.map(function (entry, idx) {
+      var source = (entry && typeof entry === 'object' && !Array.isArray(entry)) ? entry : { message: String(entry || '') };
+      var round = Math.max(1, Number(source.round || fallbackRound || 1));
+      var eventType = String(source.eventType || source.type || 'note').toLowerCase();
+      var tags = Array.isArray(source.tags) ? source.tags.map(function (tag) { return String(tag || '').toLowerCase(); }).filter(Boolean) : [];
+      var actorName = String(source.actorName || source.actor || '');
+      var targetName = String(source.targetName || source.target || '');
+      var action = String(source.action || source.label || source.type || 'Note');
+      var result = String(source.result || source.message || '');
+      var roll = source.roll && typeof source.roll === 'object'
+        ? {
+          label: String(source.roll.label || ''),
+          formula: String(source.roll.formula || ''),
+          total: Number(source.roll.total || 0),
+          breakdown: String(source.roll.breakdown || '')
+        }
+        : null;
+      return {
+        id: String(source.id || ('log-' + round + '-' + idx + '-' + Number(source.at || Date.now()))),
+        at: Number(source.at || Date.now()),
+        round: round,
+        actorId: String(source.actorId || ''),
+        actorName: actorName,
+        action: action,
+        targetId: String(source.targetId || ''),
+        targetName: targetName,
+        roll: roll,
+        result: result,
+        eventType: eventType,
+        tags: tags,
+        message: String(source.message || result || action || ''),
+        focusTokenId: String(source.focusTokenId || source.targetId || source.actorId || '')
+      };
+    }).slice(0, 160);
+  }
+
   function normalizeCombatSceneState(state) {
     var next = Object.assign({}, state || {});
     next.board = normalizeBoard(next.board);
@@ -938,6 +976,9 @@
     next.lastConditionRoundApplied = Math.max(1, appliedNum);
     next.initiative = Array.isArray(next.initiative) ? next.initiative : [];
     next.actionHistory = Array.isArray(next.actionHistory) ? next.actionHistory : [];
+    next.combatLog = normalizeCombatLogEntries(next.combatLog && next.combatLog.length ? next.combatLog : next.actionHistory, next.round || 1);
+    next.logFilters = Object.assign({ round: 'all', actor: 'all', eventType: 'all' }, next.logFilters && typeof next.logFilters === 'object' ? next.logFilters : {});
+    next.turnStates = Object.assign({}, next.turnStates || {});
     next.collapsedPanels = Object.assign({}, next.collapsedPanels || {});
     next.panelPos = Object.assign({
       tools: { x: 14, y: 58 },
@@ -957,7 +998,9 @@
       tokens: clone(state.tokens || []),
       tokenRoundEffects: clone(state.tokenRoundEffects || []),
       initiative: clone(state.initiative || []),
-      actionHistory: clone((state.actionHistory || []).slice(0, 80))
+      actionHistory: clone((state.actionHistory || []).slice(0, 80)),
+      combatLog: clone((state.combatLog || []).slice(0, 160)),
+      turnStates: clone(state.turnStates || {})
     };
   }
 
@@ -989,6 +1032,9 @@
       tokenRoundEffects: synced.tokenRoundEffects,
       initiative: synced.initiative,
       actionHistory: synced.actionHistory,
+      combatLog: synced.combatLog,
+      turnStates: synced.turnStates,
+      logFilters: synced.logFilters,
       panelPos: synced.panelPos,
       autoRoll: synced.autoRoll,
       round: synced.round,
@@ -1249,6 +1295,24 @@
     initiative: [],
     teamActions: {},
     actionHistory: ['Combat mode initialized.'],
+    combatLog: [{
+      id: 'combat-log-init',
+      at: Date.now(),
+      round: 1,
+      actorId: '',
+      actorName: 'System',
+      action: 'Initialize',
+      targetId: '',
+      targetName: '',
+      roll: null,
+      result: 'Combat mode initialized.',
+      eventType: 'system',
+      tags: ['system'],
+      message: 'Combat mode initialized.',
+      focusTokenId: ''
+    }],
+    logFilters: { round: 'all', actor: 'all', eventType: 'all' },
+    turnStates: {},
     panelPos: {
       tools: { x: 14, y: 58 },
       feed: { x: 980, y: 58 },
@@ -1316,12 +1380,100 @@
   }
 
   function addHistory(line) {
+    return addCombatLogEntry({ message: String(line), result: String(line) });
+  }
+
+  function inferCombatLogMetaFromLine(line) {
+    var text = String(line || '').trim();
+    var lower = text.toLowerCase();
+    var out = { eventType: 'note', action: 'Note', tags: ['note'] };
+    var m = null;
+    if (!text) return out;
+    if (/^turn:\s+/.test(lower)) {
+      out.eventType = 'turn';
+      out.action = 'Turn Start';
+      out.tags = ['turn'];
+      out.actorName = text.replace(/^turn:\s*/i, '').replace(/[.]$/, '');
+      return out;
+    }
+    if ((m = text.match(/^(.+?) moved to /i))) {
+      out.eventType = 'movement';
+      out.action = 'Move';
+      out.tags = ['movement'];
+      out.actorName = String(m[1] || '').trim();
+      return out;
+    }
+    if ((m = text.match(/^(.+?) hits? (.+?) /i))) {
+      out.eventType = 'attack';
+      out.action = 'Hit';
+      out.tags = ['attack', 'hit'];
+      out.actorName = String(m[1] || '').trim();
+      out.targetName = String(m[2] || '').trim();
+      return out;
+    }
+    if ((m = text.match(/^(.+?) misses? (.+?) /i))) {
+      out.eventType = 'attack';
+      out.action = 'Miss';
+      out.tags = ['attack', 'miss'];
+      out.actorName = String(m[1] || '').trim();
+      out.targetName = String(m[2] || '').trim();
+      return out;
+    }
+    if (/^dice:\s+/i.test(text)) {
+      out.eventType = 'roll';
+      out.action = 'Dice Roll';
+      out.tags = ['roll'];
+      return out;
+    }
+    if (/condition applied/i.test(lower)) {
+      out.eventType = 'condition';
+      out.action = 'Condition';
+      out.tags = ['condition'];
+      return out;
+    }
+    if (/scene started|scene restarted|new round/i.test(lower)) {
+      out.eventType = 'system';
+      out.action = 'Scene State';
+      out.tags = ['system', 'round'];
+      return out;
+    }
+    return out;
+  }
+
+  function resolveCombatLogTokenId(state, preferredId, preferredName) {
+    if (preferredId) return String(preferredId);
+    var name = String(preferredName || '').trim().toLowerCase();
+    if (!name) return '';
+    var token = (state.tokens || []).find(function (row) {
+      return row && String(row.name || '').trim().toLowerCase() === name;
+    }) || null;
+    return token ? String(token.id || '') : '';
+  }
+
+  function addCombatLogEntry(entry) {
+    var source = (entry && typeof entry === 'object') ? Object.assign({}, entry) : { message: String(entry || '') };
+    var inferred = inferCombatLogMetaFromLine(source.message || source.result || source.action || '');
     store.setState(function (state) {
       var next = Object.assign({}, state);
-      next.actionHistory = [String(line)].concat((state.actionHistory || [])).slice(0, 80);
+      var round = Math.max(1, Number(source.round || state.round || 1));
+      var actorId = resolveCombatLogTokenId(state, source.actorId, source.actorName || inferred.actorName);
+      var targetId = resolveCombatLogTokenId(state, source.targetId, source.targetName || inferred.targetName);
+      var item = normalizeCombatLogEntries([Object.assign({}, inferred, source, {
+        id: String(source.id || uid('clog')),
+        at: Number(source.at || Date.now()),
+        round: round,
+        actorId: actorId,
+        targetId: targetId,
+        actorName: String(source.actorName || inferred.actorName || ''),
+        targetName: String(source.targetName || inferred.targetName || ''),
+        focusTokenId: String(source.focusTokenId || targetId || actorId || '')
+      })], round)[0];
+      next.combatLog = [item].concat(state.combatLog || []).slice(0, 160);
+      next.actionHistory = [String(item.message || item.result || item.action || '')].concat((state.actionHistory || [])).slice(0, 80);
       persist(next);
       return next;
     });
+    return true;
   }
 
   function snapshotEditableState(state) {
@@ -3261,8 +3413,18 @@
       + '<button class="combat-chip" id="combatRailRulesBtn" title="Rules Reference">Rules</button>'
       + '<button class="combat-chip" id="combatSettingsBtn" title="Settings">Settings</button>'
       + '</div>'
+      + '<div id="combatInitiativeRibbon" class="combat-initiative-ribbon"></div>'
       + '<div id="combatInitiativeList"></div>'
+      + '<div style="display:flex;gap:.24rem;align-items:center;justify-content:space-between;margin-top:.24rem;">'
+      + '<button class="btn btn-xs" id="combatDelayTurnBtn">Delay</button>'
+      + '<button class="btn btn-xs" id="combatHoldTurnBtn">Hold</button>'
+      + '<div id="combatNextActorPreview" class="combat-mini" style="text-align:right;">Next: -</div>'
+      + '</div>'
       + '<div style="display:flex;gap:.24rem;margin-top:.26rem;"><button class="btn btn-xs" id="combatNextTurnBtn">Next Turn</button><button class="btn btn-xs" id="combatRollModeBtn">Auto Roll</button></div>'
+      + '<div class="combat-action-block">'
+      + '<div class="combat-label">Quick Rolls</div>'
+      + '<div id="combatQuickRollBar" class="combat-chip-row"></div>'
+      + '</div>'
       + '<div class="combat-action-block">'
       + '<div class="combat-label">Scene Opener</div>'
       + '<div id="combatSceneOpenerSummary" class="combat-mini">No opener active.</div>'
@@ -3279,6 +3441,11 @@
       + '<div id="combatLegacyActionInfoMirror" class="combat-result-mirror">Action details appear here.</div>'
       + '<div id="combatLegacyFlavorMirror" class="combat-result-mirror"></div>'
       + '<div class="combat-feed" id="combatLegacyRowsMirror"></div>'
+      + '<div style="display:grid;grid-template-columns:.9fr 1fr 1fr;gap:.24rem;margin-top:.2rem;">'
+      + '<select class="combat-select" id="combatLogFilterRound"><option value="all">Round: all</option></select>'
+      + '<select class="combat-select" id="combatLogFilterActor"><option value="all">Actor: all</option></select>'
+      + '<select class="combat-select" id="combatLogFilterType"><option value="all">Type: all</option></select>'
+      + '</div>'
       + '<div class="combat-feed" id="combatFeedLog" style="margin-top:.3rem;"></div>'
       + '</div>'
       + '</aside>'
@@ -4940,6 +5107,7 @@
     }
 
     var initList = document.getElementById('combatInitiativeList');
+    var initRibbon = document.getElementById('combatInitiativeRibbon');
     if (initList) {
       var wayfarers = (state.tokens || []).filter(function (token) { return token && token.isPlayer; });
       var allies = (state.tokens || []).filter(function (token) { return token && String(token.faction) === 'player' && !token.isPlayer; });
@@ -4993,11 +5161,158 @@
       }
     }
 
+    if (initRibbon) {
+      var initRows = Array.isArray(state.initiative) ? state.initiative.slice() : [];
+      var activeInitIdx = Math.max(0, Number(state.initiativeIndex || 0));
+      var nextInitIdx = initRows.length ? ((activeInitIdx + 1) % initRows.length) : -1;
+      initRibbon.innerHTML = initRows.map(function (row, idx) {
+        var token = row ? byId(row.tokenId) : null;
+        var held = !!(state.turnStates && state.turnStates[String(row.tokenId || '')] && state.turnStates[String(row.tokenId || '')].held);
+        var delayed = !!(state.turnStates && state.turnStates[String(row.tokenId || '')] && state.turnStates[String(row.tokenId || '')].delayed);
+        var cls = 'combat-turn-pill';
+        if (idx === activeInitIdx) cls += ' active';
+        else if (idx === nextInitIdx) cls += ' next';
+        if (held) cls += ' held';
+        if (delayed) cls += ' delayed';
+        return '<button class="' + cls + '" data-turn-token="' + String(row && row.tokenId || '') + '" title="' + String(row && row.name || (token && token.name) || 'Token') + '">'
+          + '<span>' + String((row && row.name) || (token && token.name) || 'Token').slice(0, 14) + '</span>'
+          + (held ? '<small>H</small>' : (delayed ? '<small>D</small>' : ''))
+          + '</button>';
+      }).join('');
+      Array.prototype.slice.call(initRibbon.querySelectorAll('[data-turn-token]')).forEach(function (btn) {
+        btn.onclick = function () {
+          var tokenId = String(btn.getAttribute('data-turn-token') || '');
+          if (!tokenId) return;
+          store.setState({ selectedTokenId: tokenId, selectedTokenIds: [tokenId] });
+          drawBoard();
+          updateUiPanels();
+        };
+      });
+    }
+
+    var nextPreview = document.getElementById('combatNextActorPreview');
+    if (nextPreview) {
+      var rows = Array.isArray(state.initiative) ? state.initiative : [];
+      if (!rows.length) {
+        nextPreview.textContent = 'Next: -';
+      } else {
+        var nextIdx = (Math.max(0, Number(state.initiativeIndex || 0)) + 1) % rows.length;
+        var nextRow = rows[nextIdx] || null;
+        nextPreview.textContent = 'Next: ' + String(nextRow && nextRow.name || 'Unknown');
+      }
+    }
+
+    var quickRollBar = document.getElementById('combatQuickRollBar');
+    if (quickRollBar) {
+      var rollPresets = [
+        { key: 'strike', label: 'Strike', stat: 'strike' },
+        { key: 'shoot', label: 'Shoot', stat: 'shoot' },
+        { key: 'defend', label: 'Defend', stat: 'defend' },
+        { key: 'control', label: 'Control', stat: 'control' },
+        { key: 'mind', label: 'Mind', stat: 'mind' }
+      ];
+      quickRollBar.innerHTML = rollPresets.map(function (preset) {
+        return '<button class="combat-chip" data-quick-roll="' + preset.key + '">' + preset.label + '</button>';
+      }).join('');
+      Array.prototype.slice.call(quickRollBar.querySelectorAll('[data-quick-roll]')).forEach(function (btn) {
+        btn.onclick = function () {
+          var key = String(btn.getAttribute('data-quick-roll') || 'defend');
+          var die = Math.max(4, Number(window.S && window.S.stats && window.S.stats[key] || 4));
+          var rollObj = (typeof window.explodingRoll === 'function')
+            ? window.explodingRoll(die, { type: 'action', major: true, label: 'Quick ' + key })
+            : { total: rollDie(die), exploded: false };
+          if (typeof window.queueDiceRollVisual === 'function') {
+            try { window.queueDiceRollVisual(die, Number(rollObj.total || 0), { type: 'action', major: true, label: 'Quick ' + key, exploded: !!rollObj.exploded }); } catch (_err) {}
+          }
+          if (window.AudioManager && typeof window.AudioManager.playSFX === 'function') {
+            try { window.AudioManager.playSFX('sfx-combat-block', 0.45); } catch (_err) {}
+          }
+          addCombatLogEntry({
+            eventType: 'roll',
+            action: 'Quick Roll ' + key.toUpperCase(),
+            actorName: String((window.S && window.S.name) || 'Wayfarer'),
+            roll: { label: key.toUpperCase(), formula: 'd' + die, total: Number(rollObj.total || 0), breakdown: rollObj.exploded ? 'Exploded' : '' },
+            result: 'Quick roll total ' + Number(rollObj.total || 0),
+            tags: ['roll', 'quick'],
+            message: 'Quick roll ' + key.toUpperCase() + ': d' + die + ' = ' + Number(rollObj.total || 0)
+          });
+          safeNotif('Quick ' + key + ': ' + Number(rollObj.total || 0), 'good');
+        };
+      });
+    }
+
     var log = document.getElementById('combatFeedLog');
     if (log) {
-      log.innerHTML = (state.actionHistory || []).slice(0, 24).map(function (line) {
-        return '<div class="combat-feed-line">' + String(line) + '</div>';
+      var logRoundSel = document.getElementById('combatLogFilterRound');
+      var logActorSel = document.getElementById('combatLogFilterActor');
+      var logTypeSel = document.getElementById('combatLogFilterType');
+      var filters = Object.assign({ round: 'all', actor: 'all', eventType: 'all' }, state.logFilters || {});
+      var entries = Array.isArray(state.combatLog) ? state.combatLog.slice() : [];
+
+      var rounds = ['all'].concat(Array.from(new Set(entries.map(function (entry) { return String(entry.round || '1'); }))));
+      var actors = ['all'].concat(Array.from(new Set(entries.map(function (entry) { return String(entry.actorName || '').trim(); }).filter(Boolean))));
+      var types = ['all'].concat(Array.from(new Set(entries.map(function (entry) { return String(entry.eventType || 'note'); }))));
+
+      function setSelectOptions(select, values, prefix) {
+        if (!select) return;
+        var prior = String(select.value || 'all');
+        select.innerHTML = values.map(function (value) {
+          var label = value === 'all' ? (prefix + ': all') : value;
+          return '<option value="' + value + '">' + label + '</option>';
+        }).join('');
+        select.value = values.indexOf(prior) >= 0 ? prior : 'all';
+      }
+
+      setSelectOptions(logRoundSel, rounds, 'Round');
+      setSelectOptions(logActorSel, actors, 'Actor');
+      setSelectOptions(logTypeSel, types, 'Type');
+
+      function patchFilters(nextPatch) {
+        store.setState(function (inner) {
+          var next = Object.assign({}, inner);
+          next.logFilters = Object.assign({ round: 'all', actor: 'all', eventType: 'all' }, inner.logFilters || {}, nextPatch || {});
+          persist(next);
+          return next;
+        });
+        updateUiPanels();
+      }
+
+      if (logRoundSel) logRoundSel.onchange = function () { patchFilters({ round: String(logRoundSel.value || 'all') }); };
+      if (logActorSel) logActorSel.onchange = function () { patchFilters({ actor: String(logActorSel.value || 'all') }); };
+      if (logTypeSel) logTypeSel.onchange = function () { patchFilters({ eventType: String(logTypeSel.value || 'all') }); };
+
+      var filtered = entries.filter(function (entry) {
+        if (!entry) return false;
+        if (String(filters.round || 'all') !== 'all' && String(entry.round || '') !== String(filters.round)) return false;
+        if (String(filters.actor || 'all') !== 'all' && String(entry.actorName || '') !== String(filters.actor)) return false;
+        if (String(filters.eventType || 'all') !== 'all' && String(entry.eventType || '') !== String(filters.eventType)) return false;
+        return true;
+      }).slice(0, 40);
+
+      log.innerHTML = filtered.map(function (entry) {
+        var actor = String(entry.actorName || 'System');
+        var target = String(entry.targetName || '');
+        var roll = entry.roll && typeof entry.roll === 'object' ? (' · ' + String(entry.roll.formula || '') + ' = ' + Number(entry.roll.total || 0)) : '';
+        var targetText = target ? (' -> ' + target) : '';
+        var tagText = Array.isArray(entry.tags) && entry.tags.length ? (' [' + entry.tags.join(', ') + ']') : '';
+        return '<button class="combat-feed-line combat-log-entry" data-log-focus="' + String(entry.focusTokenId || '') + '">'
+          + '<strong>R' + Math.max(1, Number(entry.round || 1)) + '</strong> '
+          + '<span style="color:var(--combat-accent-2);">' + actor + '</span> '
+          + '<span>' + String(entry.action || entry.eventType || 'Note') + '</span>'
+          + '<span>' + targetText + roll + '</span>'
+          + '<span style="color:var(--combat-muted);">' + String(entry.result || entry.message || '') + tagText + '</span>'
+          + '</button>';
       }).join('');
+
+      Array.prototype.slice.call(log.querySelectorAll('[data-log-focus]')).forEach(function (btn) {
+        btn.onclick = function () {
+          var focusId = String(btn.getAttribute('data-log-focus') || '');
+          if (!focusId) return;
+          store.setState({ selectedTokenId: focusId, selectedTokenIds: [focusId] });
+          drawBoard();
+          updateUiPanels();
+        };
+      });
     }
 
     var selected = byId(state.selectedTokenId);
@@ -6429,13 +6744,100 @@
             if (!normalizeTokenActionBudgetToken(token)) return;
             next.teamActions[token.id] = 2;
           });
+          next.turnStates = Object.assign({}, state.turnStates || {});
+          var arriving = next.initiative && next.initiative[idx] || null;
+          var arrivingId = String(arriving && arriving.tokenId || '');
+          if (arrivingId && next.turnStates[arrivingId]) {
+            next.turnStates[arrivingId] = Object.assign({}, next.turnStates[arrivingId], { held: false, delayed: false, holdUntilRound: 0 });
+          }
           persist(next);
           return next;
         });
         var st = store.getState();
         var active = st.initiative[st.initiativeIndex] || null;
-        if (active) addHistory('Turn: ' + active.name + '.');
+        if (active) addCombatLogEntry({
+          eventType: 'turn',
+          action: 'Turn Start',
+          actorId: String(active.tokenId || ''),
+          actorName: String(active.name || 'Token'),
+          result: 'Turn started.',
+          tags: ['turn', 'start'],
+          message: 'Turn: ' + String(active.name || 'Token') + '.'
+        });
         processRoundEffectsForCurrentRound();
+        updateUiPanels();
+      };
+    }
+
+    var delayTurnBtn = document.getElementById('combatDelayTurnBtn');
+    if (delayTurnBtn && !delayTurnBtn._bound) {
+      delayTurnBtn._bound = true;
+      delayTurnBtn.onclick = function () {
+        store.setState(function (state) {
+          var list = Array.isArray(state.initiative) ? state.initiative.slice() : [];
+          if (list.length < 2) return state;
+          var idx = Math.max(0, Math.min(list.length - 1, Number(state.initiativeIndex || 0)));
+          var row = list.splice(idx, 1)[0];
+          var insertAt = Math.min(list.length, idx + 1);
+          list.splice(insertAt, 0, row);
+          var next = Object.assign({}, state, { initiative: list, initiativeIndex: insertAt, currentTurnIndex: insertAt });
+          next.turnStates = Object.assign({}, state.turnStates || {});
+          var tokenId = String(row && row.tokenId || '');
+          if (tokenId) {
+            next.turnStates[tokenId] = Object.assign({}, next.turnStates[tokenId] || {}, { delayed: true });
+          }
+          persist(next);
+          return next;
+        });
+        var st = store.getState();
+        var active = st.initiative[st.initiativeIndex] || null;
+        if (active) addCombatLogEntry({
+          eventType: 'turn',
+          action: 'Delay Turn',
+          actorId: String(active.tokenId || ''),
+          actorName: String(active.name || 'Token'),
+          result: 'Turn delayed to next slot.',
+          tags: ['turn', 'delay'],
+          message: String(active.name || 'Token') + ' delayed to the next initiative slot.'
+        });
+        updateUiPanels();
+      };
+    }
+
+    var holdTurnBtn = document.getElementById('combatHoldTurnBtn');
+    if (holdTurnBtn && !holdTurnBtn._bound) {
+      holdTurnBtn._bound = true;
+      holdTurnBtn.onclick = function () {
+        store.setState(function (state) {
+          var list = Array.isArray(state.initiative) ? state.initiative.slice() : [];
+          if (list.length < 2) return state;
+          var idx = Math.max(0, Math.min(list.length - 1, Number(state.initiativeIndex || 0)));
+          var row = list.splice(idx, 1)[0];
+          list.push(row);
+          var nextIdx = Math.max(0, Math.min(list.length - 1, idx));
+          var next = Object.assign({}, state, { initiative: list, initiativeIndex: nextIdx, currentTurnIndex: nextIdx });
+          next.turnStates = Object.assign({}, state.turnStates || {});
+          var tokenId = String(row && row.tokenId || '');
+          if (tokenId) {
+            next.turnStates[tokenId] = Object.assign({}, next.turnStates[tokenId] || {}, {
+              held: true,
+              holdUntilRound: Math.max(1, Number(state.round || 1))
+            });
+          }
+          persist(next);
+          return next;
+        });
+        var st = store.getState();
+        var active = st.initiative[st.initiativeIndex] || null;
+        if (active) addCombatLogEntry({
+          eventType: 'turn',
+          action: 'Hold Turn',
+          actorId: String(active.tokenId || ''),
+          actorName: String(active.name || 'Token'),
+          result: 'Turn held to later in the round.',
+          tags: ['turn', 'hold'],
+          message: String(active.name || 'Token') + ' is holding their turn.'
+        });
         updateUiPanels();
       };
     }

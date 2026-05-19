@@ -121,6 +121,7 @@
       this.isAnimating = true;
       this.bonus = bonus;
       this.diceType = diceType;
+      this.presetValues = null;
 
       // Create dice with random initial velocities
       const startX = this.canvas.width / 2;
@@ -150,6 +151,21 @@
       }
 
       this.animate();
+    }
+
+    rollPreset(sides, values, bonus = 0) {
+      const safeSides = Math.max(2, Number(sides || 20));
+      const safeValues = Array.isArray(values) ? values.map(v => Math.max(1, Math.min(safeSides, Number(v || 1)))) : [];
+      if (!safeValues.length) return null;
+      const diceKey = `d${safeSides}`;
+      if (!DICE_CONFIG[diceKey]) return null;
+      this.initRoll(safeValues.length, diceKey, Number(bonus || 0));
+      this.presetValues = safeValues.slice();
+      for (let i = 0; i < this.dice.length; i++) {
+        if (!this.dice[i]) continue;
+        this.dice[i].presetValue = this.presetValues[i % this.presetValues.length];
+      }
+      return this;
     }
 
     animate = () => {
@@ -305,6 +321,10 @@
     }
 
     getDiceResult(die) {
+      if (die && Number.isFinite(Number(die.presetValue))) {
+        const safe = Math.max(1, Math.min(DICE_CONFIG[die.type].sides, Number(die.presetValue)));
+        return safe;
+      }
       const config = DICE_CONFIG[die.type];
       return Math.floor(Math.random() * config.sides) + 1;
     }
@@ -507,6 +527,13 @@
   window.closeDiceRoller = closeDiceRoller;
   window.rollDiceFromUI = rollDiceFromUI;
   window.Dice3DRoller = Dice3DRoller;
+  window.rollPreset3DDice = function(sides, values, bonus, onComplete) {
+    initializeDiceRoller();
+    const modal = document.getElementById('diceRollerModal');
+    if (modal) modal.style.display = 'flex';
+    if (typeof onComplete === 'function') diceRoller.onComplete = onComplete;
+    return diceRoller.rollPreset(sides, values, bonus || 0);
+  };
 
   // Auto-initialize when DOM is ready
   if (document.readyState === 'loading') {

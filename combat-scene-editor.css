@@ -439,6 +439,73 @@
   box-shadow: 0 0 0 1px rgba(73, 201, 187, 0.24) inset;
 }
 
+.combat-initiative-ribbon {
+  display: flex;
+  align-items: center;
+  gap: 0.22rem;
+  overflow-x: auto;
+  padding: 0.2rem 0.02rem 0.3rem;
+  margin-top: 0.15rem;
+}
+
+.combat-turn-pill {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--combat-text);
+  border-radius: 999px;
+  font: 700 0.68rem "Rajdhani", sans-serif;
+  letter-spacing: 0.03em;
+  padding: 0.14rem 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.combat-turn-pill small {
+  font: 700 0.58rem "Rajdhani", sans-serif;
+  padding: 0.03rem 0.22rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.combat-turn-pill.active {
+  border-color: rgba(73, 201, 187, 0.76);
+  background: rgba(73, 201, 187, 0.16);
+  color: #99f8ed;
+}
+
+.combat-turn-pill.next {
+  border-color: rgba(227, 188, 94, 0.6);
+  background: rgba(227, 188, 94, 0.14);
+}
+
+.combat-turn-pill.held {
+  border-style: dashed;
+}
+
+.combat-turn-pill.delayed {
+  box-shadow: 0 0 0 1px rgba(227, 188, 94, 0.24) inset;
+}
+
+.combat-log-entry {
+  width: 100%;
+  display: grid;
+  gap: 0.05rem;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.combat-log-entry:hover,
+.combat-log-entry:focus {
+  background: rgba(73, 201, 187, 0.08);
+  outline: none;
+}
+
 .combat-turn-lane {
   font-family: "Cinzel", serif;
   font-size: 0.58rem;

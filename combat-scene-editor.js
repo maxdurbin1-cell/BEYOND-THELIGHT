@@ -197,11 +197,15 @@
     motionMode: 'full',
     themePreset: 'obsidian',
     themeTokens: {},
+    compactMode: 'auto',
+    qualityMode: 'auto',
     tutorialSeen: false,
     tutorialStep: 0,
     assetDrawerOpen: true
   };
   var tokenMotionCache = {};
+  var tokenSpriteCache = {};
+  var drawFramePending = false;
 
   function normalizeCombatUi(ui) {
     var next = Object.assign({}, COMBAT_UI_DEFAULTS, ui && typeof ui === 'object' ? ui : {});
@@ -222,6 +226,12 @@
     if (['full', 'reduced', 'off'].indexOf(mode) < 0) mode = 'full';
     next.motionMode = mode;
     next.themeTokens = next.themeTokens && typeof next.themeTokens === 'object' ? Object.assign({}, next.themeTokens) : {};
+    var compact = String(next.compactMode || 'auto');
+    if (['auto', 'off', 'on'].indexOf(compact) < 0) compact = 'auto';
+    next.compactMode = compact;
+    var quality = String(next.qualityMode || 'auto');
+    if (['auto', 'full', 'performance'].indexOf(quality) < 0) quality = 'auto';
+    next.qualityMode = quality;
     next.tutorialSeen = !!next.tutorialSeen;
     next.tutorialStep = Math.max(0, Math.min(6, Number(next.tutorialStep || 0)));
     next.assetDrawerOpen = typeof next.assetDrawerOpen === 'boolean' ? next.assetDrawerOpen : true;
@@ -261,8 +271,12 @@
     if (!root) return;
     var ui = normalizeCombatUi(state && state.ui);
     var theme = getCombatThemeTokens(ui);
+    var compact = shouldUseCompactUi({ ui: ui }) ? 'on' : 'off';
+    var quality = resolveRenderQualityMode({ ui: ui }, ((state && state.tokens) || []).length);
     root.setAttribute('data-theme', ui.themePreset);
     root.setAttribute('data-motion', ui.motionMode);
+    root.setAttribute('data-compact', compact);
+    root.setAttribute('data-quality', quality);
     root.style.setProperty('--combat-accent', theme.accent);
     root.style.setProperty('--combat-accent-2', theme.accent2);
     root.style.setProperty('--combat-surface', theme.surface);
@@ -299,6 +313,46 @@
 
   function safeNotif(msg, tone) {
     if (typeof window.showNotif === 'function') window.showNotif(msg, tone || 'info');
+    announceCombatEvent(msg);
+  }
+
+  function announceCombatEvent(msg) {
+    var live = document.getElementById('combatAriaLive');
+    if (!live) return;
+    live.textContent = '';
+    live.textContent = String(msg || '');
+  }
+
+  function shouldUseCompactUi(state) {
+    var mode = String(state && state.ui && state.ui.compactMode || 'auto');
+    if (mode === 'on') return true;
+    if (mode === 'off') return false;
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia ? !!window.matchMedia('(max-width: 840px)').matches : window.innerWidth <= 840;
+  }
+
+  function resolveRenderQualityMode(state, tokenCount) {
+    var mode = String(state && state.ui && state.ui.qualityMode || 'auto');
+    if (mode === 'full' || mode === 'performance') return mode;
+    return Number(tokenCount || 0) >= 100 ? 'performance' : 'full';
+  }
+
+  function getTokenSprite(src) {
+    var key = String(src || '').trim();
+    if (!key) return null;
+    var cached = tokenSpriteCache[key];
+    if (cached && cached.image) return cached;
+    var image = new Image();
+    cached = tokenSpriteCache[key] = { image: image, loaded: false, errored: false };
+    image.onload = function () {
+      cached.loaded = true;
+      drawBoard();
+    };
+    image.onerror = function () {
+      cached.errored = true;
+    };
+    image.src = key;
+    return cached;
   }
 
   function formatClockTime(value) {
@@ -1473,6 +1527,9 @@
       persist(next);
       return next;
     });
+    var speak = String(source.actorName || '') + ' ' + String(source.action || source.eventType || 'event') + ' ' + String(source.targetName || '');
+    var fallback = String(source.message || source.result || '').trim();
+    announceCombatEvent((speak.replace(/\s+/g, ' ').trim() || fallback || 'Combat log updated.'));
     return true;
   }
 
@@ -3421,6 +3478,8 @@
     root.id = 'combatModeOverlay';
     root.className = 'combat-mode-overlay';
     root.setAttribute('tabindex', '-1');
+    root.setAttribute('role', 'application');
+    root.setAttribute('aria-label', 'Combat encounter workspace');
     setTimeout(function() {
       try { root.focus({ preventScroll: true }); } catch (e) { root.focus(); }
     }, 0);
@@ -3439,6 +3498,7 @@
       + '<div style="display:flex;gap:.28rem;align-items:center;">'
       + '<button class="btn btn-xs btn-primary" id="combatStartSceneBtn">Start Scene</button>'
       + '<button class="btn btn-xs" id="combatPlayModeBtn">Play View</button>'
+      + '<button class="btn btn-xs" id="combatCompactModeBtn" title="Toggle compact panel layout">Compact: Auto</button>'
       + '<button class="btn btn-xs" id="combatAddWayfarerBtn" title="Add Wayfarer to board">+ Wayfarer</button>'
       + '<button class="btn btn-xs combat-editor-only" id="combatUploadMapBtn">Upload Battlemap</button>'
       + '<button class="btn btn-xs combat-editor-only" id="combatClearMapBtn">Remove Battlemap</button>'
@@ -3458,6 +3518,7 @@
       + '<input id="combatMapImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatTokenImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatImportSceneInput" type="file" accept="application/json,.json" style="display:none;">'
+      + '<div id="combatAriaLive" aria-live="polite" aria-atomic="true" class="combat-sr-only"></div>'
       + '<div class="combat-canvas-wrap" id="combatCanvasWrap"><canvas id="combatSceneCanvas"></canvas><input id="combatBubbleInlineInput" type="text" style="display:none;position:absolute;z-index:8;min-width:54px;height:20px;padding:0 .25rem;border:1px solid rgba(227,188,94,.8);background:rgba(4,6,12,.96);color:#fff;font-size:.72rem;"><div id="combatLootPopupCard" style="display:none;position:absolute;z-index:9;min-width:240px;max-width:300px;border:1px solid rgba(227,188,94,.65);background:rgba(5,8,16,.98);box-shadow:0 12px 28px rgba(0,0,0,.45);padding:.45rem .5rem;border-radius:10px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:.35rem;"><div id="combatLootPopupTitle" style="font:600 .83rem Rajdhani,sans-serif;color:var(--combat-accent-2);">Body Loot</div><button class="btn btn-xs" id="combatLootCloseBtn" style="padding:.08rem .3rem;">X</button></div><div id="combatLootPopupMeta" class="combat-mini" style="margin:.18rem 0 .28rem 0;"></div><div id="combatLootPopupList" style="display:grid;gap:.2rem;max-height:180px;overflow:auto;padding-right:.1rem;"></div><div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.34rem;"><button class="btn btn-xs" id="combatLootTakeSelectedBtn">Take Selected</button><button class="btn btn-xs" id="combatLootTakeAllBtn">Take All</button></div></div><div id="combatTokenContextMenu" class="combat-token-menu" style="display:none;"></div></div>'
       + '<div id="combatAssetDragGhost" class="combat-asset-drag-ghost" aria-hidden="true"></div>'
       + '<aside class="combat-icon-rail" id="combatIconRail">'
@@ -4262,7 +4323,7 @@
     return { x: x, y: y };
   }
 
-  function drawBoard() {
+  function renderBoardNow() {
     var canvas = document.getElementById('combatSceneCanvas');
     if (!canvas) return;
     var rect = canvas.getBoundingClientRect();
@@ -4279,6 +4340,24 @@
 
     drawBackground(ctx, board);
     drawGridAndTokens(ctx, state, rect.width, rect.height);
+  }
+
+  function drawBoard(forceImmediate) {
+    if (forceImmediate) {
+      renderBoardNow();
+      return;
+    }
+    if (drawFramePending) return;
+    drawFramePending = true;
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(function () {
+        drawFramePending = false;
+        renderBoardNow();
+      });
+      return;
+    }
+    drawFramePending = false;
+    renderBoardNow();
   }
 
   function drawGridAndTokens(ctx, state, w, h) {
@@ -4461,6 +4540,8 @@
       return Number(a && a.zIndex || 0) - Number(b && b.zIndex || 0);
     });
 
+    var renderQuality = resolveRenderQualityMode(state, tokensToDraw.length);
+    var perfMode = renderQuality === 'performance';
     if (isLayerVisible(state, 'tokens')) tokensToDraw.forEach(function (token) {
       var targetPoint = getTokenRenderPoint(token, size, board.panX, board.panY);
       var p = getAnimatedTokenPoint(token, targetPoint, state);
@@ -4490,18 +4571,17 @@
       if (dead) ctx.fillStyle = 'rgba(94,98,110,.7)';
       ctx.fill();
       if (token.image && !dead) {
-        var img = new Image();
-        img.onload = function () {
+        var sprite = getTokenSprite(token.image);
+        if (sprite && sprite.loaded && sprite.image && !sprite.errored) {
           ctx.save();
           ctx.translate(p.x, p.y);
           if (rotationRad) ctx.rotate(rotationRad);
           ctx.beginPath();
           ctx.arc(0, 0, radius - 2, 0, Math.PI * 2);
           ctx.clip();
-          ctx.drawImage(img, -radius, -radius, radius * 2, radius * 2);
+          ctx.drawImage(sprite.image, -radius, -radius, radius * 2, radius * 2);
           ctx.restore();
-        };
-        img.src = token.image;
+        }
       }
       if (selectedSet[String(token.id)]) {
         ctx.lineWidth = 2.2;
@@ -4535,12 +4615,14 @@
         ctx.restore();
       }
 
-      ctx.fillStyle = '#fff';
-      ctx.font = '11px Rajdhani, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(String(token.name || 'Token') + (dead ? ' [DEAD]' : ''), p.x, p.y - radius - 8);
-      ctx.fillStyle = 'rgba(230,230,230,.95)';
-      ctx.fillText('HP ' + Number(token.hp || 0) + '/' + Number(token.maxHp || token.hp || 0), p.x, p.y + radius + 12);
+      if (!perfMode) {
+        ctx.fillStyle = '#fff';
+        ctx.font = '11px Rajdhani, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(String(token.name || 'Token') + (dead ? ' [DEAD]' : ''), p.x, p.y - radius - 8);
+        ctx.fillStyle = 'rgba(230,230,230,.95)';
+        ctx.fillText('HP ' + Number(token.hp || 0) + '/' + Number(token.maxHp || token.hp || 0), p.x, p.y + radius + 12);
+      }
 
       if (dead) {
         ctx.strokeStyle = 'rgba(255,96,96,.92)';
@@ -4554,7 +4636,7 @@
       }
 
       var drop = getLootDropForToken(state, token.id);
-      if (drop && !drop.claimed) {
+      if (drop && !drop.claimed && !perfMode) {
         ctx.fillStyle = 'rgba(227,188,94,.96)';
         ctx.font = '10px Rajdhani, sans-serif';
         ctx.fillText('LOOT', p.x, p.y + radius + 24);
@@ -4584,7 +4666,7 @@
         return effect && String(effect.targetTokenId || '') === String(token.id || '') && Number(effect.roundsLeft || 0) > 0;
       });
       if (activeEffects.length) badgeList = badgeList.concat(activeEffects.map(function (effect) { return String(effect.label || 'Condition'); }).slice(0, 3));
-      if (badgeList.length) {
+      if (badgeList.length && !perfMode) {
         var badgeY = p.y - radius - 24;
         var badgeHeight = 14;
         var badgeWidths = badgeList.slice(0, 3).map(function (label) { return Math.max(22, Math.min(68, label.length * 6 + 14)); });
@@ -4608,7 +4690,7 @@
           badgeX += width + 4;
         });
       }
-      if (activeEffects.length) {
+      if (activeEffects.length && !perfMode) {
         ctx.save();
         var iconSize = 14;
         var iconSpacing = 2;
@@ -4650,36 +4732,38 @@
       }
 
       // Quick-edit bubbles above token. Click bubble to edit with absolute or +/- delta.
-      var bubbleY = p.y - radius - 34;
-      var bubbles = [
-        { key: 'hp', label: 'HP ' + Number(token.hp || 0), color: 'rgba(47,154,144,.88)' }
-      ];
-      if (!dead && String(token.faction) === 'monster') {
-        bubbles.push({ key: 'dread', label: 'DD ' + Math.max(4, Number(token.dread || token.codexDread || 6)), color: alphaColorFromHex(String(theme.danger || '#d05353'), 0.88) });
-        bubbles.push({ key: 'deathNumber', label: 'DN ' + Math.max(1, Number(token.deathNumber || token.dread || 6)), color: 'rgba(227,188,94,.88)' });
+      if (!perfMode) {
+        var bubbleY = p.y - radius - 34;
+        var bubbles = [
+          { key: 'hp', label: 'HP ' + Number(token.hp || 0), color: 'rgba(47,154,144,.88)' }
+        ];
+        if (!dead && String(token.faction) === 'monster') {
+          bubbles.push({ key: 'dread', label: 'DD ' + Math.max(4, Number(token.dread || token.codexDread || 6)), color: alphaColorFromHex(String(theme.danger || '#d05353'), 0.88) });
+          bubbles.push({ key: 'deathNumber', label: 'DN ' + Math.max(1, Number(token.deathNumber || token.dread || 6)), color: 'rgba(227,188,94,.88)' });
+        }
+        var bw = 52;
+        var bh = 16;
+        var gap = 4;
+        var totalW = bubbles.length * bw + (bubbles.length - 1) * gap;
+        var sx = p.x - totalW / 2;
+        bubbles.forEach(function (b, idx) {
+          var bx = sx + idx * (bw + gap);
+          ctx.save();
+          ctx.fillStyle = b.color;
+          ctx.strokeStyle = 'rgba(255,255,255,.3)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(bx, bubbleY, bw, bh, 7);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = '#fff';
+          ctx.font = '10px Rajdhani, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(b.label, bx + bw / 2, bubbleY + bh - 5);
+          ctx.restore();
+          bubbleHotspots.push({ tokenId: String(token.id), statKey: String(b.key), x: bx, y: bubbleY, w: bw, h: bh, cx: bx + (bw / 2), cy: bubbleY + (bh / 2) });
+        });
       }
-      var bw = 52;
-      var bh = 16;
-      var gap = 4;
-      var totalW = bubbles.length * bw + (bubbles.length - 1) * gap;
-      var sx = p.x - totalW / 2;
-      bubbles.forEach(function (b, idx) {
-        var bx = sx + idx * (bw + gap);
-        ctx.save();
-        ctx.fillStyle = b.color;
-        ctx.strokeStyle = 'rgba(255,255,255,.3)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.roundRect(bx, bubbleY, bw, bh, 7);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = '#fff';
-        ctx.font = '10px Rajdhani, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(b.label, bx + bw / 2, bubbleY + bh - 5);
-        ctx.restore();
-        bubbleHotspots.push({ tokenId: String(token.id), statKey: String(b.key), x: bx, y: bubbleY, w: bw, h: bh, cx: bx + (bw / 2), cy: bubbleY + (bh / 2) });
-      });
 
     });
 
@@ -4901,6 +4985,14 @@
     if (playModeBtn) {
       playModeBtn.textContent = state.playMode ? 'Build View' : 'Play View';
       playModeBtn.className = state.playMode ? 'btn btn-xs' : 'btn btn-xs btn-teal';
+    }
+
+    var compactBtn = document.getElementById('combatCompactModeBtn');
+    if (compactBtn) {
+      var compactMode = String(state.ui && state.ui.compactMode || 'auto');
+      compactBtn.textContent = 'Compact: ' + (compactMode === 'on' ? 'On' : compactMode === 'off' ? 'Off' : 'Auto');
+      compactBtn.className = compactMode === 'on' ? 'btn btn-xs btn-teal' : 'btn btn-xs';
+      compactBtn.setAttribute('aria-pressed', compactMode === 'on' ? 'true' : 'false');
     }
 
     var layers = ['terrain', 'objects', 'hazards', 'elevation', 'lighting', 'weather', 'foreground', 'interactives', 'spawns'];
@@ -6118,7 +6210,20 @@
     var canvas = document.getElementById('combatSceneCanvas');
     if (!canvas || canvas._boundCombatEditor) return;
     canvas._boundCombatEditor = true;
+    canvas.setAttribute('tabindex', '0');
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', 'Combat map canvas. Use Tab to cycle tokens and arrow keys to move selected token.');
+    canvas.style.touchAction = 'none';
     var pingHoldTimer = null;
+    var touchGesture = { active: false, panX: 0, panY: 0, centerX: 0, centerY: 0, distance: 0, zoom: 1 };
+
+    if (!window.__combatResizeAdaptiveBound) {
+      window.__combatResizeAdaptiveBound = true;
+      window.addEventListener('resize', function () {
+        applyCombatUiState(store.getState());
+        drawBoard();
+      });
+    }
 
     function clearPingHold() {
       if (pingHoldTimer) {
@@ -6463,6 +6568,48 @@
       drawBoard();
       updateUiPanels();
     }, { passive: false });
+
+    canvas.addEventListener('touchstart', function (ev) {
+      if (!ev.touches || ev.touches.length < 2) return;
+      var t0 = ev.touches[0];
+      var t1 = ev.touches[1];
+      var state = store.getState();
+      touchGesture.active = true;
+      touchGesture.panX = Number(state.board && state.board.panX || 0);
+      touchGesture.panY = Number(state.board && state.board.panY || 0);
+      touchGesture.zoom = Number(state.board && state.board.zoom || 1);
+      touchGesture.centerX = (Number(t0.clientX || 0) + Number(t1.clientX || 0)) / 2;
+      touchGesture.centerY = (Number(t0.clientY || 0) + Number(t1.clientY || 0)) / 2;
+      touchGesture.distance = Math.hypot(Number(t0.clientX || 0) - Number(t1.clientX || 0), Number(t0.clientY || 0) - Number(t1.clientY || 0));
+      ev.preventDefault();
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', function (ev) {
+      if (!touchGesture.active || !ev.touches || ev.touches.length < 2) return;
+      var t0 = ev.touches[0];
+      var t1 = ev.touches[1];
+      var centerX = (Number(t0.clientX || 0) + Number(t1.clientX || 0)) / 2;
+      var centerY = (Number(t0.clientY || 0) + Number(t1.clientY || 0)) / 2;
+      var distance = Math.max(1, Math.hypot(Number(t0.clientX || 0) - Number(t1.clientX || 0), Number(t0.clientY || 0) - Number(t1.clientY || 0)));
+      var zoomRatio = distance / Math.max(1, touchGesture.distance || 1);
+      var nextZoom = Math.max(0.5, Math.min(2.3, Number(touchGesture.zoom || 1) * zoomRatio));
+      var dx = centerX - Number(touchGesture.centerX || 0);
+      var dy = centerY - Number(touchGesture.centerY || 0);
+      store.setState(function (state) {
+        var next = Object.assign({}, state);
+        next.board = Object.assign({}, state.board || {}, { zoom: nextZoom, panX: Number(touchGesture.panX || 0) + dx, panY: Number(touchGesture.panY || 0) + dy });
+        persist(next);
+        return next;
+      });
+      drawBoard();
+      updateUiPanels();
+      ev.preventDefault();
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', function (ev) {
+      if (ev.touches && ev.touches.length >= 2) return;
+      touchGesture.active = false;
+    }, { passive: true });
 
     canvas.addEventListener('dragover', function (ev) {
       ev.preventDefault();
@@ -6943,6 +7090,24 @@
       };
     }
 
+    var compactModeBtn = document.getElementById('combatCompactModeBtn');
+    if (compactModeBtn && !compactModeBtn._bound) {
+      compactModeBtn._bound = true;
+      compactModeBtn.onclick = function () {
+        store.setState(function (state) {
+          var current = String(state.ui && state.ui.compactMode || 'auto');
+          var nextMode = current === 'auto' ? 'on' : (current === 'on' ? 'off' : 'auto');
+          var next = Object.assign({}, state);
+          next.ui = normalizeCombatUi(Object.assign({}, state.ui || {}, { compactMode: nextMode }));
+          persist(next);
+          return next;
+        });
+        applyCombatUiState(store.getState());
+        updateUiPanels();
+        drawBoard();
+      };
+    }
+
     var nextTurn = document.getElementById('combatNextTurnBtn');
     if (nextTurn && !nextTurn._bound) {
       nextTurn._bound = true;
@@ -7365,6 +7530,18 @@
         + '<option value="dawn" ' + (ui.themePreset === 'dawn' ? 'selected' : '') + '>Dawn</option>'
         + '<option value="high-contrast" ' + (ui.themePreset === 'high-contrast' ? 'selected' : '') + '>High Contrast</option>'
         + '</select></label>'
+        + '<label style="display:flex;align-items:center;gap:.4rem;">Compact Layout'
+        + '<select id="combatSettingsCompactMode" class="combat-select" style="max-width:180px;">'
+        + '<option value="auto" ' + (ui.compactMode === 'auto' ? 'selected' : '') + '>Auto</option>'
+        + '<option value="on" ' + (ui.compactMode === 'on' ? 'selected' : '') + '>On</option>'
+        + '<option value="off" ' + (ui.compactMode === 'off' ? 'selected' : '') + '>Off</option>'
+        + '</select></label>'
+        + '<label style="display:flex;align-items:center;gap:.4rem;">Render Quality'
+        + '<select id="combatSettingsQualityMode" class="combat-select" style="max-width:180px;">'
+        + '<option value="auto" ' + (ui.qualityMode === 'auto' ? 'selected' : '') + '>Auto</option>'
+        + '<option value="full" ' + (ui.qualityMode === 'full' ? 'selected' : '') + '>Full</option>'
+        + '<option value="performance" ' + (ui.qualityMode === 'performance' ? 'selected' : '') + '>Performance</option>'
+        + '</select></label>'
         + '<label style="display:flex;align-items:center;gap:.4rem;">Accent <input id="combatSettingsAccent" type="color" value="' + escapeHtml(String(theme.accent || '#e3bc5e')) + '"></label>'
         + '<label style="display:flex;align-items:center;gap:.4rem;">Support Accent <input id="combatSettingsAccent2" type="color" value="' + escapeHtml(String(theme.accent2 || '#49c9bb')) + '"></label>'
         + '<label style="display:flex;align-items:center;gap:.4rem;">Surface <input id="combatSettingsSurface" type="color" value="' + escapeHtml(rgbaStringToHex(String(theme.surface || '#0c0e1a'))) + '"></label>'
@@ -7372,6 +7549,7 @@
         + '<label style="display:flex;align-items:center;gap:.4rem;">Fog <input id="combatSettingsFogColor" type="color" value="' + escapeHtml(rgbaStringToHex(String(theme.fog || '#020307'))) + '"></label>'
         + '<label style="display:flex;align-items:center;gap:.4rem;">Ping <input id="combatSettingsPing" type="color" value="' + escapeHtml(rgbaStringToHex(String(theme.ping || '#49c9bb'))) + '"></label>'
         + '<label style="display:flex;align-items:center;gap:.4rem;">Danger <input id="combatSettingsDanger" type="color" value="' + escapeHtml(rgbaStringToHex(String(theme.danger || '#d05353'))) + '"></label>'
+        + '<div class="combat-mini">Keyboard: Tab select token, arrows move, N next turn, H hold, J delay, Enter opens sheet.</div>'
         + '</div>'
         + '</article>'
         + '<article class="combat-rules-card combat-sheet-card">'
@@ -8533,6 +8711,78 @@
         var tag = ev.target && ev.target.tagName ? String(ev.target.tagName).toLowerCase() : '';
         if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
         var key = String(ev.key || '').toLowerCase();
+        if (!ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+          var stLocal = store.getState();
+          var localTokens = (stLocal.tokens || []).filter(function (token) { return !!token; });
+          var selectedId = String(stLocal.selectedTokenId || '');
+          if (key === 'tab') {
+            if (localTokens.length) {
+              var currentIndex = localTokens.findIndex(function (token) { return String(token.id) === selectedId; });
+              var nextIndex = currentIndex < 0 ? 0 : ((currentIndex + (ev.shiftKey ? -1 : 1) + localTokens.length) % localTokens.length);
+              var nextToken = localTokens[nextIndex];
+              if (nextToken) {
+                normalizeSelection(nextToken.id, [String(nextToken.id)]);
+                updateUiPanels();
+                drawBoard();
+                announceCombatEvent('Selected ' + String(nextToken.name || 'token') + '.');
+              }
+            }
+            ev.preventDefault();
+            return;
+          }
+          if (key === 'enter') {
+            if (selectedId) openTokenSheetQuickView(selectedId);
+            ev.preventDefault();
+            return;
+          }
+          if (key === 'arrowup' || key === 'arrowdown' || key === 'arrowleft' || key === 'arrowright') {
+            var activeToken = byId(selectedId);
+            if (activeToken) {
+              var dq = 0;
+              var dr = 0;
+              if (key === 'arrowup') dr = -1;
+              if (key === 'arrowdown') dr = 1;
+              if (key === 'arrowleft') dq = -1;
+              if (key === 'arrowright') dq = 1;
+              moveToken(activeToken.id, Number(activeToken.q || 0) + dq, Number(activeToken.r || 0) + dr);
+              drawBoard();
+              updateUiPanels();
+            }
+            ev.preventDefault();
+            return;
+          }
+          if (key === 'n') {
+            var nextTurnBtn = document.getElementById('combatNextTurnBtn');
+            if (nextTurnBtn && typeof nextTurnBtn.click === 'function') nextTurnBtn.click();
+            ev.preventDefault();
+            return;
+          }
+          if (key === 'h') {
+            var stHold = store.getState();
+            var activeHold = stHold.initiative && stHold.initiative[stHold.initiativeIndex];
+            applyInitiativeTurnState('hold-turn', activeHold && activeHold.tokenId);
+            ev.preventDefault();
+            return;
+          }
+          if (key === 'j') {
+            var stDelay = store.getState();
+            var activeDelay = stDelay.initiative && stDelay.initiative[stDelay.initiativeIndex];
+            applyInitiativeTurnState('delay-turn', activeDelay && activeDelay.tokenId);
+            ev.preventDefault();
+            return;
+          }
+          if (['v', 'd', 't', 'm', 'p', 'f'].indexOf(key) >= 0) {
+            var toolByKey = { v: 'select', d: 'paint', t: 'text', m: 'ruler', p: 'pan', f: 'fog' };
+            var toolName = toolByKey[key];
+            if (toolName) {
+              store.setState({ activeTool: toolName });
+              updateUiPanels();
+              drawBoard();
+            }
+            ev.preventDefault();
+            return;
+          }
+        }
         if ((ev.ctrlKey || ev.metaKey) && key === 'c') {
           var st = store.getState();
           copyTokensToClipboard(st.selectedTokenId || '');
@@ -9788,6 +10038,10 @@
     var motionMode = String(motionEl && motionEl.value || 'full');
     var themePresetEl = document.getElementById('combatSettingsThemePreset');
     var themePreset = String(themePresetEl && themePresetEl.value || 'obsidian');
+    var compactModeEl = document.getElementById('combatSettingsCompactMode');
+    var compactMode = String(compactModeEl && compactModeEl.value || 'auto');
+    var qualityModeEl = document.getElementById('combatSettingsQualityMode');
+    var qualityMode = String(qualityModeEl && qualityModeEl.value || 'auto');
     var accentEl = document.getElementById('combatSettingsAccent');
     var accent2El = document.getElementById('combatSettingsAccent2');
     var surfaceEl = document.getElementById('combatSettingsSurface');
@@ -9810,6 +10064,8 @@
       next.ui = normalizeCombatUi(Object.assign({}, state.ui || {}, {
         motionMode: motionMode,
         themePreset: themePreset,
+        compactMode: compactMode,
+        qualityMode: qualityMode,
         themeTokens: Object.assign({}, state.ui && state.ui.themeTokens || {}, {
           accent: String(accentEl && accentEl.value || ''),
           accent2: String(accent2El && accent2El.value || ''),

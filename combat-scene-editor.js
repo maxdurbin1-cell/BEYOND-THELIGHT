@@ -88,11 +88,14 @@
   }
 
   function primeCombatAssetDragPayload(kind, payload, label) {
-    window.__combatAssetDragPayload = {
+    var stamped = {
       kind: String(kind || ''),
       payload: String(payload || ''),
-      label: String(label || 'Dragging asset')
+      label: String(label || 'Dragging asset'),
+      at: Date.now()
     };
+    window.__combatAssetDragPayload = stamped;
+    window.__combatAssetDragPayloadLastKnown = stamped;
   }
 
   function applyCombatHoverLabels(root) {
@@ -662,6 +665,13 @@
     if (!assetKind && window.__combatAssetDragPayload && typeof window.__combatAssetDragPayload === 'object') {
       assetKind = String(window.__combatAssetDragPayload.kind || '');
       assetPayload = String(window.__combatAssetDragPayload.payload || '');
+    }
+    if (!assetKind && window.__combatAssetDragPayloadLastKnown && typeof window.__combatAssetDragPayloadLastKnown === 'object') {
+      var ageMs = Date.now() - Number(window.__combatAssetDragPayloadLastKnown.at || 0);
+      if (ageMs >= 0 && ageMs < 5000) {
+        assetKind = String(window.__combatAssetDragPayloadLastKnown.kind || '');
+        assetPayload = String(window.__combatAssetDragPayloadLastKnown.payload || '');
+      }
     }
     if (assetKind) {
       if (typeof window.applyCombatAssetActionAt === 'function') {
@@ -6934,7 +6944,9 @@
           }
         };
         card.ondragend = function () {
-          window.__combatAssetDragPayload = null;
+          setTimeout(function () {
+            window.__combatAssetDragPayload = null;
+          }, 120);
           clearCombatAssetDragGhost();
           clearCombatAssetDragPreview();
         };
@@ -8178,6 +8190,7 @@
           showMapItemContextMenu(mapItem, ev.clientX - rect.left, ev.clientY - rect.top);
           drawBoard();
           updateUiPanels();
+          return;
         }
         hideTokenContextMenu();
         return;
@@ -9254,9 +9267,12 @@
       ev.dataTransfer.setData('text/combat-asset-kind', String(kind || ''));
       ev.dataTransfer.setData('text/combat-asset-payload', String(payload || ''));
       ev.dataTransfer.setData('text/plain', String(kind || '') + ':' + String(payload || ''));
-      window.__combatAssetDragPayload = { kind: String(kind || ''), payload: String(payload || '') };
+      primeCombatAssetDragPayload(kind, payload, 'Dragging asset');
       var source = ev.currentTarget || ev.target;
       var label = source && source.getAttribute && source.getAttribute('data-asset-label') || source && source.textContent || 'Dragging asset';
+      if (window.__combatAssetDragPayload && typeof window.__combatAssetDragPayload === 'object') {
+        window.__combatAssetDragPayload.label = String(label || 'Dragging asset');
+      }
       setCombatAssetDrawerOpen(true);
       setCombatAssetDragGhost({ label: String(label || 'Dragging asset'), x: Number(ev.clientX || 0) + 18, y: Number(ev.clientY || 0) + 18 });
       safeNotif('Drop the asset onto the battlemap to place it directly.', 'info');
@@ -9266,9 +9282,10 @@
       var q = Number(baseQ || 0);
       var r = Number(baseR || 0);
       if (action === 'set-tool') {
-        var parts = String(value || '').split(':');
-        var layer = String(parts[0] || 'terrain');
-        var paint = String(parts[1] || 'forest');
+        var rawValue = String(value || '');
+        var firstSep = rawValue.indexOf(':');
+        var layer = firstSep >= 0 ? String(rawValue.slice(0, firstSep) || 'terrain') : 'terrain';
+        var paint = firstSep >= 0 ? String(rawValue.slice(firstSep + 1) || 'forest') : String(rawValue || 'forest');
         if (directDrop) {
           captureUndoSnapshot('Drop Asset');
           store.setState(function (inner) {

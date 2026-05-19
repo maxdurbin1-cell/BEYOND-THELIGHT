@@ -166,7 +166,8 @@
   transform: translateX(-50%) translateY(-2px);
   opacity: 0;
   pointer-events: none;
-  white-space: nowrap;
+  white-space: normal;
+  max-width: min(220px, calc(100vw - 20px));
   padding: 0.22rem 0.42rem;
   border: 1px solid rgba(227, 188, 94, 0.28);
   background: rgba(4, 7, 15, 0.96);
@@ -176,6 +177,22 @@
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
   transition: opacity 120ms ease, transform 120ms ease;
   z-index: 20;
+}
+
+.combat-icon-rail .combat-icon-btn[data-hover-label]::after {
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-2px);
+  width: max-content;
+}
+
+.combat-mode-overlay .combat-right-rail .combat-chip[data-hover-label]::after,
+.combat-mode-overlay .combat-asset-dock .btn[data-hover-label]::after,
+.combat-mode-overlay .combat-topbar .btn[data-hover-label]::after {
+  left: auto;
+  right: 0;
+  transform: translateY(-2px);
+  text-align: right;
 }
 
 .combat-icon-btn[data-hover-label]:hover::after,
@@ -188,6 +205,22 @@
 .combat-topbar .btn[data-hover-label]:focus-visible::after {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+.combat-icon-rail .combat-icon-btn[data-hover-label]:hover::after,
+.combat-icon-rail .combat-icon-btn[data-hover-label]:focus-visible::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+.combat-mode-overlay .combat-right-rail .combat-chip[data-hover-label]:hover::after,
+.combat-mode-overlay .combat-right-rail .combat-chip[data-hover-label]:focus-visible::after,
+.combat-mode-overlay .combat-asset-dock .btn[data-hover-label]:hover::after,
+.combat-mode-overlay .combat-asset-dock .btn[data-hover-label]:focus-visible::after,
+.combat-mode-overlay .combat-topbar .btn[data-hover-label]:hover::after,
+.combat-mode-overlay .combat-topbar .btn[data-hover-label]:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .combat-svg-icon {

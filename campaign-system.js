@@ -259,6 +259,57 @@
     return setSyncHealth("online", "Synced");
   }
 
+  function isRecoveryOnlySyncState() {
+    if (!state.code) return false;
+    if (!state.connected) return true;
+    var mode = String(state.syncHealth || "idle");
+    if (mode === "stale") return true;
+    if (mode === "syncing") {
+      var text = String(state.syncText || "").toLowerCase();
+      if (text.indexOf("reconnect") >= 0 || text.indexOf("reconcil") >= 0) return true;
+    }
+    return false;
+  }
+
+  function getCampaignTableState(sharedState) {
+    var shared = sharedState || getCampaignSharedState() || {};
+    var ready = shared.readyCheck && typeof shared.readyCheck === "object" ? shared.readyCheck : null;
+    var combat = shared.campaignCombat && typeof shared.campaignCombat === "object" ? shared.campaignCombat : null;
+    var travel = shared.campaignTravel && typeof shared.campaignTravel === "object" ? shared.campaignTravel : null;
+
+    if (isRecoveryOnlySyncState()) {
+      return { key: "reconnecting", label: "Reconnecting", recoveryOnly: true };
+    }
+    if (ready && ready.id && String(ready.status || "") === "pending") {
+      return { key: "ready-check", label: "Ready Check", recoveryOnly: false };
+    }
+    if (combat && combat.active) {
+      return { key: "combat", label: "Combat Active", recoveryOnly: false };
+    }
+
+    var travelAt = Number(travel && travel.updatedAt || 0);
+    var travelReason = String(travel && travel.reason || "");
+    if (travelAt && (Date.now() - travelAt) < 9000 && (travelReason.indexOf("travel") >= 0 || travelReason.indexOf("camera-lock") >= 0)) {
+      return { key: "travel", label: "Travel Transition", recoveryOnly: false };
+    }
+    return { key: "exploration", label: "Exploration", recoveryOnly: false };
+  }
+
+  function getTableBadgeTone(tableState) {
+    var key = String(tableState && tableState.key || "exploration");
+    if (key === "reconnecting") return "stale";
+    if (key === "combat") return "syncing";
+    return "online";
+  }
+
+  function guardRiskySharedAction(actionLabel, callback) {
+    var tableState = getCampaignTableState();
+    if (!tableState || !tableState.recoveryOnly) return true;
+    safeNotif("Cannot " + String(actionLabel || "run that action") + " while sync recovery is in progress. Use Reconnect/Fix Desync first.", "warn");
+    if (callback) callback({ ok: false, error: "Sync recovery in progress." });
+    return false;
+  }
+
   function maybeDeterministicReconcile(trigger) {
     if (!state.code) return;
     if (!state.connected) return;
@@ -428,6 +479,10 @@
       syncProvinceFocus("gm-camera-lock").catch(function () {});
     }
     if (opts.includeWorldSync && now - Number(state.lastCameraWorldSyncAt || 0) > 1200) {
+      var tableState = getCampaignTableState();
+      if (tableState && (tableState.key === "combat" || tableState.key === "ready-check")) {
+        return res;
+      }
       state.lastCameraWorldSyncAt = now;
       syncSharedSilent("gm-camera-visibility").catch(function () {});
     }
@@ -1880,8 +1935,12 @@
       sharedState.gmSettings = {
         mode: "passive", // "passive" | "active" | "facilitative"
         travelMode: "gm-led", // who can initiate travel
-        combatMode: "turn-based" // combat style
+        combatMode: "turn-based", // combat style
+        cameraLock: true
       };
+    }
+    if (typeof sharedState.gmSettings.cameraLock !== "boolean") {
+      sharedState.gmSettings.cameraLock = true;
     }
     return sharedState.gmSettings;
   }
@@ -1923,6 +1982,7 @@
       if (callback) callback({ ok: false, error: "Only GM can start shared campaign combat." });
       return;
     }
+    if (!guardRiskySharedAction("start combat", callback)) return;
     var opts = options && typeof options === "object" ? options : {};
     if (state.role === "gm" && state.code && state.connected && !opts.skipReadyCheck) {
       var shared = getCampaignSharedState();
@@ -2041,6 +2101,7 @@
       if (callback) callback({ ok: false, error: "Only GM can advance turns" });
       return;
     }
+    if (!guardRiskySharedAction("advance turns", callback)) return;
     try {
       var combatState = ensureCampaignCombatState();
       if (!combatState.active || !Array.isArray(combatState.turnOrder) || combatState.turnOrder.length === 0) {
@@ -2089,6 +2150,7 @@
       if (callback) callback({ ok: false, error: "Only GM can end combat" });
       return;
     }
+    if (!guardRiskySharedAction("end combat", callback)) return;
     try {
       var combatState = ensureCampaignCombatState();
       combatState.active = false;
@@ -2113,6 +2175,7 @@
       if (callback) callback({ ok: false, error: "Only GM can initiate travel" });
       return;
     }
+    if (!guardRiskySharedAction("initiate travel", callback)) return;
     try {
       var next = (destination && typeof destination === "object") ? destination : { label: String(destination || "").trim() };
       if (!next.label) {
@@ -2176,6 +2239,7 @@
       if (callback) callback({ ok: false, error: "Only GM can advance time" });
       return;
     }
+    if (!guardRiskySharedAction("advance time", callback)) return;
     try {
       intervals = Math.max(1, Math.min(4, Number(intervals || 1)));
       advanceSharedGameDate(intervals);
@@ -2194,6 +2258,7 @@
       safeNotif("Only GM can move the party.", "warn");
       return;
     }
+    if (!guardRiskySharedAction("open travel prompt")) return;
     if (typeof window.openModal !== "function") {
       safeNotif("Travel prompt unavailable.", "warn");
       return;
@@ -3490,6 +3555,12 @@
       ? "Syncing"
       : (state.syncHealth === "stale" ? "Pending" : (state.syncHealth === "online" ? "Synced" : "Offline")));
     var syncConflictText = state.syncConflictCount > 0 ? ("Conflicts " + state.syncConflictCount) : "";
+    var tableState = getCampaignTableState(sharedState);
+    var tableBadgeTone = getTableBadgeTone(tableState);
+    var recoveryOnly = !!(tableState && tableState.recoveryOnly);
+    var riskyDisabledAttr = recoveryOnly
+      ? ' disabled title="Sync recovery in progress. Use recovery actions first."'
+      : '';
     var authoritativeStamp = formatTimestamp(state.lastAuthoritativeAt) || formatTimestamp(state.lastSyncAt) || "-";
     var snapshotAgeText = state.lastCampaignStateAt ? (getLastSnapshotAgeSeconds() + "s ago") : "-";
     var gmResyncRequester = state.lastResyncRequester ? String(state.lastResyncRequester) : "-";
@@ -3517,6 +3588,10 @@
     var travelStatusText = escapeHtml(String(campaignTravel.label || "Province Map"))
       + ' · ' + escapeHtml(String(campaignTravel.movedBy || "-"))
       + ' · ' + escapeHtml(formatTimestamp(campaignTravel.updatedAt) || "-");
+    var tableStateLine = 'Table state: <strong style="color:var(--gold2);">' + escapeHtml(String(tableState && tableState.label || "Exploration")) + '</strong>';
+    if (recoveryOnly) {
+      tableStateLine += ' · Risky actions locked until sync recovers.';
+    }
     var readyRequiredCount = Array.isArray(readyCheck.requiredTokens) ? readyCheck.requiredTokens.length : 0;
     var readyResponseCount = getReadyCheckResponseCount(readyCheck);
     var readyStatusText = String(readyCheck.status || "idle");
@@ -3617,6 +3692,7 @@
       + '<div class="campaign-status-row">'
       + '<span class="campaign-badge ' + (state.connected ? "online" : "offline") + '">' + (state.connected ? "Online" : (ioReady ? "Offline" : "Server Script Missing")) + "</span>"
       + '<span class="campaign-badge ' + escapeHtml(state.syncHealth || "idle") + '">' + escapeHtml(syncLabel) + '</span>'
+      + '<span class="campaign-badge ' + escapeHtml(tableBadgeTone) + '">' + escapeHtml(String(tableState && tableState.label || "Exploration")) + '</span>'
       + (syncConflictText ? ('<span class="campaign-muted">' + escapeHtml(syncConflictText) + '</span>') : '')
       + '<span class="campaign-muted">Code: <strong style="color:var(--teal);">' + escapeHtml(state.code || "-") + "</strong></span>"
       + "</div>"
@@ -3647,6 +3723,7 @@
       + '<div class="campaign-muted" style="margin-top:.2rem;">Coin <strong style="color:var(--gold2);">' + sharedCredits + '₵</strong> · Renown <strong style="color:var(--teal);">' + sharedRenown + '</strong></div>'
       + '<div class="campaign-muted" style="margin-top:.2rem;">Last authoritative sync: <strong style="color:var(--text2);">' + escapeHtml(authoritativeStamp) + '</strong></div>'
       + '<div class="campaign-muted" style="margin-top:.2rem;">Last snapshot: <strong style="color:var(--text2);">' + escapeHtml(snapshotAgeText) + '</strong></div>'
+      + '<div class="campaign-muted" style="margin-top:.2rem;">' + tableStateLine + '</div>'
       + '<div class="campaign-actions" style="margin-top:.35rem;">'
       + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.syncSharedNow()">Sync Shared World</button>'
       + (isGm ? '' : '<button class="btn btn-xs" onclick="window.campaignSystem.requestResync()">Request Resync</button>')
@@ -3670,8 +3747,8 @@
           + '<input id="campaignRollDread" class="campaign-input" type="number" min="1" max="20" value="8">'
           + "</div>"
           + '<div class="campaign-actions" style="margin-top:.35rem;">'
-          + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.callRollRequest()">Call Roll</button>'
-          + '<button class="btn btn-xs" onclick="window.campaignSystem.closeActiveRoll()">Close Active</button>'
+          + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.callRollRequest()"' + riskyDisabledAttr + '>Call Roll</button>'
+          + '<button class="btn btn-xs" onclick="window.campaignSystem.closeActiveRoll()"' + riskyDisabledAttr + '>Close Active</button>'
           + "</div>"
           + (active ? ('<div class="campaign-muted" style="margin-top:.35rem;">Active: ' + escapeHtml(active.label) + ' · ' + escapeHtml(active.stat) + ' vs d' + Number(active.dread || 8) + '</div>') : '<div class="campaign-muted" style="margin-top:.35rem;">No active roll request.</div>')
           + "</div>")
@@ -3727,14 +3804,14 @@
           + '<div class="campaign-card-title">Phase 1: Campaign Combat & Travel</div>'
           + '<div class="campaign-muted" style="margin-bottom:.35rem;">Multi-player combat coordination and party travel control</div>'
           + '<div class="campaign-actions" style="margin-top:.35rem;gap:.2rem;">'
-          + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.startCampaignCombat(window.campaignSystem.buildPartyRoster())">Start Combat</button>'
+          + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.startCampaignCombat(window.campaignSystem.buildPartyRoster())"' + riskyDisabledAttr + '>Start Combat</button>'
           + combatReadyHintHtml
-          + '<button class="btn btn-xs" onclick="window.campaignSystem.nextCombatActor()">Next Actor</button>'
-          + '<button class="btn btn-xs btn-red" onclick="window.campaignSystem.endCampaignCombat()">End Combat</button>'
+          + '<button class="btn btn-xs" onclick="window.campaignSystem.nextCombatActor()"' + riskyDisabledAttr + '>Next Actor</button>'
+          + '<button class="btn btn-xs btn-red" onclick="window.campaignSystem.endCampaignCombat()"' + riskyDisabledAttr + '>End Combat</button>'
           + '</div>'
           + '<div class="campaign-actions" style="margin-top:.35rem;gap:.2rem;">'
-          + '<button class="btn btn-xs" onclick="window.campaignSystem.gmAdvanceTime(1)">Advance Rest (1 Phase)</button>'
-          + '<button class="btn btn-xs" onclick="window.campaignSystem.promptCampaignTravel()">Travel To...</button>'
+          + '<button class="btn btn-xs" onclick="window.campaignSystem.gmAdvanceTime(1)"' + riskyDisabledAttr + '>Advance Rest (1 Phase)</button>'
+          + '<button class="btn btn-xs" onclick="window.campaignSystem.promptCampaignTravel()"' + riskyDisabledAttr + '>Travel To...</button>'
           + '</div>'
           + '<div class="campaign-muted" style="margin-top:.35rem;"><strong>Current Combat:</strong> <span id="combatStatusText">Inactive</span></div>'
           + '<div class="campaign-muted" style="margin-top:.18rem;"><strong>Party Travel:</strong> ' + travelStatusText + '</div>'
@@ -4229,20 +4306,10 @@
     var trigger = document.getElementById("campaignDockTrigger");
     var lock = document.getElementById("campaignDockLock");
 
-    if (badge) {
-      var hasConflicts = Number(state.syncConflictCount || 0) > 0;
-      var dockMode = state.connected
-        ? (state.syncHealth === "syncing" ? "syncing" : (state.syncHealth === "stale" || hasConflicts ? "stale" : "online"))
-        : "offline";
-      badge.textContent = hasConflicts
-        ? "Conflict"
-        : (dockMode === "online" ? "Online" : (dockMode === "syncing" ? "Syncing" : (dockMode === "stale" ? "Pending" : "Offline")));
-      badge.className = "campaign-dock-badge " + dockMode;
-    }
-
     var campaign = state.campaign;
     var active = campaign && campaign.activeRollRequest;
     var shared = getCampaignSharedState();
+    var tableState = getCampaignTableState(shared);
     var readyCheck = shared && shared.readyCheck && typeof shared.readyCheck === "object"
       ? shared.readyCheck
       : ensureReadyCheckState(shared);
@@ -4250,11 +4317,18 @@
       ? shared.campaignCombat
       : ensureCampaignCombatState(shared);
 
+    if (badge) {
+      var dockMode = getTableBadgeTone(tableState);
+      badge.textContent = String(tableState && tableState.label || "Exploration");
+      badge.className = "campaign-dock-badge " + dockMode;
+    }
+
     if (meta) {
       var roleLabel = state.role === "gm" ? "GM" : (state.role ? "Player" : "-");
       meta.innerHTML = ""
         + '<span>Code <strong>' + escapeHtml(state.code || "-") + "</strong></span>"
         + '<span>Role <strong>' + escapeHtml(roleLabel) + "</strong></span>"
+        + '<span>Sync <strong>' + escapeHtml(String(state.syncText || state.syncHealth || "idle")) + "</strong></span>"
         + '<span>TMW <strong>' + String(campaign && campaign.shared ? Number(campaign.shared.tmw || 0) : getTmwValue()) + "</strong></span>";
     }
 
@@ -4816,6 +4890,7 @@
       return;
     }
     if (!guardAction("callRoll", "Only connected GM can call campaign rolls.")) return;
+    if (!guardRiskySharedAction("call roll request")) return;
 
     var label = readUiValue("campaignRollLabel").trim() || "Dread Check";
     var stat = readUiValue("campaignRollStat").trim().toLowerCase() || "valor";
@@ -4835,6 +4910,7 @@
       return;
     }
     if (!guardAction("closeRoll", "Only connected GM can close roll requests.")) return;
+    if (!guardRiskySharedAction("close roll request")) return;
     var res = await emitWithAck("campaign:closeRoll", {});
     if (!res.ok) {
       safeNotif(res.error || "Could not close roll request.", "warn");

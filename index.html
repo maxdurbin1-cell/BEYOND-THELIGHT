@@ -13694,6 +13694,48 @@ function getManualRollConditionEffects(statKey){
   if((key==='defend')&&trauma.vulnerable){step-=1;notes.push('Trauma Vulnerable: die step down (-1).');}
   return {step:step,notes:notes};
 }
+function getManualRollEquipmentModifierLines(statKey,effectiveDie){
+  var key=String(statKey||'').toLowerCase();
+  var die=Math.max(2,Number(effectiveDie||4));
+  var lines=[];
+  var affix=(typeof getEquippedAffixCombatBonuses==='function')?getEquippedAffixCombatBonuses():{};
+  var flBonus=(typeof getFlavorBonus==='function')?getFlavorBonus(key):{flat:0,advDice:[]};
+  var mtBonus=(typeof getMutationBonus==='function')?getMutationBonus(key):{flat:0,advDice:[]};
+  var gearBonus=(typeof getGearRollBonuses==='function')?getGearRollBonuses(key,die):{advDice:[],flat:0,addDice:[],notes:[]};
+  function summarizeAdvDice(source,dice){
+    var list=Array.isArray(dice)?dice.filter(function(d){return Number(d)>0;}):[];
+    if(!list.length)return;
+    lines.push(source+': roll '+list.map(function(d){return 'Ad'+Number(d);}).join(', ')+' and keep the highest result.');
+  }
+  if(key==='defend'){
+    var armorAdv=parseArmorAdvDie();
+    if(armorAdv>0)lines.push('Armor Defend advantage: roll d'+die+' with Ad'+armorAdv+' and keep the highest result.');
+    var armorFlat=(typeof parseArmorDefendFlatBonus==='function')?Number(parseArmorDefendFlatBonus()||0):0;
+    if(armorFlat!==0)lines.push('Armor Defend flat bonus: '+(armorFlat>0?'+':'')+armorFlat+' to your final Action total.');
+    var affixDefendFlat=Number((affix&&affix.defendFlat)||0)+Number((affix&&affix.defendBonus)||0);
+    if(affixDefendFlat!==0)lines.push('Affix Defend bonus: '+(affixDefendFlat>0?'+':'')+affixDefendFlat+' to your final Action total.');
+    if(S&&S.combat&&Number(S.combat.sceneDefendBonus||0)!==0)lines.push('Scene Defend bonus: '+(Number(S.combat.sceneDefendBonus||0)>0?'+':'')+Number(S.combat.sceneDefendBonus||0)+' to your final Action total.');
+    if(S&&S.rollMod&&Number(S.rollMod.holyShieldDie||0)>0)lines.push('Holy Shield: roll Spirit d'+Math.max(4,Number(S.rollMod.holyShieldDie||0))+' and add it to the final Action total.');
+  }
+  if(key==='strike'||key==='shoot'||key==='defend'){
+    var wpBonus=parseWeaponBonuses(key);
+    if(Number(wpBonus.flat||0)!==0)lines.push('Weapon bonus: '+(Number(wpBonus.flat||0)>0?'+':'')+Number(wpBonus.flat||0)+' to your final Action total.');
+    if(Number(wpBonus.advDie||0)>0)lines.push('Weapon advantage: roll Ad'+Number(wpBonus.advDie||0)+' with your normal die and keep the highest result.');
+    if(wpBonus.addAdvDie){
+      var advDie=Math.max(4,Number(S&&S.stats&&S.stats.adventure||4));
+      lines.push('Weapon A.D. bonus: roll your Adventure/Valor Die d'+advDie+' and add it to the final total.');
+    }
+  }
+  summarizeAdvDice('Flavor advantage',flBonus.advDice);
+  if(Number(flBonus.flat||0)!==0)lines.push('Flavor flat bonus: '+(Number(flBonus.flat||0)>0?'+':'')+Number(flBonus.flat||0)+' to your final Action total.');
+  summarizeAdvDice('Mutation advantage',mtBonus.advDice);
+  if(Number(mtBonus.flat||0)!==0)lines.push('Mutation flat bonus: '+(Number(mtBonus.flat||0)>0?'+':'')+Number(mtBonus.flat||0)+' to your final Action total.');
+  summarizeAdvDice('Gear advantage',gearBonus.advDice);
+  if(Number(gearBonus.flat||0)!==0)lines.push('Gear flat bonus: '+(Number(gearBonus.flat||0)>0?'+':'')+Number(gearBonus.flat||0)+' to your final Action total.');
+  if(Array.isArray(gearBonus.addDice)&&gearBonus.addDice.length)lines.push('Gear bonus dice: roll '+gearBonus.addDice.map(function(d){return 'd'+Number(d);}).join(', ')+' and add the total.');
+  if(Array.isArray(gearBonus.notes))gearBonus.notes.forEach(function(note){if(note)lines.push('Gear note: '+String(note));});
+  return lines;
+}
 function buildManualRollModifierLines(statKey,actionDie,cfg){
   var key=String(statKey||'').toLowerCase();
   var die=Math.max(2,Number(actionDie||4));
@@ -13707,6 +13749,7 @@ function buildManualRollModifierLines(statKey,actionDie,cfg){
   var flat=Number(rollMod.flat||0);
   if(Number(baseDie)>0&&Number(baseDie)!==Number(effectiveDie))lines.push('Stat die adjusted by conditions: d'+baseDie+' -> d'+effectiveDie+'.');
   condFx.notes.forEach(function(n){lines.push(n);});
+  getManualRollEquipmentModifierLines(key,effectiveDie).forEach(function(line){lines.push(line);});
   if(advDice.length)lines.push('Roll modifier advantage dice active: '+advDice.join(', ')+' (roll all listed and keep highest before applying flat bonus).');
   if(flat!==0)lines.push('Roll modifier flat bonus: '+(flat>0?'+':'')+flat+' to your final Action total.');
   if(Array.isArray(opts.extraLines))opts.extraLines.forEach(function(line){if(line)lines.push(String(line));});

@@ -7712,6 +7712,11 @@
         });
         var st = store.getState();
         var active = st.initiative[st.initiativeIndex] || null;
+        if (window.S && window.S.combat) window.S.combat.round = Math.max(1, Number(st.round || 1));
+        if (active) {
+          var activeToken = byId(active.tokenId);
+          if (activeToken && activeToken.isPlayer) syncWayfarerCombatActionBudget(true);
+        }
         if (active) addCombatLogEntry({
           eventType: 'turn',
           action: 'Turn Start',

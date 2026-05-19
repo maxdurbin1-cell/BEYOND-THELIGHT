@@ -12872,7 +12872,22 @@
     var success = adjustedActionValue >= dreadValue;
     var diff = Math.max(1, success ? adjustedActionValue - dreadValue : dreadValue - adjustedActionValue);
     var targetEnemy = (typeof getPrimaryCombatEnemy === 'function') ? getPrimaryCombatEnemy() : null;
-    var resultEl = (typeof document !== 'undefined') ? document.getElementById('wayfarerActionResult') : null;
+    var resultEls = [];
+    if (typeof document !== 'undefined') {
+      if (type === 'defend') {
+        resultEls.push(document.getElementById('defendResult'));
+      } else if (type === 'strike' || type === 'shoot') {
+        resultEls.push(document.getElementById('attackResult'));
+        resultEls.push(document.getElementById('wayfarerActionResult'));
+      } else {
+        resultEls.push(document.getElementById('wayfarerActionResult'));
+      }
+    }
+    function writeResult(html) {
+      resultEls.filter(Boolean).forEach(function (el) {
+        el.innerHTML = html;
+      });
+    }
     var label = 'Spell';
     if (mode === 'heavy') label = 'Heavy Attack';
     else if (mode === 'fast') label = 'Fast Attack';
@@ -12896,13 +12911,13 @@
       }
       if (success) {
         if (typeof showNotif === 'function') showNotif(actionName + ' blocked: ' + adjustedActionValue + ' vs Dread ' + dreadValue + '.', 'good');
-        if (resultEl) resultEl.innerHTML = '<span style="color:var(--teal);">' + actionName + ': ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - Blocked.</span>';
+        writeResult('<span style="color:var(--teal);">' + actionName + ': ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - Blocked.</span>');
       } else {
         var incoming = Math.max(1, dreadValue - adjustedActionValue);
         if (typeof changeStress === 'function') changeStress(incoming);
         if (typeof applyEnemySpecialEffectsToWayfarer === 'function') applyEnemySpecialEffectsToWayfarer({ effects: reactionData.effects || {} }, actionName);
         if (typeof showNotif === 'function') showNotif(actionName + ' lands: ' + dreadValue + ' vs ' + adjustedActionValue + ' for ' + incoming + ' Stress.', 'warn');
-        if (resultEl) resultEl.innerHTML = '<span style="color:var(--red2);">' + actionName + ': ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - Hit for ' + incoming + ' Stress.</span>';
+        writeResult('<span style="color:var(--red2);">' + actionName + ': ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - Hit for ' + incoming + ' Stress.</span>');
       }
       if (enemyEntity && typeof finalizeEnemyTurn === 'function') finalizeEnemyTurn(enemyEntity);
       if (typeof updateCombatUI === 'function') updateCombatUI();
@@ -12918,11 +12933,11 @@
       if (success) {
         if (typeof S !== 'undefined' && S && S.combat) S.combat.surpriseBonus = Number(S.combat.surpriseBonus || 0) + 2;
         if (typeof showNotif === 'function') showNotif('Surprise Check succeeded: +2 to attacks this round.', 'good');
-        if (resultEl) resultEl.innerHTML = '<span style="color:var(--teal);">Surprise Check: ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - SUCCESS! +2 attacks this round.</span>';
+        writeResult('<span style="color:var(--teal);">Surprise Check: ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - SUCCESS! +2 attacks this round.</span>');
       } else {
         if (typeof addTMWOnFail === 'function') addTMWOnFail('manual-combat-failure');
         if (typeof showNotif === 'function') showNotif('Surprise Check failed: enemy not surprised.', 'warn');
-        if (resultEl) resultEl.innerHTML = '<span style="color:var(--red2);">Surprise Check: ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - FAILED.</span>';
+        writeResult('<span style="color:var(--red2);">Surprise Check: ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - FAILED.</span>');
       }
       window.enemyManualReactionData = null;
       window.manualRollData = null;
@@ -12947,10 +12962,8 @@
           context: label + ' vs Enemy Dread (manual roll)'
         });
       }
-      if (resultEl) {
-        if (type === 'strike' || type === 'shoot' || type === 'spell' || type === 'hack') resultEl.innerHTML = '<span style="color:var(--teal);">' + label + ': ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - HIT! ' + dmg + ' Health damage.</span>';
-        else resultEl.innerHTML = '<span style="color:var(--teal);">' + label + ': ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - SUCCESS.</span>';
-      }
+      if (type === 'strike' || type === 'shoot' || type === 'spell' || type === 'hack') writeResult('<span style="color:var(--teal);">' + label + ': ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - HIT! ' + dmg + ' Health damage.</span>');
+      else writeResult('<span style="color:var(--teal);">' + label + ': ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - SUCCESS.</span>');
     } else {
       if (typeof addTMWOnFail === 'function') addTMWOnFail('manual-combat-failure');
       if (typeof showDccFailureOutcome === 'function') {
@@ -12963,9 +12976,7 @@
           context: label + ' vs Enemy Dread (manual roll)'
         });
       }
-      if (resultEl) {
-        resultEl.innerHTML = '<span style="color:var(--red2);">' + label + ': ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - FAIL.</span>';
-      }
+      writeResult('<span style="color:var(--red2);">' + label + ': ' + adjustedActionValue + ' vs Dread ' + dreadValue + ' - FAIL.</span>');
     }
 
     if (mode === 'fast' && S && S.combat) {
@@ -12974,6 +12985,7 @@
     }
 
     if (typeof clearConditionOnUse === 'function') clearConditionOnUse(type);
+  if (typeof updateCombatUI === 'function') updateCombatUI();
     if (typeof updateWayfarerActionBtn === 'function') updateWayfarerActionBtn();
     if (typeof renderCombatOptions === 'function') renderCombatOptions();
 

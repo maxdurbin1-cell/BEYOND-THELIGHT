@@ -66,7 +66,7 @@
     }
     if (window.__combatAssetDragPayloadLastKnown && typeof window.__combatAssetDragPayloadLastKnown === 'object') {
       var ageMs = Date.now() - Number(window.__combatAssetDragPayloadLastKnown.at || 0);
-      if (ageMs >= 0 && ageMs < 5000) {
+      if (ageMs >= 0 && ageMs < 15000) {
         return {
           kind: String(window.__combatAssetDragPayloadLastKnown.kind || ''),
           payload: String(window.__combatAssetDragPayloadLastKnown.payload || ''),
@@ -139,7 +139,7 @@
       node.textContent = '';
       return;
     }
-    node.textContent = String(ghost.label || 'Dragging asset');
+    node.textContent = String(ghost.label || 'Dragging asset'); // Updated ghost label
     node.style.left = Number(ghost.x || 0) + 'px';
     node.style.top = Number(ghost.y || 0) + 'px';
     node.classList.add('visible');
@@ -747,7 +747,7 @@
     }
     if (!assetKind && window.__combatAssetDragPayloadLastKnown && typeof window.__combatAssetDragPayloadLastKnown === 'object') {
       var ageMs = Date.now() - Number(window.__combatAssetDragPayloadLastKnown.at || 0);
-      if (ageMs >= 0 && ageMs < 5000) {
+      if (ageMs >= 0 && ageMs < 15000) {
         assetKind = String(window.__combatAssetDragPayloadLastKnown.kind || '');
         assetPayload = String(window.__combatAssetDragPayloadLastKnown.payload || '');
         source = 'last-known payload';
@@ -7041,7 +7041,7 @@
         card.ondragend = function () {
           setTimeout(function () {
             window.__combatAssetDragPayload = null;
-          }, 120);
+          }, 750);
           setCombatDragDebugState({ phase: 'drag-end', dropSource: 'none' });
           clearCombatAssetDragGhost();
           clearCombatAssetDragPreview();
@@ -9393,11 +9393,13 @@
 
     window.combatOpenAssetsHub = openCombatAssetsModal;
     window.startCombatAssetDrag = function (ev, kind, payload) {
-      if (!ev || !ev.dataTransfer) return;
-      ev.dataTransfer.effectAllowed = 'copy';
-      ev.dataTransfer.setData('text/combat-asset-kind', String(kind || ''));
-      ev.dataTransfer.setData('text/combat-asset-payload', String(payload || ''));
-      ev.dataTransfer.setData('text/plain', String(kind || '') + ':' + String(payload || ''));
+      if (!ev) return;
+      if (ev.dataTransfer) {
+        ev.dataTransfer.effectAllowed = 'copy';
+        ev.dataTransfer.setData('text/combat-asset-kind', String(kind || ''));
+        ev.dataTransfer.setData('text/combat-asset-payload', String(payload || ''));
+        ev.dataTransfer.setData('text/plain', String(kind || '') + ':' + String(payload || ''));
+      }
       primeCombatAssetDragPayload(kind, payload, 'Dragging asset');
       var source = ev.currentTarget || ev.target;
       var label = source && source.getAttribute && source.getAttribute('data-asset-label') || source && source.textContent || 'Dragging asset';
@@ -9433,10 +9435,18 @@
           store.setState(function (inner) {
             var next = normalizeCombatSceneState(Object.assign({}, inner));
             next.layers[layer] = Object.assign({}, next.layers[layer] || {}, (function () { var out = {}; out[toKey(q, r)] = paint; return out; })());
+            if (next.layerSettings && next.layerSettings[layer]) {
+              next.layerSettings[layer] = Object.assign({}, next.layerSettings[layer], {
+                visible: true,
+                opacity: Math.max(0.35, Number(next.layerSettings[layer].opacity || 1))
+              });
+            }
+            if (isSelectableMapLayer(layer)) next.selectedMapItem = { layer: layer, key: toKey(q, r) };
             persist(next);
             return next;
           });
           addHistory('Asset stamped: ' + paint + ' at ' + toKey(q, r) + '.');
+          safeNotif('Asset placed at ' + toKey(q, r) + '.', 'good');
         } else {
           store.setState(function (inner2) {
             var next2 = Object.assign({}, inner2, { activeLayer: layer, activeTool: 'paint', paintValue: paint });

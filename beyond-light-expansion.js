@@ -330,6 +330,9 @@
       powerShift: null,
       combatActive: false,
       crewTrauma: 0,
+      actionsRemaining: 0,
+      enemyActionsRemaining: 2,
+      perception: "indifferent",
       ...(S.naval || {})
     };
     S.naval.crew = Array.isArray(S.naval.crew) ? S.naval.crew : [];
@@ -485,6 +488,8 @@
               <button class="btn" onclick="navalTactics()">Captain Tactics</button>
               <button class="btn" onclick="navalMorale()">Captain Morale</button>
               <button class="btn" onclick="navalSurvey()">Navigator Survey</button>
+              <button class="btn" onclick="rollShipPerception()">Ship Perception (d6)</button>
+              <button class="btn" onclick="navalDiplomacy()">Captain Diplomacy</button>
               <button class="btn" onclick="enemyNavalAttack()">Enemy Attack</button>
               <button class="btn btn-red" onclick="wreckEnemyShip()">Wreck Enemy</button>
             </div>
@@ -4828,6 +4833,65 @@
     return crewCount + (ship ? ship.extraActions || 0 : 0) + eliteCaptainBonus;
   }
 
+  function getNavalEnemyDreadDie() {
+    const enemy = S.naval.enemyShip;
+    return getEffectiveShipDie(enemy, "hull", false) || 6;
+  }
+
+  function ensureNavalActionPools() {
+    if (!Number.isFinite(Number(S.naval.actionsRemaining))) {
+      S.naval.actionsRemaining = getPlayerActionCount();
+    }
+    if (!Number.isFinite(Number(S.naval.enemyActionsRemaining))) {
+      S.naval.enemyActionsRemaining = 2;
+    }
+  }
+
+  function spendNavalAction(side) {
+    ensureNavalActionPools();
+    if (side === "enemy") {
+      if (S.naval.enemyActionsRemaining <= 0) {
+        showNotif("Enemy has no Actions left this round.", "warn");
+        return false;
+      }
+      S.naval.enemyActionsRemaining -= 1;
+      return true;
+    }
+    if (S.naval.actionsRemaining <= 0) {
+      showNotif("No Actions left this round. Start next round.", "warn");
+      return false;
+    }
+    S.naval.actionsRemaining -= 1;
+    return true;
+  }
+
+  function setNavalConditionState(key, active) {
+    if (!S || !S.conditions || !(key in S.conditions)) return;
+    S.conditions[key] = !!active;
+    if (typeof updateConditionButtons === "function") updateConditionButtons();
+    if (typeof updateAllStatDisplays === "function") updateAllStatDisplays();
+  }
+
+  function shiftPerception(step) {
+    const order = ["friendly", "indifferent", "hostile"];
+    const current = String(S.naval.perception || "indifferent").toLowerCase();
+    const idx = Math.max(0, order.indexOf(current));
+    const next = Math.max(0, Math.min(order.length - 1, idx + Number(step || 0)));
+    S.naval.perception = order[next];
+    return S.naval.perception;
+  }
+
+  function syncNavalStateToVttCombat() {
+    if (!S || !S.combat || !S.combat.active) return;
+    S.combat.spacing = S.naval.zone || S.combat.spacing || "Close";
+    S.combat.enemyDread = getNavalEnemyDreadDie();
+    if (typeof updateCombatUI === "function") updateCombatUI();
+    if (typeof renderCombatMap === "function") renderCombatMap();
+    if (typeof queueCampaignCombatSceneSync === "function") {
+      queueCampaignCombatSceneSync("naval-state-sync");
+    }
+  }
+
   function renderShipSummary(ship, isPlayer) {
     if (!ship) {
       return `<div class="ship-copy">No ship purchased yet.</div>`;
@@ -4973,8 +5037,10 @@
         <div class="combat-card">
           <div class="ship-copy">
             Round: <strong style="color:var(--gold2);">${S.naval.round}</strong><br>
-            Actions available this round: <strong style="color:var(--gold2);">${getPlayerActionCount()}</strong><br>
-            Tactics bonus: <strong style="color:var(--teal);">+${S.naval.tacticsBonus || 0}</strong><br>
+            Actions remaining: <strong style="color:var(--gold2);">${S.naval.actionsRemaining || 0}</strong> / ${getPlayerActionCount()}<br>
+            Enemy actions remaining: <strong style="color:var(--red2);">${S.naval.enemyActionsRemaining || 0}</strong> / 2<br>
+            Tactics modifier: <strong style="color:var(--teal);">${S.naval.tacticsBonus >= 0 ? '+' : ''}${S.naval.tacticsBonus || 0}</strong><br>
+            Perception: <strong style="color:var(--gold2);text-transform:capitalize;">${String(S.naval.perception || 'indifferent')}</strong><br>
             ${S.naval.powerShift ? `Diverting power from ${S.naval.powerShift.from} to ${S.naval.powerShift.to}.` : "No current power shift."}
           </div>
         </div>
@@ -5017,6 +5083,8 @@
             }).join('') + '</div>';
       }
     }
+
+    syncNavalStateToVttCombat();
   }
 
   function selectNavalClass(className) {
@@ -5088,13 +5156,16 @@
     S.naval.tacticsBonus = 0;
     S.naval.powerShift = null;
     S.naval.crewTrauma = 0;
+    S.naval.actionsRemaining = getPlayerActionCount();
+    S.naval.enemyActionsRemaining = 2;
+    S.naval.perception = S.naval.perception || "indifferent";
     S.naval.ship.stress = 0;
     S.naval.ship.wrecked = false;
     if (S.naval.enemyShip) {
       S.naval.enemyShip.stress = 0;
       S.naval.enemyShip.wrecked = false;
     }
-    S.naval.log = [{ text: "Naval combat begins. Crew to stations.", type: "good" }];
+    S.naval.log = [{ text: "Naval combat begins. Wayfarers act first.", type: "good" }];
     renderNaval();
   }
 
@@ -5155,13 +5226,18 @@
 
   function adjustNavalZone(direction) {
     ensureExpansionState();
+    if (!S.naval.combatActive) {
+      showNotif("Start naval combat first.", "warn");
+      return;
+    }
     if (!S.naval.ship) {
       showNotif("Buy a ship first.", "warn");
       return;
     }
+    if (!spendNavalAction("player")) return;
     const rollResult = explodingRoll(S.stats.control || 4);
-    const controlTotal = rollResult.total + (S.naval.ship.navBonus || 0);
-    const target = explodingRoll(6);
+    const controlTotal = rollResult.total + (S.naval.ship.navBonus || 0) + (S.naval.tacticsBonus || 0);
+    const target = explodingRoll(getNavalEnemyDreadDie());
     const success = controlTotal >= target.total;
     if (success) {
       const nextIndex = Math.max(0, Math.min(NAVAL_ZONES.length - 1, currentZoneIndex() + direction));
@@ -5201,12 +5277,18 @@
     S.naval.round += 1;
     S.naval.tacticsBonus = 0;
     S.naval.powerShift = null;
+    S.naval.actionsRemaining = getPlayerActionCount();
+    S.naval.enemyActionsRemaining = 2;
     navalLog(`Round ${S.naval.round} begins.`, "");
     renderNaval();
   }
 
   function navalAttack(mode) {
     ensureExpansionState();
+    if (!S.naval.combatActive) {
+      showNotif("Start naval combat first.", "warn");
+      return;
+    }
     const ship = S.naval.ship;
     const enemy = S.naval.enemyShip;
     if (!ship || !enemy) {
@@ -5234,6 +5316,7 @@
       showNotif("Target is too far for ship weapons.", "warn");
       return;
     }
+    if (!spendNavalAction("player")) return;
 
     const die = getEffectiveShipDie(ship, mode, true);
     if (!die) {
@@ -5260,6 +5343,10 @@
 
   function enemyNavalAttack() {
     ensureExpansionState();
+    if (!S.naval.combatActive) {
+      showNotif("Start naval combat first.", "warn");
+      return;
+    }
     const ship = S.naval.ship;
     const enemy = S.naval.enemyShip;
     if (!ship || !enemy || ship.wrecked || enemy.wrecked) {
@@ -5276,6 +5363,7 @@
       renderNaval();
       return;
     }
+    if (!spendNavalAction("enemy")) return;
 
     const die = getEffectiveShipDie(enemy, mode, false);
     if (!die) {
@@ -5299,62 +5387,119 @@
 
   function navalRepair() {
     ensureExpansionState();
+    if (!S.naval.combatActive) {
+      showNotif("Start naval combat first.", "warn");
+      return;
+    }
+    if (!spendNavalAction("player")) return;
     if (!S.naval.ship) {
       return;
     }
     const body = explodingRoll(S.stats.body || 4);
-    const target = explodingRoll(6);
-    if (body.total >= target.total) {
-      const repair = Math.max(1, body.total - target.total);
+    const bodyTotal = body.total + (S.naval.tacticsBonus || 0);
+    const target = explodingRoll(getNavalEnemyDreadDie());
+    if (bodyTotal >= target.total) {
+      const repair = Math.max(1, bodyTotal - target.total);
       S.naval.ship.stress = Math.max(0, S.naval.ship.stress - repair);
-      navalLog(`Engineer removes ${repair} Stress (${body.total} vs ${target.total}).`, "good");
+      setNavalConditionState("protected", true);
+      setNavalConditionState("vulnerable", false);
+      navalLog(`Engineer removes ${repair} Stress (${bodyTotal} vs ${target.total}). Ship is Protected.`, "good");
     } else {
-      navalLog(`Repair fails (${body.total} vs ${target.total}).`, "warn");
+      setNavalConditionState("vulnerable", true);
+      setNavalConditionState("protected", false);
+      navalLog(`Repair fails (${bodyTotal} vs ${target.total}). Ship is Vulnerable.`, "warn");
     }
     renderNaval();
   }
 
   function navalTactics() {
     ensureExpansionState();
+    if (!S.naval.combatActive) {
+      showNotif("Start naval combat first.", "warn");
+      return;
+    }
+    if (!spendNavalAction("player")) return;
     const lead = explodingRoll(S.stats.lead || 4);
     const leadTotal = lead.total + (S.naval.ship ? S.naval.ship.leadBonus || 0 : 0);
-    const target = explodingRoll(6);
-    if (leadTotal >= target.total) {
-      S.naval.tacticsBonus = Math.max(1, leadTotal - target.total);
-      navalLog(`Captain sets the line. Next ship action gets +${S.naval.tacticsBonus}.`, "good");
+    const target = explodingRoll(getNavalEnemyDreadDie());
+    const diff = leadTotal - target.total;
+    S.naval.tacticsBonus = diff;
+    if (diff >= 0) {
+      navalLog(`Captain sets the line. Crew rolls gain +${diff} this round.`, "good");
     } else {
-      S.naval.tacticsBonus = 0;
-      navalLog(`Captain's tactics falter (${leadTotal} vs ${target.total}).`, "warn");
+      navalLog(`Captain's tactics falter (${leadTotal} vs ${target.total}). Crew rolls take ${diff} this round.`, "warn");
     }
     renderNaval();
   }
 
   function navalMorale() {
     ensureExpansionState();
+    if (!S.naval.combatActive) {
+      showNotif("Start naval combat first.", "warn");
+      return;
+    }
+    if (!spendNavalAction("player")) return;
     const spirit = explodingRoll(S.stats.spirit || 4);
-    const target = explodingRoll(6);
-    if (spirit.total >= target.total) {
+    const spiritTotal = spirit.total + (S.naval.tacticsBonus || 0);
+    const target = explodingRoll(getNavalEnemyDreadDie());
+    if (spiritTotal >= target.total) {
       if (S.naval.crewTrauma > 0) {
         S.naval.crewTrauma -= 1;
       }
-      navalLog(`Captain steadies the crew and keeps fear down (${spirit.total} vs ${target.total}).`, "good");
+      setNavalConditionState("focused", true);
+      setNavalConditionState("distracted", false);
+      navalLog(`Captain steadies the crew (${spiritTotal} vs ${target.total}). Crew is Focused.`, "good");
     } else {
-      navalLog(`Morale speech fails to land (${spirit.total} vs ${target.total}).`, "warn");
+      setNavalConditionState("distracted", true);
+      setNavalConditionState("focused", false);
+      navalLog(`Morale speech fails (${spiritTotal} vs ${target.total}). Crew is Distracted.`, "warn");
     }
     renderNaval();
   }
 
   function navalSurvey() {
     ensureExpansionState();
-    const mind = explodingRoll(S.stats.mind || 4);
-    const mindTotal = mind.total + (S.naval.ship ? S.naval.ship.navBonus || 0 : 0);
-    const target = explodingRoll(6);
-    if (mindTotal >= target.total) {
-      S.naval.tacticsBonus += 1;
-      navalLog(`Navigator reads the sea and grants +1 tactical edge (${mindTotal} vs ${target.total}).`, "good");
-    } else {
-      navalLog(`Navigator misreads the water (${mindTotal} vs ${target.total}).`, "warn");
+    if (!S.naval.combatActive) {
+      showNotif("Start naval combat first.", "warn");
+      return;
     }
+    if (!spendNavalAction("player")) return;
+    const mind = explodingRoll(S.stats.mind || 4);
+    const mindTotal = mind.total + (S.naval.ship ? S.naval.ship.navBonus || 0 : 0) + (S.naval.tacticsBonus || 0);
+    const target = explodingRoll(getNavalEnemyDreadDie());
+    if (mindTotal >= target.total) {
+      setNavalConditionState("bolstered", true);
+      setNavalConditionState("shaken", false);
+      navalLog(`Navigator reads the sea (${mindTotal} vs ${target.total}). Ship is Bolstered.`, "good");
+    } else {
+      setNavalConditionState("shaken", true);
+      setNavalConditionState("bolstered", false);
+      navalLog(`Navigator misreads the water (${mindTotal} vs ${target.total}). Ship is Shaken.`, "warn");
+    }
+    renderNaval();
+  }
+
+  function rollShipPerception() {
+    ensureExpansionState();
+    const r = roll(6);
+    S.naval.perception = r <= 2 ? "friendly" : (r <= 4 ? "indifferent" : "hostile");
+    navalLog(`Perception roll d6=${r}: target ship is ${S.naval.perception}.`, r >= 5 ? "warn" : "good");
+    renderNaval();
+  }
+
+  function navalDiplomacy() {
+    ensureExpansionState();
+    if (!S.naval.combatActive) {
+      showNotif("Start naval combat first.", "warn");
+      return;
+    }
+    if (!spendNavalAction("player")) return;
+    const lead = explodingRoll(S.stats.lead || 4);
+    const leadTotal = lead.total + (S.naval.ship ? S.naval.ship.leadBonus || 0 : 0) + (S.naval.tacticsBonus || 0);
+    const dread = explodingRoll(getNavalEnemyDreadDie());
+    const success = leadTotal >= dread.total;
+    const perception = shiftPerception(success ? -1 : 1);
+    navalLog(`Captain diplomacy ${success ? 'succeeds' : 'fails'} (${leadTotal} vs ${dread.total}). Perception now ${perception}.`, success ? "good" : "warn");
     renderNaval();
   }
 
@@ -5687,6 +5832,8 @@
   window.navalTactics = navalTactics;
   window.navalMorale = navalMorale;
   window.navalSurvey = navalSurvey;
+  window.rollShipPerception = rollShipPerception;
+  window.navalDiplomacy = navalDiplomacy;
   window.wreckEnemyShip = wreckEnemyShip;
   window.repairPlayerShipToFull = repairPlayerShipToFull;
   window.setGamblingDifficulty = setGamblingDifficulty;

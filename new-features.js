@@ -47,7 +47,6 @@
 
   var CARAVAN_DAMAGE_TABLE = [
     "Lose d6 Items from your Transporter's Storage.",
-    "Lose d4 Wheels — Disadvantage to all Checks until repaired.",
     "Decrease Dread Die (DD) by one Step.",
     "Control Save or be overturned — the Transporter is disabled."
   ];
@@ -112,6 +111,7 @@
         round: 1,
         enemyDread: 6,
         driverStat: "control",
+        overturned: false,
         log: []
       }
     }, prevCaravan);
@@ -119,7 +119,7 @@
     if (!Array.isArray(S.caravan.cargo)) { S.caravan.cargo = Array(12).fill(""); }
     if (!Array.isArray(S.caravan.mods)) { S.caravan.mods = []; }
     S.caravan.chase = Object.assign(
-      { active: false, zone: "Close", round: 1, enemyDread: 6, driverStat: "control", log: [] },
+      { active: false, zone: "Close", round: 1, enemyDread: 6, driverStat: "control", overturned: false, log: [] },
       S.caravan.chase || {}
     );
     if (!Array.isArray(S.caravan.chase.log)) { S.caravan.chase.log = []; }
@@ -456,7 +456,7 @@
           '<div style="display:flex;gap:.3rem;margin-top:.4rem;flex-wrap:wrap;">',
             '<button class="btn btn-sm btn-red" onclick="changeCaravanStress(1)">+ Stress</button>',
             '<button class="btn btn-sm btn-green" onclick="changeCaravanStress(-1)">− Stress</button>',
-            '<button class="btn btn-sm btn-red" onclick="rollHeavyDamage()">⚄ Heavy Hit (d4)</button>',
+            '<button class="btn btn-sm btn-red" onclick="rollHeavyDamage()">⚄ Heavy Hit (d6)</button>',
             '<button class="btn btn-sm btn-teal" onclick="repairCaravan()">Full Repair</button>',
           '</div>',
           '<div id="heavyDamageResult" style="margin-top:.4rem;font-size:.83rem;"></div>',
@@ -887,18 +887,43 @@
   }
 
   function rollHeavyDamage() {
-    var r = roll(4);
-    var result = CARAVAN_DAMAGE_TABLE[r - 1];
+    var r = roll(6);
+    var result = (r <= 2)
+      ? CARAVAN_DAMAGE_TABLE[0]
+      : (r <= 4 ? CARAVAN_DAMAGE_TABLE[1] : CARAVAN_DAMAGE_TABLE[2]);
     var el = document.getElementById("heavyDamageResult");
     if (el) {
       el.innerHTML = '<div style="background:rgba(201,64,64,.08);border:1px solid rgba(201,64,64,.3);padding:.4rem .5rem;">'
-        + '<div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.1em;color:var(--red2);text-transform:uppercase;margin-bottom:.15rem;">Heavy Damage — d4 = ' + r + '</div>'
+        + '<div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.1em;color:var(--red2);text-transform:uppercase;margin-bottom:.15rem;">Heavy Damage — d6 = ' + r + '</div>'
         + '<div style="font-size:.83rem;color:var(--text2);">' + result + '</div>'
         + '</div>';
     }
-    if (r === 3) {
+    if (r <= 2) {
+      var removed = 0;
+      var toLose = roll(6);
+      var maxCargo = getCaravanCargoMax();
+      for (var i = 0; i < maxCargo && removed < toLose; i++) {
+        if (S.caravan.cargo[i]) {
+          S.caravan.cargo[i] = "";
+          removed += 1;
+        }
+      }
+      if (removed > 0) showNotif("Heavy hit: lost " + removed + " stored item(s).", "warn");
+    } else if (r <= 4) {
       S.caravan.dreadReduced = (S.caravan.dreadReduced || 0) + 1;
       showNotif("Dread Die stepped down!", "warn");
+    } else {
+      var controlDie = (typeof getEffectiveDie === "function") ? getEffectiveDie("control") : (S.stats.control || 4);
+      var action = explodingRoll(controlDie, { type: 'action', major: true, label: 'Overturn Control Save' });
+      var dread = explodingRoll(6, { type: 'dread', major: true, label: 'Overturn DD6' });
+      if (action.total < dread.total) {
+        S.caravan.chase.active = false;
+        S.caravan.chase.overturned = true;
+        S.caravan.chase.log.push("Transporter overturned and disabled (" + action.total + " vs " + dread.total + ").");
+        showNotif("Transporter overturned and disabled!", "warn");
+      } else {
+        showNotif("Control save passed. Transporter remains upright.", "good");
+      }
     }
     renderCaravanUI();
   }
@@ -1154,6 +1179,7 @@
 
   function startChase() {
     S.caravan.chase.active = true;
+    S.caravan.chase.overturned = false;
     S.caravan.chase.round = 1;
     S.caravan.chase.log = [];
     renderCaravanUI();
@@ -1248,8 +1274,8 @@
     if (hit) {
       S.caravan.stress = Math.min(max, S.caravan.stress + damage);
       if (damage > Math.floor(max / 2)) {
-        S.caravan.chase.log.push("\u26A0 Heavy hit threshold exceeded! Roll d4 for damage complication.");
-        showNotif("Heavy hit! Roll d4 for damage complication.", "warn");
+        S.caravan.chase.log.push("\u26A0 Heavy hit threshold exceeded! Rolling d6 damage complication.");
+        rollHeavyDamage();
       }
     }
     renderCaravanUI();

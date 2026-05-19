@@ -6922,7 +6922,7 @@
           var icon = assetEmoji(item.name, ab.category);
           return '<article class="combat-feed-line combat-asset-card" draggable="true" title="Drag onto the battlemap to place this asset" aria-label="Drag ' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + ' onto the battlemap" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '" data-asset-label="' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '">'
             + '<div class="combat-asset-card-main"><strong>' + icon + ' ' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</strong><span class="combat-mini">' + (ab.category === 'battlemaps' ? 'Drop to update the board background or click to apply.' : (ab.category === 'utilities' ? 'Click to run utility workflow.' : 'Drop to place directly on the board.')) + '</span></div>'
-            + '<button class="btn btn-xs" draggable="true" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '">Use</button>'
+            + '<button class="btn btn-xs" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '">Use</button>'
             + '</article>';
         }).join('')
         : '<div class="combat-feed-line">No assets found.</div>';
@@ -8392,11 +8392,22 @@
     canvas.addEventListener('dragover', function (ev) {
       ev.preventDefault();
       if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy';
+      var kindFromTransfer = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-kind') || '');
+      var payloadFromTransfer = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-payload') || '');
+      var snapshot = currentCombatDragPayloadSnapshot();
+      var dockDescriptor = window.__combatAssetDockDescriptor && typeof window.__combatAssetDockDescriptor === 'object' ? window.__combatAssetDockDescriptor : null;
+      var hasFileDrop = !!(ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files.length);
+      var hasPayload = !!(kindFromTransfer || (snapshot && snapshot.kind) || (dockDescriptor && dockDescriptor.kind));
+      if (!hasFileDrop && !hasPayload) {
+        clearCombatAssetDragPreview();
+        clearCombatAssetDragGhost();
+        return;
+      }
       var state = store.getState();
       var rect = canvas.getBoundingClientRect();
       var size = Number(state.board.size || 42) * Number(state.board.zoom || 1);
       var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, state.board.panX, state.board.panY);
-      var payload = currentCombatDragPayloadSnapshot();
+      var payload = { kind: kindFromTransfer || String(snapshot && snapshot.kind || dockDescriptor && dockDescriptor.kind || ''), payload: payloadFromTransfer || String(snapshot && snapshot.payload || dockDescriptor && dockDescriptor.payload || ''), source: kindFromTransfer ? 'dataTransfer' : (snapshot && snapshot.kind ? String(snapshot.source || 'active') : (dockDescriptor && dockDescriptor.kind ? 'dock-descriptor' : 'none')) };
       setCombatDragDebugState({
         phase: 'dragover',
         kind: payload.kind,
@@ -8428,11 +8439,22 @@
     if (rollModal && !rollModal._combatAssetDropBound) {
       rollModal._combatAssetDropBound = true;
       rollModal.addEventListener('dragover', function (ev) {
+        var kindFromTransfer = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-kind') || '');
+        var payloadFromTransfer = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-payload') || '');
+        var snapshot = currentCombatDragPayloadSnapshot();
+        var dockDescriptor = window.__combatAssetDockDescriptor && typeof window.__combatAssetDockDescriptor === 'object' ? window.__combatAssetDockDescriptor : null;
+        var hasFileDrop = !!(ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files.length);
+        var hasPayload = !!(kindFromTransfer || (snapshot && snapshot.kind) || (dockDescriptor && dockDescriptor.kind));
+        if (!hasFileDrop && !hasPayload) {
+          clearCombatAssetDragPreview();
+          clearCombatAssetDragGhost();
+          return;
+        }
         var state = store.getState();
         var rect = canvas.getBoundingClientRect();
         var size = Number(state.board.size || 42) * Number(state.board.zoom || 1);
         var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, state.board.panX, state.board.panY);
-        var payload = currentCombatDragPayloadSnapshot();
+        var payload = { kind: kindFromTransfer || String(snapshot && snapshot.kind || dockDescriptor && dockDescriptor.kind || ''), payload: payloadFromTransfer || String(snapshot && snapshot.payload || dockDescriptor && dockDescriptor.payload || ''), source: kindFromTransfer ? 'dataTransfer' : (snapshot && snapshot.kind ? String(snapshot.source || 'active') : (dockDescriptor && dockDescriptor.kind ? 'dock-descriptor' : 'none')) };
         ev.preventDefault();
         setCombatDragDebugState({
           phase: 'dragover',
@@ -9471,6 +9493,16 @@
             return next;
           });
           addHistory('Asset stamped: ' + paint + ' at ' + toKey(q, r) + '.');
+          if (layer === 'terrain' && paint.indexOf('hexasset:') === 0) {
+            var placedState = store.getState();
+            var placedId = paint.split(':')[1] || '';
+            var placedEntry = getUploadedHexAssetById(placedState, placedId);
+            if (!placedEntry || !placedEntry.src) safeNotif('Placed hex asset reference has no image source. Re-upload this hex.', 'warn');
+            else {
+              var placedSprite = getTokenSprite(String(placedEntry.src || ''));
+              if (placedSprite && placedSprite.errored) safeNotif('Hex image failed to load. Re-upload this asset.', 'warn');
+            }
+          }
           safeNotif('Asset placed at ' + toKey(q, r) + '.', 'good');
         } else {
           store.setState(function (inner2) {

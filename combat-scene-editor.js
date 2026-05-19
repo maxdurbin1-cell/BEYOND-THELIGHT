@@ -2523,6 +2523,7 @@
     if (!entry || !entry.skill) return '';
     var skill = entry.skill;
     var title = escapeHtml(String(skill.name || 'Enemy Skill'));
+    var description = escapeHtml(String(skill.desc || skill.description || skill.text || ''));
     var saveTxt = escapeHtml(getEnemySkillSaveLabel(skill));
     var rangeTxt = escapeHtml(skillRangeVerbatim(skill));
     var rollTxt = escapeHtml(saveTxt + ' vs Dread d' + Number(getEnemySkillDreadDie(skill, dreadDie || 6)));
@@ -2543,6 +2544,7 @@
       + '<div style="font-size:.84rem;font-weight:700;color:var(--combat-accent-2);">' + title + '</div>'
       + stateBadge
       + '</div>'
+      + (description ? '<div style="margin-top:.16rem;font-size:.72rem;color:var(--text2);line-height:1.45;">' + description + '</div>' : '')
       + '<div style="font-size:.72rem;color:var(--text2);margin-top:.2rem;">'
       + '<div><strong>Save:</strong> ' + saveTxt + '</div>'
       + '<div><strong>Range:</strong> ' + rangeTxt + '</div>'
@@ -3340,37 +3342,24 @@
     if (!target || isTokenDead(token)) return '';
     var skills = getEnemySkillOptionsForToken(token, target);
     if (!skills.length) return '';
+    var profile = getEnemyProfileForToken(token) || {};
     
     var dreadDie = Math.max(4, Number(token.dread || token.codexDread || 6));
     var html = '<div style="margin-top:.28rem;border-top:1px solid rgba(227,188,94,.2);padding-top:.22rem;">';
     html += '<div style="font-size:.72rem;font-weight:700;color:var(--combat-accent-2);margin-bottom:.12rem;">Available Skills</div>';
+    if (profile.desc || profile.tactic) {
+      html += '<div style="margin:0 0 .22rem 0;font-size:.72rem;color:var(--muted2);line-height:1.45;">';
+      if (profile.desc) html += '<div><strong style="color:var(--combat-accent-2);">Description:</strong> ' + escapeHtml(String(profile.desc || '')) + '</div>';
+      if (profile.tactic) html += '<div><strong style="color:var(--combat-accent-2);">Tactic:</strong> ' + escapeHtml(String(profile.tactic || '')) + '</div>';
+      html += '</div>';
+    }
     
     skills.forEach(function (entry) {
       if (!entry || !entry.skill) return;
-      var skill = entry.skill;
-      var title = escapeHtml(String(skill.name || 'Skill'));
-      var stateBadge = entry.inRange
-        ? '<span style="font-size:.65rem;color:#57d69b;">✓ In Range</span>'
-        : '<span style="font-size:.65rem;color:#d9534f;">✗ Out of Range</span>';
-      var saveLabel = escapeHtml(getEnemySkillSaveLabel(skill));
-      var saveKey = getEnemySkillSaveKey(skill);
-      var skillRoll = escapeHtml(saveLabel + ' vs Dread d' + Number(getEnemySkillDreadDie(skill, dreadDie)));
-      
-      html += '<div style="margin-top:.16rem;border:1px solid rgba(227,188,94,.25);background:rgba(9,13,24,.88);padding:.22rem .28rem;border-radius:6px;font-size:.7rem;">';
-      html += '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:.2rem;">';
-      html += '<strong style="color:var(--combat-accent-2);">' + title + '</strong>';
-      html += stateBadge;
-      html += '</div>';
-      html += '<div style="margin-top:.12rem;color:var(--text2);">';
-      html += '<div><strong>Save:</strong> ' + saveLabel + '</div>';
-      html += '<div><strong>Range:</strong> ' + escapeHtml(Array.isArray(skill.range) ? skill.range.join('/') : 'engaged') + '</div>';
-      html += '<div><strong>Roll:</strong> ' + skillRoll + '</div>';
-      html += '</div>';
-      
+      html += enemySkillCardHtml(entry, token.name, dreadDie, target.name, profile.tactic || '');
       if (entry.inRange) {
         html += '<button class="btn btn-xs" style="margin-top:.12rem;width:100%;font-size:.65rem;padding:.08rem;" onclick="(function(){var token=store.getState().tokens.find(t=>t&&t.id===\'' + String(token.id) + '\');if(token)executeEnemyTokenAction(token,null,\'' + String(entry.id) + '\');updateUiPanels();drawBoard();})();">Execute Skill</button>';
       }
-      html += '</div>';
     });
     
     html += '</div>';
@@ -3463,6 +3452,7 @@
           : ['No active combat effects are running on this wayfarer.', 'Long Rest and recovery actions still use the province, sea region, and map systems outside the VTT.']
       });
     } else {
+      var enemyProfile = getEnemyProfileForToken(selected) || null;
       cards.push({
         title: 'Threat Snapshot',
         icon: 'MON',
@@ -3471,7 +3461,9 @@
           'Faction: ' + String(token && token.faction || 'monster'),
           'HP: ' + Math.max(0, Number(token && token.hp || 0)) + '/' + Math.max(1, Number(token && token.maxHp || token && token.hp || 1)),
           'Dread Die: d' + Math.max(4, Number(token && (token.dread || token.codexDread) || 6)),
-          'Death Number: ' + Math.max(1, Number(token && (token.deathNumber || token.dread || token.codexDread) || 6))
+          'Death Number: ' + Math.max(1, Number(token && (token.deathNumber || token.dread || token.codexDread) || 6)),
+          enemyProfile && enemyProfile.desc ? 'Description: ' + String(enemyProfile.desc || '') : '',
+          enemyProfile && enemyProfile.tactic ? 'Tactic: ' + String(enemyProfile.tactic || '') : ''
         ]
       });
       cards.push({
@@ -6475,7 +6467,19 @@
       var actor = byId(state.selectedTokenId);
       var previous = String(tokenActionSel.value || '');
       if (actor && (actor.isPlayer || String(actor.faction) === 'player') && mirroredSel) {
-        tokenActionSel.innerHTML = Array.prototype.slice.call(mirroredSel.options || []).map(function (opt) {
+        var mirroredOptions = Array.prototype.slice.call(mirroredSel.options || []);
+        var filteredOptions = mirroredOptions.filter(function (opt) {
+          if (!opt || !opt.value) return false;
+          var lower = String(opt.value || '') + ' ' + String(opt.textContent || '');
+          if (/strike/i.test(lower)) {
+            return typeof canUseAttackAtCurrentRange === 'function' ? !!canUseAttackAtCurrentRange('strike') : true;
+          }
+          if (/shoot/i.test(lower)) {
+            return typeof canUseAttackAtCurrentRange === 'function' ? !!canUseAttackAtCurrentRange('shoot') : true;
+          }
+          return true;
+        });
+        tokenActionSel.innerHTML = (filteredOptions.length ? filteredOptions : mirroredOptions).map(function (opt) {
           var val = String(opt.value || '');
           return '<option value="' + val + '">' + String(opt.textContent || '') + '</option>';
         }).join('');
@@ -6483,7 +6487,8 @@
         var targetForSkills = String(tokenTargetSel && tokenTargetSel.value || '') ? byId(String(tokenTargetSel.value || '')) : null;
         var skillOpts = getEnemySkillOptionsForToken(actor, targetForSkills);
         var baseOpt = '<option value="enemy_action">Basic Enemy Action</option>';
-        var extra = skillOpts.map(function (entry) {
+        var visibleSkills = skillOpts.filter(function (entry) { return !!entry.inRange; });
+        var extra = (visibleSkills.length ? visibleSkills : skillOpts).map(function (entry) {
           var suffix = entry.inRange ? ' \u00b7 In Range' : ' \u00b7 Out of Range';
           return '<option value="' + entry.id + '">' + entry.name + ' [' + entry.rangeLabel + ']' + suffix + '</option>';
         }).join('');
@@ -6524,8 +6529,8 @@
             tacticText
           );
         } else if (skillState.length) {
-          var inRangeCount = skillState.filter(function (s) { return s.inRange; }).length;
-          var preview = skillState.slice(0, 3).map(function (entry) {
+          var inRangeSkills = skillState.filter(function (s) { return s.inRange; });
+          var preview = (inRangeSkills.length ? inRangeSkills : skillState).slice(0, 3).map(function (entry) {
             return enemySkillCardHtml(
               entry,
               actorNow.name,
@@ -6534,7 +6539,7 @@
               ''
             );
           }).join('');
-          tokenActionHelp.innerHTML = '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.15rem;">Enemy skills in range: ' + inRangeCount + '/' + skillState.length + ' (select one in Token Action).</div>' + preview;
+          tokenActionHelp.innerHTML = '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.15rem;">Enemy skills in range: ' + inRangeSkills.length + '/' + skillState.length + ' (select one in Token Action).</div>' + preview;
         } else {
           tokenActionHelp.textContent = 'No unique enemy skills found. Uses Basic Enemy Action (Dread vs Defend).';
         }

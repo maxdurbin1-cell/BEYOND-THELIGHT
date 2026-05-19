@@ -695,7 +695,14 @@
         safeNotif('Battlemap uploaded and applied from ' + String(contextLabel || 'asset dock') + '.', 'good');
       } else {
         addHistory('Asset saved to ' + kindLabel + ': ' + String(file.name || 'image') + '.');
-        safeNotif('Asset saved to ' + kindLabel + '.', 'good');
+        safeNotif('Asset saved to ' + kindLabel + '. Drag it from the Terrain category onto any hex to place it.', 'good');
+        // Pre-warm the sprite cache immediately so first placement renders instantly
+        if (folderKey === 'hexAssets') {
+          var newState = store.getState();
+          var hexRows = newState && newState.sceneRules && newState.sceneRules.assetFolders && newState.sceneRules.assetFolders.hexAssets || [];
+          var newestEntry = hexRows[0] || null;
+          if (newestEntry && newestEntry.id) getHexAssetSprite(newestEntry);
+        }
       }
       drawBoard();
       updateUiPanels();
@@ -823,7 +830,26 @@
   };
   var tokenMotionCache = {};
   var tokenSpriteCache = {};
+  var hexAssetSpriteCache = {}; // keyed by hex asset id, not data URL
   var drawFramePending = false;
+
+  function getHexAssetSprite(assetEntry) {
+    if (!assetEntry || !assetEntry.id || !assetEntry.src) return null;
+    var id = String(assetEntry.id || '').toLowerCase();
+    var cached = hexAssetSpriteCache[id];
+    if (cached) return cached;
+    var image = new Image();
+    cached = hexAssetSpriteCache[id] = { image: image, loaded: false, errored: false };
+    image.onload = function () { cached.loaded = true; drawBoard(); };
+    image.onerror = function () { cached.errored = true; drawBoard(); };
+    image.src = String(assetEntry.src);
+    return cached;
+  }
+
+  function invalidateHexAssetSprite(assetId) {
+    var id = String(assetId || '').toLowerCase();
+    if (hexAssetSpriteCache[id]) delete hexAssetSpriteCache[id];
+  }
 
   function normalizeCombatUi(ui) {
     var next = Object.assign({}, COMBAT_UI_DEFAULTS, ui && typeof ui === 'object' ? ui : {});
@@ -5217,7 +5243,7 @@
 
   function colorForTerrain(name) {
     var n = String(name || '');
-    if (n.indexOf('hexasset:') === 0) return 'rgba(96,158,196,.34)';
+    if (n.indexOf('hexasset:') === 0) return 'rgba(96,158,196,.72)';
     var map = {
       forest: 'rgba(70,120,78,.35)',
       marsh: 'rgba(73,128,114,.35)',
@@ -5949,14 +5975,42 @@
           if (terrain.indexOf('hexasset:') === 0) {
             var hexAssetId = terrain.split(':')[1] || '';
             var hexAssetEntry = getUploadedHexAssetById(state, hexAssetId);
-            if (hexAssetEntry && hexAssetEntry.src) {
-              var hexSprite = getTokenSprite(String(hexAssetEntry.src || ''));
+            if (hexAssetEntry) {
+              var hexSprite = getHexAssetSprite(hexAssetEntry);
               if (hexSprite && hexSprite.loaded && hexSprite.image && !hexSprite.errored) {
                 ctx.save();
                 drawHex(ctx, p.x, p.y, size - 1.6);
                 ctx.clip();
-                ctx.globalAlpha = 0.95 * getLayerOpacity(state, 'terrain');
+                ctx.globalAlpha = getLayerOpacity(state, 'terrain');
                 ctx.drawImage(hexSprite.image, p.x - size, p.y - size, size * 2, size * 2);
+                ctx.restore();
+              } else if (hexSprite && !hexSprite.errored) {
+                // Loading placeholder: striped pattern so user knows something is there
+                ctx.save();
+                drawHex(ctx, p.x, p.y, size - 1.6);
+                ctx.clip();
+                ctx.globalAlpha = 0.55 * getLayerOpacity(state, 'terrain');
+                ctx.fillStyle = 'rgba(255,255,255,0.15)';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+                ctx.lineWidth = 1.2;
+                ctx.font = 'bold 9px Rajdhani, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                ctx.fillText('loading…', p.x, p.y + 3);
+                ctx.restore();
+              } else if (hexSprite && hexSprite.errored) {
+                // Error placeholder
+                ctx.save();
+                drawHex(ctx, p.x, p.y, size - 1.6);
+                ctx.clip();
+                ctx.globalAlpha = 0.7;
+                ctx.fillStyle = 'rgba(200,60,60,0.55)';
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255,200,200,0.95)';
+                ctx.font = 'bold 9px Rajdhani, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('img err', p.x, p.y + 3);
                 ctx.restore();
               }
             }
@@ -6928,7 +6982,8 @@
         : '<div class="combat-feed-line">No assets found.</div>';
 
       Array.prototype.slice.call(assetFeed.querySelectorAll('[data-asset-action]')).forEach(function (btn) {
-        btn.onclick = function () {
+        btn.onclick = function (evt) {
+          if (evt && evt.stopPropagation) evt.stopPropagation();
           var action = String(btn.getAttribute('data-asset-action') || '');
           var id = String(btn.getAttribute('data-asset-id') || '');
           var useState = store.getState();
@@ -9497,10 +9552,12 @@
             var placedState = store.getState();
             var placedId = paint.split(':')[1] || '';
             var placedEntry = getUploadedHexAssetById(placedState, placedId);
-            if (!placedEntry || !placedEntry.src) safeNotif('Placed hex asset reference has no image source. Re-upload this hex.', 'warn');
-            else {
-              var placedSprite = getTokenSprite(String(placedEntry.src || ''));
-              if (placedSprite && placedSprite.errored) safeNotif('Hex image failed to load. Re-upload this asset.', 'warn');
+            if (!placedEntry || !placedEntry.src) {
+              safeNotif('Hex asset has no image — re-upload the image.', 'warn');
+            } else {
+              invalidateHexAssetSprite(placedId); // force fresh load on next draw
+              var placedSprite = getHexAssetSprite(placedEntry); // start loading now
+              if (placedSprite && placedSprite.errored) safeNotif('Hex image failed to load — re-upload the asset.', 'warn');
             }
           }
           safeNotif('Asset placed at ' + toKey(q, r) + '.', 'good');

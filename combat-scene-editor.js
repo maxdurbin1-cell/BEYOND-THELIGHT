@@ -1493,7 +1493,7 @@
   function defaultTokens() {
     var portrait = (window.S && window.S.identityForge && window.S.identityForge.media && window.S.identityForge.media.portrait) || '';
     var name = (window.S && window.S.name) || 'Wayfarer';
-    var defendDie = Math.max(4, Number(window.S && window.S.stats && window.S.stats.defend || 6));
+    var defendDie = getWayfarerEffectiveDie('defend', 6);
     var hpFromDefend = Math.max(1, defendDie * 2);
     return [
       { id: uid('pc'), name: String(name), faction: 'player', hp: hpFromDefend, maxHp: hpFromDefend, status: [], q: 0, r: 0, image: portrait, size: 1, isPlayer: true },
@@ -1506,7 +1506,7 @@
   }
 
   function getWayfarerMaxHpByRules() {
-    var defendDie = Math.max(4, Number(window.S && window.S.stats && window.S.stats.defend || 6));
+    var defendDie = getWayfarerEffectiveDie('defend', 6);
     return Math.max(1, defendDie * 2);
   }
 
@@ -2330,8 +2330,7 @@
   function getTargetSaveDieForSkill(target, skill) {
     var key = getEnemySkillSaveKey(skill);
     if (target && target.isPlayer) {
-      var s = window.S && window.S.stats ? window.S.stats : {};
-      return Math.max(4, Number(s[key] || s.defend || 6));
+      return getWayfarerEffectiveDie(key, getWayfarerEffectiveDie('defend', 6));
     }
     if (target) {
       if (key === 'defend') return Math.max(4, Number(target.defend || target.dread || target.codexDread || 6));
@@ -2347,6 +2346,177 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  }
+
+  function getWayfarerEffectiveDie(key, fallback) {
+    var statKey = String(key || '').toLowerCase();
+    try {
+      if (typeof window.getEffectiveDie === 'function') {
+        return Math.max(4, Number(window.getEffectiveDie(statKey) || fallback || 4));
+      }
+    } catch (_err) {}
+    var stats = window.S && window.S.stats ? window.S.stats : {};
+    return Math.max(4, Number(stats[statKey] || fallback || 4));
+  }
+
+  function getWayfarerConditionState() {
+    var src = window.S && window.S.conditions && typeof window.S.conditions === 'object' ? window.S.conditions : {};
+    return Object.assign({
+      empowered: false,
+      protected: false,
+      focused: false,
+      bolstered: false,
+      weakened: false,
+      vulnerable: false,
+      distracted: false,
+      shaken: false
+    }, src);
+  }
+
+  function getCombatAssetGlyph(name, layer) {
+    var lower = String(name || '').toLowerCase();
+    var scope = String(layer || '').toLowerCase();
+    if (scope === 'hazards') {
+      if (lower.indexOf('trap') >= 0) return '⚠';
+      if (lower.indexOf('fire') >= 0 || lower.indexOf('lava') >= 0) return '🔥';
+      if (lower.indexOf('acid') >= 0 || lower.indexOf('poison') >= 0) return '☣';
+      return '⚡';
+    }
+    if (scope === 'terrain') {
+      if (lower.indexOf('forest') >= 0) return '🌲';
+      if (lower.indexOf('marsh') >= 0 || lower.indexOf('swamp') >= 0) return '🌿';
+      if (lower.indexOf('crag') >= 0 || lower.indexOf('rock') >= 0) return '⛰';
+      if (lower.indexOf('lava') >= 0) return '🌋';
+      if (lower.indexOf('ruin') >= 0) return '🏛';
+      if (lower.indexOf('water') >= 0) return '🌊';
+      if (lower.indexOf('road') >= 0) return '🛣';
+      if (lower.indexOf('difficult') >= 0) return '🪨';
+      return '🗺';
+    }
+    if (lower.indexOf('door') >= 0) return '🚪';
+    if (lower.indexOf('turret') >= 0) return '🔫';
+    if (lower.indexOf('trap') >= 0) return '⚠';
+    if (lower.indexOf('shrine') >= 0 || lower.indexOf('altar') >= 0) return '🕯';
+    if (lower.indexOf('spawn') >= 0) return '✹';
+    if (lower.indexOf('wall') >= 0) return '🧱';
+    if (lower.indexOf('vision-blocker') >= 0) return '🌫';
+    if (lower.indexOf('crate') >= 0 || lower.indexOf('loot-cache') >= 0 || lower.indexOf('loot') >= 0) return '📦';
+    if (lower.indexOf('pillar') >= 0) return '🗿';
+    if (lower.indexOf('barricade') >= 0) return '🚧';
+    if (lower.indexOf('console') >= 0) return '💻';
+    if (lower.indexOf('beacon') >= 0) return '📡';
+    return '🧩';
+  }
+
+  function drawAssetGlyph(ctx, glyph, x, y, fillStyle, borderStyle) {
+    ctx.save();
+    ctx.fillStyle = fillStyle;
+    ctx.strokeStyle = borderStyle;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(x - 11, y - 11, 22, 22, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(String(glyph || '•'), x, y + 0.5);
+    ctx.restore();
+  }
+
+  function syncLegacyEnemyStressToTokens(targetTokenId) {
+    if (!window.S || !Array.isArray(window.S.enemies)) return false;
+    var enemyMap = {};
+    window.S.enemies.forEach(function (enemy) {
+      if (!enemy) return;
+      var id = Number(enemy.id || 0);
+      if (id > 0) enemyMap[id] = enemy;
+    });
+    var changed = false;
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      next.tokens = (state.tokens || []).map(function (row) {
+        if (!row || String(row.faction || '') !== 'monster' || !Number(row.sourceEnemyId || 0)) return row;
+        if (targetTokenId && String(row.id || '') !== String(targetTokenId)) return row;
+        var legacy = enemyMap[Number(row.sourceEnemyId || 0)] || null;
+        var nextHp = 0;
+        var nextMax = Math.max(1, Number(row.maxHp || row.hp || 1));
+        var nextDead = true;
+        if (legacy) {
+          nextMax = Math.max(1, Number(legacy.maxStress || nextMax));
+          nextHp = Math.max(0, nextMax - Math.max(0, Number(legacy.stress || 0)));
+          nextDead = nextHp <= 0;
+        }
+        if (Number(row.hp || 0) === nextHp && Number(row.maxHp || 0) === nextMax && !!row.dead === nextDead) return row;
+        changed = true;
+        return Object.assign({}, row, {
+          hp: nextHp,
+          maxHp: nextMax,
+          dead: nextDead,
+          dread: legacy ? Math.max(4, Number(legacy.dread || row.dread || 6)) : row.dread,
+          deathNumber: legacy ? Math.max(1, Number(legacy.deathNumber || row.deathNumber || row.dread || 6)) : row.deathNumber
+        });
+      });
+      if (!changed) return state;
+      persist(next);
+      return next;
+    });
+    if (changed) {
+      drawBoard();
+      updateUiPanels();
+    }
+    return changed;
+  }
+
+  function consumeWayfarerUtilityAction(actionLabel) {
+    if (!isSceneActive()) return true;
+    var actor = byId(store.getState().selectedTokenId);
+    if (!actor || (!actor.isPlayer && String(actor.faction || '') !== 'player')) return true;
+    if (typeof window.consumeCombatAction === 'function') {
+      try {
+        return !!window.consumeCombatAction(String(actionLabel || 'Utility Action'));
+      } catch (_err) {
+        return false;
+      }
+    }
+    if (!window.S || !window.S.combat) return true;
+    var left = Math.max(0, Number(window.S.combat.actionsLeft || 0));
+    if (left <= 0) return false;
+    window.S.combat.actionsLeft = left - 1;
+    if (typeof window.updateCombatUI === 'function') {
+      try { window.updateCombatUI(); } catch (_err2) {}
+    }
+    return true;
+  }
+
+  function stockLootCacheAt(q, r) {
+    if (!isGmController()) {
+      safeNotif('Only the GM can stock loot caches.', 'warn');
+      return false;
+    }
+    var key = toKey(q, r);
+    var stocked = [];
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      var rules = ensureLootDrops(state);
+      rules.mapLootCaches = Object.assign({}, rules.mapLootCaches || {});
+      stocked = pickMerchantLootItemsForToken(8);
+      if (!stocked.length) stocked = ['Credits x40', 'Traveler Supplies'];
+      rules.mapLootCaches[key] = {
+        id: uid('cache'),
+        q: Number(q || 0),
+        r: Number(r || 0),
+        items: stocked.slice(),
+        stockedAt: Date.now()
+      };
+      next.sceneRules = rules;
+      persist(next);
+      return next;
+    });
+    addHistory('Loot cache stocked at ' + key + ': ' + stocked.join(', ') + '.');
+    safeNotif('Loot cache stocked from merchant tables.', 'good');
+    return true;
   }
 
   function enemySkillCardHtml(entry, actorName, dreadDie, targetName, tacticText) {
@@ -2562,6 +2732,29 @@
     });
     addHistory('Condition applied: ' + safeLabel + ' to ' + String(target.name || 'Token') + ' (' + safeStress + '/round for ' + safeRounds + ' rounds).');
     return true;
+  }
+
+  function removeCombatRoundEffect(effectId) {
+    var removed = null;
+    store.setState(function (state) {
+      var list = Array.isArray(state.tokenRoundEffects) ? state.tokenRoundEffects.slice() : [];
+      var kept = list.filter(function (effect) {
+        var match = effect && String(effect.id || '') === String(effectId || '');
+        if (match) removed = effect;
+        return !match;
+      });
+      if (kept.length === list.length) return state;
+      var next = Object.assign({}, state, { tokenRoundEffects: kept });
+      persist(next);
+      return next;
+    });
+    if (removed) {
+      addHistory('Condition cleared: ' + String(removed.label || 'Condition') + '.');
+      updateUiPanels();
+      drawBoard();
+      return true;
+    }
+    return false;
   }
 
   function processRoundEffectsForCurrentRound() {
@@ -2905,11 +3098,11 @@
 
   function buildCharacterSheetCombatSummary(targetTokenId) {
     var token = byId(targetTokenId);
-    var stats = window.S && window.S.stats ? window.S.stats : {};
-    var strikeDie = Number(stats.strike || 4);
-    var shootDie = Number(stats.shoot || 4);
-    var defendDie = Number(stats.defend || 4);
-    var controlDie = Number(stats.control || 4);
+    var strikeDie = getWayfarerEffectiveDie('strike', 4);
+    var shootDie = getWayfarerEffectiveDie('shoot', 4);
+    var defendDie = getWayfarerEffectiveDie('defend', 4);
+    var controlDie = getWayfarerEffectiveDie('control', 4);
+    var conditionState = getWayfarerConditionState();
     var tmw = Math.max(0, Number(window.S && window.S.tmw || 0));
     var hpSnap = getWayfarerHealthSnapshot();
     var health = hpSnap.remaining;
@@ -2944,6 +3137,7 @@
     var lines = [];
     lines.push('Your Actions: ' + Math.max(0, Number(window.S && window.S.combat && window.S.combat.actionsLeft || 0)) + '/' + Math.max(1, Number(window.S && window.S.combat && window.S.combat.maxActions || 3)) + ' · Health: ' + health + '/' + maxHealth + ' · TMW: ' + tmw);
     lines.push('Dice: Strike d' + strikeDie + ' · Shoot d' + shootDie + ' · Defend d' + defendDie + ' · Control d' + controlDie);
+    lines.push('Conditions: +' + ['Empowered', 'Protected', 'Focused', 'Bolstered'].filter(function (label) { return conditionState[label.toLowerCase()]; }).join(', ') + ' · -' + ['Weakened', 'Vulnerable', 'Distracted', 'Shaken'].filter(function (label) { return conditionState[label.toLowerCase()]; }).join(', '));
     lines.push('Strike math: ' + (strikeFlat >= 0 ? '+' : '') + strikeFlat + ' flat' + (strikeAdv.length ? (' · Advantage ' + strikeAdv.map(function (v) { return 'd' + v; }).join(', ')) : ''));
     lines.push('Shoot math: ' + (shootFlat >= 0 ? '+' : '') + shootFlat + ' flat' + (shootAdv.length ? (' · Advantage ' + shootAdv.map(function (v) { return 'd' + v; }).join(', ')) : ''));
     lines.push('Flavor: ' + (flavor || 'None selected') + (token ? (' · Token: ' + String(token.name || 'Token')) : ''));
@@ -2958,8 +3152,10 @@
   function formatSoulArraySummary() {
     var soul = Array.isArray(window.S && window.S.soulArray) ? window.S.soulArray.slice() : [];
     if (!soul.length) return 'Not rolled yet';
-    return soul.map(function (die) {
-      return 'd' + Math.max(4, Number(die || 4));
+    var labels = ['Body', 'Spirit', 'Lead', 'Control', 'Mind', 'Strike', 'Shoot', 'Defend'];
+    return soul.map(function (die, idx) {
+      var label = labels[idx] || ('Slot ' + (idx + 1));
+      return label + ' d' + Math.max(4, Number(die || 4));
     }).join(', ');
   }
 
@@ -2986,6 +3182,10 @@
     return '<div style="display:grid;gap:.24rem;">'
       + '<div><div class="combat-mini" style="margin-bottom:.14rem;color:var(--combat-accent-2);">Positive</div><div style="display:flex;gap:.18rem;flex-wrap:wrap;">' + positive.map(chip).join('') + '</div></div>'
       + '<div><div class="combat-mini" style="margin-bottom:.14rem;color:var(--combat-danger);">Negative</div><div style="display:flex;gap:.18rem;flex-wrap:wrap;">' + negative.map(chip).join('') + '</div></div>'
+      + '<div style="display:flex;gap:.18rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs" type="button" onclick="window.combatSheetClearWayfarerConditions&&window.combatSheetClearWayfarerConditions(\'negative\',\'' + String(token && token.id || '') + '\')">Clear Negative</button>'
+      + '<button class="btn btn-xs" type="button" onclick="window.combatSheetClearWayfarerConditions&&window.combatSheetClearWayfarerConditions(\'all\',\'' + String(token && token.id || '') + '\')">Clear All</button>'
+      + '</div>'
       + '</div>';
   }
 
@@ -3065,6 +3265,24 @@
       window.toggleCond(key);
     } else if (window.S && window.S.conditions && Object.prototype.hasOwnProperty.call(window.S.conditions, key)) {
       window.S.conditions[key] = !window.S.conditions[key];
+    }
+    if (typeof window.updateConditionButtons === 'function') window.updateConditionButtons();
+    if (typeof window.updateAllStatDisplays === 'function') window.updateAllStatDisplays();
+    if (tokenId) normalizeSelection(tokenId, [tokenId]);
+    updateUiPanels();
+    drawBoard();
+    openTokenSheetQuickView(tokenId);
+  };
+
+  window.combatSheetClearWayfarerConditions = function (scope, tokenId) {
+    var clearScope = String(scope || 'all').toLowerCase();
+    var targets = clearScope === 'negative'
+      ? ['weakened', 'vulnerable', 'distracted', 'shaken']
+      : ['empowered', 'protected', 'focused', 'bolstered', 'weakened', 'vulnerable', 'distracted', 'shaken'];
+    if (window.S && window.S.conditions) {
+      targets.forEach(function (key) {
+        if (Object.prototype.hasOwnProperty.call(window.S.conditions, key)) window.S.conditions[key] = false;
+      });
     }
     if (typeof window.updateConditionButtons === 'function') window.updateConditionButtons();
     if (typeof window.updateAllStatDisplays === 'function') window.updateAllStatDisplays();
@@ -4732,17 +4950,13 @@
         if (object && isLayerVisible(state, 'objects')) {
           ctx.save();
           ctx.globalAlpha = getLayerOpacity(state, 'objects');
-          ctx.fillStyle = dangerStrong;
-          ctx.fillRect(p.x - 7, p.y - 7, 14, 14);
+          drawAssetGlyph(ctx, getCombatAssetGlyph(object, 'objects'), p.x, p.y, alphaColorFromHex(String(theme.danger || '#d05353'), 0.78), dangerStroke);
           ctx.restore();
         }
         if (hazard && isLayerVisible(state, 'hazards')) {
           ctx.save();
           ctx.globalAlpha = getLayerOpacity(state, 'hazards');
-          ctx.fillStyle = 'rgba(227,188,94,.92)';
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-          ctx.fill();
+          drawAssetGlyph(ctx, getCombatAssetGlyph(hazard, 'hazards'), p.x, p.y, 'rgba(227,188,94,.88)', 'rgba(255,234,180,.8)');
           ctx.restore();
         }
         if (elevation > 0 && isLayerVisible(state, 'elevation')) {
@@ -5506,7 +5720,7 @@
     var assetUploadBar = document.getElementById('combatAssetUploadBar');
     var assetUploadLabel = document.getElementById('combatAssetUploadLabel');
     if (assetCategoryRow && assetSearch && assetFeed) {
-      var cats = ['heroes', 'villains', 'townsfolk', 'battlemaps', 'objects'];
+      var cats = ['heroes', 'villains', 'townsfolk', 'battlemaps', 'objects', 'terrain'];
       var ab = Object.assign({ category: 'heroes', query: '' }, state.assetBrowser || {});
       var uiState = normalizeCombatUi(state.ui);
       if (assetDock) assetDock.classList.toggle('open', !!uiState.assetDrawerOpen);
@@ -5573,6 +5787,9 @@
       var objectAssets = ['obstacle', 'door', 'turret', 'trap', 'shrine', 'spawn', 'wall', 'vision-blocker', 'crate', 'pillar', 'barricade', 'altar', 'console', 'loot-cache', 'beacon'].map(function (name) {
         return { id: 'obj-' + name, name: name, action: 'paint-object', payload: name };
       });
+      var terrainAssets = ['road', 'forest', 'marsh', 'crags', 'water', 'lava', 'ruins', 'difficult terrain', 'cobblestone'].map(function (name) {
+        return { id: 'terrain-' + name.replace(/\s+/g, '-'), name: name, action: 'paint-terrain', payload: name };
+      });
 
       function assetEmoji(itemName, category) {
         var n = String(itemName || '').toLowerCase();
@@ -5582,6 +5799,7 @@
           if (n.indexOf('fog') >= 0) return '🌫';
           return '🗺';
         }
+        if (category === 'terrain') return getCombatAssetGlyph(itemName, 'terrain');
         if (category === 'heroes') return '🛡';
         if (category === 'villains') return '☠';
         if (category === 'townsfolk') return '👥';
@@ -5600,6 +5818,7 @@
       else if (ab.category === 'townsfolk') pool = townsfolkAssets;
       else if (ab.category === 'battlemaps') pool = battlemapsAssets;
       else if (ab.category === 'objects') pool = objectAssets;
+      else if (ab.category === 'terrain') pool = terrainAssets;
 
       var qLower = String(ab.query || '').toLowerCase();
       var filtered = pool.filter(function (item) {
@@ -5665,6 +5884,13 @@
               return next4;
             });
             safeNotif('Object painter ready: ' + String(chosen.payload || 'object') + '.', 'good');
+          } else if (action === 'paint-terrain') {
+            store.setState(function (inner5) {
+              var next5 = Object.assign({}, inner5, { activeLayer: 'terrain', activeTool: 'paint', paintValue: String(chosen.payload || 'road') });
+              persist(next5);
+              return next5;
+            });
+            safeNotif('Terrain painter ready: ' + String(chosen.payload || 'terrain') + '.', 'good');
           }
           drawBoard();
           updateUiPanels();
@@ -5693,6 +5919,9 @@
           } else if (action === 'paint-object') {
             dragKind = 'set-tool';
             dragPayload = 'objects:' + String(chosen.payload || 'obstacle');
+          } else if (action === 'paint-terrain') {
+            dragKind = 'set-tool';
+            dragPayload = 'terrain:' + String(chosen.payload || 'road');
           }
           if (dragKind) window.startCombatAssetDrag(ev, dragKind, dragPayload);
         };
@@ -5844,7 +6073,7 @@
       Array.prototype.slice.call(quickRollBar.querySelectorAll('[data-quick-roll]')).forEach(function (btn) {
         btn.onclick = function () {
           var key = String(btn.getAttribute('data-quick-roll') || 'defend');
-          var die = Math.max(4, Number(window.S && window.S.stats && window.S.stats[key] || 4));
+          var die = getWayfarerEffectiveDie(key, 4);
           var rollObj = (typeof window.explodingRoll === 'function')
             ? window.explodingRoll(die, { type: 'action', major: true, label: 'Quick ' + key })
             : { total: rollDie(die), exploded: false };
@@ -6008,9 +6237,15 @@
             + '<strong>' + String(effect.label || 'Condition') + '</strong>'
             + ' · ' + Math.max(0, Number(effect.stressPerRound || 0)) + '/round'
             + ' · ' + Math.max(0, Number(effect.roundsLeft || 0)) + ' rounds left'
+            + ' <button class="btn btn-xs" type="button" data-remove-round-effect="' + String(effect.id || '') + '">Clear</button>'
             + '</div>';
         }).join('')
         : '<div class="combat-feed-line">No active round conditions on selected token.</div>';
+      Array.prototype.slice.call(effectList.querySelectorAll('[data-remove-round-effect]')).forEach(function (btn) {
+        btn.onclick = function () {
+          removeCombatRoundEffect(String(btn.getAttribute('data-remove-round-effect') || ''));
+        };
+      });
     }
 
     if (selectedScale) {
@@ -6635,6 +6870,14 @@
         return;
       }
 
+      if (clickedToken && state.activeTool === 'select' && (ev.ctrlKey || ev.metaKey)) {
+        normalizeSelection(clickedToken.id, [String(clickedToken.id || '')]);
+        showTokenContextMenu(clickedToken, canvasX, canvasY, ax.q, ax.r);
+        updateUiPanels();
+        drawBoard();
+        return;
+      }
+
       if (clickedToken && state.activeTool !== 'paint' && state.activeTool !== 'erase') {
         var selectedIds = Array.isArray(state.selectedTokenIds) ? state.selectedTokenIds.slice() : [];
         if (ev.shiftKey) {
@@ -6866,6 +7109,10 @@
       var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, board.panX, board.panY);
       var token = findTokenAtCanvasPoint(state, ev.clientX - rect.left, ev.clientY - rect.top) || nearestTokenAt(ax.q, ax.r);
       if (!token) {
+        var cellKey = toKey(ax.q, ax.r);
+        if (String(state.layers && state.layers.objects && state.layers.objects[cellKey] || '') === 'loot-cache') {
+          stockLootCacheAt(ax.q, ax.r);
+        }
         hideTokenContextMenu();
         return;
       }
@@ -8576,6 +8823,15 @@
         }
       }
       if (!target) return;
+      if (kind !== 'enemy' && Number(target.sourceEnemyId || 0) > 0) {
+        syncLegacyEnemyStressToTokens(target.id);
+        var syncedTarget = byId(target.id) || target;
+        var syncedHp = Math.max(0, Number(syncedTarget.hp || 0));
+        var notifElSynced = document.getElementById('combatLastNotification');
+        if (notifElSynced) notifElSynced.textContent = String(syncedTarget.name || 'Enemy') + ' stress synced from legacy enemy state · HP: ' + syncedHp;
+        drawBoard();
+        return;
+      }
       var deathNumber = Math.max(1, Number(target.deathNumber || target.dread || target.codexDread || 6));
       var lethal = isCrit || damage >= deathNumber;
       var dealt = lethal ? Math.max(0, Number(target.hp || 0)) : damage;
@@ -8640,15 +8896,22 @@
         var lowerAction = actionVal.toLowerCase();
         var utilityLike = /use_item|utility|backpack|hack|flavor|personal_flavor/.test(lowerAction);
         if (utilityLike) {
+          if (!consumeWayfarerUtilityAction(actionVal)) {
+            safeNotif('No combat actions left for that utility.', 'warn');
+            return;
+          }
           if (/flavor|personal_flavor/.test(lowerAction) && typeof window.usePersonalFlavorAction === 'function') {
             try { window.usePersonalFlavorAction(); } catch (_flavorErr) {}
             addHistory('Wayfarer utility executed: Personal Flavor.');
+            safeNotif('Personal Flavor used.', 'good');
           } else if (typeof window.openCombatUtilityChooser === 'function') {
             try { window.openCombatUtilityChooser(); } catch (_chooserErr) {}
             addHistory('Wayfarer utility chooser opened from Combat Scene.');
+            safeNotif('Utility chooser opened. Action spent.', 'good');
           } else if (typeof window.promptWayfarerBackpackOrFlavor === 'function') {
             try { window.promptWayfarerBackpackOrFlavor(); } catch (_promptErr) {}
             addHistory('Wayfarer utility menu opened from Combat Scene.');
+            safeNotif('Utility menu opened. Action spent.', 'good');
           } else {
             safeNotif('Utility actions are unavailable right now.', 'warn');
           }

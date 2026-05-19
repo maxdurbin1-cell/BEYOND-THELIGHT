@@ -14036,6 +14036,16 @@ function revealMapFogHex(region,key,opts){
 function toggleMapFogForRegion(region){
   const cfg=getMapFogConfig(region);
   cfg.enabled=!cfg.enabled;
+  if(String(region||'province').toLowerCase()==='province'&&S&&S.mapClickMode==='fog'&&!cfg.enabled){
+    S.mapClickMode='travel';
+    if(typeof updateMapClickModeUI==='function')updateMapClickModeUI();
+  }
+  if(typeof renderHexMap==='function')renderHexMap();
+  if(typeof renderHexInfo==='function'&&typeof selectedHex!=='undefined'&&selectedHex)renderHexInfo(selectedHex);
+  if(typeof renderLastSeaMap==='function')renderLastSeaMap();
+  if(typeof renderLastSeaInfo==='function')renderLastSeaInfo();
+  if(typeof renderStarSystemMap==='function')renderStarSystemMap();
+  if(typeof updateStarSystemReadouts==='function')updateStarSystemReadouts();
   return cfg.enabled;
 }
 function setCampaignFogPlayerVision(currentOnly){

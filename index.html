@@ -6,7 +6,11 @@ window._modalStack = Array.isArray(window._modalStack) ? window._modalStack : []
 setTimeout(function() {
   try {
     const _originalOpenModal = window.openModal || openModal;
-    window.openModal = function(title, html, restoreCallback) {
+    window.openModal = function(title, html, restoreCallback, options) {
+      if (restoreCallback && typeof restoreCallback === 'object' && typeof options === 'undefined') {
+        options = restoreCallback;
+        restoreCallback = null;
+      }
       try {
         const overlay = document.getElementById('rollModal');
         const titleEl = document.getElementById('modalTitle');
@@ -19,7 +23,7 @@ setTimeout(function() {
           }
         }
       } catch (err) {}
-      _originalOpenModal(title, html);
+      _originalOpenModal(title, html, null, options);
     };
     window.goBackModal = function() {
       if (window._modalStack && window._modalStack.length > 0) {
@@ -19607,17 +19611,32 @@ function travelThroughProvinceGate(col,row){
 
 // ── MODAL & NOTIF ─────────────────────────────────────────────────────────────
 var _modalPrevFocus = null;
-function openModal(title, content) {
+function openModal(title, content, restoreCallback, options) {
+  if (restoreCallback && typeof restoreCallback === 'object' && typeof options === 'undefined') {
+    options = restoreCallback;
+  }
+  var opts = (options && typeof options === 'object') ? options : {};
+  var usePreventScroll = opts.preventScroll !== false;
   _modalPrevFocus = document.activeElement;
   document.getElementById('modalTitle').textContent = title;
   document.getElementById('modalContent').innerHTML = content;
   var overlay = document.getElementById('rollModal');
   overlay.classList.add('open');
+  // Keep the page anchored while opening overlays.
+  var rootEl = document.scrollingElement || document.documentElement || document.body;
+  var pageScrollTop = rootEl ? Number(rootEl.scrollTop || 0) : 0;
   // Focus first focusable element inside dialog
   var modal = overlay.querySelector('[role="dialog"]');
   requestAnimationFrame(function() {
     var focusable = modal.querySelectorAll('button,input,select,textarea,[tabindex]:not([tabindex="-1"])');
-    if (focusable.length) focusable[0].focus();
+    if (focusable.length) {
+      try {
+        focusable[0].focus({ preventScroll: usePreventScroll });
+      } catch (_err) {
+        focusable[0].focus();
+      }
+    }
+    if (usePreventScroll && rootEl) rootEl.scrollTop = pageScrollTop;
   });
 }
 function closeModal() {
@@ -19627,7 +19646,10 @@ function closeModal() {
   }
   if (typeof window !== 'undefined') window._arenaCombatPopupOpen = false;
   document.getElementById('rollModal').classList.remove('open');
-  if (_modalPrevFocus) { _modalPrevFocus.focus(); _modalPrevFocus = null; }
+  if (_modalPrevFocus) {
+    try { _modalPrevFocus.focus({ preventScroll: true }); } catch (_err) { _modalPrevFocus.focus(); }
+    _modalPrevFocus = null;
+  }
 }
 document.getElementById('rollModal').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
 // Escape key closes modal

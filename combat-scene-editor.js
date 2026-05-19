@@ -2638,6 +2638,18 @@
     });
   }
 
+  window.syncCombatSheetFromCharacterTab = function (tokenId) {
+    var id = String(tokenId || '');
+    if (typeof syncWayfarerTokenHealthFromSheet === 'function') syncWayfarerTokenHealthFromSheet();
+    if (typeof window.updateConditionButtons === 'function') window.updateConditionButtons();
+    if (typeof window.updateAllStatDisplays === 'function') window.updateAllStatDisplays();
+    if (id) normalizeSelection(id, [id]);
+    refreshCombatSheetWayfarerWidgets();
+    updateUiPanels();
+    drawBoard();
+    safeNotif('Combat sheet synced from Character tab.', 'good');
+  };
+
   window.combatSheetAdjustWayfarerResource = function (key, delta, tokenId) {
     var amount = Number(delta || 0);
     if (!amount) return;
@@ -2896,6 +2908,7 @@
       + '</div>'
       + '<div class="combat-rules-actions">'
       + '<input id="combatSheetSearch" class="combat-rules-search" type="search" placeholder="Search sheet, strike, armor, loot, effects..." oninput="window.filterCombatSheetModal&&window.filterCombatSheetModal(this.value)">'
+      + '<button class="btn btn-xs" type="button" onclick="window.syncCombatSheetFromCharacterTab&&window.syncCombatSheetFromCharacterTab(\'' + String(token && token.id || '') + '\')">Sync From Character Tab</button>'
       + '<button class="btn btn-xs" type="button" onclick="window.showCombatRulesReference&&window.showCombatRulesReference()">Rules</button>'
       + '</div>'
       + '</div>'

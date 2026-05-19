@@ -10015,6 +10015,11 @@
     bindStaticControls();
 
     if (seed && typeof seed === 'object') {
+      if (seed.navalBoardingContext && typeof seed.navalBoardingContext === 'object') {
+        window.__activeNavalBoardingSceneContext = Object.assign({}, seed.navalBoardingContext);
+      } else {
+        window.__activeNavalBoardingSceneContext = null;
+      }
       store.setState(function (state) {
         var next = normalizeCombatSceneState(Object.assign({}, state));
         if (seed.id) {
@@ -10051,6 +10056,7 @@
         return next;
       });
     } else {
+      window.__activeNavalBoardingSceneContext = null;
       store.setState(function (state) {
         var next = Object.assign({}, state);
         next.tokens = clone(state.tokens || []);
@@ -10130,6 +10136,34 @@
   function closeOverlay() {
     var root = document.getElementById('combatModeOverlay');
     if (!root) return;
+
+    var boardingCtx = window.__activeNavalBoardingSceneContext && typeof window.__activeNavalBoardingSceneContext === 'object'
+      ? Object.assign({}, window.__activeNavalBoardingSceneContext)
+      : null;
+    if (boardingCtx && typeof window.resolveNavalBoardingOutcomeFromCombatScene === 'function') {
+      try {
+        var state = store.getState();
+        var tokenList = Array.isArray(state && state.tokens) ? state.tokens : [];
+        var alivePlayers = tokenList.filter(function (token) {
+          return token && String(token.faction || '') === 'player' && !isTokenDead(token);
+        }).length;
+        var aliveEnemies = tokenList.filter(function (token) {
+          return token && String(token.faction || '') === 'monster' && !isTokenDead(token);
+        }).length;
+        var result = 'stalemate';
+        if (alivePlayers > 0 && aliveEnemies <= 0) result = 'victory';
+        else if (aliveEnemies > 0 && alivePlayers <= 0) result = 'defeat';
+        window.resolveNavalBoardingOutcomeFromCombatScene({
+          result: result,
+          alivePlayers: alivePlayers,
+          aliveEnemies: aliveEnemies
+        });
+      } catch (_boardingResolveErr) {
+        try { console.error(_boardingResolveErr); } catch (_noop) {}
+      }
+      window.__activeNavalBoardingSceneContext = null;
+    }
+
     root.classList.remove('open');
     store.setState({ open: false, entering: false, draggingTokenId: '' });
     persist(store.getState());

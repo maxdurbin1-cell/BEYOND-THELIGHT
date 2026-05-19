@@ -334,6 +334,7 @@
       enemyActionsRemaining: 2,
       perception: "indifferent",
       boardingReadyRound: 0,
+      boardingSession: null,
       ...(S.naval || {})
     };
     S.naval.crew = Array.isArray(S.naval.crew) ? S.naval.crew : [];
@@ -5584,6 +5585,10 @@
 
     return {
       name: `Boarding Action - ${String(S.naval.enemyClass || "Enemy Ship")}`,
+      navalBoardingContext: {
+        kind: 'naval-boarding',
+        round: Number(S.naval.round || 1)
+      },
       tokens,
       history: [
         `Boarding launched in naval round ${Number(S.naval.round || 1)} from Engaged range.`,
@@ -5602,6 +5607,12 @@
     if (!spendNavalAction("player")) return;
 
     S.naval.boardingReadyRound = Number(S.naval.round || 1) + 1;
+    S.naval.boardingSession = {
+      active: true,
+      startedAt: Date.now(),
+      startedRound: Number(S.naval.round || 1),
+      enemyClass: String(S.naval.enemyClass || 'Enemy Ship')
+    };
     navalLog("Boarding party launched. Personal combat scene opened in VTT Combat Mode.", "good");
 
     if (S && S.combat && typeof S.combat === "object") {
@@ -5618,6 +5629,54 @@
     }
 
     renderNaval();
+  }
+
+  function resolveNavalBoardingOutcomeFromCombatScene(payload) {
+    ensureExpansionState();
+    const session = S.naval && S.naval.boardingSession;
+    if (!session || !session.active) return false;
+    if (!S.naval.ship || !S.naval.enemyShip) {
+      S.naval.boardingSession = null;
+      return false;
+    }
+
+    const result = String(payload && payload.result || 'stalemate').toLowerCase();
+    const enemyDread = getNavalEnemyDreadDie();
+    const player = S.naval.ship;
+    const enemy = S.naval.enemyShip;
+
+    if (result === 'victory') {
+      const enemyThreshold = Math.max(1, Number((enemy.hullDie || 4) * 2));
+      const toWreck = Math.max(0, enemyThreshold - Number(enemy.stress || 0));
+      if (toWreck > 0) {
+        damageShip(enemy, toWreck, 'enemy');
+      }
+      enemy.wrecked = true;
+      if (Number(S.naval.crewTrauma || 0) > 0) {
+        S.naval.crewTrauma = Math.max(0, Number(S.naval.crewTrauma || 0) - 1);
+      }
+      navalLog('Boarding resolved: Victory. Enemy ship wrecked and crew momentum recovered.', 'good');
+    } else if (result === 'defeat') {
+      const boardingPenalty = Math.max(2, Math.ceil(enemyDread / 2));
+      damageShip(player, boardingPenalty, 'player');
+      S.naval.crewTrauma = Math.max(0, Number(S.naval.crewTrauma || 0) + 1);
+      navalLog(`Boarding resolved: Defeat. Your ship takes ${boardingPenalty} Stress and +1 Crew Trauma.`, 'warn');
+    } else {
+      const mutual = Math.max(1, Math.floor(enemyDread / 3));
+      damageShip(player, mutual, 'player');
+      damageShip(enemy, mutual, 'enemy');
+      navalLog(`Boarding resolved: Stalemate. Both ships take ${mutual} Stress.`, '');
+    }
+
+    if (enemy.wrecked || player.wrecked) {
+      S.naval.combatActive = false;
+      navalLog('Naval combat ended due to boarding outcome.', enemy.wrecked ? 'good' : 'warn');
+    }
+
+    S.naval.boardingSession = null;
+    S.naval.boardingReadyRound = 0;
+    renderNaval();
+    return true;
   }
 
   function wreckEnemyShip() {
@@ -5952,6 +6011,7 @@
   window.rollShipPerception = rollShipPerception;
   window.navalDiplomacy = navalDiplomacy;
   window.startNavalBoardingAction = startNavalBoardingAction;
+  window.resolveNavalBoardingOutcomeFromCombatScene = resolveNavalBoardingOutcomeFromCombatScene;
   window.wreckEnemyShip = wreckEnemyShip;
   window.repairPlayerShipToFull = repairPlayerShipToFull;
   window.setGamblingDifficulty = setGamblingDifficulty;

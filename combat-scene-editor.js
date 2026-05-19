@@ -3625,7 +3625,7 @@
           });
         }
       }
-      if (!selected.isPlayer && String(selected.faction) !== 'player' && enemyProfile && Array.isArray(enemyProfile.skills) && enemyProfile.skills.length) {
+      if (selected && !selected.isPlayer && String(selected.faction) !== 'player' && enemyProfile && Array.isArray(enemyProfile.skills) && enemyProfile.skills.length) {
         var tknSheetState = store.getState();
         var actorForDist = byId(tknSheetState.selectedTokenId) || (tknSheetState.tokens || []).find(function (t) { return t && (t.isPlayer || String(t.faction) === 'player'); });
         var distToActor = actorForDist ? hexDistance({ q: selected.q, r: selected.r }, { q: actorForDist.q, r: actorForDist.r }) : 999;

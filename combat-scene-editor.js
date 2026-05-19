@@ -3244,9 +3244,30 @@
         { id: 'map-fog', name: 'Fog Valley 18x12', action: 'map-preset', payload: { cols: 18, rows: 12, weather: 'fog' } },
         { id: 'map-storm', name: 'Storm Deck 18x10', action: 'map-preset', payload: { cols: 18, rows: 10, weather: 'storm' } }
       ];
-      var objectAssets = ['obstacle', 'door', 'turret', 'trap', 'shrine', 'spawn', 'wall', 'vision-blocker'].map(function (name) {
+      var objectAssets = ['obstacle', 'door', 'turret', 'trap', 'shrine', 'spawn', 'wall', 'vision-blocker', 'crate', 'pillar', 'barricade', 'altar', 'console', 'loot-cache', 'beacon'].map(function (name) {
         return { id: 'obj-' + name, name: name, action: 'paint-object', payload: name };
       });
+
+      function assetEmoji(itemName, category) {
+        var n = String(itemName || '').toLowerCase();
+        if (category === 'battlemaps') {
+          if (n.indexOf('urban') >= 0) return '🏙';
+          if (n.indexOf('storm') >= 0) return '⛈';
+          if (n.indexOf('fog') >= 0) return '🌫';
+          return '🗺';
+        }
+        if (category === 'heroes') return '🛡';
+        if (category === 'villains') return '☠';
+        if (category === 'townsfolk') return '👥';
+        if (n.indexOf('door') >= 0) return '🚪';
+        if (n.indexOf('turret') >= 0) return '🔫';
+        if (n.indexOf('trap') >= 0) return '⚠';
+        if (n.indexOf('shrine') >= 0 || n.indexOf('altar') >= 0) return '🕯';
+        if (n.indexOf('crate') >= 0 || n.indexOf('loot') >= 0) return '📦';
+        if (n.indexOf('wall') >= 0 || n.indexOf('barricade') >= 0) return '🧱';
+        if (n.indexOf('console') >= 0 || n.indexOf('beacon') >= 0) return '📡';
+        return '🧩';
+      }
 
       var pool = heroAssets;
       if (ab.category === 'villains') pool = villainAssets;
@@ -3261,8 +3282,9 @@
 
       assetFeed.innerHTML = filtered.length
         ? filtered.map(function (item) {
+          var icon = assetEmoji(item.name, ab.category);
           return '<div class="combat-feed-line" style="display:flex;align-items:center;justify-content:space-between;gap:.3rem;">'
-            + '<span>' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>'
+            + '<span>' + icon + ' ' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>'
             + '<button class="btn btn-xs" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '">Use</button>'
             + '</div>';
         }).join('')
@@ -3983,6 +4005,9 @@
       });
     }
 
+    var paintDragActive = false;
+    var paintDragLastKey = '';
+
     canvas.addEventListener('mousedown', function (ev) {
       var state = store.getState();
       var rect = canvas.getBoundingClientRect();
@@ -4046,6 +4071,8 @@
       }
 
       if (state.activeTool === 'paint' || state.activeTool === 'erase') {
+        paintDragActive = true;
+        paintDragLastKey = toKey(ax.q, ax.r);
         paintAt(ax.q, ax.r);
         drawBoard();
         updateUiPanels();
@@ -4108,6 +4135,20 @@
 
     canvas.addEventListener('mousemove', function (ev) {
       var state = store.getState();
+      if (paintDragActive && (state.activeTool === 'paint' || state.activeTool === 'erase')) {
+        var rectPaint = canvas.getBoundingClientRect();
+        var boardPaint = state.board;
+        var sizePaint = Number(boardPaint.size || 42) * Number(boardPaint.zoom || 1);
+        var axPaint = pixelToAxial(ev.clientX - rectPaint.left, ev.clientY - rectPaint.top, sizePaint, boardPaint.panX, boardPaint.panY);
+        var paintKey = toKey(axPaint.q, axPaint.r);
+        if (paintKey !== paintDragLastKey) {
+          paintDragLastKey = paintKey;
+          paintAt(axPaint.q, axPaint.r);
+          drawBoard();
+          updateUiPanels();
+        }
+        return;
+      }
       if (state.mouse && state.mouse.panning) {
         clearPingHold();
         var dx = ev.clientX - Number(state.mouse.lastX || 0);
@@ -4172,6 +4213,8 @@
     function stopDrag() {
       clearPingHold();
       hideInlineBubbleEditor(false);
+      paintDragActive = false;
+      paintDragLastKey = '';
       var state = store.getState();
       if (state.mouse && state.mouse.panning) {
         store.setState({ mouse: { panning: false, lastX: 0, lastY: 0 } });
@@ -4271,8 +4314,10 @@
 
   function getExpandedPaintOptions(state) {
     var base = [
-      'forest', 'marsh', 'crags', 'lava', 'ruins', 'water', 'difficult terrain',
+      'forest', 'marsh', 'crags', 'lava', 'ruins', 'water', 'difficult terrain', 'sand', 'snow', 'ice', 'mud', 'road', 'cobblestone',
+      'bridge', 'stairs', 'chasm', 'void', 'pit', 'acid', 'radiation', 'shock',
       'obstacle', 'trap', 'shrine', 'turret', 'door', 'spawn',
+      'crate', 'pillar', 'barricade', 'altar', 'console', 'loot-cache', 'beacon',
       'wall', 'vision-blocker', 'wall-seg-e', 'wall-seg-ne', 'wall-seg-nw', 'wall-seg-w', 'wall-seg-sw', 'wall-seg-se',
       '1', '2', '3',
       'tree-canopy', 'balcony', 'weather-overlay', 'high-ledge'
@@ -4280,18 +4325,21 @@
     var set = {};
     base.forEach(function (v) { set[v] = true; });
     var scenes = Array.isArray(state && state.scenes) ? state.scenes : [];
-    scenes.forEach(function (scene) {
-      if (!scene || !scene.layers || !scene.layers.terrain) return;
-      Object.keys(scene.layers.terrain).forEach(function (k) {
-        var val = String(scene.layers.terrain[k] || '').trim();
-        if (val) set[val] = true;
+    function absorbLayerValues(layers) {
+      if (!layers || typeof layers !== 'object') return;
+      ['terrain', 'objects', 'hazards', 'weather', 'foreground', 'interactives', 'spawns', 'lighting'].forEach(function (layerName) {
+        var layerMap = layers[layerName] || null;
+        if (!layerMap || typeof layerMap !== 'object') return;
+        Object.keys(layerMap).forEach(function (k) {
+          var val = String(layerMap[k] || '').trim();
+          if (val) set[val] = true;
+        });
       });
+    }
+    scenes.forEach(function (scene) {
+      absorbLayerValues(scene && scene.layers);
     });
-    var terrainMap = state && state.layers && state.layers.terrain ? state.layers.terrain : {};
-    Object.keys(terrainMap || {}).forEach(function (k2) {
-      var val2 = String(terrainMap[k2] || '').trim();
-      if (val2) set[val2] = true;
-    });
+    absorbLayerValues(state && state.layers);
     var customAssets = (window.S && (window.S.customTerrainAssets || window.S.terrainAssets || window.S.customAssets)) || null;
     if (Array.isArray(customAssets)) {
       customAssets.forEach(function (entry) {
@@ -4886,6 +4934,117 @@
       } else safeNotif('Effects modal requires modal support.', 'warn');
     }
 
+    function openCombatAssetsModal() {
+      var html = ''
+        + '<div style="display:grid;gap:.34rem;font-size:.82rem;color:var(--text2);line-height:1.55;">'
+        + '<div><strong style="color:var(--gold2);">GM Assets Hub</strong> · one-click prep actions and quick placement tools.</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.24rem;">'
+        + '<button class="btn btn-xs btn-teal" onclick="window.combatAssetAction&&window.combatAssetAction(\'set-tool\',\'terrain:forest\')">🌲 Paint Forest</button>'
+        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'set-tool\',\'terrain:ruins\')">🏛 Paint Ruins</button>'
+        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'set-tool\',\'objects:obstacle\')">🧱 Paint Obstacle</button>'
+        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'set-tool\',\'hazards:trap\')">⚠ Paint Trap</button>'
+        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'spawn\',\'npc:Guide\')">🧭 Spawn Guide</button>'
+        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'spawn\',\'npc:Merchant\')">🛒 Spawn Merchant</button>'
+        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'preset\',\'urban\')">🏙 Urban Preset</button>'
+        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'preset\',\'storm\')">⛈ Storm Preset</button>'
+        + '</div>'
+        + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;">'
+        + '<button class="btn btn-xs btn-primary" onclick="window.combatAssetAction&&window.combatAssetAction(\'template\',\'quick\')">⚡ Quick Setup (Random)</button>'
+        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'upload-map\',\'\')">🗺 Upload Battlemap</button>'
+        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'open-drawer\',\'\')">📚 Open Bestiary Drawer</button>'
+        + '</div>'
+        + '<div style="font-size:.74rem;color:var(--muted2);">Tip: use Asset Browser category filters in the right panel for heroes, villains, battlemaps, and objects.</div>'
+        + '</div>';
+      if (typeof window.openModal === 'function') {
+        window.openModal('Combat Assets', html, null, { preventScroll: true, focusTrap: true });
+      }
+    }
+
+    function openCombatSettingsHub() {
+      var state = store.getState();
+      var mode = String(state.fog && state.fog.revealMode || 'manual');
+      var radius = Math.max(1, Math.min(8, Number(state.fog && state.fog.visionRadius || 3)));
+      var html = ''
+        + '<div style="display:grid;gap:.28rem;">'
+        + '<label style="display:flex;align-items:center;gap:.4rem;"><input id="combatSettingsFogEnabled" type="checkbox" ' + ((state.fog && state.fog.enabled) ? 'checked' : '') + '> Fog of War enabled</label>'
+        + '<label style="display:flex;align-items:center;gap:.4rem;"><input id="combatSettingsAutoRoll" type="checkbox" ' + (state.autoRoll ? 'checked' : '') + '> Auto roll mode</label>'
+        + '<label style="display:flex;align-items:center;gap:.4rem;">Vision Radius'
+        + '<input id="combatSettingsVisionRadius" class="combat-input" type="number" min="1" max="8" value="' + radius + '" style="max-width:76px;"></label>'
+        + '<label style="display:flex;align-items:center;gap:.4rem;">Fog Mode'
+        + '<select id="combatSettingsFogMode" class="combat-select" style="max-width:160px;">'
+        + '<option value="manual" ' + (mode === 'manual' ? 'selected' : '') + '>Manual</option>'
+        + '<option value="los" ' + (mode === 'los' ? 'selected' : '') + '>Line of Sight</option>'
+        + '<option value="ordered" ' + (mode === 'ordered' ? 'selected' : '') + '>Ordered Reveal</option>'
+        + '</select></label>'
+        + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;">'
+        + '<button class="btn btn-xs" onclick="window.showCombatRulesReference&&window.showCombatRulesReference()">Rules</button>'
+        + '<button class="btn btn-xs" onclick="window.combatOpenAssetsHub&&window.combatOpenAssetsHub()">Assets</button>'
+        + '<button class="btn btn-xs" onclick="window.combatAssetAction&&window.combatAssetAction(\'template\',\'quick\')">Quick Setup</button>'
+        + '</div>'
+        + '<button class="btn btn-xs btn-primary" onclick="(function(){if(window.applyCombatSettingsFromModal)window.applyCombatSettingsFromModal();if(typeof window.closeModal===\'function\')window.closeModal();})();">Apply</button>'
+        + '</div>';
+      if (typeof window.openModal === 'function') {
+        window.openModal('Combat Settings', html, null, { preventScroll: true, focusTrap: true });
+      }
+    }
+
+    window.combatOpenAssetsHub = openCombatAssetsModal;
+    window.combatAssetAction = function combatAssetAction(kind, payload) {
+      var action = String(kind || '');
+      var value = String(payload || '');
+      var st = store.getState();
+      var actor = byId(st.selectedTokenId);
+      var baseQ = actor ? Number(actor.q || 0) : 0;
+      var baseR = actor ? Number(actor.r || 0) : 0;
+      if (action === 'set-tool') {
+        var parts = value.split(':');
+        var layer = String(parts[0] || 'terrain');
+        var paint = String(parts[1] || 'forest');
+        store.setState(function (inner) {
+          var next = Object.assign({}, inner, { activeLayer: layer, activeTool: 'paint', paintValue: paint });
+          persist(next);
+          return next;
+        });
+        safeNotif('Painter armed: ' + layer + ' · ' + paint + '.', 'good');
+      } else if (action === 'spawn') {
+        var spawnParts = value.split(':');
+        var faction = String(spawnParts[0] || 'npc');
+        var name = String(spawnParts[1] || 'Token');
+        store.setState(function (inner2) {
+          var next2 = Object.assign({}, inner2);
+          var token = { id: uid(faction), name: name, faction: faction, hp: 8, maxHp: 8, status: [], q: baseQ + 1, r: baseR + 1, image: '', size: 1 };
+          next2.tokens = (inner2.tokens || []).concat([token]);
+          next2.selectedTokenId = token.id;
+          persist(next2);
+          return next2;
+        });
+        addHistory('Asset placed: ' + name + '.');
+      } else if (action === 'preset') {
+        var presets = {
+          urban: { cols: 20, rows: 20, weather: 'none' },
+          storm: { cols: 18, rows: 10, weather: 'storm' }
+        };
+        var p = presets[value] || presets.urban;
+        store.setState(function (inner3) {
+          var next3 = Object.assign({}, inner3);
+          next3.board = Object.assign({}, inner3.board || {}, { cols: Number(p.cols || 15), rows: Number(p.rows || 15), weatherOverlay: String(p.weather || 'none') });
+          persist(next3);
+          return next3;
+        });
+        addHistory('Battlemap preset applied: ' + value + '.');
+      } else if (action === 'template') {
+        if (typeof window.setupSceneTemplate === 'function') window.setupSceneTemplate(value || 'quick');
+      } else if (action === 'upload-map') {
+        var uploadMapBtn = document.getElementById('combatUploadMapBtn');
+        if (uploadMapBtn && typeof uploadMapBtn.click === 'function') uploadMapBtn.click();
+      } else if (action === 'open-drawer') {
+        var drawer = document.getElementById('combatBestiaryDrawer');
+        if (drawer && typeof drawer.scrollIntoView === 'function') drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+      drawBoard();
+      updateUiPanels();
+    };
+
     var toolbarSelectBtn = document.getElementById('combatToolbarSelectBtn');
     if (toolbarSelectBtn && !toolbarSelectBtn._bound) {
       toolbarSelectBtn._bound = true;
@@ -5127,9 +5286,7 @@
     if (assetsBtn && !assetsBtn._bound) {
       assetsBtn._bound = true;
       assetsBtn.onclick = function () {
-        var drawer = document.getElementById('combatBestiaryDrawer');
-        if (drawer && typeof drawer.scrollIntoView === 'function') drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        safeNotif('Assets ready: use Bestiary Drawer and map upload to place content.', 'info');
+        openCombatAssetsModal();
       };
     }
 
@@ -5143,13 +5300,7 @@
     if (settingsBtn && !settingsBtn._bound) {
       settingsBtn._bound = true;
       settingsBtn.onclick = function () {
-        var state = store.getState();
-        var html = '<div style="display:grid;gap:.28rem;">'
-          + '<label style="display:flex;align-items:center;gap:.4rem;"><input id="combatSettingsFogEnabled" type="checkbox" ' + ((state.fog && state.fog.enabled) ? 'checked' : '') + '> Fog of War enabled</label>'
-          + '<label style="display:flex;align-items:center;gap:.4rem;"><input id="combatSettingsAutoRoll" type="checkbox" ' + (state.autoRoll ? 'checked' : '') + '> Auto roll mode</label>'
-          + '<button class="btn btn-xs btn-primary" onclick="(function(){if(window.applyCombatSettingsFromModal)window.applyCombatSettingsFromModal();if(typeof window.closeModal===\'function\')window.closeModal();})();">Apply</button>'
-          + '</div>';
-        if (typeof window.openModal === 'function') window.openModal('Combat Settings', html, null, { preventScroll: true, focusTrap: true });
+        openCombatSettingsHub();
       };
     }
 
@@ -5854,11 +6005,16 @@
   function showCombatRulesReference() {
     var html = ''
       + '<div style="font-size:.82rem;line-height:1.55;color:var(--text2);">'
+      + '<div style="margin-bottom:.25rem;"><strong style="color:var(--gold2);">Quick Rules Reference</strong></div>'
       + '<div><strong>Core Check:</strong> roll Action vs enemy Dread. Beat to succeed.</div>'
-      + '<div><strong>Turns:</strong> each token acts once per round by initiative order.</div>'
+      + '<div><strong>Combat Turns:</strong> each token acts once per round by initiative order.</div>'
       + '<div><strong>Movement:</strong> terrain and hazards can increase action cost.</div>'
-      + '<div><strong>Fog:</strong> use Fog tools to reveal tactical visibility.</div>'
       + '<div><strong>Cover:</strong> use terrain and object layers to reduce incoming damage.</div>'
+      + '<div><strong>Fog:</strong> use Fog tools to reveal tactical visibility.</div>'
+      + '<div style="margin-top:.28rem;"><strong style="color:var(--teal2);">Personal Flavors:</strong> trigger in-fiction perks once per scene when conditions are met.</div>'
+      + '<div><strong>Caravan/Ship:</strong> treat them as mobile objectives: protect, repair, or board as scene goals.</div>'
+      + '<div><strong>Dice:</strong> manual mode supports physical dice; auto mode resolves rolls instantly with logs.</div>'
+      + '<div><strong>Character Sheet Sync:</strong> Wayfarer HP/actions sync from combat rules and sheet state.</div>'
       + '</div>';
     if (typeof window.openModal === 'function') {
       window.openModal('Combat Rules Reference', html, null, { preventScroll: true, focusTrap: true });
@@ -5955,6 +6111,7 @@
   function createSceneFromTemplate(templateKey) {
     var key = String(templateKey || 'blank').toLowerCase();
     var templates = {
+      quick: null,
       blank: {
         board: { cols: 15, rows: 15, zoom: 1, panX: 0, panY: 0 },
         layers: { terrain: {}, objects: {}, hazards: {}, elevation: {}, lighting: {}, weather: {}, foreground: {}, interactives: {}, spawns: {} },
@@ -6001,6 +6158,11 @@
         name: 'Naval Vessel Deck'
       }
     };
+
+    if (key === 'quick') {
+      var quickKeys = ['blank', 'dungeon', 'spaceship', 'navalship'];
+      key = quickKeys[Math.floor(Math.random() * quickKeys.length)] || 'blank';
+    }
 
     var tpl = templates[key] || templates.blank;
     store.setState(function (state) {
@@ -6081,7 +6243,7 @@
     if (newSceneBtn && !newSceneBtn._bound) {
       newSceneBtn._bound = true;
       newSceneBtn.onclick = function () {
-        var modal = '<div style="font-size:.78rem;display:grid;gap:.3rem;"><div style="margin-bottom:.15rem;">Choose a scene template:</div><button class="btn btn-xs btn-primary" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'blank\');if(typeof window.closeModal===\'function\')window.closeModal();">Blank Canvas</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'dungeon\');if(typeof window.closeModal===\'function\')window.closeModal();">Dungeon Chamber</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'spaceship\');if(typeof window.closeModal===\'function\')window.closeModal();">Space Ship Interior</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'navalship\');if(typeof window.closeModal===\'function\')window.closeModal();">Naval Vessel Deck</button><button class="btn btn-xs" style="width:100%;" onclick="if(typeof window.closeModal===\'function\')window.closeModal();">Cancel</button></div>';
+        var modal = '<div style="font-size:.78rem;display:grid;gap:.3rem;"><div style="margin-bottom:.15rem;">Choose a scene template:</div><button class="btn btn-xs btn-primary" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'quick\');if(typeof window.closeModal===\'function\')window.closeModal();">Quick Setup (Random)</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'blank\');if(typeof window.closeModal===\'function\')window.closeModal();">Blank Canvas</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'dungeon\');if(typeof window.closeModal===\'function\')window.closeModal();">Dungeon Chamber</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'spaceship\');if(typeof window.closeModal===\'function\')window.closeModal();">Space Ship Interior</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'navalship\');if(typeof window.closeModal===\'function\')window.closeModal();">Naval Vessel Deck</button><button class="btn btn-xs" style="width:100%;" onclick="if(typeof window.closeModal===\'function\')window.closeModal();">Cancel</button></div>';
         if (typeof window.openModal === 'function') {
           window.openModal('New Scene from Template', modal, null, { preventScroll: true, focusTrap: true });
         } else {
@@ -6519,42 +6681,89 @@
     if (sceneIdx < 0) return;
     
     var scene = clone(scenes[sceneIdx]);
-    
-    var templateConfigs = {
-      'empty': {
-        board: { cols: 10, rows: 10 },
-        layers: { terrain: {}, objects: {}, hazards: {}, elevation: {}, lighting: {}, weather: {}, interactives: {}, spawns: {} },
-        fog: { enabled: false, revealed: {} }
-      },
-      'urban': {
-        board: { cols: 15, rows: 15 },
-        layers: {
-          terrain: { '5,5': 'ruins', '8,8': 'ruins', '9,8': 'ruins' },
-          objects: { '6,5': 'obstacle', '8,7': 'obstacle' },
-          hazards: {}, elevation: {}, lighting: {}, weather: {}, interactives: { '7,8': 'chest' }, spawns: { '3,5': 'spawn' }
-        },
-        fog: { enabled: true, revealed: {} }
-      },
-      'wilderness': {
-        board: { cols: 15, rows: 15 },
-        layers: {
-          terrain: { '3,3': 'forest', '4,3': 'forest', '10,7': 'crags', '10,8': 'crags' },
-          objects: {}, hazards: {}, elevation: { '10,7': 2 }, lighting: {}, weather: {}, interactives: { '2,4': 'loot-cache' }, spawns: { '12,6': 'spawn' }
-        },
-        fog: { enabled: true, revealed: {} }
-      },
-      'dungeon': {
-        board: { cols: 15, rows: 15 },
-        layers: {
-          terrain: { '5,5': 'ruins', '6,5': 'ruins', '7,5': 'ruins' },
-          objects: { '5,6': 'obstacle', '6,6': 'obstacle' },
-          hazards: { '8,5': 'trap' }, elevation: {}, lighting: {}, weather: {}, interactives: { '4,5': 'chest' }, spawns: { '11,5': 'spawn' }
-        },
-        fog: { enabled: true, revealed: {} }
+
+    function randInt(min, max) {
+      var lo = Math.min(Number(min || 0), Number(max || 0));
+      var hi = Math.max(Number(min || 0), Number(max || 0));
+      return lo + Math.floor(Math.random() * (hi - lo + 1));
+    }
+
+    function pickOne(list) {
+      if (!Array.isArray(list) || !list.length) return '';
+      return String(list[randInt(0, list.length - 1)] || '');
+    }
+
+    function placeRandomEntries(bucket, count, cols, rows, values) {
+      var used = {};
+      for (var i = 0; i < count; i += 1) {
+        var key = '';
+        var attempts = 0;
+        while (!key && attempts < 40) {
+          var q = randInt(0, Math.max(0, cols - 1));
+          var r = randInt(0, Math.max(0, rows - 1));
+          var candidate = toKey(q, r);
+          if (!used[candidate]) {
+            key = candidate;
+            used[candidate] = true;
+          }
+          attempts += 1;
+        }
+        if (!key) continue;
+        bucket[key] = pickOne(values);
       }
-    };
-    
-    var config = templateConfigs[template];
+    }
+
+    function buildRandomTemplateConfig(kind) {
+      var key = String(kind || 'empty').toLowerCase();
+      var theme = key === 'quick' ? pickOne(['urban', 'wilderness', 'dungeon']) : key;
+      var board = { cols: 15, rows: 15 };
+      if (theme === 'empty') board = { cols: 10, rows: 10 };
+      if (theme === 'urban') board = { cols: 15, rows: 15 };
+      if (theme === 'wilderness') board = { cols: 15, rows: 15 };
+      if (theme === 'dungeon') board = { cols: 15, rows: 15 };
+
+      var terrainPool = {
+        empty: ['road', 'sand', 'difficult terrain', 'water'],
+        urban: ['ruins', 'road', 'cobblestone', 'difficult terrain'],
+        wilderness: ['forest', 'marsh', 'crags', 'water', 'mud'],
+        dungeon: ['ruins', 'difficult terrain', 'lava', 'pit']
+      };
+      var objectPool = {
+        empty: ['obstacle', 'crate', 'spawn'],
+        urban: ['obstacle', 'door', 'barricade', 'turret', 'spawn'],
+        wilderness: ['obstacle', 'shrine', 'beacon', 'spawn'],
+        dungeon: ['door', 'obstacle', 'pillar', 'altar', 'spawn']
+      };
+      var hazardPool = {
+        empty: ['trap'],
+        urban: ['trap', 'shock'],
+        wilderness: ['trap', 'acid'],
+        dungeon: ['trap', 'lava', 'radiation']
+      };
+      var interactivePool = {
+        empty: ['loot-cache'],
+        urban: ['chest', 'console', 'switch'],
+        wilderness: ['loot-cache', 'beacon', 'shrine'],
+        dungeon: ['chest', 'door', 'console']
+      };
+
+      var layers = { terrain: {}, objects: {}, hazards: {}, elevation: {}, lighting: {}, weather: {}, interactives: {}, spawns: {} };
+      placeRandomEntries(layers.terrain, randInt(4, 9), board.cols, board.rows, terrainPool[theme] || terrainPool.empty);
+      placeRandomEntries(layers.objects, randInt(3, 7), board.cols, board.rows, objectPool[theme] || objectPool.empty);
+      placeRandomEntries(layers.hazards, randInt(1, 3), board.cols, board.rows, hazardPool[theme] || hazardPool.empty);
+      placeRandomEntries(layers.interactives, randInt(1, 3), board.cols, board.rows, interactivePool[theme] || interactivePool.empty);
+      placeRandomEntries(layers.spawns, randInt(2, 4), board.cols, board.rows, ['spawn']);
+      placeRandomEntries(layers.elevation, randInt(1, 3), board.cols, board.rows, ['1', '2', '3']);
+
+      return {
+        board: board,
+        layers: layers,
+        fog: { enabled: theme !== 'empty', revealed: {} },
+        label: key === 'quick' ? ('quick (' + theme + ')') : theme
+      };
+    }
+
+    var config = buildRandomTemplateConfig(template);
     if (!config) return;
     
     scene.board = Object.assign({}, scene.board || {}, config.board || {});
@@ -6564,7 +6773,7 @@
     scenes[sceneIdx] = scene;
     store.setState({ scenes: scenes });
     showSceneBuilder(window._currentSceneEditId);
-    safeNotif('Scene template applied: ' + template, 'success');
+    safeNotif('Scene template applied: ' + String(config.label || template) + ' (randomized).', 'success');
   };
 
   window.launchCombatModeWithScene = function () {
@@ -6675,6 +6884,10 @@
   window.applyCombatSettingsFromModal = function () {
     var fogEnabled = !!(document.getElementById('combatSettingsFogEnabled') && document.getElementById('combatSettingsFogEnabled').checked);
     var autoRoll = !!(document.getElementById('combatSettingsAutoRoll') && document.getElementById('combatSettingsAutoRoll').checked);
+    var fogModeEl = document.getElementById('combatSettingsFogMode');
+    var fogMode = String(fogModeEl && fogModeEl.value || 'manual');
+    var visionEl = document.getElementById('combatSettingsVisionRadius');
+    var visionRadius = Math.max(1, Math.min(8, Number(visionEl && visionEl.value || 3)));
     store.setState(function (state) {
       var next = Object.assign({}, state, { autoRoll: autoRoll });
       next.fog = Object.assign({
@@ -6686,7 +6899,7 @@
         revealOrder: {},
         revealSeq: 0,
         revealStep: 0
-      }, state.fog || {}, { enabled: fogEnabled });
+      }, state.fog || {}, { enabled: fogEnabled, revealMode: fogMode, visionRadius: visionRadius });
       persist(next);
       return next;
     });

@@ -3142,12 +3142,22 @@
       shootAdv = shootAdv.concat(rollMod.advDice);
     }
 
+    var defendAdvCount = parseDefendAdvantageCount();
+    var defendArmorAdvDice = parseArmorDefendAdvDice();
+    var defendAffixFlat = parseAffixDefendFlatBonus();
+    var defendArmorFlat = parseArmorDefendFlatBonus();
+    var defendFlat = defendAffixFlat + defendArmorFlat;
+    var defendAdvParts = [];
+    if (defendAdvCount > 0) defendAdvParts.push('+' + defendAdvCount + ' AD');
+    if (defendArmorAdvDice.length) defendAdvParts.push('Armor AD ' + defendArmorAdvDice.map(function (die) { return 'd' + die; }).join(', '));
+
     var lines = [];
     lines.push('Your Actions: ' + Math.max(0, Number(window.S && window.S.combat && window.S.combat.actionsLeft || 0)) + '/' + Math.max(1, Number(window.S && window.S.combat && window.S.combat.maxActions || 3)) + ' · Health: ' + health + '/' + maxHealth + ' · TMW: ' + tmw);
     lines.push('Dice: Strike d' + strikeDie + ' · Shoot d' + shootDie + ' · Defend d' + defendDie + ' · Control d' + controlDie);
     lines.push('Conditions: +' + ['Empowered', 'Protected', 'Focused', 'Bolstered'].filter(function (label) { return conditionState[label.toLowerCase()]; }).join(', ') + ' · -' + ['Weakened', 'Vulnerable', 'Distracted', 'Shaken'].filter(function (label) { return conditionState[label.toLowerCase()]; }).join(', '));
     lines.push('Strike math: ' + (strikeFlat >= 0 ? '+' : '') + strikeFlat + ' flat' + (strikeAdv.length ? (' · Advantage ' + strikeAdv.map(function (v) { return 'd' + v; }).join(', ')) : ''));
     lines.push('Shoot math: ' + (shootFlat >= 0 ? '+' : '') + shootFlat + ' flat' + (shootAdv.length ? (' · Advantage ' + shootAdv.map(function (v) { return 'd' + v; }).join(', ')) : ''));
+    lines.push('Defend math: ' + (defendFlat >= 0 ? '+' : '') + defendFlat + ' flat' + (defendAdvParts.length ? (' · ' + defendAdvParts.join(' · ')) : ''));
     lines.push('Flavor: ' + (flavor || 'None selected') + (token ? (' · Token: ' + String(token.name || 'Token')) : ''));
     var equip = window.S && window.S.equipment ? window.S.equipment : {};
     var w1 = String(equip.weapon1 || '').trim();
@@ -3428,14 +3438,14 @@
       cards.push({
         title: 'Attack Math',
         icon: 'DMG',
-        chips: ['Strike', 'Shoot'],
-        lines: [lines[2] || '', lines[3] || '']
+        chips: ['Strike', 'Shoot', 'Defend'],
+        lines: [lines[3] || '', lines[4] || '', lines[5] || '']
       });
       cards.push({
         title: 'Loadout and Flavor',
         icon: 'KIT',
         chips: ['Equipment', 'Flavor'],
-        lines: [lines[4] || '', lines[5] || '']
+        lines: [lines[6] || '', lines[7] || '']
       });
       cards.push({
         title: 'Soul Array and Resources',
@@ -4426,6 +4436,7 @@
       menu.style.display = 'none';
       menu.innerHTML = '';
       menu.removeAttribute('data-token-id');
+      menu.removeAttribute('data-opened-at');
     };
     if (!duration) {
       cleanup();
@@ -4600,6 +4611,7 @@
       return '<button class="combat-token-menu-item" data-menu-action="' + entry.key + '">' + entry.label + '</button>';
     }).join('');
     menu.setAttribute('data-token-id', String(token.id));
+    menu.setAttribute('data-opened-at', String(Date.now()));
     menu.style.display = 'grid';
     menu.style.left = Math.max(6, Number(screenX || 0)) + 'px';
     menu.style.top = Math.max(6, Number(screenY || 0)) + 'px';
@@ -6558,6 +6570,13 @@
         var actionCtxLines = [];
         var selAct = String(tokenActionSel && tokenActionSel.value || '');
         var equip2 = window.S && window.S.equipment ? window.S.equipment : {};
+        var defendAdvNow = parseDefendAdvantageCount();
+        var defendArmorDiceNow = parseArmorDefendAdvDice();
+        var defendFlatNow = parseArmorDefendFlatBonus() + parseAffixDefendFlatBonus();
+        var defendBitsNow = [];
+        if (defendAdvNow > 0) defendBitsNow.push('+' + defendAdvNow + ' AD');
+        if (defendArmorDiceNow.length) defendBitsNow.push('Armor AD ' + defendArmorDiceNow.map(function (die) { return 'd' + die; }).join(', '));
+        actionCtxLines.push('Defend from armor/affixes: ' + (defendFlatNow >= 0 ? '+' : '') + defendFlatNow + ' flat' + (defendBitsNow.length ? (' · ' + defendBitsNow.join(' · ')) : ''));
         if (selAct.indexOf('personal_flavor') >= 0 || selAct.indexOf('flavor') >= 0) {
           var fl2 = String(window.S && window.S.flavor || 'None selected');
           actionCtxLines.push('Personal Flavor: ' + fl2);
@@ -7140,6 +7159,8 @@
       window.addEventListener('mousedown', function (ev) {
         var menu = document.getElementById('combatTokenContextMenu');
         if (!menu || menu.style.display === 'none') return;
+        var openedAt = Number(menu.getAttribute('data-opened-at') || 0);
+        if (openedAt && (Date.now() - openedAt) < 140) return;
         if (!menu.contains(ev.target)) hideTokenContextMenu();
       });
     }
@@ -7202,6 +7223,7 @@
 
     canvas.addEventListener('dragover', function (ev) {
       ev.preventDefault();
+      if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy';
       var state = store.getState();
       var rect = canvas.getBoundingClientRect();
       var size = Number(state.board.size || 42) * Number(state.board.zoom || 1);
@@ -7217,7 +7239,6 @@
     });
 
     canvas.addEventListener('dragleave', function () {
-      window.__combatAssetDragPayload = null;
       clearCombatAssetDragPreview();
       clearCombatAssetDragGhost();
     });
@@ -7240,6 +7261,20 @@
       });
       rollModal.addEventListener('dragleave', function () {
         clearCombatAssetDragPreview();
+        clearCombatAssetDragGhost();
+      });
+    }
+
+    var overlay = document.getElementById('combatModeOverlay');
+    if (overlay && !overlay._combatAssetDropBound) {
+      overlay._combatAssetDropBound = true;
+      overlay.addEventListener('dragover', function (ev) {
+        ev.preventDefault();
+        if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy';
+      });
+      overlay.addEventListener('drop', function (ev) {
+        handleCombatBoardDropEvent(ev, canvas);
+        window.__combatAssetDragPayload = null;
         clearCombatAssetDragGhost();
       });
     }

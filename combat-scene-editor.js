@@ -781,6 +781,336 @@
     return false;
   }
 
+  function combatRandInt(min, max) {
+    var lo = Math.min(Number(min || 0), Number(max || 0));
+    var hi = Math.max(Number(min || 0), Number(max || 0));
+    return lo + Math.floor(Math.random() * (hi - lo + 1));
+  }
+
+  function combatPickOne(list) {
+    if (!Array.isArray(list) || !list.length) return '';
+    return list[combatRandInt(0, list.length - 1)];
+  }
+
+  function combatShuffle(list) {
+    var out = Array.isArray(list) ? list.slice() : [];
+    for (var i = out.length - 1; i > 0; i -= 1) {
+      var j = combatRandInt(0, i);
+      var tmp = out[i];
+      out[i] = out[j];
+      out[j] = tmp;
+    }
+    return out;
+  }
+
+  function createEmptySceneLayers() {
+    return {
+      terrain: {},
+      objects: {},
+      hazards: {},
+      elevation: {},
+      lighting: {},
+      wallSegments: {},
+      weather: {},
+      foreground: {},
+      interactives: {},
+      spawns: {},
+      labels: {}
+    };
+  }
+
+  function sceneInBounds(cols, rows, q, r) {
+    return q >= 0 && r >= 0 && q < cols && r < rows;
+  }
+
+  function sceneNeighborHexes(q, r) {
+    return [
+      { q: q + 1, r: r },
+      { q: q + 1, r: r - 1 },
+      { q: q, r: r - 1 },
+      { q: q - 1, r: r },
+      { q: q - 1, r: r + 1 },
+      { q: q, r: r + 1 }
+    ];
+  }
+
+  function seedCellValue(bucket, key, value) {
+    if (!bucket || !key) return;
+    if (bucket[key]) return;
+    bucket[key] = String(value || '');
+  }
+
+  function carveHexDisk(layers, cols, rows, centerQ, centerR, radius, terrainValue) {
+    for (var dq = -radius; dq <= radius; dq += 1) {
+      for (var dr = -radius; dr <= radius; dr += 1) {
+        var q = centerQ + dq;
+        var r = centerR + dr;
+        if (!sceneInBounds(cols, rows, q, r)) continue;
+        if (Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr)) > radius) continue;
+        layers.terrain[toKey(q, r)] = String(terrainValue || 'ruins');
+      }
+    }
+  }
+
+  function paintHexLine(layers, start, finish, terrainValue) {
+    var line = axialLine(start, finish);
+    line.forEach(function (hex) {
+      var key = toKey(hex.q, hex.r);
+      layers.terrain[key] = String(terrainValue || 'road');
+    });
+    return line;
+  }
+
+  function generateProceduralDungeon(board) {
+    var cols = Math.max(12, Number(board.cols || 18));
+    var rows = Math.max(12, Number(board.rows || 14));
+    var layers = createEmptySceneLayers();
+    var roomTypes = [
+      { label: 'Antechamber', terrain: 'ruins', object: 'door', interactive: 'console' },
+      { label: 'Barracks', terrain: 'difficult terrain', object: 'obstacle', interactive: 'loot-cache' },
+      { label: 'Shrine', terrain: 'ruins', object: 'altar', interactive: 'shrine' },
+      { label: 'Vault', terrain: 'crags', object: 'pillar', interactive: 'chest' },
+      { label: 'Forge', terrain: 'lava', object: 'obstacle', interactive: 'switch' }
+    ];
+    var roomCount = combatRandInt(6, 10);
+    var roomCenters = [];
+
+    for (var attempts = 0; attempts < 180 && roomCenters.length < roomCount; attempts += 1) {
+      var q = combatRandInt(1, cols - 2);
+      var r = combatRandInt(1, rows - 2);
+      var crowded = roomCenters.some(function (room) {
+        return hexDistance({ q: room.q, r: room.r }, { q: q, r: r }) < 3;
+      });
+      if (crowded) continue;
+      roomCenters.push({ q: q, r: r, radius: combatRandInt(1, 2), grammar: roomTypes[roomCenters.length % roomTypes.length] });
+    }
+
+    roomCenters.forEach(function (room) {
+      carveHexDisk(layers, cols, rows, room.q, room.r, room.radius, room.grammar.terrain);
+      seedCellValue(layers.objects, toKey(room.q, room.r), room.grammar.object);
+      seedCellValue(layers.interactives, toKey(room.q, room.r), room.grammar.interactive);
+      layers.labels[toKey(room.q, room.r)] = String(room.grammar.label || 'Room');
+    });
+
+    var corridorCells = {};
+    for (var i = 1; i < roomCenters.length; i += 1) {
+      var line = paintHexLine(layers, roomCenters[i - 1], roomCenters[i], 'ruins');
+      line.forEach(function (hex) {
+        corridorCells[toKey(hex.q, hex.r)] = true;
+      });
+    }
+
+    // Loop heuristics: add extra links between non-adjacent rooms to avoid linear hallways.
+    var extraLoops = Math.max(1, Math.floor(roomCenters.length / 3));
+    for (var loop = 0; loop < extraLoops; loop += 1) {
+      if (roomCenters.length < 3) break;
+      var a = roomCenters[combatRandInt(0, roomCenters.length - 1)];
+      var b = roomCenters[combatRandInt(0, roomCenters.length - 1)];
+      if (!a || !b || (a.q === b.q && a.r === b.r) || hexDistance(a, b) < 4) continue;
+      var loopLine = paintHexLine(layers, a, b, 'ruins');
+      loopLine.forEach(function (hex) {
+        corridorCells[toKey(hex.q, hex.r)] = true;
+      });
+    }
+
+    var corridorKeys = Object.keys(corridorCells);
+    combatShuffle(corridorKeys).slice(0, combatRandInt(3, 6)).forEach(function (key) {
+      layers.objects[key] = layers.objects[key] || 'door';
+    });
+    combatShuffle(corridorKeys).slice(0, combatRandInt(2, 4)).forEach(function (key) {
+      layers.hazards[key] = 'trap';
+    });
+
+    var sortedRooms = roomCenters.slice().sort(function (a, b) {
+      return Number(a.q + a.r) - Number(b.q + b.r);
+    });
+    if (sortedRooms[0]) layers.spawns[toKey(sortedRooms[0].q, sortedRooms[0].r)] = 'spawn';
+    if (sortedRooms[sortedRooms.length - 1]) layers.spawns[toKey(sortedRooms[sortedRooms.length - 1].q, sortedRooms[sortedRooms.length - 1].r)] = 'spawn';
+
+    return {
+      board: { cols: cols, rows: rows },
+      layers: layers,
+      fog: { enabled: true, revealed: {} },
+      label: 'dungeon procedural',
+      editor: { layer: 'objects', tool: 'paint', paintValue: 'door' }
+    };
+  }
+
+  function generateProceduralTown(board) {
+    var cols = Math.max(12, Number(board.cols || 18));
+    var rows = Math.max(10, Number(board.rows || 14));
+    var layers = createEmptySceneLayers();
+    var districts = [
+      { name: 'Market', terrain: 'road', object: 'crate', interactive: 'chest' },
+      { name: 'Docks', terrain: 'water', object: 'obstacle', interactive: 'switch' },
+      { name: 'Temple', terrain: 'ruins', object: 'door', interactive: 'shrine' },
+      { name: 'Barracks', terrain: 'cobblestone', object: 'turret', interactive: 'console' },
+      { name: 'Residences', terrain: 'difficult terrain', object: 'obstacle', interactive: 'loot-cache' }
+    ];
+
+    var seeds = [];
+    districts.forEach(function (district, idx) {
+      var angle = (Math.PI * 2 * idx) / districts.length;
+      var q = Math.round((cols / 2) + Math.cos(angle) * (cols * 0.28));
+      var r = Math.round((rows / 2) + Math.sin(angle) * (rows * 0.24));
+      seeds.push({ q: Math.max(1, Math.min(cols - 2, q)), r: Math.max(1, Math.min(rows - 2, r)), district: district });
+    });
+
+    for (var q = 0; q < cols; q += 1) {
+      for (var r = 0; r < rows; r += 1) {
+        var key = toKey(q, r);
+        var nearest = null;
+        var nearestDist = Infinity;
+        seeds.forEach(function (seed) {
+          var dist = hexDistance({ q: q, r: r }, seed);
+          if (dist < nearestDist) {
+            nearestDist = dist;
+            nearest = seed;
+          }
+        });
+        if (!nearest) continue;
+        layers.terrain[key] = nearestDist <= 1 ? nearest.district.terrain : (Math.random() < 0.75 ? nearest.district.terrain : 'road');
+        if (nearestDist <= 1 && Math.random() < 0.28) layers.objects[key] = nearest.district.object;
+        if (nearestDist <= 1 && Math.random() < 0.14) layers.interactives[key] = nearest.district.interactive;
+      }
+    }
+
+    // Road graph rules: connect every district seed to central plaza + nearest neighbor.
+    var center = { q: Math.round(cols / 2), r: Math.round(rows / 2) };
+    seeds.forEach(function (seed) {
+      paintHexLine(layers, seed, center, 'road');
+      var nearestPeer = null;
+      var nearestPeerDist = Infinity;
+      seeds.forEach(function (peer) {
+        if (peer === seed) return;
+        var dist = hexDistance(seed, peer);
+        if (dist < nearestPeerDist) {
+          nearestPeerDist = dist;
+          nearestPeer = peer;
+        }
+      });
+      if (nearestPeer) paintHexLine(layers, seed, nearestPeer, 'road');
+      layers.labels[toKey(seed.q, seed.r)] = seed.district.name;
+    });
+
+    layers.interactives[toKey(center.q, center.r)] = 'beacon';
+    layers.labels[toKey(center.q, center.r)] = 'Central Plaza';
+    layers.spawns[toKey(center.q, center.r)] = 'spawn';
+    var edgeSpawn = { q: Math.max(0, cols - 2), r: Math.round(rows / 2) };
+    layers.spawns[toKey(edgeSpawn.q, edgeSpawn.r)] = 'spawn';
+
+    return {
+      board: { cols: cols, rows: rows },
+      layers: layers,
+      fog: { enabled: true, revealed: {} },
+      label: 'town procedural',
+      editor: { layer: 'terrain', tool: 'paint', paintValue: 'road' }
+    };
+  }
+
+  function generateProceduralWilderness(board) {
+    var cols = Math.max(14, Number(board.cols || 20));
+    var rows = Math.max(12, Number(board.rows || 16));
+    var layers = createEmptySceneLayers();
+    var biomeDefs = [
+      { name: 'forest', terrain: 'forest', hazard: 'trap', poi: 'shrine' },
+      { name: 'marsh', terrain: 'marsh', hazard: 'acid', poi: 'loot-cache' },
+      { name: 'highlands', terrain: 'crags', hazard: 'trap', poi: 'beacon' },
+      { name: 'lakes', terrain: 'water', hazard: 'trap', poi: 'chest' },
+      { name: 'open', terrain: 'difficult terrain', hazard: 'trap', poi: 'switch' }
+    ];
+    var masks = biomeDefs.map(function (biome, idx) {
+      return {
+        biome: biome,
+        q: combatRandInt(1, cols - 2),
+        r: combatRandInt(1, rows - 2),
+        bias: (idx % 2 === 0 ? 0.86 : 1.14)
+      };
+    });
+
+    for (var q = 0; q < cols; q += 1) {
+      for (var r = 0; r < rows; r += 1) {
+        var key = toKey(q, r);
+        var nearest = null;
+        var nearestScore = Infinity;
+        masks.forEach(function (mask) {
+          var dist = hexDistance({ q: q, r: r }, mask);
+          var score = dist * Number(mask.bias || 1);
+          if (score < nearestScore) {
+            nearestScore = score;
+            nearest = mask;
+          }
+        });
+        var biome = nearest ? nearest.biome : biomeDefs[0];
+        layers.terrain[key] = biome.terrain;
+        if (Math.random() < 0.12) layers.objects[key] = combatPickOne(['obstacle', 'wall', 'spawn']);
+        if (Math.random() < 0.08) layers.hazards[key] = biome.hazard;
+      }
+    }
+
+    // POI seeding: plant named landmarks across biome boundaries and edges.
+    var poiCount = combatRandInt(5, 8);
+    for (var i = 0; i < poiCount; i += 1) {
+      var pq = combatRandInt(1, cols - 2);
+      var pr = combatRandInt(1, rows - 2);
+      var pKey = toKey(pq, pr);
+      var localTerrain = String(layers.terrain[pKey] || 'forest');
+      var localBiome = biomeDefs.find(function (row) { return row.terrain === localTerrain; }) || biomeDefs[0];
+      layers.interactives[pKey] = localBiome.poi;
+      layers.labels[pKey] = localBiome.name.toUpperCase() + ' POI';
+      if (Math.random() < 0.45) layers.spawns[pKey] = 'spawn';
+    }
+
+    var trailStart = { q: 1, r: Math.round(rows / 2) };
+    var trailEnd = { q: cols - 2, r: Math.round(rows / 2) };
+    paintHexLine(layers, trailStart, trailEnd, 'road');
+    layers.weather[toKey(Math.round(cols / 2), Math.round(rows / 2))] = combatPickOne(['rain', 'wind', 'storm']);
+
+    return {
+      board: { cols: cols, rows: rows },
+      layers: layers,
+      fog: { enabled: true, revealed: {} },
+      label: 'wilderness procedural',
+      editor: { layer: 'interactives', tool: 'paint', paintValue: 'shrine' }
+    };
+  }
+
+  function buildProceduralSceneTemplate(kind, board) {
+    var key = String(kind || 'quick').toLowerCase();
+    if (key === 'quick') key = combatPickOne(['dungeon', 'town', 'wilderness']);
+    if (key === 'urban') key = 'town';
+    if (key === 'empty') {
+      return {
+        board: { cols: 10, rows: 10 },
+        layers: createEmptySceneLayers(),
+        fog: { enabled: false, revealed: {} },
+        label: 'empty',
+        editor: { layer: 'terrain', tool: 'paint', paintValue: 'road' }
+      };
+    }
+    if (key === 'dungeon') return generateProceduralDungeon(board || {});
+    if (key === 'town') return generateProceduralTown(board || {});
+    if (key === 'wilderness') return generateProceduralWilderness(board || {});
+    return null;
+  }
+
+  function applyPostGenerationEditorHooks(config, sceneId) {
+    if (!config || !config.editor) return;
+    var state = store.getState();
+    if (sceneId && String(state.activeSceneId || '') !== String(sceneId || '')) return;
+    var nextPatch = {
+      activeLayer: String(config.editor.layer || 'terrain'),
+      activeTool: String(config.editor.tool || 'paint'),
+      paintValue: String(config.editor.paintValue || 'road')
+    };
+    store.setState(function (prev) {
+      var next = Object.assign({}, prev, nextPatch);
+      persist(next);
+      return next;
+    });
+    updateUiPanels();
+  }
+
   function loadPersisted() {
     try {
       var raw = localStorage.getItem(KEY);
@@ -9199,26 +9529,13 @@
 
   function createSceneFromTemplate(templateKey) {
     var key = String(templateKey || 'blank').toLowerCase();
-    var templates = {
-      quick: null,
+    var templateConfig = {
       blank: {
         board: { cols: 15, rows: 15, zoom: 1, panX: 0, panY: 0 },
-        layers: { terrain: {}, objects: {}, hazards: {}, elevation: {}, lighting: {}, weather: {}, foreground: {}, interactives: {}, spawns: {} },
-        fog: {},
-        name: 'Blank Scene'
-      },
-      dungeon: {
-        board: { cols: 15, rows: 15, zoom: 1, panX: 0, panY: 0 },
-        layers: {
-          terrain: { '6,6': 'ruins', '7,6': 'ruins', '8,6': 'ruins', '8,7': 'ruins' },
-          objects: { '7,7': 'obstacle', '9,6': 'door' },
-          hazards: { '10,6': 'trap' },
-          elevation: {}, lighting: {}, weather: {}, foreground: {},
-          interactives: { '9,7': 'chest' },
-          spawns: { '11,6': 'spawn' }
-        },
-        fog: { enabled: true, revealed: {} },
-        name: 'Dungeon Scene'
+        layers: createEmptySceneLayers(),
+        fog: { enabled: false, revealed: {} },
+        name: 'Blank Scene',
+        editor: { layer: 'terrain', tool: 'paint', paintValue: 'road' }
       },
       spaceship: {
         board: { cols: 16, rows: 12, zoom: 1, panX: 0, panY: 0 },
@@ -9226,12 +9543,14 @@
           terrain: { '4,4': 'ruins', '5,4': 'ruins', '6,4': 'ruins' },
           objects: { '7,4': 'door', '8,4': 'wall' },
           hazards: { '10,5': 'trap' },
-          elevation: {}, lighting: {}, weather: {}, foreground: {},
+          elevation: {}, lighting: {}, wallSegments: {}, weather: {}, foreground: {},
           interactives: { '6,5': 'console' },
-          spawns: { '3,5': 'spawn', '12,5': 'spawn' }
+          spawns: { '3,5': 'spawn', '12,5': 'spawn' },
+          labels: {}
         },
         fog: { enabled: true, revealed: {} },
-        name: 'Space Ship Interior'
+        name: 'Space Ship Interior',
+        editor: { layer: 'objects', tool: 'paint', paintValue: 'door' }
       },
       navalship: {
         board: { cols: 18, rows: 10, zoom: 1, panX: 0, panY: 0 },
@@ -9239,34 +9558,40 @@
           terrain: { '5,4': 'water', '6,4': 'water', '7,4': 'water' },
           objects: { '4,3': 'door', '9,3': 'obstacle' },
           hazards: { '11,5': 'trap' },
-          elevation: {}, lighting: {}, weather: { '0,0': 'storm' }, foreground: {},
+          elevation: {}, lighting: {}, wallSegments: {}, weather: { '0,0': 'storm' }, foreground: {},
           interactives: { '8,3': 'turret' },
-          spawns: { '2,5': 'spawn', '14,5': 'spawn' }
+          spawns: { '2,5': 'spawn', '14,5': 'spawn' },
+          labels: {}
         },
         fog: { enabled: true, revealed: {} },
-        name: 'Naval Vessel Deck'
+        name: 'Naval Vessel Deck',
+        editor: { layer: 'objects', tool: 'paint', paintValue: 'obstacle' }
       }
     };
 
-    if (key === 'quick') {
-      var quickKeys = ['blank', 'dungeon', 'spaceship', 'navalship'];
-      key = quickKeys[Math.floor(Math.random() * quickKeys.length)] || 'blank';
-    }
+    var procedural = buildProceduralSceneTemplate(key, store.getState().board || {});
+    var tpl = procedural || templateConfig[key] || templateConfig.blank;
+    var templateNameMap = {
+      dungeon: 'Dungeon Procedural',
+      town: 'Town Procedural',
+      wilderness: 'Wilderness Procedural',
+      quick: 'Quick Procedural'
+    };
 
-    var tpl = templates[key] || templates.blank;
     store.setState(function (state) {
       var next = normalizeCombatSceneState(Object.assign({}, state));
       next.board = normalizeBoard(Object.assign({}, next.board || {}, tpl.board || {}));
-      next.layers = clone(tpl.layers || {});
-      next.fog = clone(tpl.fog || {});
+      next.layers = normalizeCombatSceneState({ layers: tpl.layers || createEmptySceneLayers() }).layers;
+      next.fog = Object.assign({}, next.fog || {}, clone(tpl.fog || {}));
       next.tokens = [];
       next.initiative = [];
       next.actionHistory = [];
       next.selectedTokenId = '';
+      next.selectedTokenIds = [];
       var newSceneId = uid('scene');
       var newScene = {
         id: newSceneId,
-        name: String(tpl.name || 'Scene Template'),
+        name: String(tpl.name || templateNameMap[key] || 'Scene Template'),
         createdAt: Date.now(),
         updatedAt: Date.now(),
         board: clone(next.board),
@@ -9279,14 +9604,19 @@
       };
       next.scenes = (next.scenes || []).concat([newScene]);
       next.activeSceneId = newSceneId;
+      next.activeLayer = String(tpl.editor && tpl.editor.layer || next.activeLayer || 'terrain');
+      next.activeTool = String(tpl.editor && tpl.editor.tool || next.activeTool || 'paint');
+      next.paintValue = String(tpl.editor && tpl.editor.paintValue || next.paintValue || 'road');
       window._currentSceneEditId = newSceneId;
       persist(next);
       return next;
     });
-    addHistory('Scene template applied: ' + String(tpl.name || key) + '.');
+
+    applyPostGenerationEditorHooks(tpl, store.getState().activeSceneId || '');
+    addHistory('Scene template applied: ' + String(tpl.name || tpl.label || key) + '.');
     updateUiPanels();
     drawBoard();
-    safeNotif('Template scene created: ' + String(tpl.name || key) + '.', 'good');
+    safeNotif('Template scene created: ' + String(tpl.name || tpl.label || key) + '.', 'good');
   }
 
   function bindSceneLibraryControls() {
@@ -9321,10 +9651,14 @@
       buildMapBtn._bound = true;
       buildMapBtn.onclick = function () {
         captureUndoSnapshot('Build Map Pages');
-        var labels = ['Dungeon Wing A', 'Dungeon Wing B', 'Dungeon Wing C'];
+        var buildOrder = [
+          { label: 'Dungeon Wing', key: 'dungeon' },
+          { label: 'Town District', key: 'town' },
+          { label: 'Wilderness Frontier', key: 'wilderness' }
+        ];
         var createdIds = [];
-        labels.forEach(function (label, idx) {
-          createSceneFromTemplate(idx % 2 === 0 ? 'dungeon' : 'quick');
+        buildOrder.forEach(function (entry) {
+          createSceneFromTemplate(entry.key);
           var current = normalizeCombatSceneState(store.getState());
           var activeId = String(current.activeSceneId || '');
           if (!activeId) return;
@@ -9333,7 +9667,7 @@
             var next = Object.assign({}, state);
             next.scenes = (state.scenes || []).map(function (scene) {
               if (!scene || String(scene.id) !== activeId) return scene;
-              return Object.assign({}, scene, { name: label });
+              return Object.assign({}, scene, { name: entry.label });
             });
             persist(next);
             return next;
@@ -9380,7 +9714,7 @@
     if (newSceneBtn && !newSceneBtn._bound) {
       newSceneBtn._bound = true;
       newSceneBtn.onclick = function () {
-        var modal = '<div style="font-size:.78rem;display:grid;gap:.3rem;"><div style="margin-bottom:.15rem;">Choose a scene template:</div><button class="btn btn-xs btn-primary" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'quick\');if(typeof window.closeModal===\'function\')window.closeModal();">Quick Setup (Random)</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'blank\');if(typeof window.closeModal===\'function\')window.closeModal();">Blank Canvas</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'dungeon\');if(typeof window.closeModal===\'function\')window.closeModal();">Dungeon Chamber</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'spaceship\');if(typeof window.closeModal===\'function\')window.closeModal();">Space Ship Interior</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'navalship\');if(typeof window.closeModal===\'function\')window.closeModal();">Naval Vessel Deck</button><button class="btn btn-xs" style="width:100%;" onclick="if(typeof window.closeModal===\'function\')window.closeModal();">Cancel</button></div>';
+        var modal = '<div style="font-size:.78rem;display:grid;gap:.3rem;"><div style="margin-bottom:.15rem;">Choose a scene template:</div><button class="btn btn-xs btn-primary" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'quick\');if(typeof window.closeModal===\'function\')window.closeModal();">Quick Procedural (Random)</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'blank\');if(typeof window.closeModal===\'function\')window.closeModal();">Blank Canvas</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'dungeon\');if(typeof window.closeModal===\'function\')window.closeModal();">Dungeon Generator</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'town\');if(typeof window.closeModal===\'function\')window.closeModal();">Town Generator</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'wilderness\');if(typeof window.closeModal===\'function\')window.closeModal();">Wilderness Generator</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'spaceship\');if(typeof window.closeModal===\'function\')window.closeModal();">Space Ship Interior</button><button class="btn btn-xs" style="width:100%;" onclick="if(window.createSceneFromTemplate)window.createSceneFromTemplate(\'navalship\');if(typeof window.closeModal===\'function\')window.closeModal();">Naval Vessel Deck</button><button class="btn btn-xs" style="width:100%;" onclick="if(typeof window.closeModal===\'function\')window.closeModal();">Cancel</button></div>';
         if (typeof window.openModal === 'function') {
           window.openModal('New Scene from Template', modal, null, { preventScroll: true, focusTrap: true });
         } else {
@@ -9819,107 +10153,38 @@
 
   window.setupSceneTemplate = function (template) {
     if (!window._currentSceneEditId) return;
-    
+
     var state = store.getState();
     var scenes = Array.isArray(state && state.scenes) ? state.scenes.slice() : [];
     var sceneIdx = scenes.findIndex(function (s) { return s.id === window._currentSceneEditId; });
-    
     if (sceneIdx < 0) return;
-    
+
     var scene = clone(scenes[sceneIdx]);
-
-    function randInt(min, max) {
-      var lo = Math.min(Number(min || 0), Number(max || 0));
-      var hi = Math.max(Number(min || 0), Number(max || 0));
-      return lo + Math.floor(Math.random() * (hi - lo + 1));
-    }
-
-    function pickOne(list) {
-      if (!Array.isArray(list) || !list.length) return '';
-      return String(list[randInt(0, list.length - 1)] || '');
-    }
-
-    function placeRandomEntries(bucket, count, cols, rows, values) {
-      var used = {};
-      for (var i = 0; i < count; i += 1) {
-        var key = '';
-        var attempts = 0;
-        while (!key && attempts < 40) {
-          var q = randInt(0, Math.max(0, cols - 1));
-          var r = randInt(0, Math.max(0, rows - 1));
-          var candidate = toKey(q, r);
-          if (!used[candidate]) {
-            key = candidate;
-            used[candidate] = true;
-          }
-          attempts += 1;
-        }
-        if (!key) continue;
-        bucket[key] = pickOne(values);
-      }
-    }
-
-    function buildRandomTemplateConfig(kind) {
-      var key = String(kind || 'empty').toLowerCase();
-      var theme = key === 'quick' ? pickOne(['urban', 'wilderness', 'dungeon']) : key;
-      var board = { cols: 15, rows: 15 };
-      if (theme === 'empty') board = { cols: 10, rows: 10 };
-      if (theme === 'urban') board = { cols: 15, rows: 15 };
-      if (theme === 'wilderness') board = { cols: 15, rows: 15 };
-      if (theme === 'dungeon') board = { cols: 15, rows: 15 };
-
-      var terrainPool = {
-        empty: ['road', 'sand', 'difficult terrain', 'water'],
-        urban: ['ruins', 'road', 'cobblestone', 'difficult terrain'],
-        wilderness: ['forest', 'marsh', 'crags', 'water', 'mud'],
-        dungeon: ['ruins', 'difficult terrain', 'lava', 'pit']
-      };
-      var objectPool = {
-        empty: ['obstacle', 'crate', 'spawn'],
-        urban: ['obstacle', 'door', 'barricade', 'turret', 'spawn'],
-        wilderness: ['obstacle', 'shrine', 'beacon', 'spawn'],
-        dungeon: ['door', 'obstacle', 'pillar', 'altar', 'spawn']
-      };
-      var hazardPool = {
-        empty: ['trap'],
-        urban: ['trap', 'shock'],
-        wilderness: ['trap', 'acid'],
-        dungeon: ['trap', 'lava', 'radiation']
-      };
-      var interactivePool = {
-        empty: ['loot-cache'],
-        urban: ['chest', 'console', 'switch'],
-        wilderness: ['loot-cache', 'beacon', 'shrine'],
-        dungeon: ['chest', 'door', 'console']
-      };
-
-      var layers = { terrain: {}, objects: {}, hazards: {}, elevation: {}, lighting: {}, weather: {}, interactives: {}, spawns: {} };
-      placeRandomEntries(layers.terrain, randInt(4, 9), board.cols, board.rows, terrainPool[theme] || terrainPool.empty);
-      placeRandomEntries(layers.objects, randInt(3, 7), board.cols, board.rows, objectPool[theme] || objectPool.empty);
-      placeRandomEntries(layers.hazards, randInt(1, 3), board.cols, board.rows, hazardPool[theme] || hazardPool.empty);
-      placeRandomEntries(layers.interactives, randInt(1, 3), board.cols, board.rows, interactivePool[theme] || interactivePool.empty);
-      placeRandomEntries(layers.spawns, randInt(2, 4), board.cols, board.rows, ['spawn']);
-      placeRandomEntries(layers.elevation, randInt(1, 3), board.cols, board.rows, ['1', '2', '3']);
-
-      return {
-        board: board,
-        layers: layers,
-        fog: { enabled: theme !== 'empty', revealed: {} },
-        label: key === 'quick' ? ('quick (' + theme + ')') : theme
-      };
-    }
-
-    var config = buildRandomTemplateConfig(template);
+    var config = buildProceduralSceneTemplate(template, scene.board || state.board || {});
     if (!config) return;
-    
-    scene.board = Object.assign({}, scene.board || {}, config.board || {});
-    scene.layers = clone(config.layers || scene.layers || {});
-    scene.fog = Object.assign({}, scene.fog || {}, config.fog || {});
-    
+
+    scene.board = normalizeBoard(Object.assign({}, scene.board || {}, config.board || {}));
+    scene.layers = normalizeCombatSceneState({ layers: config.layers || createEmptySceneLayers() }).layers;
+    scene.fog = Object.assign({}, scene.fog || {}, clone(config.fog || {}));
+    scene.updatedAt = Date.now();
+
     scenes[sceneIdx] = scene;
-    store.setState({ scenes: scenes });
+    store.setState(function (prev) {
+      var next = Object.assign({}, prev, {
+        scenes: scenes,
+        activeLayer: String(config.editor && config.editor.layer || prev.activeLayer || 'terrain'),
+        activeTool: String(config.editor && config.editor.tool || prev.activeTool || 'paint'),
+        paintValue: String(config.editor && config.editor.paintValue || prev.paintValue || 'road')
+      });
+      persist(next);
+      return next;
+    });
+
+    applyPostGenerationEditorHooks(config, scene.id);
     showSceneBuilder(window._currentSceneEditId);
-    safeNotif('Scene template applied: ' + String(config.label || template) + ' (randomized).', 'success');
+    updateUiPanels();
+    drawBoard();
+    safeNotif('Scene template applied: ' + String(config.label || template) + ' (procedural).', 'success');
   };
 
   window.launchCombatModeWithScene = function () {

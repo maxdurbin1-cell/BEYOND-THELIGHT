@@ -333,6 +333,7 @@
       actionsRemaining: 0,
       enemyActionsRemaining: 2,
       perception: "indifferent",
+      boardingReadyRound: 0,
       ...(S.naval || {})
     };
     S.naval.crew = Array.isArray(S.naval.crew) ? S.naval.crew : [];
@@ -5041,6 +5042,7 @@
             Enemy actions remaining: <strong style="color:var(--red2);">${S.naval.enemyActionsRemaining || 0}</strong> / 2<br>
             Tactics modifier: <strong style="color:var(--teal);">${S.naval.tacticsBonus >= 0 ? '+' : ''}${S.naval.tacticsBonus || 0}</strong><br>
             Perception: <strong style="color:var(--gold2);text-transform:capitalize;">${String(S.naval.perception || 'indifferent')}</strong><br>
+            Boarding: <strong style="color:var(--teal);">${(S.naval.boardingReadyRound > 0 && S.naval.round >= S.naval.boardingReadyRound && S.naval.zone === 'Engaged') ? 'Ready this round' : 'Not ready'}</strong><br>
             ${S.naval.powerShift ? `Diverting power from ${S.naval.powerShift.from} to ${S.naval.powerShift.to}.` : "No current power shift."}
           </div>
         </div>
@@ -5159,6 +5161,7 @@
     S.naval.actionsRemaining = getPlayerActionCount();
     S.naval.enemyActionsRemaining = 2;
     S.naval.perception = S.naval.perception || "indifferent";
+    S.naval.boardingReadyRound = 0;
     S.naval.ship.stress = 0;
     S.naval.ship.wrecked = false;
     if (S.naval.enemyShip) {
@@ -5242,7 +5245,12 @@
     if (success) {
       const nextIndex = Math.max(0, Math.min(NAVAL_ZONES.length - 1, currentZoneIndex() + direction));
       S.naval.zone = NAVAL_ZONES[nextIndex];
-      navalLog(`Navigator shifts the range to ${S.naval.zone} (${controlTotal} vs ${target.total}).`, "good");
+      if (S.naval.zone === "Engaged") {
+        S.naval.boardingReadyRound = S.naval.round + 1;
+        navalLog(`Navigator shifts to Engaged (${controlTotal} vs ${target.total}). Boarding enabled next round.`, "good");
+      } else {
+        navalLog(`Navigator shifts the range to ${S.naval.zone} (${controlTotal} vs ${target.total}).`, "good");
+      }
       if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
       const stress = Math.max(1, target.total - controlTotal);

@@ -5631,6 +5631,152 @@
     renderNaval();
   }
 
+  function cloneBoardingShipState(ship) {
+    return {
+      stress: Math.max(0, Number(ship && ship.stress || 0)),
+      hullDie: Math.max(4, Number(ship && ship.hullDie || 4)),
+      wrecked: !!(ship && ship.wrecked)
+    };
+  }
+
+  function applyBoardingDamageWithBreaks(shipState, side, amount, context) {
+    const applied = Math.max(0, Number(amount || 0));
+    let hullStepDowns = 0;
+    shipState.stress = Math.max(0, Number(shipState.stress || 0)) + applied;
+
+    while (!shipState.wrecked) {
+      const threshold = getShipThreshold(shipState, side === "player");
+      if (shipState.stress < threshold) {
+        break;
+      }
+      if (shipState.hullDie === 4) {
+        shipState.wrecked = true;
+        shipState.stress = threshold;
+        break;
+      }
+      shipState.stress -= threshold;
+      shipState.hullDie = stepDown(shipState.hullDie);
+      hullStepDowns += 1;
+      if (side === "player") {
+        context.crewTrauma += 1;
+      }
+    }
+
+    return {
+      stressApplied: applied,
+      hullStepDowns
+    };
+  }
+
+  function buildBoardingOutcomeDelta(before, after, impact) {
+    return {
+      stressApplied: Number(impact && impact.stressApplied || 0),
+      stressDelta: Number(after.stress || 0) - Number(before.stress || 0),
+      hullFrom: Number(before.hullDie || 4),
+      hullTo: Number(after.hullDie || 4),
+      hullStepDowns: Number(impact && impact.hullStepDowns || 0),
+      wreckedFrom: !!before.wrecked,
+      wreckedTo: !!after.wrecked,
+      finalStress: Number(after.stress || 0)
+    };
+  }
+
+  function computeNavalBoardingOutcomePlan(payload, options) {
+    ensureExpansionState();
+    const session = S.naval && S.naval.boardingSession;
+    if (!session || !session.active) {
+      return { ok: false, reason: "no-active-session" };
+    }
+    if (!S.naval.ship || !S.naval.enemyShip) {
+      return { ok: false, reason: "missing-ships" };
+    }
+
+    const apply = !!(options && options.apply);
+    const result = String(payload && payload.result || "stalemate").toLowerCase();
+    const normalizedResult = result === "victory" || result === "defeat" ? result : "stalemate";
+    const enemyDread = getNavalEnemyDreadDie();
+
+    const playerRef = apply ? S.naval.ship : cloneBoardingShipState(S.naval.ship);
+    const enemyRef = apply ? S.naval.enemyShip : cloneBoardingShipState(S.naval.enemyShip);
+    const playerBefore = cloneBoardingShipState(playerRef);
+    const enemyBefore = cloneBoardingShipState(enemyRef);
+
+    const context = {
+      crewTrauma: Math.max(0, Number(S.naval.crewTrauma || 0))
+    };
+    const crewBefore = context.crewTrauma;
+
+    let playerImpact = { stressApplied: 0, hullStepDowns: 0 };
+    let enemyImpact = { stressApplied: 0, hullStepDowns: 0 };
+    const logMessages = [];
+
+    if (normalizedResult === "victory") {
+      const enemyThreshold = Math.max(1, Number((enemyRef.hullDie || 4) * 2));
+      const toWreck = Math.max(0, enemyThreshold - Number(enemyRef.stress || 0));
+      if (toWreck > 0) {
+        enemyImpact = applyBoardingDamageWithBreaks(enemyRef, "enemy", toWreck, context);
+      }
+      enemyRef.wrecked = true;
+      if (context.crewTrauma > 0) {
+        context.crewTrauma = Math.max(0, context.crewTrauma - 1);
+      }
+      logMessages.push("Boarding resolved: Victory. Enemy ship wrecked and crew momentum recovered.");
+    } else if (normalizedResult === "defeat") {
+      const boardingPenalty = Math.max(2, Math.ceil(enemyDread / 2));
+      playerImpact = applyBoardingDamageWithBreaks(playerRef, "player", boardingPenalty, context);
+      context.crewTrauma = Math.max(0, context.crewTrauma + 1);
+      logMessages.push(`Boarding resolved: Defeat. Your ship takes ${boardingPenalty} Stress and +1 Crew Trauma.`);
+    } else {
+      const mutual = Math.max(1, Math.floor(enemyDread / 3));
+      playerImpact = applyBoardingDamageWithBreaks(playerRef, "player", mutual, context);
+      enemyImpact = applyBoardingDamageWithBreaks(enemyRef, "enemy", mutual, context);
+      logMessages.push(`Boarding resolved: Stalemate. Both ships take ${mutual} Stress.`);
+    }
+
+    const playerAfter = cloneBoardingShipState(playerRef);
+    const enemyAfter = cloneBoardingShipState(enemyRef);
+    const crewAfter = Math.max(0, Number(context.crewTrauma || 0));
+    const combatEnds = !!(enemyAfter.wrecked || playerAfter.wrecked);
+
+    const plan = {
+      ok: true,
+      result: normalizedResult,
+      alivePlayers: Math.max(0, Number(payload && payload.alivePlayers || 0)),
+      aliveEnemies: Math.max(0, Number(payload && payload.aliveEnemies || 0)),
+      enemyDread,
+      combatEnds,
+      player: buildBoardingOutcomeDelta(playerBefore, playerAfter, playerImpact),
+      enemy: buildBoardingOutcomeDelta(enemyBefore, enemyAfter, enemyImpact),
+      crewTraumaFrom: crewBefore,
+      crewTraumaTo: crewAfter,
+      crewTraumaDelta: crewAfter - crewBefore,
+      logMessages
+    };
+
+    if (apply) {
+      S.naval.crewTrauma = crewAfter;
+      if (combatEnds) {
+        S.naval.combatActive = false;
+      }
+      if (plan.result === "victory") {
+        navalLog(logMessages[0], "good");
+      } else if (plan.result === "defeat") {
+        navalLog(logMessages[0], "warn");
+      } else {
+        navalLog(logMessages[0], "");
+      }
+      if (combatEnds) {
+        navalLog("Naval combat ended due to boarding outcome.", enemyAfter.wrecked ? "good" : "warn");
+      }
+    }
+
+    return plan;
+  }
+
+  function previewNavalBoardingOutcomeFromCombatScene(payload) {
+    return computeNavalBoardingOutcomePlan(payload, { apply: false });
+  }
+
   function resolveNavalBoardingOutcomeFromCombatScene(payload) {
     ensureExpansionState();
     const session = S.naval && S.naval.boardingSession;
@@ -5640,37 +5786,10 @@
       return false;
     }
 
-    const result = String(payload && payload.result || 'stalemate').toLowerCase();
-    const enemyDread = getNavalEnemyDreadDie();
-    const player = S.naval.ship;
-    const enemy = S.naval.enemyShip;
-
-    if (result === 'victory') {
-      const enemyThreshold = Math.max(1, Number((enemy.hullDie || 4) * 2));
-      const toWreck = Math.max(0, enemyThreshold - Number(enemy.stress || 0));
-      if (toWreck > 0) {
-        damageShip(enemy, toWreck, 'enemy');
-      }
-      enemy.wrecked = true;
-      if (Number(S.naval.crewTrauma || 0) > 0) {
-        S.naval.crewTrauma = Math.max(0, Number(S.naval.crewTrauma || 0) - 1);
-      }
-      navalLog('Boarding resolved: Victory. Enemy ship wrecked and crew momentum recovered.', 'good');
-    } else if (result === 'defeat') {
-      const boardingPenalty = Math.max(2, Math.ceil(enemyDread / 2));
-      damageShip(player, boardingPenalty, 'player');
-      S.naval.crewTrauma = Math.max(0, Number(S.naval.crewTrauma || 0) + 1);
-      navalLog(`Boarding resolved: Defeat. Your ship takes ${boardingPenalty} Stress and +1 Crew Trauma.`, 'warn');
-    } else {
-      const mutual = Math.max(1, Math.floor(enemyDread / 3));
-      damageShip(player, mutual, 'player');
-      damageShip(enemy, mutual, 'enemy');
-      navalLog(`Boarding resolved: Stalemate. Both ships take ${mutual} Stress.`, '');
-    }
-
-    if (enemy.wrecked || player.wrecked) {
-      S.naval.combatActive = false;
-      navalLog('Naval combat ended due to boarding outcome.', enemy.wrecked ? 'good' : 'warn');
+    const plan = computeNavalBoardingOutcomePlan(payload, { apply: true });
+    if (!plan || !plan.ok) {
+      S.naval.boardingSession = null;
+      return false;
     }
 
     S.naval.boardingSession = null;
@@ -6011,6 +6130,7 @@
   window.rollShipPerception = rollShipPerception;
   window.navalDiplomacy = navalDiplomacy;
   window.startNavalBoardingAction = startNavalBoardingAction;
+  window.previewNavalBoardingOutcomeFromCombatScene = previewNavalBoardingOutcomeFromCombatScene;
   window.resolveNavalBoardingOutcomeFromCombatScene = resolveNavalBoardingOutcomeFromCombatScene;
   window.wreckEnemyShip = wreckEnemyShip;
   window.repairPlayerShipToFull = repairPlayerShipToFull;

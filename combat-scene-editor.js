@@ -10137,6 +10137,91 @@
     var root = document.getElementById('combatModeOverlay');
     if (!root) return;
 
+    function finalizeClose() {
+      root.classList.remove('open');
+      store.setState({ open: false, entering: false, draggingTokenId: '' });
+      persist(store.getState());
+    }
+
+    function buildBoardingDeltaLine(label, delta) {
+      if (!delta || typeof delta !== 'object') {
+        return '<li>' + label + ': no change.</li>';
+      }
+      var stress = Number(delta.stressApplied || 0);
+      var hullSteps = Number(delta.hullStepDowns || 0);
+      var hullFrom = Number(delta.hullFrom || 4);
+      var hullTo = Number(delta.hullTo || hullFrom);
+      var wrecked = !!delta.wreckedTo;
+      var line = label + ': +' + stress + ' Stress';
+      line += ', Hull d' + hullFrom + ' -> d' + hullTo;
+      line += ' (' + hullSteps + ' step' + (hullSteps === 1 ? '' : 's') + ')';
+      if (wrecked) line += ', Wrecked';
+      return '<li>' + line + '</li>';
+    }
+
+    function showBoardingResolvePreviewModal(previewPlan, applyPayload) {
+      if (!previewPlan || !previewPlan.ok) return false;
+      if (typeof window.openModal !== 'function') return false;
+
+      var traumaDelta = Number(previewPlan.crewTraumaDelta || 0);
+      var traumaFrom = Number(previewPlan.crewTraumaFrom || 0);
+      var traumaTo = Number(previewPlan.crewTraumaTo || 0);
+      var traumaSign = traumaDelta > 0 ? '+' : '';
+      var resultLabel = String(previewPlan.result || 'stalemate').toUpperCase();
+      var endLine = previewPlan.combatEnds
+        ? '<div style="margin-top:8px;color:#ffdca8;">Naval combat will end from this boarding outcome.</div>'
+        : '';
+
+      window.__combatPendingBoardingResolve = {
+        payload: Object.assign({}, applyPayload),
+        preview: Object.assign({}, previewPlan)
+      };
+
+      var html = ''
+        + '<div style="display:grid;gap:8px;min-width:320px;">'
+        + '<div><strong>Boarding Outcome Resolve Preview</strong></div>'
+        + '<div>Result from board state: <strong>' + resultLabel + '</strong></div>'
+        + '<ul style="margin:0;padding-left:18px;display:grid;gap:4px;">'
+        + buildBoardingDeltaLine('Player Ship', previewPlan.player)
+        + buildBoardingDeltaLine('Enemy Ship', previewPlan.enemy)
+        + '<li>Crew Trauma: ' + traumaFrom + ' -> ' + traumaTo + ' (' + traumaSign + traumaDelta + ')</li>'
+        + '</ul>'
+        + endLine
+        + '<div style="margin-top:10px;display:flex;justify-content:flex-end;gap:8px;">'
+        + '<button class="btn btn-xs" onclick="window.cancelNavalBoardingResolveFromModal&&window.cancelNavalBoardingResolveFromModal()">Cancel</button>'
+        + '<button class="btn btn-xs btn-primary" onclick="window.confirmNavalBoardingResolveFromModal&&window.confirmNavalBoardingResolveFromModal()">Apply & Close</button>'
+        + '</div>'
+        + '</div>';
+
+      window.confirmNavalBoardingResolveFromModal = function () {
+        try {
+          var pending = window.__combatPendingBoardingResolve;
+          if (pending && typeof window.resolveNavalBoardingOutcomeFromCombatScene === 'function') {
+            window.resolveNavalBoardingOutcomeFromCombatScene(pending.payload || {});
+          }
+          window.__activeNavalBoardingSceneContext = null;
+          window.__combatPendingBoardingResolve = null;
+          if (typeof window.closeModal === 'function') {
+            window.closeModal();
+          }
+          finalizeClose();
+        } catch (_confirmBoardingErr) {
+          try { console.error(_confirmBoardingErr); } catch (_noop) {}
+          if (typeof window.showNotif === 'function') window.showNotif('Boarding outcome apply failed.', 'warn');
+        }
+      };
+
+      window.cancelNavalBoardingResolveFromModal = function () {
+        window.__combatPendingBoardingResolve = null;
+        if (typeof window.closeModal === 'function') {
+          window.closeModal();
+        }
+      };
+
+      window.openModal('Resolve Boarding Outcome?', html, null, { preventScroll: true, focusTrap: true });
+      return true;
+    }
+
     var boardingCtx = window.__activeNavalBoardingSceneContext && typeof window.__activeNavalBoardingSceneContext === 'object'
       ? Object.assign({}, window.__activeNavalBoardingSceneContext)
       : null;
@@ -10153,20 +10238,26 @@
         var result = 'stalemate';
         if (alivePlayers > 0 && aliveEnemies <= 0) result = 'victory';
         else if (aliveEnemies > 0 && alivePlayers <= 0) result = 'defeat';
-        window.resolveNavalBoardingOutcomeFromCombatScene({
+        var resolvePayload = {
           result: result,
           alivePlayers: alivePlayers,
           aliveEnemies: aliveEnemies
-        });
+        };
+        var previewPlan = null;
+        if (typeof window.previewNavalBoardingOutcomeFromCombatScene === 'function') {
+          previewPlan = window.previewNavalBoardingOutcomeFromCombatScene(resolvePayload);
+        }
+        if (previewPlan && previewPlan.ok && showBoardingResolvePreviewModal(previewPlan, resolvePayload)) {
+          return;
+        }
+        window.resolveNavalBoardingOutcomeFromCombatScene(resolvePayload);
       } catch (_boardingResolveErr) {
         try { console.error(_boardingResolveErr); } catch (_noop) {}
       }
       window.__activeNavalBoardingSceneContext = null;
     }
 
-    root.classList.remove('open');
-    store.setState({ open: false, entering: false, draggingTokenId: '' });
-    persist(store.getState());
+    finalizeClose();
   }
 
   function expeditionSeed() {

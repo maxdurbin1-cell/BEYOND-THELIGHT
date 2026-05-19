@@ -4916,16 +4916,16 @@ function getFlavorInteractionDescriptor(flavorText){
   var hazards=getFlavorHazardTags(getPersonalFlavorMechanicProfile(entry.full||entry.title||entry.key||''));
   return {
     title:entry.title,
-    desc:(rule&&rule.effect)?rule.effect:entry.desc,
+    desc:normalizeFlavorDieLanguage((rule&&rule.effect)?rule.effect:entry.desc),
     label:mode==='passive'?'Passive Effect':entry.actionLabel,
     archetype:entry.archetype,
     cooldown:entry.cooldownType,
     code:entry.code,
     mode:mode,
     hazards:hazards,
-    trigger:rule?rule.trigger:'',
-    effect:rule?rule.effect:entry.desc,
-    cue:rule?rule.cue:''
+    trigger:normalizeFlavorDieLanguage(rule?rule.trigger:''),
+    effect:normalizeFlavorDieLanguage(rule?rule.effect:entry.desc),
+    cue:normalizeFlavorDieLanguage(rule?rule.cue:'')
   };
 }
 
@@ -4933,13 +4933,17 @@ function escFlavorAttr(text){
   return String(text||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+function normalizeFlavorDieLanguage(text){
+  return String(text||'').replace(/\bAdventure Die\b/gi,'Valor Die');
+}
+
 function getFlavorPassiveBadgesHtml(flavorText,opts){
   var profile=getPersonalFlavorMechanicProfile(flavorText||'');
   var badges=[];
   if(profile.telepathic)badges.push({label:'Passive - Telepathy',tip:'Telepathic contact is always on for storyline, mission, and leadership coordination bonuses.',tone:'purple'});
-  if(profile.regenerator)badges.push({label:'Passive - Regenerator',tip:'At each phase advance, roll your Adventure Die and recover that much Health.',tone:'green'});
+  if(profile.regenerator)badges.push({label:'Passive - Regenerator',tip:'At each phase advance, roll your Valor Die and recover that much Health.',tone:'green'});
   if(profile.defendFreeStrike)badges.push({label:'Passive - Free Strike',tip:'After a successful Defend in combat, gain 1 free Action for an immediate strike.',tone:'teal'});
-  if(profile.monkUnarmed)badges.push({label:'Passive - Monk',tip:'Monk: while unarmed, add your Adventure Die as a bonus to Strike checks.',tone:'teal'});
+  if(profile.monkUnarmed)badges.push({label:'Passive - Monk',tip:'Monk: while unarmed, add your Valor Die as a bonus to Strike checks.',tone:'teal'});
   if(profile.luckyReroll)badges.push({label:'Passive - Lucky',tip:'Lucky: reroll Action Die results of 1 and keep the new result.',tone:'gold'});
   if(profile.siphonEnergy)badges.push({label:'Passive - Siphon',tip:'Siphon Energy: heal Health by damage dealt on successful Strike/Shoot hits.',tone:'red'});
   if(!badges.length)return '';
@@ -4969,9 +4973,9 @@ function openPersonalFlavorCodexModal(){
     return '<div style="padding:.35rem .45rem;border:1px solid '+(current?'rgba(232,192,80,.55)':'var(--border2)')+';background:'+(current?'rgba(232,192,80,.08)':'rgba(255,255,255,.02)')+';">'
       +'<div style="font-size:.68rem;color:var(--gold2);font-family:\'Rajdhani\',sans-serif;">'+e.code+' · '+e.title+'</div>'
       +'<div style="font-size:.72rem;color:var(--muted2);margin-top:.1rem;">'+e.archetype+' · cooldown '+e.cooldownType+'</div>'
-      +'<div style="font-size:.72rem;color:var(--teal);margin-top:.18rem;line-height:1.45;"><strong>Trigger:</strong> '+(rule?rule.trigger:'—')+'</div>'
-      +'<div style="font-size:.76rem;color:var(--text2);margin-top:.1rem;line-height:1.45;"><strong>Effect:</strong> '+(rule?rule.effect:e.desc)+'</div>'
-      +'<div style="font-size:.72rem;color:var(--gold2);margin-top:.1rem;line-height:1.45;"><strong>Cue:</strong> '+(rule?rule.cue:'—')+'</div>'
+      +'<div style="font-size:.72rem;color:var(--teal);margin-top:.18rem;line-height:1.45;"><strong>Trigger:</strong> '+normalizeFlavorDieLanguage(rule?rule.trigger:'—')+'</div>'
+      +'<div style="font-size:.76rem;color:var(--text2);margin-top:.1rem;line-height:1.45;"><strong>Effect:</strong> '+normalizeFlavorDieLanguage(rule?rule.effect:e.desc)+'</div>'
+      +'<div style="font-size:.72rem;color:var(--gold2);margin-top:.1rem;line-height:1.45;"><strong>Cue:</strong> '+normalizeFlavorDieLanguage(rule?rule.cue:'—')+'</div>'
       +'</div>';
   }).join('');
   var tableRows=entries.map(function(e){
@@ -6029,7 +6033,7 @@ function usePersonalFlavorAction(){
   if(typeof updateConditionButtons==='function')updateConditionButtons();
   if(typeof updateAllStatDisplays==='function')updateAllStatDisplays();
   if(!bypassCooldown)S.flavorActionState[key]={stamp:stamp,lastUsedAt:Date.now(),archetype:arch,cooldownType:entry.cooldownType};
-  showNotif(msg,'good');
+  showNotif(normalizeFlavorDieLanguage(msg),'good');
   refreshPersonalFlavorInteractionUI();
 }
 

@@ -2568,6 +2568,113 @@
     return lines;
   }
 
+  function formatSoulArraySummary() {
+    var soul = Array.isArray(window.S && window.S.soulArray) ? window.S.soulArray.slice() : [];
+    if (!soul.length) return 'Not rolled yet';
+    return soul.map(function (die) {
+      return 'd' + Math.max(4, Number(die || 4));
+    }).join(', ');
+  }
+
+  function getWayfarerResourceSnapshot() {
+    var stats = window.S && window.S.stats ? window.S.stats : {};
+    var valorDie = Math.max(4, Number(stats.adventure || 4));
+    return {
+      valorDie: valorDie,
+      trauma: Math.max(0, Number(window.S && window.S.trauma || 0)),
+      mentalStress: Math.max(0, Number(window.S && window.S.mentalStress || 0)),
+      pathTokens: Math.max(0, Number(window.S && window.S.pathTokens || 0)),
+      teamwork: Math.max(0, Number(window.S && window.S.tmw || 0))
+    };
+  }
+
+  function buildWayfarerConditionControlHtml(token) {
+    var cond = window.S && window.S.conditions ? window.S.conditions : {};
+    var positive = ['empowered', 'protected', 'focused', 'bolstered'];
+    var negative = ['weakened', 'vulnerable', 'distracted', 'shaken'];
+    function chip(kind) {
+      var on = !!cond[kind];
+      return '<button class="btn btn-xs" style="padding:.08rem .34rem;' + (on ? 'border-color:rgba(73,201,187,.65);color:var(--combat-accent-2);' : '') + '" onclick="window.combatSheetToggleWayfarerCondition&&window.combatSheetToggleWayfarerCondition(\'' + kind + '\',\'' + String(token && token.id || '') + '\')">' + kind + (on ? ' ✓' : '') + '</button>';
+    }
+    return '<div style="display:grid;gap:.24rem;">'
+      + '<div><div class="combat-mini" style="margin-bottom:.14rem;color:var(--combat-accent-2);">Positive</div><div style="display:flex;gap:.18rem;flex-wrap:wrap;">' + positive.map(chip).join('') + '</div></div>'
+      + '<div><div class="combat-mini" style="margin-bottom:.14rem;color:var(--combat-danger);">Negative</div><div style="display:flex;gap:.18rem;flex-wrap:wrap;">' + negative.map(chip).join('') + '</div></div>'
+      + '</div>';
+  }
+
+  function buildWayfarerResourceControlHtml(token) {
+    var snap = getWayfarerResourceSnapshot();
+    var tokenId = String(token && token.id || '');
+    function row(label, key, value) {
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:.28rem;padding:.12rem 0;border-bottom:1px solid rgba(255,255,255,.06);">'
+        + '<div style="font-size:.74rem;">' + label + '</div>'
+        + '<div style="display:flex;gap:.18rem;align-items:center;">'
+        + '<button class="btn btn-xs" type="button" onclick="window.combatSheetAdjustWayfarerResource&&window.combatSheetAdjustWayfarerResource(\'' + key + '\',-1,\'' + tokenId + '\')">-</button>'
+        + '<strong id="combatSheetRes-' + key + '" style="min-width:2ch;text-align:center;">' + value + '</strong>'
+        + '<button class="btn btn-xs" type="button" onclick="window.combatSheetAdjustWayfarerResource&&window.combatSheetAdjustWayfarerResource(\'' + key + '\',1,\'' + tokenId + '\')">+</button>'
+        + '</div></div>';
+    }
+    return '<div class="combat-rules-body">'
+      + '<div class="combat-rules-line">Soul Array: <strong>' + escapeHtml(formatSoulArraySummary()) + '</strong></div>'
+      + '<div class="combat-rules-line">Valor Die: <strong>d' + snap.valorDie + '</strong></div>'
+      + row('Trauma', 'trauma', snap.trauma)
+      + row('Mental Stress', 'mentalStress', snap.mentalStress)
+      + row('Path Tokens', 'pathTokens', snap.pathTokens)
+      + row('Teamwork', 'tmw', snap.teamwork)
+      + '</div>';
+  }
+
+  function refreshCombatSheetWayfarerWidgets() {
+    var snap = getWayfarerResourceSnapshot();
+    var pairs = {
+      trauma: snap.trauma,
+      mentalStress: snap.mentalStress,
+      pathTokens: snap.pathTokens,
+      tmw: snap.teamwork
+    };
+    Object.keys(pairs).forEach(function (key) {
+      var el = document.getElementById('combatSheetRes-' + key);
+      if (el) el.textContent = String(pairs[key]);
+    });
+  }
+
+  window.combatSheetAdjustWayfarerResource = function (key, delta, tokenId) {
+    var amount = Number(delta || 0);
+    if (!amount) return;
+    if (key === 'trauma') {
+      if (typeof window.changeTrauma === 'function') window.changeTrauma(amount);
+      else if (window.S) window.S.trauma = Math.max(0, Number(window.S.trauma || 0) + amount);
+    } else if (key === 'mentalStress') {
+      if (typeof window.changeMentalStress === 'function') window.changeMentalStress(amount);
+      else if (window.S) window.S.mentalStress = Math.max(0, Number(window.S.mentalStress || 0) + amount);
+    } else if (key === 'pathTokens' || key === 'tmw') {
+      if (typeof window.changeCounter === 'function') window.changeCounter(key, amount);
+      else if (window.S) window.S[key] = Math.max(0, Number(window.S[key] || 0) + amount);
+    }
+    if (typeof window.updateAllStatDisplays === 'function') window.updateAllStatDisplays();
+    if (typeof syncWayfarerTokenHealthFromSheet === 'function') syncWayfarerTokenHealthFromSheet();
+    if (tokenId) normalizeSelection(tokenId, [tokenId]);
+    refreshCombatSheetWayfarerWidgets();
+    updateUiPanels();
+    drawBoard();
+  };
+
+  window.combatSheetToggleWayfarerCondition = function (conditionKey, tokenId) {
+    var key = String(conditionKey || '');
+    if (!key) return;
+    if (typeof window.toggleCond === 'function') {
+      window.toggleCond(key);
+    } else if (window.S && window.S.conditions && Object.prototype.hasOwnProperty.call(window.S.conditions, key)) {
+      window.S.conditions[key] = !window.S.conditions[key];
+    }
+    if (typeof window.updateConditionButtons === 'function') window.updateConditionButtons();
+    if (typeof window.updateAllStatDisplays === 'function') window.updateAllStatDisplays();
+    if (tokenId) normalizeSelection(tokenId, [tokenId]);
+    updateUiPanels();
+    drawBoard();
+    openTokenSheetQuickView(tokenId);
+  };
+
   function buildEnemyTokenQuickActions(token) {
     if (!token || token.isPlayer || String(token.faction || '') !== 'monster') return '';
     var state = store.getState();
@@ -2719,6 +2826,18 @@
         lines: [lines[4] || '', lines[5] || '']
       });
       cards.push({
+        title: 'Soul Array and Resources',
+        icon: 'VAL',
+        chips: ['Valor', 'Trauma', 'Mental Stress', 'Path', 'Teamwork'],
+        html: buildWayfarerResourceControlHtml(token)
+      });
+      cards.push({
+        title: 'Condition Controls',
+        icon: 'CON',
+        chips: ['Positive', 'Negative'],
+        html: '<div class="combat-rules-body">' + buildWayfarerConditionControlHtml(token) + '</div>'
+      });
+      cards.push({
         title: 'Conditions and Effects',
         icon: 'FX',
         chips: activeLabels.length ? activeLabels : ['No active effects'],
@@ -2809,6 +2928,7 @@
       if (typeof requestAnimationFrame === 'function') {
         requestAnimationFrame(function () {
           window.filterCombatSheetModal('');
+          refreshCombatSheetWayfarerWidgets();
           var input = document.getElementById('combatSheetSearch');
           if (input) {
             try { input.focus({ preventScroll: true }); } catch (_err) { input.focus(); }
@@ -3694,6 +3814,70 @@
     setTimeout(cleanup, duration);
   }
 
+  function applyInitiativeTurnState(actionKey, tokenId) {
+    var movedTokenId = String(tokenId || '');
+    if (!movedTokenId) return false;
+    var changed = false;
+    store.setState(function (state) {
+      var list = Array.isArray(state.initiative) ? state.initiative.slice() : [];
+      if (!list.length) return state;
+      var idx = list.findIndex(function (row) {
+        return String(row && row.tokenId || '') === movedTokenId;
+      });
+      if (idx < 0) return state;
+
+      var activeIdx = Math.max(0, Math.min(list.length - 1, Number(state.initiativeIndex || 0)));
+      var activeRow = list[activeIdx] || null;
+      var activeTokenId = String(activeRow && activeRow.tokenId || '');
+
+      var row = list.splice(idx, 1)[0];
+      var insertAt = idx;
+      if (actionKey === 'delay-turn') {
+        insertAt = Math.min(list.length, idx + 1);
+        list.splice(insertAt, 0, row);
+      } else {
+        list.push(row);
+        insertAt = list.length - 1;
+      }
+
+      var nextIdx = 0;
+      if (activeTokenId === movedTokenId) {
+        nextIdx = actionKey === 'delay-turn'
+          ? Math.max(0, Math.min(list.length - 1, insertAt))
+          : Math.max(0, Math.min(list.length - 1, idx));
+      } else {
+        var activeAfter = list.findIndex(function (entry) {
+          return String(entry && entry.tokenId || '') === activeTokenId;
+        });
+        nextIdx = activeAfter >= 0 ? activeAfter : Math.max(0, Math.min(list.length - 1, activeIdx));
+      }
+
+      var next = Object.assign({}, state, { initiative: list, initiativeIndex: nextIdx, currentTurnIndex: nextIdx });
+      next.turnStates = Object.assign({}, state.turnStates || {});
+      next.turnStates[movedTokenId] = Object.assign({}, next.turnStates[movedTokenId] || {}, {
+        held: actionKey === 'hold-turn',
+        delayed: actionKey === 'delay-turn',
+        holdUntilRound: actionKey === 'hold-turn' ? Math.max(1, Number(state.round || 1)) : 0
+      });
+      persist(next);
+      changed = true;
+      return next;
+    });
+    if (changed) {
+      var movedToken = byId(movedTokenId);
+      addCombatLogEntry({
+        eventType: 'turn',
+        action: actionKey === 'hold-turn' ? 'Hold Turn' : 'Delay Turn',
+        actorId: movedTokenId,
+        actorName: String(movedToken && movedToken.name || 'Token'),
+        result: actionKey === 'hold-turn' ? 'Turn held to later in the round.' : 'Turn delayed to next slot.',
+        tags: ['turn', actionKey === 'hold-turn' ? 'hold' : 'delay'],
+        message: String(movedToken && movedToken.name || 'Token') + (actionKey === 'hold-turn' ? ' is holding their turn.' : ' delayed to the next initiative slot.')
+      });
+    }
+    return changed;
+  }
+
   function runTokenContextAction(actionKey, tokenId, q, r) {
     var token = byId(tokenId);
     if (!token) return;
@@ -3715,6 +3899,12 @@
       redoLastEdit();
     } else if (actionKey === 'sheet') {
       openTokenSheetQuickView(token.id);
+    } else if (actionKey === 'hold-turn' || actionKey === 'delay-turn') {
+      if (!applyInitiativeTurnState(actionKey, token.id)) {
+        safeNotif('No initiative entry found for ' + String(token.name || 'token') + '.', 'warn');
+      }
+      updateUiPanels();
+      drawBoard();
     } else if (actionKey === 'add-turn') {
       addTurnForToken(token.id);
     } else if (actionKey === 'vision') {
@@ -3772,6 +3962,8 @@
       { key: 'undo', label: 'Undo' },
       { key: 'redo', label: 'Redo' },
       { key: 'sheet', label: 'Character Sheet' },
+      { key: 'hold-turn', label: 'Hold Turn' },
+      { key: 'delay-turn', label: 'Delay Turn' },
       { key: 'add-turn', label: 'Add Turn' },
       { key: 'vision', label: 'Token Vision/Light' },
       { key: 'reactions', label: 'Reactions' },
@@ -5221,8 +5413,18 @@
           var rollObj = (typeof window.explodingRoll === 'function')
             ? window.explodingRoll(die, { type: 'action', major: true, label: 'Quick ' + key })
             : { total: rollDie(die), exploded: false };
-          if (typeof window.queueDiceRollVisual === 'function') {
-            try { window.queueDiceRollVisual(die, Number(rollObj.total || 0), { type: 'action', major: true, label: 'Quick ' + key, exploded: !!rollObj.exploded }); } catch (_err) {}
+          var total = Number(rollObj.total || 0);
+          var usedPreset3D = false;
+          if (typeof window.rollPreset3DDice === 'function') {
+            try {
+              var face = Math.max(1, Math.min(die, total || 1));
+              var bonus = Math.max(0, total - face);
+              window.rollPreset3DDice(die, [face], bonus);
+              usedPreset3D = true;
+            } catch (_err3d) {}
+          }
+          if (!usedPreset3D && typeof window.queueDiceRollVisual === 'function') {
+            try { window.queueDiceRollVisual(die, total, { type: 'action', major: true, label: 'Quick ' + key, exploded: !!rollObj.exploded }); } catch (_err) {}
           }
           if (window.AudioManager && typeof window.AudioManager.playSFX === 'function') {
             try { window.AudioManager.playSFX('sfx-combat-block', 0.45); } catch (_err) {}
@@ -5231,12 +5433,12 @@
             eventType: 'roll',
             action: 'Quick Roll ' + key.toUpperCase(),
             actorName: String((window.S && window.S.name) || 'Wayfarer'),
-            roll: { label: key.toUpperCase(), formula: 'd' + die, total: Number(rollObj.total || 0), breakdown: rollObj.exploded ? 'Exploded' : '' },
-            result: 'Quick roll total ' + Number(rollObj.total || 0),
+            roll: { label: key.toUpperCase(), formula: 'd' + die, total: total, breakdown: rollObj.exploded ? 'Exploded' : '' },
+            result: 'Quick roll total ' + total,
             tags: ['roll', 'quick'],
-            message: 'Quick roll ' + key.toUpperCase() + ': d' + die + ' = ' + Number(rollObj.total || 0)
+            message: 'Quick roll ' + key.toUpperCase() + ': d' + die + ' = ' + total
           });
-          safeNotif('Quick ' + key + ': ' + Number(rollObj.total || 0), 'good');
+          safeNotif('Quick ' + key + ': ' + total, 'good');
         };
       });
     }
@@ -6773,33 +6975,9 @@
     if (delayTurnBtn && !delayTurnBtn._bound) {
       delayTurnBtn._bound = true;
       delayTurnBtn.onclick = function () {
-        store.setState(function (state) {
-          var list = Array.isArray(state.initiative) ? state.initiative.slice() : [];
-          if (list.length < 2) return state;
-          var idx = Math.max(0, Math.min(list.length - 1, Number(state.initiativeIndex || 0)));
-          var row = list.splice(idx, 1)[0];
-          var insertAt = Math.min(list.length, idx + 1);
-          list.splice(insertAt, 0, row);
-          var next = Object.assign({}, state, { initiative: list, initiativeIndex: insertAt, currentTurnIndex: insertAt });
-          next.turnStates = Object.assign({}, state.turnStates || {});
-          var tokenId = String(row && row.tokenId || '');
-          if (tokenId) {
-            next.turnStates[tokenId] = Object.assign({}, next.turnStates[tokenId] || {}, { delayed: true });
-          }
-          persist(next);
-          return next;
-        });
         var st = store.getState();
         var active = st.initiative[st.initiativeIndex] || null;
-        if (active) addCombatLogEntry({
-          eventType: 'turn',
-          action: 'Delay Turn',
-          actorId: String(active.tokenId || ''),
-          actorName: String(active.name || 'Token'),
-          result: 'Turn delayed to next slot.',
-          tags: ['turn', 'delay'],
-          message: String(active.name || 'Token') + ' delayed to the next initiative slot.'
-        });
+        applyInitiativeTurnState('delay-turn', active && active.tokenId);
         updateUiPanels();
       };
     }
@@ -6808,36 +6986,9 @@
     if (holdTurnBtn && !holdTurnBtn._bound) {
       holdTurnBtn._bound = true;
       holdTurnBtn.onclick = function () {
-        store.setState(function (state) {
-          var list = Array.isArray(state.initiative) ? state.initiative.slice() : [];
-          if (list.length < 2) return state;
-          var idx = Math.max(0, Math.min(list.length - 1, Number(state.initiativeIndex || 0)));
-          var row = list.splice(idx, 1)[0];
-          list.push(row);
-          var nextIdx = Math.max(0, Math.min(list.length - 1, idx));
-          var next = Object.assign({}, state, { initiative: list, initiativeIndex: nextIdx, currentTurnIndex: nextIdx });
-          next.turnStates = Object.assign({}, state.turnStates || {});
-          var tokenId = String(row && row.tokenId || '');
-          if (tokenId) {
-            next.turnStates[tokenId] = Object.assign({}, next.turnStates[tokenId] || {}, {
-              held: true,
-              holdUntilRound: Math.max(1, Number(state.round || 1))
-            });
-          }
-          persist(next);
-          return next;
-        });
         var st = store.getState();
         var active = st.initiative[st.initiativeIndex] || null;
-        if (active) addCombatLogEntry({
-          eventType: 'turn',
-          action: 'Hold Turn',
-          actorId: String(active.tokenId || ''),
-          actorName: String(active.name || 'Token'),
-          result: 'Turn held to later in the round.',
-          tags: ['turn', 'hold'],
-          message: String(active.name || 'Token') + ' is holding their turn.'
-        });
+        applyInitiativeTurnState('hold-turn', active && active.tokenId);
         updateUiPanels();
       };
     }

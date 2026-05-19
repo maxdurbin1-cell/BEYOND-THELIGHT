@@ -14,6 +14,7 @@
     "smoke:vtt-controls-audit": "node smoke-tests/vtt-controls-audit.smoke.mjs --role=gm",
     "smoke:vtt-controls-audit:gm": "node smoke-tests/vtt-controls-audit.smoke.mjs --role=gm",
     "smoke:vtt-controls-audit:player": "node smoke-tests/vtt-controls-audit.smoke.mjs --role=player",
+    "smoke:vtt-controls-audit:all": "npm run smoke:vtt-controls-audit:gm && npm run smoke:vtt-controls-audit:player",
     "smoke:scenario": "node smoke-tests/campaign-scenario.e2e.mjs",
     "smoke:legacy-raid": "node smoke-tests/legacy-raid.smoke.mjs",
     "smoke:raid-combat-return": "node smoke-tests/raid-combat-return.smoke.mjs",

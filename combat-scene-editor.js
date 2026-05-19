@@ -43,6 +43,68 @@
     }
   };
   var tokenContextMenuHideTimer = null;
+  var combatDragDebugState = {
+    phase: 'idle',
+    kind: '',
+    payload: '',
+    source: 'none',
+    dropSource: 'none',
+    clientX: null,
+    clientY: null,
+    q: null,
+    r: null,
+    at: 0
+  };
+
+  function currentCombatDragPayloadSnapshot() {
+    if (window.__combatAssetDragPayload && typeof window.__combatAssetDragPayload === 'object') {
+      return {
+        kind: String(window.__combatAssetDragPayload.kind || ''),
+        payload: String(window.__combatAssetDragPayload.payload || ''),
+        source: 'active'
+      };
+    }
+    if (window.__combatAssetDragPayloadLastKnown && typeof window.__combatAssetDragPayloadLastKnown === 'object') {
+      var ageMs = Date.now() - Number(window.__combatAssetDragPayloadLastKnown.at || 0);
+      if (ageMs >= 0 && ageMs < 5000) {
+        return {
+          kind: String(window.__combatAssetDragPayloadLastKnown.kind || ''),
+          payload: String(window.__combatAssetDragPayloadLastKnown.payload || ''),
+          source: 'last-known'
+        };
+      }
+    }
+    return { kind: '', payload: '', source: 'none' };
+  }
+
+  function renderCombatDragDebugBanner(state) {
+    var node = document.getElementById('combatDragDebugBanner');
+    if (!node) return;
+    var ui = normalizeCombatUi(state && state.ui);
+    if (!ui.dragDebugBanner) {
+      node.classList.remove('visible');
+      return;
+    }
+    var payload = combatDragDebugState.kind
+      ? String(combatDragDebugState.kind) + ':' + String(combatDragDebugState.payload || '')
+      : '(none)';
+    var pointer = Number.isFinite(Number(combatDragDebugState.clientX)) && Number.isFinite(Number(combatDragDebugState.clientY))
+      ? Math.round(Number(combatDragDebugState.clientX)) + ',' + Math.round(Number(combatDragDebugState.clientY))
+      : '--,--';
+    var hex = Number.isFinite(Number(combatDragDebugState.q)) && Number.isFinite(Number(combatDragDebugState.r))
+      ? toKey(Number(combatDragDebugState.q), Number(combatDragDebugState.r))
+      : '--';
+    var source = String(combatDragDebugState.source || 'none');
+    var dropSource = String(combatDragDebugState.dropSource || 'none');
+    var phase = String(combatDragDebugState.phase || 'idle');
+    node.classList.add('visible');
+    node.textContent = 'DnD Debug ON | phase=' + phase + ' | payload=' + payload + ' | pointer=' + pointer + ' | hex=' + hex + ' | source=' + source + ' | dropTarget=' + dropSource;
+  }
+
+  function setCombatDragDebugState(patch) {
+    combatDragDebugState = Object.assign({}, combatDragDebugState, patch || {}, { at: Date.now() });
+    renderCombatDragDebugBanner(store.getState());
+  }
 
   function setCombatAssetDragPreview(preview) {
     store.setState({ assetDragPreview: preview || null });
@@ -642,41 +704,63 @@
     return true;
   }
 
-  function handleCombatBoardDropEvent(ev, canvas) {
+  function handleCombatBoardDropEvent(ev, canvas, dropSourceLabel) {
     if (!canvas) return false;
     ev.preventDefault();
     var state = store.getState();
     if (ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files.length && applyBattlemapDrop(ev.dataTransfer.files)) {
+      setCombatDragDebugState({
+        phase: 'drop-applied',
+        source: 'file-drop',
+        dropSource: String(dropSourceLabel || 'board')
+      });
       return true;
     }
     var rect = canvas.getBoundingClientRect();
     var size = Number(state.board.size || 42) * Number(state.board.zoom || 1);
     var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, state.board.panX, state.board.panY);
+    var source = 'none';
     var assetKind = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-kind') || '');
     var assetPayload = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-payload') || '');
+    if (assetKind) source = 'dataTransfer';
     if (!assetKind) {
       var textPayload = String(ev.dataTransfer && ev.dataTransfer.getData('text/plain') || '');
       var colonIndex = textPayload.indexOf(':');
       if (colonIndex > 0) {
         assetKind = textPayload.slice(0, colonIndex).trim();
         assetPayload = textPayload.slice(colonIndex + 1);
+        source = 'text/plain';
       }
     }
     if (!assetKind && window.__combatAssetDragPayload && typeof window.__combatAssetDragPayload === 'object') {
       assetKind = String(window.__combatAssetDragPayload.kind || '');
       assetPayload = String(window.__combatAssetDragPayload.payload || '');
+      source = 'active payload';
     }
     if (!assetKind && window.__combatAssetDragPayloadLastKnown && typeof window.__combatAssetDragPayloadLastKnown === 'object') {
       var ageMs = Date.now() - Number(window.__combatAssetDragPayloadLastKnown.at || 0);
       if (ageMs >= 0 && ageMs < 5000) {
         assetKind = String(window.__combatAssetDragPayloadLastKnown.kind || '');
         assetPayload = String(window.__combatAssetDragPayloadLastKnown.payload || '');
+        source = 'last-known payload';
       }
     }
+    setCombatDragDebugState({
+      phase: 'drop-received',
+      kind: assetKind,
+      payload: assetPayload,
+      source: source,
+      dropSource: String(dropSourceLabel || 'board'),
+      clientX: Number(ev.clientX || 0),
+      clientY: Number(ev.clientY || 0),
+      q: Number(ax.q || 0),
+      r: Number(ax.r || 0)
+    });
     if (assetKind) {
       if (typeof window.applyCombatAssetActionAt === 'function') {
         window.applyCombatAssetActionAt(assetKind, assetPayload, ax.q, ax.r, true);
       }
+      setCombatDragDebugState({ phase: 'drop-applied' });
       window.__combatAssetDragPayload = null;
       clearCombatAssetDragPreview();
       return true;
@@ -686,10 +770,12 @@
       var profile = (state.codexBestiary || []).find(function (entry) { return String(entry.id) === bestiaryId; }) || null;
       if (profile) {
         spawnBestiaryToken(profile, ax.q, ax.r);
+        setCombatDragDebugState({ phase: 'drop-applied', source: 'bestiary-id' });
         clearCombatAssetDragPreview();
         return true;
       }
     }
+    setCombatDragDebugState({ phase: 'drop-ignored' });
     window.__combatAssetDragPayload = null;
     clearCombatAssetDragPreview();
     return false;
@@ -701,6 +787,7 @@
     themeTokens: {},
     compactMode: 'auto',
     qualityMode: 'auto',
+    dragDebugBanner: false,
     tutorialSeen: false,
     tutorialStep: 0,
     assetDrawerOpen: true
@@ -734,6 +821,7 @@
     var quality = String(next.qualityMode || 'auto');
     if (['auto', 'full', 'performance'].indexOf(quality) < 0) quality = 'auto';
     next.qualityMode = quality;
+    next.dragDebugBanner = !!next.dragDebugBanner;
     next.tutorialSeen = !!next.tutorialSeen;
     next.tutorialStep = Math.max(0, Math.min(6, Number(next.tutorialStep || 0)));
     next.assetDrawerOpen = typeof next.assetDrawerOpen === 'boolean' ? next.assetDrawerOpen : true;
@@ -790,6 +878,7 @@
     root.style.setProperty('--combat-ping', theme.ping);
     root.style.setProperty('--combat-bg-start', theme.bgStart);
     root.style.setProperty('--combat-bg-end', theme.bgEnd);
+    renderCombatDragDebugBanner(state);
   }
 
   function triggerPageTransition(pageElement) {
@@ -4865,6 +4954,7 @@
       + '</div>'
       + '</div>'
       + '</div>'
+      + '<div id="combatDragDebugBanner" class="combat-drag-debug-banner" aria-live="polite"></div>'
       + '<input id="combatMapImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatHexAssetImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatTokenImageInput" type="file" accept="image/*" style="display:none;">'
@@ -6947,6 +7037,7 @@
           setTimeout(function () {
             window.__combatAssetDragPayload = null;
           }, 120);
+          setCombatDragDebugState({ phase: 'drag-end', dropSource: 'none' });
           clearCombatAssetDragGhost();
           clearCombatAssetDragPreview();
         };
@@ -8276,17 +8367,30 @@
       var rect = canvas.getBoundingClientRect();
       var size = Number(state.board.size || 42) * Number(state.board.zoom || 1);
       var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, state.board.panX, state.board.panY);
+      var payload = currentCombatDragPayloadSnapshot();
+      setCombatDragDebugState({
+        phase: 'dragover',
+        kind: payload.kind,
+        payload: payload.payload,
+        source: payload.source,
+        dropSource: 'canvas',
+        clientX: Number(ev.clientX || 0),
+        clientY: Number(ev.clientY || 0),
+        q: Number(ax.q || 0),
+        r: Number(ax.r || 0)
+      });
       setCombatAssetDragPreview({ q: ax.q, r: ax.r });
       setCombatAssetDragGhost({ label: 'Drop on battlemap', x: Number(ev.clientX || 0) + 18, y: Number(ev.clientY || 0) + 18 });
     });
 
     canvas.addEventListener('drop', function (ev) {
-      handleCombatBoardDropEvent(ev, canvas);
+      handleCombatBoardDropEvent(ev, canvas, 'canvas');
       window.__combatAssetDragPayload = null;
       clearCombatAssetDragGhost();
     });
 
     canvas.addEventListener('dragleave', function () {
+      setCombatDragDebugState({ phase: 'dragleave', dropSource: 'canvas' });
       clearCombatAssetDragPreview();
       clearCombatAssetDragGhost();
     });
@@ -8299,15 +8403,28 @@
         var rect = canvas.getBoundingClientRect();
         var size = Number(state.board.size || 42) * Number(state.board.zoom || 1);
         var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, state.board.panX, state.board.panY);
+        var payload = currentCombatDragPayloadSnapshot();
         ev.preventDefault();
+        setCombatDragDebugState({
+          phase: 'dragover',
+          kind: payload.kind,
+          payload: payload.payload,
+          source: payload.source,
+          dropSource: 'roll-modal',
+          clientX: Number(ev.clientX || 0),
+          clientY: Number(ev.clientY || 0),
+          q: Number(ax.q || 0),
+          r: Number(ax.r || 0)
+        });
         setCombatAssetDragPreview({ q: ax.q, r: ax.r });
         setCombatAssetDragGhost({ label: 'Drop on battlemap', x: Number(ev.clientX || 0) + 18, y: Number(ev.clientY || 0) + 18 });
       });
       rollModal.addEventListener('drop', function (ev) {
-        handleCombatBoardDropEvent(ev, canvas);
+        handleCombatBoardDropEvent(ev, canvas, 'roll-modal');
         clearCombatAssetDragGhost();
       });
       rollModal.addEventListener('dragleave', function () {
+        setCombatDragDebugState({ phase: 'dragleave', dropSource: 'roll-modal' });
         clearCombatAssetDragPreview();
         clearCombatAssetDragGhost();
       });
@@ -8321,7 +8438,7 @@
         if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy';
       });
       overlay.addEventListener('drop', function (ev) {
-        handleCombatBoardDropEvent(ev, canvas);
+        handleCombatBoardDropEvent(ev, canvas, 'overlay');
         window.__combatAssetDragPayload = null;
         clearCombatAssetDragGhost();
       });
@@ -9222,6 +9339,7 @@
         + '<option value="full" ' + (ui.qualityMode === 'full' ? 'selected' : '') + '>Full</option>'
         + '<option value="performance" ' + (ui.qualityMode === 'performance' ? 'selected' : '') + '>Performance</option>'
         + '</select></label>'
+        + '<label style="display:flex;align-items:center;gap:.4rem;"><input id="combatSettingsDragDebugBanner" type="checkbox" ' + (ui.dragDebugBanner ? 'checked' : '') + '> Show drag/drop debug banner</label>'
         + '<label style="display:flex;align-items:center;gap:.4rem;">Accent <input id="combatSettingsAccent" type="color" value="' + escapeHtml(String(theme.accent || '#e3bc5e')) + '"></label>'
         + '<label style="display:flex;align-items:center;gap:.4rem;">Support Accent <input id="combatSettingsAccent2" type="color" value="' + escapeHtml(String(theme.accent2 || '#49c9bb')) + '"></label>'
         + '<label style="display:flex;align-items:center;gap:.4rem;">Surface <input id="combatSettingsSurface" type="color" value="' + escapeHtml(rgbaStringToHex(String(theme.surface || '#0c0e1a'))) + '"></label>'
@@ -9273,6 +9391,17 @@
       if (window.__combatAssetDragPayload && typeof window.__combatAssetDragPayload === 'object') {
         window.__combatAssetDragPayload.label = String(label || 'Dragging asset');
       }
+      setCombatDragDebugState({
+        phase: 'drag-start',
+        kind: String(kind || ''),
+        payload: String(payload || ''),
+        source: 'startCombatAssetDrag',
+        dropSource: 'pending',
+        clientX: Number(ev.clientX || 0),
+        clientY: Number(ev.clientY || 0),
+        q: null,
+        r: null
+      });
       setCombatAssetDrawerOpen(true);
       setCombatAssetDragGhost({ label: String(label || 'Dragging asset'), x: Number(ev.clientX || 0) + 18, y: Number(ev.clientY || 0) + 18 });
       safeNotif('Drop the asset onto the battlemap to place it directly.', 'info');
@@ -11961,6 +12090,7 @@
     var compactMode = String(compactModeEl && compactModeEl.value || 'auto');
     var qualityModeEl = document.getElementById('combatSettingsQualityMode');
     var qualityMode = String(qualityModeEl && qualityModeEl.value || 'auto');
+    var dragDebugBanner = !!(document.getElementById('combatSettingsDragDebugBanner') && document.getElementById('combatSettingsDragDebugBanner').checked);
     var accentEl = document.getElementById('combatSettingsAccent');
     var accent2El = document.getElementById('combatSettingsAccent2');
     var surfaceEl = document.getElementById('combatSettingsSurface');
@@ -11985,6 +12115,7 @@
         themePreset: themePreset,
         compactMode: compactMode,
         qualityMode: qualityMode,
+        dragDebugBanner: dragDebugBanner,
         themeTokens: Object.assign({}, state.ui && state.ui.themeTokens || {}, {
           accent: String(accentEl && accentEl.value || ''),
           accent2: String(accent2El && accent2El.value || ''),
@@ -12032,7 +12163,7 @@
       clientX: Number(clientX || 0),
       clientY: Number(clientY || 0),
       dataTransfer: transfer
-    }, canvas);
+    }, canvas, 'debug-helper');
   };
 
   window.getCombatSceneSharedModifier = function (actionKey, options) {

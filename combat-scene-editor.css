@@ -111,6 +111,30 @@
   color: var(--combat-accent);
 }
 
+.combat-drag-debug-banner {
+  position: absolute;
+  top: 3.75rem;
+  left: 0.7rem;
+  right: 0.7rem;
+  z-index: 5;
+  display: none;
+  pointer-events: none;
+  font: 600 0.66rem/1.35 "JetBrains Mono", "Fira Code", monospace;
+  letter-spacing: 0.01em;
+  color: #def8f3;
+  border: 1px solid rgba(73, 201, 187, 0.45);
+  background: rgba(5, 11, 17, 0.92);
+  padding: 0.22rem 0.46rem;
+  border-radius: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.combat-drag-debug-banner.visible {
+  display: block;
+}
+
 .combat-canvas-wrap {
   position: absolute;
   inset: 0;

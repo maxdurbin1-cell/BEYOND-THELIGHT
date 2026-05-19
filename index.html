@@ -7323,6 +7323,27 @@ function ensureWayfarerActionCatalog(sel){
   });
 }
 
+function buildFilteredWayfarerActionOptionsHtml(sel){
+  if(!sel)return '';
+  var options=Array.prototype.slice.call(sel.options||[]);
+  var filtered=options.filter(function(opt){
+    if(!opt||!opt.value)return false;
+    var lower=String(opt.value||'')+' '+String(opt.textContent||'');
+    if(/strike/i.test(lower)){
+      return typeof canUseAttackAtCurrentRange==='function'?!!canUseAttackAtCurrentRange('strike'):true;
+    }
+    if(/shoot/i.test(lower)){
+      return typeof canUseAttackAtCurrentRange==='function'?!!canUseAttackAtCurrentRange('shoot'):true;
+    }
+    return true;
+  });
+  var list=filtered.length?filtered:options;
+  return list.map(function(opt){
+    if(!opt||!opt.value)return '';
+    return '<option value="'+String(opt.value).replace(/"/g,'&quot;')+'">'+String(opt.textContent||'')+'</option>';
+  }).join('');
+}
+
 function updateWayfarerActionBtn(){
   var sel=document.getElementById('wayfarerActionSel');
   var btn=document.getElementById('wayfarerActionBtn');
@@ -21510,12 +21531,7 @@ window.addEventListener('DOMContentLoaded', function() {
         : '<div style="font-size:.78rem;color:var(--muted2);">No hostiles in this scene.</div>';
       if(typeof updateWayfarerActionBtn==='function')updateWayfarerActionBtn();
       var combatTabSel = document.getElementById('wayfarerActionSel');
-      var combatTabActionOptions = combatTabSel
-        ? Array.prototype.map.call(combatTabSel.options, function(opt){
-            if(!opt || !opt.value) return '';
-            return '<option value="'+opt.value.replace(/"/g,'&quot;')+'">'+opt.textContent+'</option>';
-          }).join('')
-        : '';
+      var combatTabActionOptions = buildFilteredWayfarerActionOptionsHtml(combatTabSel);
       var allyTargetOptions = ['<option value="self">Self</option><option value="player">You</option>']
         .concat(raidAllies.map(function(a){
           var nm=String(a&&a.name||'Wayfarer');
@@ -21588,12 +21604,7 @@ window.addEventListener('DOMContentLoaded', function() {
     var stageLabel = (S.combat && S.combat.active) ? 'You -> Ally -> Enemy' : 'Scene Not Started';
     if(typeof updateWayfarerActionBtn==='function')updateWayfarerActionBtn();
     var combatTabSel = document.getElementById('wayfarerActionSel');
-    var combatTabActionOptions = combatTabSel
-      ? Array.prototype.map.call(combatTabSel.options, function(opt){
-          if(!opt || !opt.value) return '';
-          return '<option value="'+opt.value.replace(/"/g,'&quot;')+'">'+opt.textContent+'</option>';
-        }).join('')
-      : '';
+    var combatTabActionOptions = buildFilteredWayfarerActionOptionsHtml(combatTabSel);
     function relationForEntry(entry){
       try{
         var u=null;
@@ -22160,12 +22171,7 @@ window.addEventListener('DOMContentLoaded', function() {
         ? 'Clear the full chain for bonus credits, renown, and loot.'
         : 'Challenge bracket: win all bouts to claim full colosseum rewards.')));
     var combatTabSel = document.getElementById('wayfarerActionSel');
-    var combatTabActionOptions = combatTabSel
-      ? Array.prototype.map.call(combatTabSel.options, function (opt) {
-          if (!opt || !opt.value) return '';
-          return '<option value="' + String(opt.value).replace(/"/g, '&quot;') + '">' + String(opt.textContent || opt.value) + '</option>';
-        }).join('')
-      : '';
+    var combatTabActionOptions = buildFilteredWayfarerActionOptionsHtml(combatTabSel);
     var allyActorOptions = allies.map(function (entry) {
       return '<option value="' + Number(entry.id || 0) + '">' + String(entry.name || 'Ally') + '</option>';
     }).join('');

@@ -17855,11 +17855,11 @@ function rollDeadMoonHazardCheck() {
   const advDie = (S.equipment && S.equipment.die) ? S.equipment.die : 'd6';
   const dreadRoll = roll(6);
   const advVal = roll(parseInt(advDie.replace('d','')) || 6);
-  const succeeded = advVal >= dreadRoll;
   const stat = h.stat;
   let statBonus = 0;
   if (S.stats && S.stats[stat] != null) statBonus = S.stats[stat];
   const finalAdv = advVal + statBonus;
+  const succeeded = finalAdv >= dreadRoll;
   const resultText = succeeded
     ? `<span style="color:var(--teal)">SUCCESS (Adv ${finalAdv} vs Dread ${dreadRoll})</span> — Hazard bypassed.`
     : `<span style="color:var(--red2)">FAILURE (Adv ${finalAdv} vs Dread ${dreadRoll})</span> — ${h.failText}`;

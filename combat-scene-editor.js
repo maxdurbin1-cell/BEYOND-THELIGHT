@@ -726,7 +726,10 @@
     }
     var rect = canvas.getBoundingClientRect();
     var size = Number(state.board.size || 42) * Number(state.board.zoom || 1);
-    var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, state.board.panX, state.board.panY);
+    var insideCanvas = Number(ev.clientX || 0) >= rect.left && Number(ev.clientX || 0) <= rect.right && Number(ev.clientY || 0) >= rect.top && Number(ev.clientY || 0) <= rect.bottom;
+    var ax = insideCanvas
+      ? pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, state.board.panX, state.board.panY)
+      : pixelToAxial(Number(rect.width || 0) / 2, Number(rect.height || 0) / 2, size, state.board.panX, state.board.panY);
     var source = 'none';
     var assetKind = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-kind') || '');
     var assetPayload = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-payload') || '');
@@ -768,6 +771,7 @@
       if (typeof window.applyCombatAssetActionAt === 'function') {
         window.applyCombatAssetActionAt(assetKind, assetPayload, ax.q, ax.r, true);
       }
+      if (!insideCanvas) safeNotif('Dropped outside board bounds. Asset placed at board center.', 'info');
       setCombatDragDebugState({ phase: 'drop-applied' });
       window.__combatAssetDragPayload = null;
       clearCombatAssetDragPreview();
@@ -5196,6 +5200,7 @@
 
   function colorForTerrain(name) {
     var n = String(name || '');
+    if (n.indexOf('hexasset:') === 0) return 'rgba(96,158,196,.34)';
     var map = {
       forest: 'rgba(70,120,78,.35)',
       marsh: 'rgba(73,128,114,.35)',
@@ -9438,6 +9443,7 @@
             if (next.layerSettings && next.layerSettings[layer]) {
               next.layerSettings[layer] = Object.assign({}, next.layerSettings[layer], {
                 visible: true,
+                gmOnly: false,
                 opacity: Math.max(0.35, Number(next.layerSettings[layer].opacity || 1))
               });
             }

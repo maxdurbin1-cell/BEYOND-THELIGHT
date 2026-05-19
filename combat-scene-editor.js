@@ -149,6 +149,14 @@
     setCombatAssetDragGhost(null);
   }
 
+  function getDefaultAssetDropHex(state, selectedTokenId) {
+    var board = normalizeBoard(state && state.board);
+    var token = byId(selectedTokenId);
+    if (token) return { q: Number(token.q || 0) + 1, r: Number(token.r || 0) + 1, source: 'token' };
+    var center = pixelToAxial(Number(board.panX || 0), Number(board.panY || 0), Number(board.size || 42) * Number(board.zoom || 1), Number(board.panX || 0), Number(board.panY || 0));
+    return { q: Number(center.q || 0), r: Number(center.r || 0), source: 'board-center' };
+  }
+
   function primeCombatAssetDragPayload(kind, payload, label) {
     var stamped = {
       kind: String(kind || ''),
@@ -6892,7 +6900,7 @@
           var icon = assetEmoji(item.name, ab.category);
           return '<article class="combat-feed-line combat-asset-card" draggable="true" title="Drag onto the battlemap to place this asset" aria-label="Drag ' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + ' onto the battlemap" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '" data-asset-label="' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '">'
             + '<div class="combat-asset-card-main"><strong>' + icon + ' ' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</strong><span class="combat-mini">' + (ab.category === 'battlemaps' ? 'Drop to update the board background or click to apply.' : (ab.category === 'utilities' ? 'Click to run utility workflow.' : 'Drop to place directly on the board.')) + '</span></div>'
-            + '<button class="btn btn-xs" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '">Use</button>'
+            + '<button class="btn btn-xs" draggable="true" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '">Use</button>'
             + '</article>';
         }).join('')
         : '<div class="combat-feed-line">No assets found.</div>';
@@ -6901,11 +6909,18 @@
         btn.onclick = function () {
           var action = String(btn.getAttribute('data-asset-action') || '');
           var id = String(btn.getAttribute('data-asset-id') || '');
-          var actor = byId(store.getState().selectedTokenId);
-          var baseQ = actor ? Number(actor.q || 0) : 0;
-          var baseR = actor ? Number(actor.r || 0) : 0;
+          var useState = store.getState();
+          var dropHex = getDefaultAssetDropHex(useState, useState.selectedTokenId);
+          var baseQ = Number(dropHex.q || 0);
+          var baseR = Number(dropHex.r || 0);
           var chosen = filtered.find(function (item) { return String(item.id || '') === id; }) || null;
-          if (!chosen) return;
+          if (!chosen) {
+            var fallbackPayload = '';
+            if (action === 'paint-object') fallbackPayload = String(id || '').replace(/^obj-/, '') || 'obstacle';
+            else if (action === 'paint-terrain') fallbackPayload = String(id || '').replace(/^terrain-/, '').replace(/-/g, ' ') || 'road';
+            else if (action === 'stock-cache') fallbackPayload = String(id || '').indexOf('credits') >= 0 ? 'credits' : 'balanced';
+            chosen = { id: id, name: id, action: action, payload: fallbackPayload };
+          }
           if (action === 'add-wayfarer') {
             var addWayfarerBtn = document.getElementById('combatAddWayfarerBtn');
             if (addWayfarerBtn) addWayfarerBtn.click();
@@ -6953,21 +6968,11 @@
               addHistory('Battlemap applied from folder: ' + String(selectedMap.name || 'Uploaded Map') + '.');
             }
           } else if (action === 'paint-object') {
-            store.setState(function (inner4) {
-              var next4 = Object.assign({}, inner4, { activeLayer: 'objects', activeTool: 'paint', paintValue: String(chosen.payload || 'obstacle') });
-              persist(next4);
-              return next4;
-            });
-            safeNotif('Object painter ready: ' + String(chosen.payload || 'object') + '.', 'good');
+            applyCombatAssetActionAt('set-tool', 'objects:' + String(chosen.payload || 'obstacle'), baseQ, baseR, true);
           } else if (action === 'stock-cache') {
-            window.applyCombatAssetActionAt('stock-cache', String(chosen.payload || 'balanced'), baseQ + 1, baseR + 1, true);
+            applyCombatAssetActionAt('stock-cache', String(chosen.payload || 'balanced'), baseQ, baseR, true);
           } else if (action === 'paint-terrain') {
-            store.setState(function (inner5) {
-              var next5 = Object.assign({}, inner5, { activeLayer: 'terrain', activeTool: 'paint', paintValue: String(chosen.payload || 'road') });
-              persist(next5);
-              return next5;
-            });
-            safeNotif('Terrain painter ready: ' + String(chosen.payload || 'terrain') + '.', 'good');
+            applyCombatAssetActionAt('set-tool', 'terrain:' + String(chosen.payload || 'road'), baseQ, baseR, true);
           } else if (action === 'hazard-check') {
             window.applyCombatAssetActionAt('hazard-check', '', baseQ, baseR, false);
           } else if (action === 'hazard-config') {
@@ -9136,17 +9141,25 @@
 
     function openQuickEffectsModal() {
       var st = store.getState();
-      var token = byId(st.selectedTokenId);
-      if (!token) {
-        safeNotif('Select a token first.', 'warn');
+      var tokens = (st.tokens || []).filter(function (row) { return !!row; });
+      if (!tokens.length) {
+        safeNotif('No tokens are available for effects.', 'warn');
         return;
       }
+      var token = byId(st.selectedTokenId) || tokens[0];
+      var targetOptions = tokens.map(function (row) {
+        var id = String(row.id || '');
+        var selected = String(id) === String(token && token.id || '') ? ' selected' : '';
+        var label = String(row.name || 'Token').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return '<option value="' + id + '"' + selected + '>' + label + '</option>';
+      }).join('');
       var html = '<div style="display:grid;gap:.28rem;">'
-        + '<div style="font-size:.78rem;color:var(--text2);">Apply a timed effect to ' + String(token.name || 'token').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '.</div>'
+        + '<div style="font-size:.78rem;color:var(--text2);">Apply a timed effect to any active token.</div>'
+        + '<select id="combatFxTarget" class="combat-select">' + targetOptions + '</select>'
         + '<input id="combatFxName" class="combat-input" placeholder="Condition name (Burning)">'
         + '<input id="combatFxStress" class="combat-input" type="number" min="0" max="20" value="1">'
         + '<input id="combatFxRounds" class="combat-input" type="number" min="1" max="20" value="2">'
-        + '<button class="btn btn-xs btn-primary" onclick="(function(){var n=document.getElementById(\'combatFxName\');var s=document.getElementById(\'combatFxStress\');var r=document.getElementById(\'combatFxRounds\');if(window.applyCombatQuickEffect){window.applyCombatQuickEffect(String(n&&n.value||\'Condition\'),Number(s&&s.value||1),Number(r&&r.value||2));}if(typeof window.closeModal===\'function\')window.closeModal();})();">Apply</button>'
+        + '<button class="btn btn-xs btn-primary" onclick="(function(){var t=document.getElementById(\'combatFxTarget\');var n=document.getElementById(\'combatFxName\');var s=document.getElementById(\'combatFxStress\');var r=document.getElementById(\'combatFxRounds\');if(window.applyCombatQuickEffectTo){window.applyCombatQuickEffectTo(String(t&&t.value||\'\'),String(n&&n.value||\'Condition\'),Number(s&&s.value||1),Number(r&&r.value||2));}if(typeof window.closeModal===\'function\')window.closeModal();})();">Apply</button>'
         + '</div>';
       if (typeof window.openModal === 'function') {
         window.openModal('Combat Effects', html, null, { preventScroll: true, focusTrap: true });
@@ -9164,8 +9177,8 @@
     var COMBAT_ASSET_LIBRARY = [
       { kind: 'spawn', payload: 'npc:Guide', icon: 'NPC', label: 'Guide Token', chips: ['Token', 'Drop on hex'], description: 'Spawn a neutral guide exactly where you drop it.' },
       { kind: 'spawn', payload: 'npc:Merchant', icon: 'NPC', label: 'Merchant Token', chips: ['Token', 'Support'], description: 'Spawn a merchant or quartermaster near the party.' },
-      { kind: 'set-tool', payload: 'terrain:forest', icon: 'MAP', label: 'Forest Tile', chips: ['Terrain', 'Paint on drop'], description: 'Drop onto a hex to stamp forest terrain, or click to arm the terrain painter.' },
-      { kind: 'set-tool', payload: 'objects:obstacle', icon: 'OBJ', label: 'Obstacle', chips: ['Object', 'Cover'], description: 'Place an obstacle directly on a hex to create instant cover.' },
+      { kind: 'set-tool', payload: 'terrain:forest', icon: 'MAP', label: 'Forest Tile', chips: ['Terrain', 'Paint on drop'], description: 'Drop onto a hex to stamp forest terrain, or click Use to place at board center.' },
+      { kind: 'set-tool', payload: 'objects:obstacle', icon: 'OBJ', label: 'Obstacle', chips: ['Object', 'Cover'], description: 'Place an obstacle directly on a hex or click Use for immediate placement.' },
       { kind: 'set-tool', payload: 'hazards:trap', icon: 'TRP', label: 'Trap Marker', chips: ['Hazard', 'Trigger'], description: 'Drop a trap marker on a hex for immediate hazard setup.' },
       { kind: 'preset', payload: 'urban', icon: 'PRE', label: 'Urban Preset', chips: ['Board preset', '20x20'], description: 'Apply the urban board footprint and weather profile.' },
       { kind: 'preset', payload: 'storm', icon: 'PRE', label: 'Storm Preset', chips: ['Board preset', 'Weather'], description: 'Apply storm framing for naval or desperate road encounters.' }
@@ -9580,10 +9593,12 @@
       var action = String(kind || '');
       var value = String(payload || '');
       var st = store.getState();
-      var actor = byId(st.selectedTokenId);
-      var baseQ = actor ? Number(actor.q || 0) : 0;
-      var baseR = actor ? Number(actor.r || 0) : 0;
-      applyCombatAssetActionAt(action, value, baseQ + 1, baseR + 1, false);
+      var dropHex = getDefaultAssetDropHex(st, st.selectedTokenId);
+      var placeNow = action === 'set-tool' || action === 'spawn' || action === 'stock-cache' || action === 'set-map' || action === 'preset';
+      applyCombatAssetActionAt(action, value, Number(dropHex.q || 0), Number(dropHex.r || 0), placeNow);
+      if (placeNow) {
+        safeNotif('Placed ' + action + ' at ' + toKey(Number(dropHex.q || 0), Number(dropHex.r || 0)) + '.', 'good');
+      }
     };
 
     var toolbarSelectBtn = document.getElementById('combatToolbarSelectBtn');
@@ -12070,6 +12085,18 @@
       safeNotif('Select a token first.', 'warn');
       return;
     }
+    addTokenRoundEffect(String(token.id), String(label || 'Condition'), Number(stress || 1), Number(rounds || 2), '#e3bc5e');
+    updateUiPanels();
+    drawBoard();
+  };
+
+  window.applyCombatQuickEffectTo = function (targetTokenId, label, stress, rounds) {
+    var token = byId(targetTokenId);
+    if (!token) {
+      safeNotif('Pick a valid target token for effects.', 'warn');
+      return;
+    }
+    store.setState({ selectedTokenId: String(token.id || '') });
     addTokenRoundEffect(String(token.id), String(label || 'Condition'), Number(stress || 1), Number(rounds || 2), '#e3bc5e');
     updateUiPanels();
     drawBoard();

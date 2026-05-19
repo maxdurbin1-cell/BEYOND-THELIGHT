@@ -170,6 +170,29 @@ async function run() {
       throw new Error(`Asset drag/drop did not stamp an object: ${JSON.stringify(dragResult)}`);
     }
 
+    const usePlacement = await page.evaluate(() => {
+      const before = window.CombatSceneStore.getState();
+      const useBtn = document.querySelector('button[data-asset-id="obj-obstacle"][data-asset-action="paint-object"]');
+      if (!useBtn) return { ok: false, reason: "use-button-missing" };
+      const selected = (before.tokens || []).find((row) => row && row.id === before.selectedTokenId) || null;
+      const expectedKey = selected ? `${Number(selected.q || 0) + 1},${Number(selected.r || 0) + 1}` : "0,0";
+      const onclickBound = typeof useBtn.onclick === "function";
+      useBtn.click();
+      const after = window.CombatSceneStore.getState();
+      const valueAtExpected = (after.layers && after.layers.objects && after.layers.objects[expectedKey]) || "";
+      return {
+        ok: true,
+        onclickBound,
+        expectedKey,
+        valueAtExpected,
+        historyTail: (after.actionHistory || []).slice(-1)[0] || ""
+      };
+    });
+
+    if (!usePlacement.ok || usePlacement.valueAtExpected !== "obstacle") {
+      throw new Error(`Asset Use click did not place object: ${JSON.stringify(usePlacement)}`);
+    }
+
     const hoverLabels = await page.evaluate(() => {
       const icon = document.getElementById("combatRailSelectBtn");
       const tools = document.getElementById("combatToolsPanel")?.querySelector(".combat-panel-header");
@@ -183,6 +206,35 @@ async function run() {
 
     if (!hoverLabels.icon || !hoverLabels.tools || !hoverLabels.feed) {
       throw new Error(`Hover labels missing on side panels: ${JSON.stringify(hoverLabels)}`);
+    }
+
+    const effectsTargeting = await page.evaluate(() => {
+      const st = window.CombatSceneStore.getState();
+      window.CombatSceneStore.setState(Object.assign({}, st, { selectedTokenId: "", selectedTokenIds: [] }));
+      const fxBtn = document.getElementById("combatToolbarEffectsBtn");
+      if (!fxBtn) return { opened: false, applied: false, reason: "effects-button-missing" };
+      fxBtn.click();
+      const modal = document.getElementById("rollModal");
+      const opened = !!(modal && modal.style.display !== "none" && /Combat Effects/.test(modal.textContent || ""));
+      const target = document.getElementById("combatFxTarget");
+      if (!opened || !target) return { opened, applied: false, reason: "modal-or-target-missing" };
+      target.value = "player-1";
+      const name = document.getElementById("combatFxName");
+      const stress = document.getElementById("combatFxStress");
+      const rounds = document.getElementById("combatFxRounds");
+      if (name) name.value = "Test Burn";
+      if (stress) stress.value = "1";
+      if (rounds) rounds.value = "2";
+      const applyBtn = Array.from(modal.querySelectorAll("button")).find((node) => /Apply/.test(node.textContent || ""));
+      if (!applyBtn) return { opened, applied: false, reason: "apply-button-missing" };
+      applyBtn.click();
+      const next = window.CombatSceneStore.getState();
+      const hasEffect = (next.tokenRoundEffects || []).some((row) => row && row.targetTokenId === "player-1" && row.label === "Test Burn");
+      return { opened, applied: hasEffect };
+    });
+
+    if (!effectsTargeting.opened || !effectsTargeting.applied) {
+      throw new Error(`Effects tool did not open/apply without preselected token: ${JSON.stringify(effectsTargeting)}`);
     }
 
     const seededMapItems = await page.evaluate(() => {

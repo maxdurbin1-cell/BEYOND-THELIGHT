@@ -42,6 +42,7 @@
       bgEnd: '#000000'
     }
   };
+  var tokenContextMenuHideTimer = null;
 
   function setCombatAssetDragPreview(preview) {
     store.setState({ assetDragPreview: preview || null });
@@ -173,6 +174,14 @@
     var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, state.board.panX, state.board.panY);
     var assetKind = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-kind') || '');
     var assetPayload = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-payload') || '');
+    if (!assetKind) {
+      var textPayload = String(ev.dataTransfer && ev.dataTransfer.getData('text/plain') || '');
+      var colonIndex = textPayload.indexOf(':');
+      if (colonIndex > 0) {
+        assetKind = textPayload.slice(0, colonIndex).trim();
+        assetPayload = textPayload.slice(colonIndex + 1);
+      }
+    }
     if (!assetKind && window.__combatAssetDragPayload && typeof window.__combatAssetDragPayload === 'object') {
       assetKind = String(window.__combatAssetDragPayload.kind || '');
       assetPayload = String(window.__combatAssetDragPayload.payload || '');
@@ -1376,6 +1385,8 @@
       actions: { x: 290, y: 560 }
     }, next.panelPos && typeof next.panelPos === 'object' ? next.panelPos : {});
     next.ui = normalizeCombatUi(next.ui);
+    next.paintBrushSize = Math.max(1, Math.min(5, Number(next.paintBrushSize || 1)));
+    next.drawColor = /^#([0-9a-f]{6})$/i.test(String(next.drawColor || '')) ? String(next.drawColor) : '#e3bc5e';
     return next;
   }
 
@@ -1437,6 +1448,8 @@
       rulerOptions: synced.rulerOptions,
       assetBrowser: synced.assetBrowser,
       ui: synced.ui,
+      paintBrushSize: synced.paintBrushSize,
+      drawColor: synced.drawColor,
       selectedTokenIds: synced.selectedTokenIds,
       clipboardTokens: synced.clipboardTokens,
       undoStack: synced.undoStack,
@@ -1613,6 +1626,8 @@
     activeTool: 'select',
     fogBrush: 'reveal',
     paintValue: 'forest',
+    paintBrushSize: 1,
+    drawColor: '#e3bc5e',
     selectedTokenId: '',
     selectedTokenIds: [],
     draggingTokenId: '',
@@ -2892,7 +2907,24 @@
       next.layers[layer] = Object.assign({}, state.layers[layer]);
       next.layers.wallSegments = Object.assign({}, state.layers.wallSegments || {});
       var key = toKey(q, r);
+      var brushRadius = Math.max(1, Math.min(5, Number(state.paintBrushSize || 1)));
+      var brushTargets = [{ q: q, r: r, key: key }];
+      if (brushRadius > 1 && !(layer === 'lighting' && /^wall-seg-/.test(String(state.paintValue || '')))) {
+        brushTargets = [];
+        for (var dr = -brushRadius + 1; dr <= brushRadius - 1; dr++) {
+          for (var dq = -brushRadius + 1; dq <= brushRadius - 1; dq++) {
+            var dist = Math.max(Math.abs(dq), Math.abs(dr), Math.abs((-dq) - dr));
+            if (dist >= brushRadius) continue;
+            var tq = Number(q || 0) + dq;
+            var tr = Number(r || 0) + dr;
+            brushTargets.push({ q: tq, r: tr, key: toKey(tq, tr) });
+          }
+        }
+      }
       var paint = String(state.paintValue || 'forest');
+      if (layer === 'foreground' && paint === 'draw-ink') {
+        paint = 'ink:' + String(state.drawColor || '#e3bc5e') + ':' + String(brushRadius);
+      }
       if (tool === 'erase') {
         if (layer === 'lighting' && /^wall-seg-/.test(paint)) {
           var segKey = paint.replace('wall-seg-', '');
@@ -2902,20 +2934,26 @@
           else delete next.layers.wallSegments[key];
           addHistory('Removed wall segment ' + segKey + ' at ' + key + '.');
         } else {
-          delete next.layers[layer][key];
-          if (layer === 'lighting') delete next.layers.wallSegments[key];
-          addHistory('Cleared ' + layer + ' at ' + key + '.');
+          brushTargets.forEach(function (target) {
+            delete next.layers[layer][target.key];
+            if (layer === 'lighting') delete next.layers.wallSegments[target.key];
+          });
+          addHistory('Cleared ' + layer + ' at ' + key + (brushTargets.length > 1 ? ' (brush x' + brushRadius + ').' : '.'));
         }
       } else if (tool === 'paint') {
         if (layer === 'elevation') {
-          next.layers[layer][key] = Number(state.paintValue || 1);
+          brushTargets.forEach(function (target) {
+            next.layers[layer][target.key] = Number(state.paintValue || 1);
+          });
         } else if (layer === 'lighting' && /^wall-seg-/.test(paint)) {
           var seg = paint.replace('wall-seg-', '');
           var map = Object.assign({}, next.layers.wallSegments[key] || {});
           map[seg] = true;
           next.layers.wallSegments[key] = map;
         } else {
-          next.layers[layer][key] = paint;
+          brushTargets.forEach(function (target) {
+            next.layers[layer][target.key] = paint;
+          });
         }
       }
       persist(next);
@@ -2930,17 +2968,24 @@
       next.fog = Object.assign({}, state.fog);
       next.fog.revealed = Object.assign({}, state.fog.revealed || {});
       next.fog.revealOrder = Object.assign({}, state.fog.revealOrder || {});
-      var key = toKey(q, r);
-      if (String(brush || state.fogBrush) === 'hide') {
-        delete next.fog.revealed[key];
-        delete next.fog.revealOrder[key];
-      } else {
-        next.fog.revealed[key] = true;
-        if (String(next.fog.revealMode || 'manual') === 'ordered') {
-          next.fog.revealSeq = Math.max(0, Number(state.fog.revealSeq || 0)) + 1;
-          next.fog.revealOrder[key] = next.fog.revealSeq;
-          if (Number(next.fog.revealStep || 0) < next.fog.revealSeq) {
-            next.fog.revealStep = next.fog.revealSeq;
+      var brushRadius = Math.max(1, Math.min(5, Number(state.paintBrushSize || 1)));
+      for (var dr = -brushRadius + 1; dr <= brushRadius - 1; dr++) {
+        for (var dq = -brushRadius + 1; dq <= brushRadius - 1; dq++) {
+          var dist = Math.max(Math.abs(dq), Math.abs(dr), Math.abs((-dq) - dr));
+          if (dist >= brushRadius) continue;
+          var key = toKey(Number(q || 0) + dq, Number(r || 0) + dr);
+          if (String(brush || state.fogBrush) === 'hide') {
+            delete next.fog.revealed[key];
+            delete next.fog.revealOrder[key];
+          } else {
+            next.fog.revealed[key] = true;
+            if (String(next.fog.revealMode || 'manual') === 'ordered') {
+              next.fog.revealSeq = Math.max(0, Number(next.fog.revealSeq || 0)) + 1;
+              next.fog.revealOrder[key] = next.fog.revealSeq;
+              if (Number(next.fog.revealStep || 0) < next.fog.revealSeq) {
+                next.fog.revealStep = next.fog.revealSeq;
+              }
+            }
           }
         }
       }
@@ -4154,8 +4199,12 @@
       + '<div class="combat-mini" id="combatFogMeta">Revealed 0 hexes · Vision 3</div>'
       + '<div class="combat-label" style="margin-top:.35rem;">Terrain / Object</div>'
       + '<select class="combat-select" id="combatPaintValue">'
-      + '<option value="forest">forest</option><option value="marsh">marsh</option><option value="crags">crags</option><option value="lava">lava</option><option value="ruins">ruins</option><option value="water">water</option><option value="difficult terrain">difficult terrain</option><option value="obstacle">obstacle</option><option value="trap">trap</option><option value="shrine">shrine</option><option value="turret">turret</option><option value="door">door</option><option value="spawn">spawn</option><option value="wall">wall</option><option value="vision-blocker">vision-blocker</option><option value="wall-seg-e">wall-seg-e</option><option value="wall-seg-ne">wall-seg-ne</option><option value="wall-seg-nw">wall-seg-nw</option><option value="wall-seg-w">wall-seg-w</option><option value="wall-seg-sw">wall-seg-sw</option><option value="wall-seg-se">wall-seg-se</option><option value="1">elevation +1</option><option value="2">elevation +2</option><option value="3">elevation +3</option>'
+      + '<option value="forest">forest</option><option value="marsh">marsh</option><option value="crags">crags</option><option value="lava">lava</option><option value="ruins">ruins</option><option value="water">water</option><option value="difficult terrain">difficult terrain</option><option value="obstacle">obstacle</option><option value="trap">trap</option><option value="shrine">shrine</option><option value="turret">turret</option><option value="door">door</option><option value="spawn">spawn</option><option value="wall">wall</option><option value="vision-blocker">vision-blocker</option><option value="wall-seg-e">wall-seg-e</option><option value="wall-seg-ne">wall-seg-ne</option><option value="wall-seg-nw">wall-seg-nw</option><option value="wall-seg-w">wall-seg-w</option><option value="wall-seg-sw">wall-seg-sw</option><option value="wall-seg-se">wall-seg-se</option><option value="draw-ink">draw-ink</option><option value="1">elevation +1</option><option value="2">elevation +2</option><option value="3">elevation +3</option>'
       + '</select>'
+      + '<div class="combat-chip-row" style="margin-top:.2rem;align-items:center;">'
+      + '<label class="combat-mini" style="display:flex;align-items:center;gap:.24rem;">Color <input id="combatDrawColor" type="color" value="#e3bc5e"></label>'
+      + '<label class="combat-mini" style="display:flex;align-items:center;gap:.24rem;">Brush <input id="combatPaintBrushSize" type="range" min="1" max="5" step="1" value="1" style="width:86px;"></label>'
+      + '</div>'
       + '<div class="combat-mini">Hex editing modes: terrain, objects, hazards, lighting, weather, interactives, spawn points.</div>'
       + '<div class="combat-label" style="margin-top:.35rem;">Bestiary Drawer</div>'
       + '<div class="combat-feed" id="combatBestiaryDrawer"></div>'
@@ -4436,6 +4485,10 @@
   function hideTokenContextMenu() {
     var menu = document.getElementById('combatTokenContextMenu');
     if (!menu) return;
+    if (tokenContextMenuHideTimer) {
+      clearTimeout(tokenContextMenuHideTimer);
+      tokenContextMenuHideTimer = null;
+    }
     menu.classList.remove('open');
     var duration = getCombatMotionDuration(store.getState(), 120, 60);
     var cleanup = function () {
@@ -4443,12 +4496,13 @@
       menu.innerHTML = '';
       menu.removeAttribute('data-token-id');
       menu.removeAttribute('data-opened-at');
+      tokenContextMenuHideTimer = null;
     };
     if (!duration) {
       cleanup();
       return;
     }
-    setTimeout(cleanup, duration);
+    tokenContextMenuHideTimer = setTimeout(cleanup, duration);
   }
 
   function applyInitiativeTurnState(actionKey, tokenId) {
@@ -4590,6 +4644,10 @@
   function showTokenContextMenu(token, screenX, screenY, q, r) {
     var menu = document.getElementById('combatTokenContextMenu');
     if (!menu || !token) return;
+    if (tokenContextMenuHideTimer) {
+      clearTimeout(tokenContextMenuHideTimer);
+      tokenContextMenuHideTimer = null;
+    }
     var actions = [
       { key: 'ping', label: 'Ping' },
       { key: 'focus-ping', label: 'Focus Ping' },
@@ -5337,7 +5395,19 @@
         if (fp.x < -80 || fp.y < -80 || fp.x > w + 80 || fp.y > h + 80) continue;
         ctx.save();
         ctx.globalAlpha = getLayerOpacity(state, 'foreground');
-        if (fg.indexOf('canopy') >= 0 || fg.indexOf('tree') >= 0) {
+        if (fg.indexOf('ink:') === 0) {
+          var inkParts = fg.split(':');
+          var inkColor = /^#([0-9a-f]{6})$/i.test(String(inkParts[1] || '')) ? String(inkParts[1]) : '#e3bc5e';
+          var inkSize = Math.max(1, Math.min(5, Number(inkParts[2] || 1)));
+          var inkRadius = Math.max(4, size * (0.12 + (inkSize * 0.045)));
+          ctx.beginPath();
+          ctx.arc(fp.x, fp.y, inkRadius, 0, Math.PI * 2);
+          ctx.fillStyle = alphaColorFromHex(inkColor, 0.74);
+          ctx.fill();
+          ctx.strokeStyle = alphaColorFromHex(inkColor, 0.96);
+          ctx.lineWidth = 1.4;
+          ctx.stroke();
+        } else if (fg.indexOf('canopy') >= 0 || fg.indexOf('tree') >= 0) {
           drawHex(ctx, fp.x, fp.y, size - 5.5);
           ctx.fillStyle = 'rgba(57,130,88,.34)';
           ctx.fill();
@@ -5646,6 +5716,33 @@
       paintSel.onchange = function () { store.setState({ paintValue: String(paintSel.value || 'forest') }); };
     }
 
+    var drawColorInput = document.getElementById('combatDrawColor');
+    if (drawColorInput) {
+      drawColorInput.value = String(state.drawColor || '#e3bc5e');
+      drawColorInput.oninput = function () {
+        var value = String(drawColorInput.value || '#e3bc5e');
+        if (!/^#([0-9a-f]{6})$/i.test(value)) return;
+        store.setState(function (inner) {
+          var next = Object.assign({}, inner, { drawColor: value });
+          persist(next);
+          return next;
+        });
+      };
+    }
+
+    var paintBrushSize = document.getElementById('combatPaintBrushSize');
+    if (paintBrushSize) {
+      paintBrushSize.value = String(Math.max(1, Math.min(5, Number(state.paintBrushSize || 1))));
+      paintBrushSize.oninput = function () {
+        var value = Math.max(1, Math.min(5, Number(paintBrushSize.value || 1)));
+        store.setState(function (inner) {
+          var next = Object.assign({}, inner, { paintBrushSize: value });
+          persist(next);
+          return next;
+        });
+      };
+    }
+
     var fogMeta = document.getElementById('combatFogMeta');
     if (fogMeta) {
       var fogVision = getFogVisionMap(state);
@@ -5939,7 +6036,10 @@
             dragKind = 'set-tool';
             dragPayload = 'terrain:' + String(chosen.payload || 'road');
           }
-          if (dragKind) window.startCombatAssetDrag(ev, dragKind, dragPayload);
+          if (dragKind) {
+            window.__combatAssetDragPayload = { kind: String(dragKind || ''), payload: String(dragPayload || '') };
+            window.startCombatAssetDrag(ev, dragKind, dragPayload);
+          }
         };
         card.ondragend = function () {
           window.__combatAssetDragPayload = null;
@@ -7327,6 +7427,7 @@
       'obstacle', 'trap', 'shrine', 'turret', 'door', 'spawn',
       'crate', 'pillar', 'barricade', 'altar', 'console', 'loot-cache', 'beacon',
       'wall', 'vision-blocker', 'wall-seg-e', 'wall-seg-ne', 'wall-seg-nw', 'wall-seg-w', 'wall-seg-sw', 'wall-seg-se',
+      'draw-ink',
       '1', '2', '3',
       'tree-canopy', 'balcony', 'weather-overlay', 'high-ledge'
     ];
@@ -9433,6 +9534,29 @@
               store.setState({ activeTool: toolName });
               updateUiPanels();
               drawBoard();
+            }
+            ev.preventDefault();
+            return;
+          }
+          if (key === 'delete' || key === 'backspace') {
+            var selectedIdsForDelete = Array.isArray(stLocal.selectedTokenIds) && stLocal.selectedTokenIds.length
+              ? stLocal.selectedTokenIds.slice()
+              : (selectedId ? [selectedId] : []);
+            if (selectedIdsForDelete.length) {
+              captureUndoSnapshot('Delete Tokens');
+              store.setState(function (inner) {
+                var next = Object.assign({}, inner);
+                next.tokens = (inner.tokens || []).filter(function (token) {
+                  return token && selectedIdsForDelete.indexOf(String(token.id || '')) < 0;
+                });
+                next.selectedTokenId = '';
+                next.selectedTokenIds = [];
+                persist(next);
+                return next;
+              });
+              addHistory('Deleted ' + selectedIdsForDelete.length + ' selected token' + (selectedIdsForDelete.length === 1 ? '' : 's') + '.');
+              drawBoard();
+              updateUiPanels();
             }
             ev.preventDefault();
             return;

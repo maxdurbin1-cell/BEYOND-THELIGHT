@@ -497,6 +497,124 @@
     return visible;
   }
 
+  function getLayerSetting(state, layerName) {
+    var row = state && state.layerSettings && state.layerSettings[layerName] ? state.layerSettings[layerName] : null;
+    return {
+      visible: !row || row.visible !== false,
+      locked: !!(row && row.locked),
+      opacity: Math.max(0.1, Math.min(1, Number(row && row.opacity == null ? 1 : row && row.opacity))),
+      gmOnly: !!(row && row.gmOnly)
+    };
+  }
+
+  function isLayerVisible(state, layerName) {
+    var row = getLayerSetting(state, layerName);
+    if (!row.visible) return false;
+    if (row.gmOnly && state && state.playMode) return false;
+    return true;
+  }
+
+  function isLayerLocked(state, layerName) {
+    return !!getLayerSetting(state, layerName).locked;
+  }
+
+  function getLayerOpacity(state, layerName) {
+    return Number(getLayerSetting(state, layerName).opacity || 1);
+  }
+
+  function clampTokenOffset(value, size) {
+    var limit = Math.max(8, Number(size || 42) * 0.72);
+    return Math.max(-limit, Math.min(limit, Number(value || 0)));
+  }
+
+  function getTokenRenderPoint(token, size, panX, panY) {
+    var center = axialToPixel(Number(token && token.q || 0), Number(token && token.r || 0), size, panX, panY);
+    return {
+      x: center.x + Number(token && token.offsetX || 0),
+      y: center.y + Number(token && token.offsetY || 0)
+    };
+  }
+
+  function getVisionSourceTokens(state) {
+    var list = Array.isArray(state && state.tokens) ? state.tokens.filter(Boolean) : [];
+    if (!list.length) return [];
+    if (state && state.fog && state.fog.sharedVision) {
+      var shared = list.filter(function (token) {
+        return token && (token.isPlayer || String(token.faction || '') === 'player' || String(token.faction || '') === 'ally');
+      });
+      if (shared.length) return shared;
+    }
+    var selected = byId(state && state.selectedTokenId);
+    if (selected) return [selected];
+    return list.slice(0, 1);
+  }
+
+  function isHexInTokenVision(state, token, q, r) {
+    if (!token) return false;
+    var radius = Math.max(0, Number(token.visionRadius == null ? state.fog && state.fog.visionRadius || 0 : token.visionRadius));
+    if (!radius) return false;
+    var origin = { q: Number(token.q || 0), r: Number(token.r || 0) };
+    var target = { q: Number(q || 0), r: Number(r || 0) };
+    if (hexDistance(origin, target) > radius) return false;
+    if (String(token.visionShape || 'radius') === 'cone') {
+      var a = axialToPixel(origin.q, origin.r, 1, 0, 0);
+      var b = axialToPixel(target.q, target.r, 1, 0, 0);
+      var facing = (Number(token.rotation || 0) % 360) * (Math.PI / 180);
+      var angle = Math.atan2(b.y - a.y, b.x - a.x);
+      var delta = Math.atan2(Math.sin(angle - facing), Math.cos(angle - facing));
+      if (Math.abs(delta) > Math.PI / 3) return false;
+    }
+    if (String(state.fog && state.fog.revealMode || 'manual') === 'los') {
+      return !isSightBlocked(state, origin, target);
+    }
+    return true;
+  }
+
+  function getFogVisionMap(state) {
+    var current = {};
+    var seen = Object.assign({}, state && state.fog && state.fog.seen || {}, state && state.fog && state.fog.revealed || {});
+    if (!state || !state.fog || !state.fog.enabled) return { current: current, seen: seen };
+    var sources = getVisionSourceTokens(state);
+    for (var r = -Number(state.board && state.board.rows || 0); r <= Number(state.board && state.board.rows || 0); r++) {
+      for (var q = -Number(state.board && state.board.cols || 0); q <= Number(state.board && state.board.cols || 0); q++) {
+        var key = toKey(q, r);
+        var manualVisible = !!(state.fog.revealed && state.fog.revealed[key]);
+        if (String(state.fog.revealMode || 'manual') === 'ordered') {
+          var order = Number(state.fog.revealOrder && state.fog.revealOrder[key] || 0);
+          var step = Math.max(0, Number(state.fog.revealStep || 0));
+          if (order > 0 && order <= step) manualVisible = true;
+        }
+        var dynamicVisible = sources.some(function (token) { return isHexInTokenVision(state, token, q, r); });
+        if (manualVisible || dynamicVisible) current[key] = true;
+        if (seen[key] || (state.fog.explorerMode && current[key])) seen[key] = true;
+      }
+    }
+    return { current: current, seen: seen };
+  }
+
+  function syncFogExplorerMemory(state) {
+    if (!state || !state.fog || !state.fog.enabled || !state.fog.explorerMode) return state;
+    var vision = getFogVisionMap(state);
+    var keys = Object.keys(vision.current || {});
+    if (!keys.length) return state;
+    var seen = Object.assign({}, state.fog.seen || {});
+    var revealed = Object.assign({}, state.fog.revealed || {});
+    var changed = false;
+    keys.forEach(function (key) {
+      if (!seen[key]) {
+        seen[key] = true;
+        changed = true;
+      }
+      if (!revealed[key]) {
+        revealed[key] = true;
+        changed = true;
+      }
+    });
+    if (!changed) return state;
+    state.fog = Object.assign({}, state.fog, { seen: seen, revealed: revealed });
+    return state;
+  }
+
   function toKey(q, r) {
     return String(q) + ',' + String(r);
   }
@@ -711,12 +829,29 @@
       rows: Math.max(1, Math.min(60, Number(source.rows || 16))),
       size: Math.max(24, Math.min(80, Number(source.size || 42))),
       zoom: Math.max(0.4, Math.min(3, Number(source.zoom || 1))),
+      snapThreshold: Math.max(0, Math.min(1, Number(source.snapThreshold == null ? 0.3 : source.snapThreshold))),
       panX: Number.isFinite(Number(source.panX)) ? Number(source.panX) : 640,
       panY: Number.isFinite(Number(source.panY)) ? Number(source.panY) : 340,
       background: String(source.background || ''),
       weatherOverlay: String(source.weatherOverlay || 'none'),
       weatherIntensity: Math.max(0, Math.min(10, Number(source.weatherIntensity || 1)))
     };
+  }
+
+  function normalizeLayerSettings(layerSettings) {
+    var source = layerSettings && typeof layerSettings === 'object' ? layerSettings : {};
+    var keys = ['terrain', 'objects', 'hazards', 'elevation', 'lighting', 'weather', 'foreground', 'interactives', 'spawns', 'labels', 'tokens', 'fx'];
+    var out = {};
+    keys.forEach(function (key) {
+      var row = source[key] && typeof source[key] === 'object' ? source[key] : {};
+      out[key] = {
+        visible: row.visible !== false,
+        locked: !!row.locked,
+        opacity: Math.max(0.1, Math.min(1, Number(row.opacity == null ? 1 : row.opacity))),
+        gmOnly: !!row.gmOnly
+      };
+    });
+    return out;
   }
 
   function normalizeCombatSceneState(state) {
@@ -746,16 +881,25 @@
     next.layers.interactives = Object.assign({}, next.layers.interactives || {});
     next.layers.spawns = Object.assign({}, next.layers.spawns || {});
     next.layers.labels = Object.assign({}, next.layers.labels || {});
+    next.layerSettings = normalizeLayerSettings(next.layerSettings);
     next.fog = Object.assign({
       enabled: false,
       showMask: true,
       revealMode: 'manual',
       visionRadius: 3,
+      sharedVision: true,
+      explorerMode: true,
+      softEdges: true,
+      seen: {},
       revealed: {},
       revealOrder: {},
       revealSeq: 0,
       revealStep: 0
     }, next.fog && typeof next.fog === 'object' ? next.fog : {});
+    next.fog.sharedVision = next.fog.sharedVision !== false;
+    next.fog.explorerMode = next.fog.explorerMode !== false;
+    next.fog.softEdges = next.fog.softEdges !== false;
+    next.fog.seen = Object.assign({}, next.fog.seen || {});
     next.fog.revealed = Object.assign({}, next.fog.revealed || {});
     next.fog.revealOrder = Object.assign({}, next.fog.revealOrder || {});
     next.sceneRules = Object.assign({ rollMode: 'auto', defaultActionType: 'ranged' }, next.sceneRules && typeof next.sceneRules === 'object' ? next.sceneRules : {});
@@ -766,6 +910,13 @@
       var row = Object.assign({}, token || {});
       row.scale = Math.max(0.25, Math.min(2, Number(row.scale || 1)));
       row.rotation = Number.isFinite(Number(row.rotation)) ? Number(row.rotation) : 0;
+      row.freeform = !!row.freeform;
+      row.offsetX = Number.isFinite(Number(row.offsetX)) ? Number(row.offsetX) : 0;
+      row.offsetY = Number.isFinite(Number(row.offsetY)) ? Number(row.offsetY) : 0;
+      row.visionRadius = Math.max(0, Math.min(12, Number(row.visionRadius == null ? next.fog.visionRadius : row.visionRadius)));
+      row.visionShape = String(row.visionShape || 'radius') === 'cone' ? 'cone' : 'radius';
+      row.auraRadius = Math.max(0, Math.min(12, Number(row.auraRadius || 0)));
+      row.auraColor = /^#([0-9a-f]{6}|[0-9a-f]{3})$/i.test(String(row.auraColor || '')) ? String(row.auraColor) : '#49c9bb';
       row.locked = !!row.locked;
       row.layer = String(row.layer || 'token');
       row.zIndex = Number.isFinite(Number(row.zIndex)) ? Number(row.zIndex) : idx;
@@ -1050,6 +1201,7 @@
       rows: 16,
       size: 42,
       zoom: 1,
+      snapThreshold: 0.3,
       panX: 640,
       panY: 340,
       background: '',
@@ -1061,11 +1213,16 @@
       showMask: true,
       revealMode: 'manual',
       visionRadius: 3,
+      sharedVision: true,
+      explorerMode: true,
+      softEdges: true,
+      seen: {},
       revealed: {},
       revealOrder: {},
       revealSeq: 0,
       revealStep: 0
     },
+    layerSettings: normalizeLayerSettings(),
     sceneRules: {
       rollMode: 'auto',
       defaultActionType: 'ranged',
@@ -1953,6 +2110,28 @@
     return null;
   }
 
+  function findTokenAtCanvasPoint(state, canvasX, canvasY) {
+    if (!state || !isLayerVisible(state, 'tokens')) return null;
+    var board = state.board || {};
+    var size = Number(board.size || 42) * Number(board.zoom || 1);
+    var layerOrder = { background: 0, token: 1, foreground: 2 };
+    var tokens = (state.tokens || []).slice().sort(function (a, b) {
+      var la = layerOrder[String(a && a.layer || 'token')];
+      var lb = layerOrder[String(b && b.layer || 'token')];
+      if (la !== lb) return Number(lb || 1) - Number(la || 1);
+      return Number(b && b.zIndex || 0) - Number(a && a.zIndex || 0);
+    });
+    for (var i = 0; i < tokens.length; i++) {
+      var token = tokens[i];
+      if (!token) continue;
+      var p = getTokenRenderPoint(token, size, board.panX, board.panY);
+      var tokenScale = Math.max(0.25, Math.min(2, Number(token.scale || 1)));
+      var radius = Math.max(10, (size * 0.32) * Math.max(1, Number(token.size || 1)) * tokenScale);
+      if (Math.hypot(Number(canvasX || 0) - p.x, Number(canvasY || 0) - p.y) <= radius + 8) return token;
+    }
+    return null;
+  }
+
   function isBlocked(q, r) {
     var state = store.getState();
     var profile = getLayerGameplayProfile(state, q, r);
@@ -1964,6 +2143,10 @@
       var layer = String(state.activeLayer || 'terrain');
       var tool = String(state.activeTool || 'select');
       if (!state.layers[layer]) return state;
+      if (isLayerLocked(state, layer)) {
+        safeNotif('Layer is locked.', 'warn');
+        return state;
+      }
       var next = Object.assign({}, state);
       next.layers = Object.assign({}, state.layers);
       next.layers[layer] = Object.assign({}, state.layers[layer]);
@@ -2564,7 +2747,7 @@
     return true;
   }
 
-  function moveToken(tokenId, q, r) {
+  function moveToken(tokenId, q, r, placement) {
     if (isBlocked(q, r)) {
       addHistory('Movement blocked by terrain collision at ' + toKey(q, r) + '.');
       return;
@@ -2586,6 +2769,9 @@
     }
     var destinationProfile = getLayerGameplayProfile(state, q, r);
     var movementCost = Math.max(1, distance + Math.max(0, Number(destinationProfile.moveTax || 0)));
+    var boardSize = Number(state.board && state.board.size || 42) * Number(state.board && state.board.zoom || 1);
+    var offsetX = actor.freeform ? clampTokenOffset(placement && placement.offsetX, boardSize) : 0;
+    var offsetY = actor.freeform ? clampTokenOffset(placement && placement.offsetY, boardSize) : 0;
     if (activeMovement && !consumeMovementAction(actor, movementCost)) {
       return;
     }
@@ -2593,9 +2779,10 @@
       var next = Object.assign({}, state);
       next.tokens = (state.tokens || []).map(function (token) {
         if (!token || String(token.id) !== String(tokenId)) return token;
-        return Object.assign({}, token, { q: Number(q), r: Number(r) });
+        return Object.assign({}, token, { q: Number(q), r: Number(r), offsetX: offsetX, offsetY: offsetY });
       });
       next.ruler = Object.assign({}, state.ruler, { active: false });
+      next = syncFogExplorerMemory(next);
       persist(next);
       return next;
     });
@@ -2642,6 +2829,7 @@
         moved = true;
         return Object.assign({}, token, { q: nq, r: nr });
       });
+      next = syncFogExplorerMemory(next);
       persist(next);
       return next;
     });
@@ -2790,6 +2978,37 @@
     });
     drawBoard();
     updateUiPanels();
+  }
+
+  function patchSelectedTokens(patch, opts) {
+    var selected = getSelectedTokensOrPrimary('');
+    if (!selected.length) return false;
+    var options = opts && typeof opts === 'object' ? opts : {};
+    var idMap = {};
+    selected.forEach(function (token) { idMap[String(token.id)] = true; });
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      next.tokens = (state.tokens || []).map(function (token) {
+        if (!token || !idMap[String(token.id)]) return token;
+        var delta = typeof patch === 'function' ? patch(token) : patch;
+        if (!delta || typeof delta !== 'object') return token;
+        var out = Object.assign({}, token, delta);
+        out.scale = Math.max(0.25, Math.min(2, Number(out.scale || 1)));
+        out.visionRadius = Math.max(0, Math.min(12, Number(out.visionRadius == null ? 3 : out.visionRadius)));
+        out.visionShape = String(out.visionShape || 'radius') === 'cone' ? 'cone' : 'radius';
+        out.auraRadius = Math.max(0, Math.min(12, Number(out.auraRadius || 0)));
+        out.auraColor = /^#([0-9a-f]{6}|[0-9a-f]{3})$/i.test(String(out.auraColor || '')) ? String(out.auraColor) : '#49c9bb';
+        out.offsetX = clampTokenOffset(out.freeform ? out.offsetX : 0, Number(state.board && state.board.size || 42) * Number(state.board && state.board.zoom || 1));
+        out.offsetY = clampTokenOffset(out.freeform ? out.offsetY : 0, Number(state.board && state.board.size || 42) * Number(state.board && state.board.zoom || 1));
+        return out;
+      });
+      next = syncFogExplorerMemory(next);
+      persist(next);
+      return next;
+    });
+    if (options.draw !== false) drawBoard();
+    if (options.ui !== false) updateUiPanels();
+    return true;
   }
 
   function toggleSelectedLock(forceValue) {
@@ -2987,6 +3206,7 @@
       + '<div class="combat-panel-body">'
       + '<div class="combat-label">Layer</div>'
       + '<div class="combat-chip-row" id="combatLayerRow"></div>'
+      + '<div class="combat-feed" id="combatLayerSettings" style="margin-top:.22rem;"></div>'
       + '<div class="combat-label" style="margin-top:.35rem;">Tool</div>'
       + '<div class="combat-chip-row" id="combatToolRow"></div>'
       + '<div class="combat-label" style="margin-top:.35rem;">VTT Toolbar</div>'
@@ -3017,9 +3237,12 @@
       + '<button class="combat-chip" id="combatMeasureSnapBtn" title="Snap to grid">Snap: On</button>'
       + '<button class="combat-chip" id="combatMeasureFadeBtn" title="Fade style">Fade: Linger</button>'
       + '</div>'
+      + '<div class="combat-mini" style="margin-top:.18rem;">Magnetic Snap Threshold</div>'
+      + '<input id="combatSnapThresholdSlider" type="range" min="0" max="100" step="5" value="30" style="width:100%;">'
       + '<div class="combat-label" style="margin-top:.35rem;">Fog of War</div>'
       + '<div class="combat-chip-row"><button class="combat-chip" id="combatFogToggleBtn" title="Toggle Fog of War">Fog Off</button><button class="combat-chip" id="combatFogBrushBtn" title="Brush Reveal">Brush Reveal</button><button class="combat-chip" id="combatFogClearBtn" title="Clear All Fog">Clear Fog</button></div>'
       + '<div class="combat-chip-row" style="margin-top:.2rem;"><button class="combat-chip" id="combatFogModeBtn" title="Fog Mode">Mode: Manual</button><button class="combat-chip" id="combatFogAdvanceBtn" title="Advance Reveal">Advance Reveal</button><button class="combat-chip" id="combatFogResetOrderBtn" title="Reset Reveal Order">Reset Order</button></div>'
+      + '<div class="combat-chip-row" style="margin-top:.2rem;"><button class="combat-chip" id="combatFogSharedBtn" title="Shared party vision">Party Vision</button><button class="combat-chip" id="combatFogMemoryBtn" title="Explorer memory">Explorer Memory</button><button class="combat-chip" id="combatFogSoftBtn" title="Soft edge fog">Soft Edges</button></div>'
       + '<div class="combat-mini" id="combatFogMeta">Revealed 0 hexes · Vision 3</div>'
       + '<div class="combat-label" style="margin-top:.35rem;">Terrain / Object</div>'
       + '<select class="combat-select" id="combatPaintValue">'
@@ -3105,6 +3328,16 @@
       + '<div><div class="combat-label">Elevation</div><input class="combat-input" id="combatSelectedElevation" type="number" min="0" max="9"></div>'
       + '<button class="btn btn-xs" id="combatUploadTokenBtn">Portrait</button>'
       + '<button class="btn btn-xs btn-red" id="combatDeleteTokenBtn">Delete Selected</button>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1.35fr .8fr .85fr;gap:.24rem;align-items:end;margin-top:.28rem;">'
+      + '<div><div class="combat-label">Scale</div><input id="combatSelectedScale" type="range" min="25" max="200" step="5" value="100" style="width:100%;"></div>'
+      + '<label class="combat-mini" style="display:flex;gap:.24rem;align-items:center;padding:.35rem .45rem;border:1px solid rgba(73,201,187,.22);border-radius:10px;background:rgba(73,201,187,.06);"><input id="combatSelectedFreeform" type="checkbox">Freeform</label>'
+      + '<div><div class="combat-label">Vision</div><input class="combat-input" id="combatSelectedVisionRadius" type="number" min="0" max="12"></div>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr .9fr;gap:.24rem;align-items:end;margin-top:.24rem;">'
+      + '<div><div class="combat-label">Vision Shape</div><select class="combat-select" id="combatSelectedVisionShape"><option value="radius">radius</option><option value="cone">cone</option></select></div>'
+      + '<div><div class="combat-label">Aura Radius</div><input class="combat-input" id="combatSelectedAuraRadius" type="number" min="0" max="12"></div>'
+      + '<div><div class="combat-label">Aura Color</div><input class="combat-input" id="combatSelectedAuraColor" type="color" value="#49c9bb"></div>'
       + '</div>'
       + '<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:.24rem;align-items:end;margin-top:.28rem;">'
       + '<div><div class="combat-label">Condition</div><input class="combat-input" id="combatRoundEffectName" type="text" maxlength="30" placeholder="Burning"></div>'
@@ -3687,6 +3920,7 @@
     var dangerFill = alphaColorFromHex(String(theme.danger || '#d05353'), 0.18);
     var dangerStroke = alphaColorFromHex(String(theme.danger || '#d05353'), 0.55);
     var fogMask = alphaColorFromHex(String(theme.fog || '#020307'), 0.74);
+    var fogVision = getFogVisionMap(state);
     bubbleHotspots = [];
     for (var r = -board.rows; r <= board.rows; r++) {
       for (var q = -board.cols; q <= board.cols; q++) {
@@ -3699,33 +3933,50 @@
         var hazard = state.layers.hazards[key] || '';
         var lighting = String(state.layers.lighting[key] || '');
         var elevation = Number(state.layers.elevation[key] || 0);
+        var currentVisible = !!(fogVision.current && fogVision.current[key]);
+        var seenVisible = !!(fogVision.seen && fogVision.seen[key]);
 
         drawHex(ctx, p.x, p.y, size - 1.6);
-        ctx.fillStyle = colorForTerrain(terrain);
-        ctx.fill();
+        if (isLayerVisible(state, 'terrain')) {
+          ctx.save();
+          ctx.globalAlpha = getLayerOpacity(state, 'terrain');
+          ctx.fillStyle = colorForTerrain(terrain);
+          ctx.fill();
+          ctx.restore();
+        }
         ctx.lineWidth = 1;
         ctx.strokeStyle = 'rgba(255,255,255,.1)';
         ctx.stroke();
 
-        if (object) {
+        if (object && isLayerVisible(state, 'objects')) {
+          ctx.save();
+          ctx.globalAlpha = getLayerOpacity(state, 'objects');
           ctx.fillStyle = dangerStrong;
           ctx.fillRect(p.x - 7, p.y - 7, 14, 14);
+          ctx.restore();
         }
-        if (hazard) {
+        if (hazard && isLayerVisible(state, 'hazards')) {
+          ctx.save();
+          ctx.globalAlpha = getLayerOpacity(state, 'hazards');
           ctx.fillStyle = 'rgba(227,188,94,.92)';
           ctx.beginPath();
           ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
           ctx.fill();
+          ctx.restore();
         }
-        if (elevation > 0) {
+        if (elevation > 0 && isLayerVisible(state, 'elevation')) {
+          ctx.save();
+          ctx.globalAlpha = getLayerOpacity(state, 'elevation');
           ctx.fillStyle = 'rgba(201,162,39,.95)';
           ctx.font = '10px Rajdhani, sans-serif';
           ctx.textAlign = 'center';
           ctx.fillText('+' + elevation, p.x, p.y + 4);
+          ctx.restore();
         }
 
-        if (lighting === 'wall' || lighting === 'vision-blocker') {
+        if ((lighting === 'wall' || lighting === 'vision-blocker') && isLayerVisible(state, 'lighting')) {
           ctx.save();
+          ctx.globalAlpha = getLayerOpacity(state, 'lighting');
           ctx.strokeStyle = lighting === 'wall' ? 'rgba(255,94,94,.95)' : 'rgba(122,88,210,.95)';
           ctx.lineWidth = 2.4;
           drawHex(ctx, p.x, p.y, size - 5.5);
@@ -3740,7 +3991,7 @@
         }
 
         var segMap = state.layers.wallSegments && state.layers.wallSegments[key] || null;
-        if (segMap && typeof segMap === 'object') {
+        if (segMap && typeof segMap === 'object' && isLayerVisible(state, 'lighting')) {
           var corners = [];
           for (var ci = 0; ci < 6; ci++) {
             var angle = Math.PI / 180 * (60 * ci - 30);
@@ -3774,15 +4025,16 @@
           ctx.restore();
         }
 
-        if (state.fog && state.fog.enabled && state.fog.showMask && !isHexRevealed(state, q, r)) {
+        if (state.fog && state.fog.enabled && state.fog.showMask && !currentVisible) {
           drawHex(ctx, p.x, p.y, size - 1.6);
-          ctx.fillStyle = fogMask;
+          ctx.fillStyle = seenVisible && state.fog.softEdges ? alphaColorFromHex(String(theme.fog || '#020307'), 0.38) : fogMask;
           ctx.fill();
         }
 
         var labelText = String(state.layers && state.layers.labels && state.layers.labels[key] || '').trim();
-        if (labelText) {
+        if (labelText && isLayerVisible(state, 'labels')) {
           ctx.save();
+          ctx.globalAlpha = getLayerOpacity(state, 'labels');
           ctx.fillStyle = 'rgba(235,239,249,.96)';
           ctx.font = '11px Rajdhani, sans-serif';
           ctx.textAlign = 'center';
@@ -3837,14 +4089,27 @@
       return Number(a && a.zIndex || 0) - Number(b && b.zIndex || 0);
     });
 
-    tokensToDraw.forEach(function (token) {
-      var targetPoint = axialToPixel(Number(token.q || 0), Number(token.r || 0), size, board.panX, board.panY);
+    if (isLayerVisible(state, 'tokens')) tokensToDraw.forEach(function (token) {
+      var targetPoint = getTokenRenderPoint(token, size, board.panX, board.panY);
       var p = getAnimatedTokenPoint(token, targetPoint, state);
       var tokenScale = Math.max(0.25, Math.min(2, Number(token.scale || 1)));
       var radius = Math.max(10, (size * 0.32) * Math.max(1, Number(token.size || 1)) * tokenScale);
       var dead = isTokenDead(token);
       var rotationRad = (Number(token.rotation || 0) % 360) * (Math.PI / 180);
+      var tokenOpacity = getLayerOpacity(state, 'tokens');
+      var badgeList = [];
+      if (Array.isArray(token.status)) badgeList = badgeList.concat(token.status.filter(Boolean).map(function (entry) { return String(entry); }));
       ctx.save();
+      ctx.globalAlpha = tokenOpacity;
+      if (Number(token.auraRadius || 0) > 0) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius + Number(token.auraRadius || 0) * size * 0.18, 0, Math.PI * 2);
+        ctx.fillStyle = alphaColorFromHex(String(token.auraColor || '#49c9bb'), 0.16);
+        ctx.strokeStyle = alphaColorFromHex(String(token.auraColor || '#49c9bb'), 0.45);
+        ctx.lineWidth = 1.6;
+        ctx.fill();
+        ctx.stroke();
+      }
       ctx.translate(p.x, p.y);
       if (rotationRad) ctx.rotate(rotationRad);
       ctx.beginPath();
@@ -3883,6 +4148,20 @@
         ctx.fillText('L', 0, 3);
       }
       ctx.restore();
+
+      if (token.freeform && (Number(token.offsetX || 0) || Number(token.offsetY || 0))) {
+        var anchor = axialToPixel(Number(token.q || 0), Number(token.r || 0), size, board.panX, board.panY);
+        ctx.save();
+        ctx.strokeStyle = alphaColorFromHex(String(token.auraColor || '#49c9bb'), 0.45);
+        ctx.setLineDash([4, 3]);
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(anchor.x, anchor.y);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
 
       ctx.fillStyle = '#fff';
       ctx.font = '11px Rajdhani, sans-serif';
@@ -3932,6 +4211,31 @@
       var activeEffects = (state.tokenRoundEffects || []).filter(function (effect) {
         return effect && String(effect.targetTokenId || '') === String(token.id || '') && Number(effect.roundsLeft || 0) > 0;
       });
+      if (activeEffects.length) badgeList = badgeList.concat(activeEffects.map(function (effect) { return String(effect.label || 'Condition'); }).slice(0, 3));
+      if (badgeList.length) {
+        var badgeY = p.y - radius - 24;
+        var badgeHeight = 14;
+        var badgeWidths = badgeList.slice(0, 3).map(function (label) { return Math.max(22, Math.min(68, label.length * 6 + 14)); });
+        var badgeTotal = badgeWidths.reduce(function (sum, width) { return sum + width; }, 0) + Math.max(0, badgeWidths.length - 1) * 4;
+        var badgeX = p.x - badgeTotal / 2;
+        badgeList.slice(0, 3).forEach(function (label, idx) {
+          var width = badgeWidths[idx];
+          ctx.save();
+          ctx.fillStyle = 'rgba(12,18,26,.82)';
+          ctx.strokeStyle = alphaColorFromHex(String(token.auraColor || '#49c9bb'), 0.48);
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(badgeX, badgeY, width, badgeHeight, 7);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = '#f5f7fb';
+          ctx.font = '9px Rajdhani, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(String(label).slice(0, 10), badgeX + width / 2, badgeY + 10);
+          ctx.restore();
+          badgeX += width + 4;
+        });
+      }
       if (activeEffects.length) {
         ctx.save();
         var iconSize = 14;
@@ -4011,10 +4315,12 @@
       for (var fq = -board.cols; fq <= board.cols; fq++) {
         var fgKey = toKey(fq, fr);
         var fg = String(state.layers.foreground && state.layers.foreground[fgKey] || '').toLowerCase();
+        if (!isLayerVisible(state, 'foreground')) continue;
         if (!fg) continue;
         var fp = axialToPixel(fq, fr, size, board.panX, board.panY);
         if (fp.x < -80 || fp.y < -80 || fp.x > w + 80 || fp.y > h + 80) continue;
         ctx.save();
+        ctx.globalAlpha = getLayerOpacity(state, 'foreground');
         if (fg.indexOf('canopy') >= 0 || fg.indexOf('tree') >= 0) {
           drawHex(ctx, fp.x, fp.y, size - 5.5);
           ctx.fillStyle = 'rgba(57,130,88,.34)';
@@ -4239,6 +4545,58 @@
       });
     }
 
+    var layerSettings = document.getElementById('combatLayerSettings');
+    if (layerSettings) {
+      var tacticalLayers = ['terrain', 'objects', 'tokens', 'foreground', 'lighting', 'hazards'];
+      layerSettings.innerHTML = tacticalLayers.map(function (layerName) {
+        var meta = getLayerSetting(state, layerName);
+        return '<div class="combat-feed-line" style="display:grid;grid-template-columns:68px 1fr;gap:.35rem;align-items:center;">'
+          + '<div><strong>' + layerName + '</strong><div class="combat-mini">' + Math.round(Number(meta.opacity || 1) * 100) + '%</div></div>'
+          + '<div>'
+          + '<div class="combat-chip-row">'
+          + '<button class="combat-chip ' + (meta.visible ? 'on' : '') + '" data-layer-setting="visible" data-layer-name="' + layerName + '">' + (meta.visible ? 'Visible' : 'Hidden') + '</button>'
+          + '<button class="combat-chip ' + (meta.locked ? 'on' : '') + '" data-layer-setting="locked" data-layer-name="' + layerName + '">' + (meta.locked ? 'Locked' : 'Unlocked') + '</button>'
+          + '<button class="combat-chip ' + (meta.gmOnly ? 'on' : '') + '" data-layer-setting="gmOnly" data-layer-name="' + layerName + '">' + (meta.gmOnly ? 'GM Only' : 'Shared') + '</button>'
+          + '</div>'
+          + '<input type="range" min="10" max="100" step="5" value="' + Math.round(Number(meta.opacity || 1) * 100) + '" data-layer-opacity="' + layerName + '" style="width:100%;margin-top:.16rem;">'
+          + '</div>'
+          + '</div>';
+      }).join('');
+      Array.prototype.slice.call(layerSettings.querySelectorAll('[data-layer-setting]')).forEach(function (btn) {
+        btn.onclick = function () {
+          var layerName = String(btn.getAttribute('data-layer-name') || 'terrain');
+          var settingKey = String(btn.getAttribute('data-layer-setting') || 'visible');
+          store.setState(function (inner) {
+            var next = Object.assign({}, inner);
+            next.layerSettings = Object.assign({}, inner.layerSettings || {});
+            var current = Object.assign({ visible: true, locked: false, opacity: 1, gmOnly: false }, next.layerSettings[layerName] || {});
+            current[settingKey] = !current[settingKey];
+            next.layerSettings[layerName] = current;
+            persist(next);
+            return next;
+          });
+          drawBoard();
+          updateUiPanels();
+        };
+      });
+      Array.prototype.slice.call(layerSettings.querySelectorAll('[data-layer-opacity]')).forEach(function (slider) {
+        slider.oninput = function () {
+          var layerName = String(slider.getAttribute('data-layer-opacity') || 'terrain');
+          var opacity = Math.max(0.1, Math.min(1, Number(slider.value || 100) / 100));
+          store.setState(function (inner) {
+            var next = Object.assign({}, inner);
+            next.layerSettings = Object.assign({}, inner.layerSettings || {});
+            var current = Object.assign({ visible: true, locked: false, opacity: 1, gmOnly: false }, next.layerSettings[layerName] || {});
+            current.opacity = opacity;
+            next.layerSettings[layerName] = current;
+            persist(next);
+            return next;
+          });
+          drawBoard();
+        };
+      });
+    }
+
     var toolRow = document.getElementById('combatToolRow');
     if (toolRow) {
       toolRow.innerHTML = tools.map(function (tool) {
@@ -4266,10 +4624,12 @@
 
     var fogMeta = document.getElementById('combatFogMeta');
     if (fogMeta) {
-      var revealedCount = Object.keys(state.fog && state.fog.revealed || {}).length;
+      var fogVision = getFogVisionMap(state);
+      var revealedCount = Object.keys(fogVision.seen || {}).length;
+      var visibleCount = Object.keys(fogVision.current || {}).length;
       var mode = String(state.fog && state.fog.revealMode || 'manual');
       var step = Math.max(0, Number(state.fog && state.fog.revealStep || 0));
-      fogMeta.textContent = 'Revealed ' + revealedCount + ' hexes · Vision ' + Number(state.fog && state.fog.visionRadius || 0) + ' · Mode ' + mode + (mode === 'ordered' ? (' · Step ' + step) : '');
+      fogMeta.textContent = 'Seen ' + revealedCount + ' · Visible ' + visibleCount + ' · Vision ' + Number(state.fog && state.fog.visionRadius || 0) + ' · Mode ' + mode + (mode === 'ordered' ? (' · Step ' + step) : '');
     }
 
     var fogToggleBtn = document.getElementById('combatFogToggleBtn');
@@ -4287,11 +4647,28 @@
       var modeLabel = String(state.fog && state.fog.revealMode || 'manual');
       fogModeBtn.textContent = 'Mode: ' + modeLabel.charAt(0).toUpperCase() + modeLabel.slice(1);
     }
+    var fogSharedBtn = document.getElementById('combatFogSharedBtn');
+    if (fogSharedBtn) {
+      fogSharedBtn.className = 'combat-chip ' + (state.fog && state.fog.sharedVision ? 'on' : '');
+      fogSharedBtn.textContent = state.fog && state.fog.sharedVision ? 'Party Vision' : 'Single Vision';
+    }
+    var fogMemoryBtn = document.getElementById('combatFogMemoryBtn');
+    if (fogMemoryBtn) {
+      fogMemoryBtn.className = 'combat-chip ' + (state.fog && state.fog.explorerMode ? 'on' : '');
+      fogMemoryBtn.textContent = state.fog && state.fog.explorerMode ? 'Explorer Memory' : 'No Memory';
+    }
+    var fogSoftBtn = document.getElementById('combatFogSoftBtn');
+    if (fogSoftBtn) {
+      fogSoftBtn.className = 'combat-chip ' + (state.fog && state.fog.softEdges ? 'on' : '');
+      fogSoftBtn.textContent = state.fog && state.fog.softEdges ? 'Soft Edges' : 'Hard Edges';
+    }
 
     var zoomSlider = document.getElementById('combatZoomSlider');
     if (zoomSlider) {
       zoomSlider.value = String(Math.round(Math.max(0.5, Math.min(2.3, Number(state.board && state.board.zoom || 1))) * 100));
     }
+    var snapThresholdSlider = document.getElementById('combatSnapThresholdSlider');
+    if (snapThresholdSlider) snapThresholdSlider.value = String(Math.round(Math.max(0, Math.min(1, Number(state.board && state.board.snapThreshold == null ? 0.3 : state.board.snapThreshold))) * 100));
 
     var measureShapeLineBtn = document.getElementById('combatMeasureShapeLineBtn');
     var measureShapeConeBtn = document.getElementById('combatMeasureShapeConeBtn');
@@ -4629,6 +5006,12 @@
     var selectedDreadInput = document.getElementById('combatSelectedDread');
     var selectedHp = document.getElementById('combatSelectedHp');
     var selectedElevation = document.getElementById('combatSelectedElevation');
+    var selectedScale = document.getElementById('combatSelectedScale');
+    var selectedFreeform = document.getElementById('combatSelectedFreeform');
+    var selectedVisionRadius = document.getElementById('combatSelectedVisionRadius');
+    var selectedVisionShape = document.getElementById('combatSelectedVisionShape');
+    var selectedAuraRadius = document.getElementById('combatSelectedAuraRadius');
+    var selectedAuraColor = document.getElementById('combatSelectedAuraColor');
     var effectList = document.getElementById('combatTokenRoundEffectsList');
     if (selectedSummary) {
       var selectedDread = selected ? Math.max(4, Number(selected.dread || selected.codexDread || 0)) : 0;
@@ -4657,6 +5040,12 @@
     if (selectedElevation) {
       selectedElevation.value = selected ? Number(state.layers.elevation[toKey(selected.q, selected.r)] || 0) : 0;
     }
+    if (selectedScale) selectedScale.value = String(selected ? Math.round(Math.max(0.25, Math.min(2, Number(selected.scale || 1))) * 100) : 100);
+    if (selectedFreeform) selectedFreeform.checked = !!(selected && selected.freeform);
+    if (selectedVisionRadius) selectedVisionRadius.value = selected ? Math.max(0, Number(selected.visionRadius == null ? state.fog.visionRadius : selected.visionRadius)) : Number(state.fog && state.fog.visionRadius || 0);
+    if (selectedVisionShape) selectedVisionShape.value = selected ? String(selected.visionShape || 'radius') : 'radius';
+    if (selectedAuraRadius) selectedAuraRadius.value = selected ? Math.max(0, Number(selected.auraRadius || 0)) : 0;
+    if (selectedAuraColor) selectedAuraColor.value = selected ? String(selected.auraColor || '#49c9bb') : '#49c9bb';
     if (effectList) {
       var effects = (state.tokenRoundEffects || []).filter(function (effect) {
         return effect && selected && String(effect.targetTokenId || '') === String(selected.id || '');
@@ -4670,6 +5059,40 @@
             + '</div>';
         }).join('')
         : '<div class="combat-feed-line">No active round conditions on selected token.</div>';
+    }
+
+    if (selectedScale) {
+      selectedScale.oninput = function () {
+        var nextScale = Math.max(0.25, Math.min(2, Number(selectedScale.value || 100) / 100));
+        patchSelectedTokens({ scale: nextScale }, { ui: false });
+      };
+    }
+    if (selectedFreeform) {
+      selectedFreeform.onchange = function () {
+        patchSelectedTokens(function (token) {
+          return { freeform: !!selectedFreeform.checked, offsetX: selectedFreeform.checked ? Number(token.offsetX || 0) : 0, offsetY: selectedFreeform.checked ? Number(token.offsetY || 0) : 0 };
+        });
+      };
+    }
+    if (selectedVisionRadius) {
+      selectedVisionRadius.onchange = function () {
+        patchSelectedTokens({ visionRadius: Math.max(0, Math.min(12, Number(selectedVisionRadius.value || 0))) });
+      };
+    }
+    if (selectedVisionShape) {
+      selectedVisionShape.onchange = function () {
+        patchSelectedTokens({ visionShape: String(selectedVisionShape.value || 'radius') });
+      };
+    }
+    if (selectedAuraRadius) {
+      selectedAuraRadius.onchange = function () {
+        patchSelectedTokens({ auraRadius: Math.max(0, Math.min(12, Number(selectedAuraRadius.value || 0))) });
+      };
+    }
+    if (selectedAuraColor) {
+      selectedAuraColor.oninput = function () {
+        patchSelectedTokens({ auraColor: String(selectedAuraColor.value || '#49c9bb') }, { ui: false });
+      };
     }
 
     var weatherSelect = document.getElementById('combatWeatherSelect');
@@ -5228,7 +5651,7 @@
         placeTablePing(ax.q, ax.r, currentPingIdentity());
         return;
       }
-      var clickedToken = nearestTokenAt(ax.q, ax.r);
+      var clickedToken = findTokenAtCanvasPoint(state, canvasX, canvasY) || nearestTokenAt(ax.q, ax.r);
 
       if (clickedToken && isTokenDead(clickedToken) && state.activeTool === 'select') {
         var corpseDrop = getLootDropForToken(state, clickedToken.id);
@@ -5375,9 +5798,22 @@
         var rect = canvas.getBoundingClientRect();
         var board = state.board;
         var size = Number(board.size || 42) * Number(board.zoom || 1);
-        var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, board.panX, board.panY);
+        var rawX = ev.clientX - rect.left;
+        var rawY = ev.clientY - rect.top;
+        var ax = pixelToAxial(rawX, rawY, size, board.panX, board.panY);
+        var draggedToken = byId(state.draggingTokenId);
         if (Array.isArray(state.draggingGroupIds) && state.draggingGroupIds.length > 1 && !isSceneActive()) {
           moveTokenGroupToAnchor(state.draggingGroupIds, state.draggingTokenId, ax.q, ax.r);
+        } else if (draggedToken && draggedToken.freeform) {
+          var snapCenter = axialToPixel(ax.q, ax.r, size, board.panX, board.panY);
+          var thresholdPx = Math.max(0, Math.min(size, size * Number(board.snapThreshold == null ? 0.3 : board.snapThreshold)));
+          var dx = rawX - snapCenter.x;
+          var dy = rawY - snapCenter.y;
+          var snapDistance = Math.hypot(dx, dy);
+          moveToken(state.draggingTokenId, ax.q, ax.r, {
+            offsetX: snapDistance <= thresholdPx ? 0 : dx,
+            offsetY: snapDistance <= thresholdPx ? 0 : dy
+          });
         } else {
           moveToken(state.draggingTokenId, ax.q, ax.r);
         }
@@ -5450,7 +5886,7 @@
       var board = state.board;
       var size = Number(board.size || 42) * Number(board.zoom || 1);
       var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, board.panX, board.panY);
-      var clickedToken = nearestTokenAt(ax.q, ax.r);
+      var clickedToken = findTokenAtCanvasPoint(state, ev.clientX - rect.left, ev.clientY - rect.top) || nearestTokenAt(ax.q, ax.r);
       if (!clickedToken) return;
       openTokenSheetQuickView(clickedToken.id);
       ev.preventDefault();
@@ -5463,7 +5899,7 @@
       var board = state.board;
       var size = Number(board.size || 42) * Number(board.zoom || 1);
       var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, board.panX, board.panY);
-      var token = nearestTokenAt(ax.q, ax.r);
+      var token = findTokenAtCanvasPoint(state, ev.clientX - rect.left, ev.clientY - rect.top) || nearestTokenAt(ax.q, ax.r);
       if (!token) {
         hideTokenContextMenu();
         return;
@@ -6578,6 +7014,21 @@
       };
     }
 
+    var snapThresholdSlider = document.getElementById('combatSnapThresholdSlider');
+    if (snapThresholdSlider && !snapThresholdSlider._bound) {
+      snapThresholdSlider._bound = true;
+      snapThresholdSlider.oninput = function () {
+        var pct = Math.max(0, Math.min(100, Number(snapThresholdSlider.value || 30)));
+        store.setState(function (state) {
+          var next = Object.assign({}, state);
+          next.board = Object.assign({}, state.board, { snapThreshold: pct / 100 });
+          persist(next);
+          return next;
+        });
+        drawBoard();
+      };
+    }
+
     var toolbarEffectsBtn = document.getElementById('combatToolbarEffectsBtn');
     if (toolbarEffectsBtn && !toolbarEffectsBtn._bound) {
       toolbarEffectsBtn._bound = true;
@@ -6813,6 +7264,10 @@
             showMask: true,
             revealMode: 'manual',
             visionRadius: 3,
+            sharedVision: true,
+            explorerMode: true,
+            softEdges: true,
+            seen: {},
             revealed: {},
             revealOrder: {},
             revealSeq: 0,
@@ -6820,9 +7275,11 @@
           }, state.fog || {});
           next.fog = Object.assign({}, fog, {
             enabled: !fog.enabled,
+            seen: Object.assign({}, fog.seen || {}),
             revealed: Object.assign({}, fog.revealed || {}),
             revealOrder: Object.assign({}, fog.revealOrder || {})
           });
+          next = syncFogExplorerMemory(next);
           persist(next);
           return next;
         });
@@ -6846,7 +7303,7 @@
       fogClear.onclick = function () {
         store.setState(function (state) {
           var next = Object.assign({}, state);
-          next.fog = Object.assign({}, state.fog, { revealed: {}, revealOrder: {}, revealSeq: 0, revealStep: 0 });
+          next.fog = Object.assign({}, state.fog, { seen: {}, revealed: {}, revealOrder: {}, revealSeq: 0, revealStep: 0 });
           persist(next);
           return next;
         });
@@ -6900,6 +7357,53 @@
         store.setState(function (state) {
           var next = Object.assign({}, state);
           next.fog = Object.assign({}, state.fog, { revealOrder: {}, revealSeq: 0, revealStep: 0 });
+          persist(next);
+          return next;
+        });
+        drawBoard();
+        updateUiPanels();
+      };
+    }
+
+    var fogSharedBtn = document.getElementById('combatFogSharedBtn');
+    if (fogSharedBtn && !fogSharedBtn._bound) {
+      fogSharedBtn._bound = true;
+      fogSharedBtn.onclick = function () {
+        store.setState(function (state) {
+          var next = Object.assign({}, state);
+          next.fog = Object.assign({}, state.fog, { sharedVision: !(state.fog && state.fog.sharedVision) });
+          next = syncFogExplorerMemory(next);
+          persist(next);
+          return next;
+        });
+        drawBoard();
+        updateUiPanels();
+      };
+    }
+
+    var fogMemoryBtn = document.getElementById('combatFogMemoryBtn');
+    if (fogMemoryBtn && !fogMemoryBtn._bound) {
+      fogMemoryBtn._bound = true;
+      fogMemoryBtn.onclick = function () {
+        store.setState(function (state) {
+          var next = Object.assign({}, state);
+          next.fog = Object.assign({}, state.fog, { explorerMode: !(state.fog && state.fog.explorerMode) });
+          next = syncFogExplorerMemory(next);
+          persist(next);
+          return next;
+        });
+        drawBoard();
+        updateUiPanels();
+      };
+    }
+
+    var fogSoftBtn = document.getElementById('combatFogSoftBtn');
+    if (fogSoftBtn && !fogSoftBtn._bound) {
+      fogSoftBtn._bound = true;
+      fogSoftBtn.onclick = function () {
+        store.setState(function (state) {
+          var next = Object.assign({}, state);
+          next.fog = Object.assign({}, state.fog, { softEdges: !(state.fog && state.fog.softEdges) });
           persist(next);
           return next;
         });
@@ -7460,6 +7964,8 @@
     if (overlay && !overlay._shortcutsBound) {
       overlay._shortcutsBound = true;
       overlay.addEventListener('keydown', function (ev) {
+        var tag = ev.target && ev.target.tagName ? String(ev.target.tagName).toLowerCase() : '';
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
         var key = String(ev.key || '').toLowerCase();
         if ((ev.ctrlKey || ev.metaKey) && key === 'c') {
           var st = store.getState();
@@ -7481,6 +7987,20 @@
         }
         if (((ev.ctrlKey || ev.metaKey) && key === 'y') || ((ev.ctrlKey || ev.metaKey) && ev.shiftKey && key === 'z')) {
           redoLastEdit();
+          ev.preventDefault();
+          return;
+        }
+        if (key === '[' || key === '-') {
+          var current = byId(store.getState().selectedTokenId);
+          if (!current) return;
+          patchSelectedTokens({ scale: Math.max(0.25, Number(current.scale || 1) - (ev.shiftKey ? 0.1 : 0.05)) });
+          ev.preventDefault();
+          return;
+        }
+        if (key === ']' || key === '=') {
+          var current2 = byId(store.getState().selectedTokenId);
+          if (!current2) return;
+          patchSelectedTokens({ scale: Math.min(2, Number(current2.scale || 1) + (ev.shiftKey ? 0.1 : 0.05)) });
           ev.preventDefault();
           return;
         }

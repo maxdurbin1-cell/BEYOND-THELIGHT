@@ -5214,12 +5214,12 @@ function applySpecificFlavorActionOverride(entry){
       S.conditions.vulnerable=false;
       S.conditions.shaken=false;
     }
-    if(!S.rollMod)S.rollMod={advDice:[],flat:0};
-    if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
+    if(!S.rollMod)S.rollMod={advDice:[],flat:0,holyShieldDie:0};
     var spiritDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):((S.stats&&S.stats.spirit)||4);
-    S.rollMod.advDice.push(spiritDie);
+    S.rollMod.holyShieldDie=Math.max(Number(S.rollMod.holyShieldDie||0),Number(spiritDie||4));
+    if(typeof updateRollModDisplay==='function')updateRollModDisplay();
     if(typeof updateConditionButtons==='function')updateConditionButtons();
-    return 'Holy Shield invoked: Protected applied and +d'+spiritDie+' from Spirit queued for your next defense-facing roll.';
+    return 'Holy Shield invoked: Protected applied and Spirit d'+spiritDie+' is queued as an additive bonus die for your next defense-facing roll.';
   }
 
   if(base.indexOf('emit blinding light')>=0){
@@ -9582,7 +9582,6 @@ function getFlavorBonus(stat){
   if(stat==='defend'){
     if(f.indexOf('stone skin')>=0)advDice.push(4);
     if(f.indexOf('scaled skin')>=0)flat+=3;
-    if(profile.holyShield)advDice.push(8);
     if(S&&S.flavorState&&S.flavorState.beastForm&&S.flavorState.beastForm.stat==='defend'&&S.flavorState.beastForm.stamp===getFlavorEncounterStamp())advDice.push(Number(S.flavorState.beastForm.die||10));
   }
   if(stat==='shoot'){
@@ -9693,18 +9692,19 @@ function setRollModFlat(inpId){
   updateRollModDisplay();
 }
 function clearRollMod(){
-  S.rollMod={advDice:[],flat:0};
+  S.rollMod={advDice:[],flat:0,holyShieldDie:0};
   ['rollModFlatInp-combat','rollModFlatInp-char','rollModFlatInp-dice'].forEach(function(id){
     var inp=document.getElementById(id);if(inp)inp.value='0';
   });
   updateRollModDisplay();
 }
 function updateRollModDisplay(){
-  var none=!S.rollMod||(!S.rollMod.advDice.length&&!S.rollMod.flat);
+  var none=!S.rollMod||(!S.rollMod.advDice.length&&!S.rollMod.flat&&!Number(S.rollMod.holyShieldDie||0));
   var parts=[];
   if(!none){
     if(S.rollMod.advDice.length)parts.push('Adv: '+S.rollMod.advDice.map(function(d){return 'Ad'+d;}).join('+'));
     if(S.rollMod.flat)parts.push((S.rollMod.flat>0?'+':'')+S.rollMod.flat+' flat');
+    if(Number(S.rollMod.holyShieldDie||0)>0)parts.push('Holy Shield: +Spirit d'+Number(S.rollMod.holyShieldDie||0));
   }
   var text=none?'None active':parts.join(' | ');
   var color=none?'var(--muted2)':'var(--gold)';
@@ -10042,7 +10042,8 @@ function rollDefend(skipEnemyTurnTick) {
   var flatTotal = wpBonus.flat + flBonus.flat + mtBonus.flat + (gearBonus.flat || 0) + (S.rollMod ? S.rollMod.flat : 0);
   var baseTotal = ra.total + flatTotal;
   // Holy Shield: add spirit die value
-  var holyShieldRoll = flBonus.holyShield ? explodingRoll(S.stats.spirit || 4,{type:'action',major:true,label:'Holy Shield'}) : null;
+  var queuedHolyShieldDie = Math.max(0, Number(S && S.rollMod && S.rollMod.holyShieldDie || 0));
+  var holyShieldRoll = queuedHolyShieldDie ? explodingRoll(queuedHolyShieldDie,{type:'action',major:true,label:'Holy Shield'}) : null;
   if(holyShieldRoll) baseTotal += holyShieldRoll.total;
   // +A.D. from Shield: roll adventure die and ADD to result
   var adBonus = wpBonus.addAdvDie ? explodingRoll(S.stats.adventure || 4,{type:'action',major:true,label:'Adventure Bonus'}) : null;
@@ -10109,6 +10110,7 @@ function rollDefend(skipEnemyTurnTick) {
     }
     addSuccessRoll();
   }
+  if(holyShieldRoll&&S&&S.rollMod)S.rollMod.holyShieldDie=0;
   clearConditionOnUse('defend');
 }
 function rollTraumaCheck(){
@@ -10385,7 +10387,8 @@ function rollPlayerReactionTotal(statKey,label){
   var total=Number(ra.total||0)+flatTotal;
   var adBonus=wpBonus.addAdvDie?explodingRoll((S&&S.stats&&S.stats.adventure)||4,{type:'action',major:true,label:(label||'Reaction')+' Adventure Bonus'}):null;
   if(adBonus)total+=Number(adBonus.total||0);
-  var holyShieldRoll=(key==='defend'&&flBonus.holyShield)?explodingRoll((S&&S.stats&&S.stats.spirit)||4,{type:'action',major:true,label:'Holy Shield'}):null;
+  var queuedHolyShieldDie=(key==='defend'&&S&&S.rollMod)?Math.max(0,Number(S.rollMod.holyShieldDie||0)):0;
+  var holyShieldRoll=queuedHolyShieldDie?explodingRoll(queuedHolyShieldDie,{type:'action',major:true,label:'Holy Shield'}):null;
   if(holyShieldRoll)total+=Number(holyShieldRoll.total||0);
   var relicRolls=getPermanentAdventureBonusRolls(key,(label||'Reaction')+' Relic');
   total+=sumAdventureBonusRolls(relicRolls);
@@ -10396,6 +10399,7 @@ function rollPlayerReactionTotal(statKey,label){
   if(key==='defend'&&S&&S.combat&&S.combat.sceneDefendBonus)total+=Number(S.combat.sceneDefendBonus||0);
   var radPenalty=(typeof getRadPenaltyForStat==='function')?getRadPenaltyForStat(key):0;
   total=Math.max(0,total-radPenalty);
+  if(holyShieldRoll&&S&&S.rollMod)S.rollMod.holyShieldDie=0;
   return {
     stat:key,
     die:baseDie,

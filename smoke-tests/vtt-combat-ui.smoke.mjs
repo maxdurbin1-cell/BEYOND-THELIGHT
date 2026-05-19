@@ -170,6 +170,45 @@ async function run() {
       throw new Error(`Asset drag/drop did not stamp an object: ${JSON.stringify(dragResult)}`);
     }
 
+    await page.evaluate(() => {
+      const modal = document.getElementById("rollModal");
+      if (modal && typeof window.closeModal === "function") window.closeModal();
+    });
+
+    await page.evaluate(() => {
+      const canvas = document.getElementById("combatSceneCanvas");
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const cx = Math.round(rect.left + (rect.width / 2));
+      const cy = Math.round(rect.top + (rect.height / 2));
+      const first = new MouseEvent("dblclick", {
+        bubbles: true,
+        cancelable: true,
+        clientX: cx,
+        clientY: cy,
+        button: 0
+      });
+      canvas.dispatchEvent(first);
+    });
+
+    await page.waitForFunction(() => {
+      const modal = document.getElementById("rollModal");
+      return !!(modal && modal.style.display !== "none" && /Combat Sheet/.test(modal.textContent || ""));
+    }, null, { timeout: 10000 });
+
+    const sheetTextCheck = await page.evaluate(() => {
+      const modal = document.getElementById("rollModal");
+      const text = String(modal && modal.textContent || "");
+      return {
+        hasArmor: text.indexOf("Armor:") >= 0,
+        hasDefendMath: text.indexOf("Defend math:") >= 0
+      };
+    });
+
+    if (!sheetTextCheck.hasArmor || !sheetTextCheck.hasDefendMath) {
+      throw new Error(`Double-click sheet missing armor/defend math content: ${JSON.stringify(sheetTextCheck)}`);
+    }
+
     if (pageErrors.length) {
       throw new Error(`Page errors detected: ${pageErrors.join(" | ")}`);
     }

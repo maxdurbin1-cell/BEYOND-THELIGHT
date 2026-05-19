@@ -3179,7 +3179,7 @@
 
   function getWayfarerResourceSnapshot() {
     var stats = window.S && window.S.stats ? window.S.stats : {};
-    var valorDie = Math.max(4, Number(stats.adventure || 4));
+    var valorDie = Math.max(4, Number((stats.valor || stats.adventure) || 4));
     return {
       valorDie: valorDie,
       trauma: Math.max(0, Number(window.S && window.S.trauma || 0)),
@@ -3340,8 +3340,14 @@
     }
     
     if (!nearbyTarget && dist > 1) {
-      var adjQr = [(token.q + 1, token.r), (token.q - 1, token.r), (token.q, token.r + 1), (token.q, token.r - 1)][Math.floor(Math.random() * 4)];
-      html += '<button class="btn btn-xs" style="font-size:.68rem;" onclick="(function(){var token=store.getState().tokens.find(t=>t&&t.id===\'' + String(token.id) + '\');if(token)moveToken(token.id,' + (adjQr[0] || token.q) + ',' + (adjQr[1] || token.r) + ');updateUiPanels();drawBoard();})();">Advance</button>';
+      var adjOptions = [
+        [Number(token.q || 0) + 1, Number(token.r || 0)],
+        [Number(token.q || 0) - 1, Number(token.r || 0)],
+        [Number(token.q || 0), Number(token.r || 0) + 1],
+        [Number(token.q || 0), Number(token.r || 0) - 1]
+      ];
+      var adjQr = adjOptions[Math.floor(Math.random() * adjOptions.length)] || [Number(token.q || 0), Number(token.r || 0)];
+      html += '<button class="btn btn-xs" style="font-size:.68rem;" onclick="(function(){var token=store.getState().tokens.find(t=>t&&t.id===\'' + String(token.id) + '\');if(token)moveToken(token.id,' + Number(adjQr[0]) + ',' + Number(adjQr[1]) + ');updateUiPanels();drawBoard();})();">Advance</button>';
     }
     
     html += '<button class="btn btn-xs" style="font-size:.68rem;" onclick="(function(){var token=store.getState().tokens.find(t=>t&&t.id===\'' + String(token.id) + '\');if(token)spendUnitAction(token.id);updateUiPanels();drawBoard();})();">Pass</button>';
@@ -3468,7 +3474,7 @@
           : ['No active combat effects are running on this wayfarer.', 'Long Rest and recovery actions still use the province, sea region, and map systems outside the VTT.']
       });
     } else {
-      var enemyProfile = getEnemyProfileForToken(selected) || null;
+      var enemyProfile = getEnemyProfileForToken(token) || null;
       cards.push({
         title: 'Threat Snapshot',
         icon: 'MON',

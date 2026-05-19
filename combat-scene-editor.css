@@ -5,6 +5,8 @@
   --combat-accent: #e3bc5e;
   --combat-accent-2: #49c9bb;
   --combat-danger: #d05353;
+  --combat-fog: rgba(2, 3, 7, 0.74);
+  --combat-ping: #49c9bb;
   --combat-text: #e9e0cf;
   --combat-muted: #9fa7bc;
 }
@@ -184,6 +186,115 @@
   border: 1px solid var(--combat-border);
   background: var(--combat-surface);
   box-shadow: 0 24px 40px rgba(0, 0, 0, 0.42);
+}
+
+.combat-asset-dock {
+  position: absolute;
+  top: 4.2rem;
+  right: 0.7rem;
+  bottom: 6.2rem;
+  z-index: 5;
+  width: min(28vw, 360px);
+  min-width: 280px;
+  border: 1px solid var(--combat-border);
+  background: linear-gradient(180deg, rgba(6, 8, 14, 0.96), rgba(8, 10, 18, 0.9));
+  box-shadow: 0 24px 40px rgba(0, 0, 0, 0.42);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(calc(100% - 3.4rem));
+  transition: transform 180ms ease, opacity 180ms ease;
+  opacity: 0.94;
+}
+
+.combat-asset-dock.open {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.combat-asset-dock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.55rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.combat-asset-dock-body {
+  padding: 0.45rem;
+  display: grid;
+  gap: 0.35rem;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.combat-asset-browser-feed {
+  max-height: unset;
+  height: 100%;
+  min-height: 240px;
+}
+
+.combat-asset-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  cursor: grab;
+}
+
+.combat-asset-card:active {
+  cursor: grabbing;
+}
+
+.combat-asset-card-main {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.combat-asset-upload {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.32rem 0.36rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.combat-asset-upload-bar {
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.combat-asset-upload-bar span {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--combat-accent), var(--combat-accent-2));
+  transition: width 120ms ease;
+}
+
+.combat-asset-upload.active {
+  border-color: rgba(73, 201, 187, 0.28);
+}
+
+.combat-asset-drag-ghost {
+  position: fixed;
+  z-index: 5301;
+  pointer-events: none;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--combat-border);
+  background: rgba(7, 9, 19, 0.94);
+  color: var(--combat-text);
+  font: 700 0.74rem "Rajdhani", sans-serif;
+  letter-spacing: 0.04em;
+  transform: translate(-9999px, -9999px);
+  opacity: 0;
+}
+
+.combat-asset-drag-ghost.visible {
+  opacity: 1;
+  transform: translate(0, 0);
 }
 
 .combat-panel-header {
@@ -424,6 +535,13 @@
     bottom: 5.8rem;
   }
 
+  .combat-asset-dock {
+    top: auto;
+    bottom: 5.8rem;
+    right: 0.4rem;
+    width: min(46vw, 340px);
+  }
+
   .combat-icon-rail {
     left: 0.4rem;
     top: auto;
@@ -499,6 +617,15 @@
     top: auto !important;
     bottom: calc(var(--actions-panel-h, 300px) + 1rem) !important;
     right: 0.5rem !important;
+  }
+
+  .combat-asset-dock {
+    left: 0.5rem;
+    right: 0.5rem !important;
+    width: auto;
+    min-width: 0;
+    bottom: calc(var(--actions-panel-h, 300px) + 1rem) !important;
+    max-height: 38vh;
   }
 
   .combat-chip-row {

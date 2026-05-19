@@ -10,6 +10,7 @@
     "smoke:clicks": "node smoke-tests/click-paths.smoke.mjs",
     "smoke:combat-sync": "node smoke-tests/campaign-combat-sync.smoke.mjs",
     "smoke:combat-turns": "node smoke-tests/campaign-combat-turns.smoke.mjs",
+    "smoke:vtt-ui": "node smoke-tests/vtt-combat-ui.smoke.mjs",
     "smoke:scenario": "node smoke-tests/campaign-scenario.e2e.mjs",
     "smoke:legacy-raid": "node smoke-tests/legacy-raid.smoke.mjs",
     "smoke:raid-combat-return": "node smoke-tests/raid-combat-return.smoke.mjs",

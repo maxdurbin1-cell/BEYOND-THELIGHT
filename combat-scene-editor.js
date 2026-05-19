@@ -10,6 +10,8 @@
       muted: '#9fa7bc',
       border: 'rgba(227, 188, 94, 0.3)',
       danger: '#d05353',
+      fog: 'rgba(2, 3, 7, 0.74)',
+      ping: '#49c9bb',
       bgStart: '#070913',
       bgEnd: '#04050a'
     },
@@ -21,6 +23,8 @@
       muted: '#6d6259',
       border: 'rgba(184, 111, 50, 0.28)',
       danger: '#a04034',
+      fog: 'rgba(62, 45, 29, 0.42)',
+      ping: '#2b6b8f',
       bgStart: '#f5e7d4',
       bgEnd: '#d9c4aa'
     },
@@ -32,6 +36,8 @@
       muted: '#d0d0d0',
       border: 'rgba(255, 255, 255, 0.42)',
       danger: '#ff4f4f',
+      fog: 'rgba(0, 0, 0, 0.88)',
+      ping: '#00f0ff',
       bgStart: '#050505',
       bgEnd: '#000000'
     }
@@ -46,13 +52,63 @@
     setCombatAssetDragPreview(null);
   }
 
-  function applyBattlemapDrop(fileList) {
-    var files = Array.prototype.slice.call(fileList || []).filter(function (file) {
-      return file && String(file.type || '').indexOf('image/') === 0;
+  function setCombatAssetUpload(upload) {
+    store.setState(Object.assign({}, store.getState(), { assetUpload: upload || null }));
+    updateUiPanels();
+  }
+
+  function setCombatAssetDrawerOpen(open) {
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      next.ui = normalizeCombatUi(Object.assign({}, state.ui || {}, { assetDrawerOpen: !!open }));
+      persist(next);
+      return next;
     });
-    if (!files.length) return false;
-    var file = files[0];
+    updateUiPanels();
+  }
+
+  function setCombatAssetDragGhost(ghost) {
+    var root = document.getElementById('combatModeOverlay');
+    var node = document.getElementById('combatAssetDragGhost');
+    if (!root || !node) return;
+    if (!ghost) {
+      node.classList.remove('visible');
+      node.textContent = '';
+      return;
+    }
+    node.textContent = String(ghost.label || 'Dragging asset');
+    node.style.left = Number(ghost.x || 0) + 'px';
+    node.style.top = Number(ghost.y || 0) + 'px';
+    node.classList.add('visible');
+  }
+
+  function clearCombatAssetDragGhost() {
+    setCombatAssetDragGhost(null);
+  }
+
+  function applyBattlemapFile(file, contextLabel) {
+    if (!file || String(file.type || '').indexOf('image/') !== 0) return false;
     var reader = new FileReader();
+    setCombatAssetUpload({
+      name: String(file.name || 'image'),
+      kind: 'battlemap',
+      loaded: 0,
+      total: Math.max(1, Number(file.size || 1)),
+      pct: 0,
+      status: 'Reading...'
+    });
+    reader.onprogress = function (ev) {
+      var total = Math.max(1, Number(ev && ev.total || file.size || 1));
+      var loaded = Math.max(0, Number(ev && ev.loaded || 0));
+      setCombatAssetUpload({
+        name: String(file.name || 'image'),
+        kind: 'battlemap',
+        loaded: loaded,
+        total: total,
+        pct: Math.max(0, Math.min(100, Math.round((loaded / total) * 100))),
+        status: 'Uploading...'
+      });
+    };
     reader.onload = function () {
       captureUndoSnapshot('Drop Battlemap');
       store.setState(function (state) {
@@ -61,14 +117,48 @@
         persist(next);
         return next;
       });
+      setCombatAssetUpload({
+        name: String(file.name || 'image'),
+        kind: 'battlemap',
+        loaded: Math.max(1, Number(file.size || 1)),
+        total: Math.max(1, Number(file.size || 1)),
+        pct: 100,
+        status: 'Ready'
+      });
       clearCombatAssetDragPreview();
+      clearCombatAssetDragGhost();
       drawBoard();
       updateUiPanels();
-      addHistory('Battlemap dropped: ' + String(file.name || 'image') + '.');
-      safeNotif('Battlemap applied from dropped image.', 'good');
+      addHistory('Battlemap applied: ' + String(file.name || 'image') + '.');
+      safeNotif('Battlemap applied from ' + String(contextLabel || 'asset upload') + '.', 'good');
+      setTimeout(function () {
+        var current = store.getState();
+        if (current && current.assetUpload && String(current.assetUpload.name || '') === String(file.name || '')) {
+          setCombatAssetUpload(null);
+        }
+      }, 1200);
+    };
+    reader.onerror = function () {
+      setCombatAssetUpload({
+        name: String(file.name || 'image'),
+        kind: 'battlemap',
+        loaded: 0,
+        total: Math.max(1, Number(file.size || 1)),
+        pct: 0,
+        status: 'Failed'
+      });
+      safeNotif('Battlemap upload failed.', 'warn');
     };
     reader.readAsDataURL(file);
     return true;
+  }
+
+  function applyBattlemapDrop(fileList) {
+    var files = Array.prototype.slice.call(fileList || []).filter(function (file) {
+      return file && String(file.type || '').indexOf('image/') === 0;
+    });
+    if (!files.length) return false;
+    return applyBattlemapFile(files[0], 'dropped image');
   }
 
   function handleCombatBoardDropEvent(ev, canvas) {
@@ -84,7 +174,9 @@
     var assetKind = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-kind') || '');
     var assetPayload = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-payload') || '');
     if (assetKind) {
-      applyCombatAssetActionAt(assetKind, assetPayload, ax.q, ax.r, true);
+      if (typeof window.applyCombatAssetActionAt === 'function') {
+        window.applyCombatAssetActionAt(assetKind, assetPayload, ax.q, ax.r, true);
+      }
       clearCombatAssetDragPreview();
       return true;
     }
@@ -106,7 +198,8 @@
     themePreset: 'obsidian',
     themeTokens: {},
     tutorialSeen: false,
-    tutorialStep: 0
+    tutorialStep: 0,
+    assetDrawerOpen: true
   };
   var tokenMotionCache = {};
 
@@ -131,6 +224,7 @@
     next.themeTokens = next.themeTokens && typeof next.themeTokens === 'object' ? Object.assign({}, next.themeTokens) : {};
     next.tutorialSeen = !!next.tutorialSeen;
     next.tutorialStep = Math.max(0, Math.min(6, Number(next.tutorialStep || 0)));
+    next.assetDrawerOpen = typeof next.assetDrawerOpen === 'boolean' ? next.assetDrawerOpen : true;
     return next;
   }
 
@@ -141,6 +235,9 @@
     if (normalized.themeTokens.accent2) preset.accent2 = String(normalized.themeTokens.accent2);
     if (normalized.themeTokens.surface) preset.surface = String(normalized.themeTokens.surface);
     if (normalized.themeTokens.text) preset.text = String(normalized.themeTokens.text);
+    if (normalized.themeTokens.fog) preset.fog = String(normalized.themeTokens.fog);
+    if (normalized.themeTokens.ping) preset.ping = String(normalized.themeTokens.ping);
+    if (normalized.themeTokens.danger) preset.danger = String(normalized.themeTokens.danger);
     return preset;
   }
 
@@ -173,6 +270,8 @@
     root.style.setProperty('--combat-muted', theme.muted);
     root.style.setProperty('--combat-border', theme.border);
     root.style.setProperty('--combat-danger', theme.danger);
+    root.style.setProperty('--combat-fog', theme.fog);
+    root.style.setProperty('--combat-ping', theme.ping);
     root.style.setProperty('--combat-bg-start', theme.bgStart);
     root.style.setProperty('--combat-bg-end', theme.bgEnd);
   }
@@ -2856,6 +2955,7 @@
       + '<input id="combatTokenImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatImportSceneInput" type="file" accept="application/json,.json" style="display:none;">'
       + '<div class="combat-canvas-wrap" id="combatCanvasWrap"><canvas id="combatSceneCanvas"></canvas><input id="combatBubbleInlineInput" type="text" style="display:none;position:absolute;z-index:8;min-width:54px;height:20px;padding:0 .25rem;border:1px solid rgba(227,188,94,.8);background:rgba(4,6,12,.96);color:#fff;font-size:.72rem;"><div id="combatLootPopupCard" style="display:none;position:absolute;z-index:9;min-width:240px;max-width:300px;border:1px solid rgba(227,188,94,.65);background:rgba(5,8,16,.98);box-shadow:0 12px 28px rgba(0,0,0,.45);padding:.45rem .5rem;border-radius:10px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:.35rem;"><div id="combatLootPopupTitle" style="font:600 .83rem Rajdhani,sans-serif;color:var(--combat-accent-2);">Body Loot</div><button class="btn btn-xs" id="combatLootCloseBtn" style="padding:.08rem .3rem;">X</button></div><div id="combatLootPopupMeta" class="combat-mini" style="margin:.18rem 0 .28rem 0;"></div><div id="combatLootPopupList" style="display:grid;gap:.2rem;max-height:180px;overflow:auto;padding-right:.1rem;"></div><div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.34rem;"><button class="btn btn-xs" id="combatLootTakeSelectedBtn">Take Selected</button><button class="btn btn-xs" id="combatLootTakeAllBtn">Take All</button></div></div><div id="combatTokenContextMenu" class="combat-token-menu" style="display:none;"></div></div>'
+      + '<div id="combatAssetDragGhost" class="combat-asset-drag-ghost" aria-hidden="true"></div>'
       + '<aside class="combat-icon-rail" id="combatIconRail">'
       + '<button class="combat-icon-btn" id="combatRailSelectBtn" title="Select Tool (V)"><span class="combat-svg-icon">'
       + '<svg viewBox="0 0 24 24" width="20" height="20" aria-label="Select Tool"><path d="M12 2l4 8h-3v8h-2v-8H8z" fill="currentColor"/></svg>'
@@ -2934,15 +3034,9 @@
       + '<div class="combat-panel-header" data-drag="feed" onclick="togglePanel(\'combatFeedPanel\')">Roll Checks <span style="float:right;font-size:.7rem;cursor:pointer;">◀</span></div>'
       + '<div class="combat-panel-body">'
       + '<div class="combat-chip-row" style="margin-bottom:.24rem;">'
-      + '<button class="combat-chip" id="combatAssetsBtn" title="Open Asset Browser">Assets</button>'
+      + '<button class="combat-chip" id="combatAssetsBtn" title="Toggle Asset Dock">Assets</button>'
       + '<button class="combat-chip" id="combatRailRulesBtn" title="Rules Reference">Rules</button>'
       + '<button class="combat-chip" id="combatSettingsBtn" title="Settings">Settings</button>'
-      + '</div>'
-      + '<div class="combat-action-block" style="margin-top:0;">'
-      + '<div class="combat-label">Asset Browser</div>'
-      + '<div class="combat-chip-row" id="combatAssetCategoryRow"></div>'
-      + '<input class="combat-input" id="combatAssetSearch" placeholder="Search assets..." style="margin-top:.24rem;">'
-      + '<div class="combat-feed" id="combatAssetBrowserFeed"></div>'
       + '</div>'
       + '<div id="combatInitiativeList"></div>'
       + '<div style="display:flex;gap:.24rem;margin-top:.26rem;"><button class="btn btn-xs" id="combatNextTurnBtn">Next Turn</button><button class="btn btn-xs" id="combatRollModeBtn">Auto Roll</button></div>'
@@ -2963,6 +3057,21 @@
       + '<div id="combatLegacyFlavorMirror" class="combat-result-mirror"></div>'
       + '<div class="combat-feed" id="combatLegacyRowsMirror"></div>'
       + '<div class="combat-feed" id="combatFeedLog" style="margin-top:.3rem;"></div>'
+      + '</div>'
+      + '</aside>'
+      + '<aside class="combat-asset-dock" id="combatAssetDock">'
+      + '<div class="combat-asset-dock-header">'
+      + '<div><div class="combat-label">Asset Dock</div><div class="combat-mini" id="combatAssetDockMeta">Drag from the drawer straight onto the board.</div></div>'
+      + '<div style="display:flex;gap:.24rem;align-items:center;">'
+      + '<button class="btn btn-xs" id="combatAssetDockUploadBtn">Upload Map</button>'
+      + '<button class="btn btn-xs" id="combatAssetDockToggleBtn" title="Collapse asset dock">Hide</button>'
+      + '</div>'
+      + '</div>'
+      + '<div class="combat-asset-dock-body">'
+      + '<div class="combat-chip-row" id="combatAssetCategoryRow"></div>'
+      + '<input class="combat-input" id="combatAssetSearch" placeholder="Search assets, battlemaps, props..." style="margin-top:.24rem;">'
+      + '<div class="combat-asset-upload" id="combatAssetUploadStatus"><div class="combat-asset-upload-bar"><span id="combatAssetUploadBar"></span></div><div class="combat-mini" id="combatAssetUploadLabel">No uploads running.</div></div>'
+      + '<div class="combat-feed combat-asset-browser-feed" id="combatAssetBrowserFeed"></div>'
       + '</div>'
       + '</aside>'
       + '<aside class="combat-floating-panel combat-bottom-actions" id="combatActionsPanel">'
@@ -3092,7 +3201,8 @@
   }
 
   function colorForPingIdentity(identity) {
-    var palette = ['#49c9bb', '#e3bc5e', '#d05353', '#6aa8ff', '#9bdb5a', '#ff8a5b', '#c690ff'];
+    var theme = getCombatThemeTokens(store.getState() && store.getState().ui);
+    var palette = [String(theme.ping || '#49c9bb'), String(theme.accent || '#e3bc5e'), String(theme.danger || '#d05353'), '#6aa8ff', '#9bdb5a', '#ff8a5b', '#c690ff'];
     var src = String(identity || 'table');
     var h = 0;
     for (var i = 0; i < src.length; i++) h = (h * 31 + src.charCodeAt(i)) >>> 0;
@@ -3107,6 +3217,27 @@
       g: parseInt(clean.slice(2, 4), 16),
       b: parseInt(clean.slice(4, 6), 16)
     };
+  }
+
+  function rgbaStringToHex(value) {
+    var src = String(value || '').trim();
+    if (!src) return '#000000';
+    if (src.charAt(0) === '#') {
+      if (src.length === 4) return '#' + src.charAt(1) + src.charAt(1) + src.charAt(2) + src.charAt(2) + src.charAt(3) + src.charAt(3);
+      return src.slice(0, 7);
+    }
+    var match = src.match(/rgba?\(([^)]+)\)/i);
+    if (!match) return '#000000';
+    var parts = match[1].split(',').map(function (part) { return Math.max(0, Math.min(255, Number(String(part).trim()) || 0)); });
+    return '#' + parts.slice(0, 3).map(function (part) {
+      var hex = Number(part).toString(16);
+      return hex.length === 1 ? '0' + hex : hex;
+    }).join('');
+  }
+
+  function alphaColorFromHex(hex, alpha) {
+    var rgb = hexToRgb(hex);
+    return 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + Number(alpha || 1) + ')';
   }
 
   function placeTablePing(q, r, sourceLabel) {
@@ -3548,6 +3679,14 @@
   function drawGridAndTokens(ctx, state, w, h) {
     var board = state.board;
     var size = Number(board.size || 42) * Number(board.zoom || 1);
+    var theme = getCombatThemeTokens(state && state.ui);
+    var accentGlow = alphaColorFromHex(String(theme.accent2 || '#49c9bb'), 0.95);
+    var accentFill = alphaColorFromHex(String(theme.accent2 || '#49c9bb'), 0.2);
+    var accentSoft = alphaColorFromHex(String(theme.accent2 || '#49c9bb'), 0.14);
+    var dangerStrong = alphaColorFromHex(String(theme.danger || '#d05353'), 0.82);
+    var dangerFill = alphaColorFromHex(String(theme.danger || '#d05353'), 0.18);
+    var dangerStroke = alphaColorFromHex(String(theme.danger || '#d05353'), 0.55);
+    var fogMask = alphaColorFromHex(String(theme.fog || '#020307'), 0.74);
     bubbleHotspots = [];
     for (var r = -board.rows; r <= board.rows; r++) {
       for (var q = -board.cols; q <= board.cols; q++) {
@@ -3569,7 +3708,7 @@
         ctx.stroke();
 
         if (object) {
-          ctx.fillStyle = 'rgba(208,83,83,.82)';
+          ctx.fillStyle = dangerStrong;
           ctx.fillRect(p.x - 7, p.y - 7, 14, 14);
         }
         if (hazard) {
@@ -3628,7 +3767,7 @@
 
         if (state.fog && String(state.fog.revealMode || 'manual') === 'ordered' && state.fog.revealOrder && state.fog.revealOrder[key]) {
           ctx.save();
-          ctx.fillStyle = 'rgba(73,201,187,.95)';
+          ctx.fillStyle = accentGlow;
           ctx.font = '10px Rajdhani, sans-serif';
           ctx.textAlign = 'center';
           ctx.fillText(String(state.fog.revealOrder[key]), p.x, p.y - 10);
@@ -3637,7 +3776,7 @@
 
         if (state.fog && state.fog.enabled && state.fog.showMask && !isHexRevealed(state, q, r)) {
           drawHex(ctx, p.x, p.y, size - 1.6);
-          ctx.fillStyle = 'rgba(2,3,7,.74)';
+          ctx.fillStyle = fogMask;
           ctx.fill();
         }
 
@@ -3657,7 +3796,7 @@
       var previewPoint = axialToPixel(Number(state.assetDragPreview.q), Number(state.assetDragPreview.r), size, board.panX, board.panY);
       ctx.save();
       drawHex(ctx, previewPoint.x, previewPoint.y, size - 3.5);
-      ctx.fillStyle = 'rgba(73,201,187,.14)';
+      ctx.fillStyle = accentSoft;
       ctx.fill();
       ctx.strokeStyle = 'rgba(227,188,94,.85)';
       ctx.lineWidth = 2;
@@ -3679,9 +3818,9 @@
           var mp = axialToPixel(targetQ, targetR, size, board.panX, board.panY);
           ctx.save();
           drawHex(ctx, mp.x, mp.y, size - 4);
-          ctx.fillStyle = String(selectedForMove.faction) === 'monster' ? 'rgba(208,83,83,.18)' : 'rgba(73,201,187,.2)';
+          ctx.fillStyle = String(selectedForMove.faction) === 'monster' ? dangerFill : accentFill;
           ctx.fill();
-          ctx.strokeStyle = String(selectedForMove.faction) === 'monster' ? 'rgba(208,83,83,.55)' : 'rgba(73,201,187,.62)';
+          ctx.strokeStyle = String(selectedForMove.faction) === 'monster' ? dangerStroke : alphaColorFromHex(String(theme.accent2 || '#49c9bb'), 0.62);
           ctx.lineWidth = 1.3;
           ctx.stroke();
           ctx.restore();
@@ -3729,7 +3868,7 @@
       }
       if (selectedSet[String(token.id)]) {
         ctx.lineWidth = 2.2;
-        ctx.strokeStyle = 'rgba(73,201,187,.95)';
+        ctx.strokeStyle = accentGlow;
         ctx.stroke();
       }
       if (String(state.selectedTokenId) === String(token.id)) {
@@ -3781,7 +3920,7 @@
       ctx.save();
       ctx.fillStyle = 'rgba(0,0,0,.4)';
       ctx.fillRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight);
-      var hpColor = hpPercent > 0.5 ? 'rgba(45, 154, 123, 0.9)' : (hpPercent > 0.25 ? 'rgba(196, 97, 58, 0.9)' : 'rgba(208, 83, 83, 0.95)');
+      var hpColor = hpPercent > 0.5 ? 'rgba(45, 154, 123, 0.9)' : (hpPercent > 0.25 ? 'rgba(196, 97, 58, 0.9)' : alphaColorFromHex(String(theme.danger || '#d05353'), 0.95));
       ctx.fillStyle = hpColor;
       ctx.fillRect(healthBarX, healthBarY, healthBarWidth * hpPercent, healthBarHeight);
       ctx.strokeStyle = 'rgba(255,255,255,.2)';
@@ -3840,7 +3979,7 @@
         { key: 'hp', label: 'HP ' + Number(token.hp || 0), color: 'rgba(47,154,144,.88)' }
       ];
       if (!dead && String(token.faction) === 'monster') {
-        bubbles.push({ key: 'dread', label: 'DD ' + Math.max(4, Number(token.dread || token.codexDread || 6)), color: 'rgba(208,83,83,.88)' });
+        bubbles.push({ key: 'dread', label: 'DD ' + Math.max(4, Number(token.dread || token.codexDread || 6)), color: alphaColorFromHex(String(theme.danger || '#d05353'), 0.88) });
         bubbles.push({ key: 'deathNumber', label: 'DN ' + Math.max(1, Number(token.deathNumber || token.dread || 6)), color: 'rgba(227,188,94,.88)' });
       }
       var bw = 52;
@@ -3940,8 +4079,8 @@
       var e = state.ruler.endPx && typeof state.ruler.endPx.x === 'number'
         ? { x: Number(state.ruler.endPx.x), y: Number(state.ruler.endPx.y) }
         : axialToPixel(state.ruler.end.q, state.ruler.end.r, size, board.panX, board.panY);
-      ctx.strokeStyle = 'rgba(73,201,187,.95)';
-      ctx.fillStyle = 'rgba(73,201,187,.16)';
+      ctx.strokeStyle = accentGlow;
+      ctx.fillStyle = accentSoft;
       ctx.lineWidth = 2.2;
       if (String(opts.shape || 'line') === 'radius') {
         var radiusPx = Math.max(4, Math.hypot(e.x - s.x, e.y - s.y));
@@ -3968,7 +4107,7 @@
         ctx.lineTo(e.x, e.y);
         ctx.stroke();
       }
-      ctx.fillStyle = 'rgba(73,201,187,.96)';
+      ctx.fillStyle = accentGlow;
       ctx.font = '12px Rajdhani, sans-serif';
       ctx.fillText(String(state.ruler.distance) + ' hexes · ' + state.ruler.label, (s.x + e.x) / 2, (s.y + e.y) / 2 - 8);
     }
@@ -3980,7 +4119,7 @@
         var t = pingAge / 1200;
         var radiusPulse = 8 + t * 60;
         ctx.save();
-        var rgb = hexToRgb(state.ping.color || '#49c9bb');
+        var rgb = hexToRgb(state.ping.color || String(theme.ping || '#49c9bb'));
         ctx.strokeStyle = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + (1 - t) + ')';
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -4189,9 +4328,25 @@
     var assetCategoryRow = document.getElementById('combatAssetCategoryRow');
     var assetSearch = document.getElementById('combatAssetSearch');
     var assetFeed = document.getElementById('combatAssetBrowserFeed');
+    var assetDock = document.getElementById('combatAssetDock');
+    var assetDockToggleBtn = document.getElementById('combatAssetDockToggleBtn');
+    var assetDockMeta = document.getElementById('combatAssetDockMeta');
+    var assetUploadStatus = document.getElementById('combatAssetUploadStatus');
+    var assetUploadBar = document.getElementById('combatAssetUploadBar');
+    var assetUploadLabel = document.getElementById('combatAssetUploadLabel');
     if (assetCategoryRow && assetSearch && assetFeed) {
       var cats = ['heroes', 'villains', 'townsfolk', 'battlemaps', 'objects'];
       var ab = Object.assign({ category: 'heroes', query: '' }, state.assetBrowser || {});
+      var uiState = normalizeCombatUi(state.ui);
+      if (assetDock) assetDock.classList.toggle('open', !!uiState.assetDrawerOpen);
+      if (assetDockToggleBtn) assetDockToggleBtn.textContent = uiState.assetDrawerOpen ? 'Hide' : 'Show';
+      if (assetDockMeta) assetDockMeta.textContent = uiState.assetDrawerOpen ? 'Drag from the drawer straight onto the board.' : 'Drawer collapsed. Reopen to browse and drag assets.';
+      if (assetUploadStatus && assetUploadBar && assetUploadLabel) {
+        var upload = state.assetUpload || null;
+        assetUploadStatus.classList.toggle('active', !!upload);
+        assetUploadBar.style.width = upload ? Math.max(0, Math.min(100, Number(upload.pct || 0))) + '%' : '0%';
+        assetUploadLabel.textContent = upload ? (String(upload.name || 'Upload') + ' - ' + String(upload.status || 'Working') + ' (' + Math.max(0, Math.min(100, Number(upload.pct || 0))) + '%)') : 'No uploads running.';
+      }
       assetCategoryRow.innerHTML = cats.map(function (c) {
         return '<button class="combat-chip ' + (ab.category === c ? 'on' : '') + '" data-asset-cat="' + c + '">' + c + '</button>';
       }).join('');
@@ -4283,10 +4438,10 @@
       assetFeed.innerHTML = filtered.length
         ? filtered.map(function (item) {
           var icon = assetEmoji(item.name, ab.category);
-          return '<div class="combat-feed-line" style="display:flex;align-items:center;justify-content:space-between;gap:.3rem;">'
-            + '<span>' + icon + ' ' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>'
+          return '<article class="combat-feed-line combat-asset-card" draggable="true" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '" data-asset-label="' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '">'
+            + '<div class="combat-asset-card-main"><strong>' + icon + ' ' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</strong><span class="combat-mini">' + (ab.category === 'battlemaps' ? 'Drop to update the board background or click to apply.' : 'Drop to place directly on the board.') + '</span></div>'
             + '<button class="btn btn-xs" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '">Use</button>'
-            + '</div>';
+            + '</article>';
         }).join('')
         : '<div class="combat-feed-line">No assets found.</div>';
 
@@ -4342,6 +4497,37 @@
           }
           drawBoard();
           updateUiPanels();
+        };
+      });
+      Array.prototype.slice.call(assetFeed.querySelectorAll('.combat-asset-card')).forEach(function (card) {
+        card.ondragstart = function (ev) {
+          var action = String(card.getAttribute('data-asset-action') || '');
+          var id = String(card.getAttribute('data-asset-id') || '');
+          var chosen = filtered.find(function (item) { return String(item.id || '') === id; }) || null;
+          if (!chosen) return;
+          var dragKind = '';
+          var dragPayload = '';
+          if (action === 'spawn-ally') {
+            dragKind = 'spawn';
+            dragPayload = 'player:' + String(chosen.name || 'Ally');
+          } else if (action === 'spawn-npc') {
+            dragKind = 'spawn';
+            dragPayload = 'npc:' + String(chosen.name || 'NPC');
+          } else if (action === 'spawn-villain') {
+            dragKind = 'spawn';
+            dragPayload = 'monster:' + String(chosen.name || 'Enemy');
+          } else if (action === 'map-preset') {
+            dragKind = 'preset';
+            dragPayload = String(chosen.name || 'urban').toLowerCase().indexOf('storm') >= 0 ? 'storm' : 'urban';
+          } else if (action === 'paint-object') {
+            dragKind = 'set-tool';
+            dragPayload = 'objects:' + String(chosen.payload || 'obstacle');
+          }
+          if (dragKind) window.startCombatAssetDrag(ev, dragKind, dragPayload);
+        };
+        card.ondragend = function () {
+          clearCombatAssetDragGhost();
+          clearCombatAssetDragPreview();
         };
       });
     }
@@ -5319,14 +5505,17 @@
       var size = Number(state.board.size || 42) * Number(state.board.zoom || 1);
       var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, state.board.panX, state.board.panY);
       setCombatAssetDragPreview({ q: ax.q, r: ax.r });
+      setCombatAssetDragGhost({ label: 'Drop on battlemap', x: Number(ev.clientX || 0) + 18, y: Number(ev.clientY || 0) + 18 });
     });
 
     canvas.addEventListener('drop', function (ev) {
       handleCombatBoardDropEvent(ev, canvas);
+      clearCombatAssetDragGhost();
     });
 
     canvas.addEventListener('dragleave', function () {
       clearCombatAssetDragPreview();
+      clearCombatAssetDragGhost();
     });
 
     var rollModal = document.getElementById('rollModal');
@@ -5339,12 +5528,15 @@
         var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, state.board.panX, state.board.panY);
         ev.preventDefault();
         setCombatAssetDragPreview({ q: ax.q, r: ax.r });
+        setCombatAssetDragGhost({ label: 'Drop on battlemap', x: Number(ev.clientX || 0) + 18, y: Number(ev.clientY || 0) + 18 });
       });
       rollModal.addEventListener('drop', function (ev) {
         handleCombatBoardDropEvent(ev, canvas);
+        clearCombatAssetDragGhost();
       });
       rollModal.addEventListener('dragleave', function () {
         clearCombatAssetDragPreview();
+        clearCombatAssetDragGhost();
       });
     }
   }
@@ -6135,9 +6327,11 @@
     }
 
     function openCombatAssetsModal() {
-      if (typeof window.openModal === 'function') {
-        window.openModal('Combat Assets', buildCombatAssetsModalHtml(), null, { preventScroll: true, focusTrap: true });
-      }
+      setCombatAssetDrawerOpen(true);
+      var dock = document.getElementById('combatAssetDock');
+      var search = document.getElementById('combatAssetSearch');
+      if (dock && typeof dock.scrollIntoView === 'function') dock.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      if (search && typeof search.focus === 'function') search.focus({ preventScroll: true });
     }
 
     function openCombatSettingsHub() {
@@ -6171,6 +6365,11 @@
         + '</select></label>'
         + '<label style="display:flex;align-items:center;gap:.4rem;">Accent <input id="combatSettingsAccent" type="color" value="' + escapeHtml(String(theme.accent || '#e3bc5e')) + '"></label>'
         + '<label style="display:flex;align-items:center;gap:.4rem;">Support Accent <input id="combatSettingsAccent2" type="color" value="' + escapeHtml(String(theme.accent2 || '#49c9bb')) + '"></label>'
+        + '<label style="display:flex;align-items:center;gap:.4rem;">Surface <input id="combatSettingsSurface" type="color" value="' + escapeHtml(rgbaStringToHex(String(theme.surface || '#0c0e1a'))) + '"></label>'
+        + '<label style="display:flex;align-items:center;gap:.4rem;">Text <input id="combatSettingsText" type="color" value="' + escapeHtml(rgbaStringToHex(String(theme.text || '#e9e0cf'))) + '"></label>'
+        + '<label style="display:flex;align-items:center;gap:.4rem;">Fog <input id="combatSettingsFogColor" type="color" value="' + escapeHtml(rgbaStringToHex(String(theme.fog || '#020307'))) + '"></label>'
+        + '<label style="display:flex;align-items:center;gap:.4rem;">Ping <input id="combatSettingsPing" type="color" value="' + escapeHtml(rgbaStringToHex(String(theme.ping || '#49c9bb'))) + '"></label>'
+        + '<label style="display:flex;align-items:center;gap:.4rem;">Danger <input id="combatSettingsDanger" type="color" value="' + escapeHtml(rgbaStringToHex(String(theme.danger || '#d05353'))) + '"></label>'
         + '</div>'
         + '</article>'
         + '<article class="combat-rules-card combat-sheet-card">'
@@ -6207,6 +6406,10 @@
       ev.dataTransfer.effectAllowed = 'copy';
       ev.dataTransfer.setData('text/combat-asset-kind', String(kind || ''));
       ev.dataTransfer.setData('text/combat-asset-payload', String(payload || ''));
+      var source = ev.currentTarget || ev.target;
+      var label = source && source.getAttribute && source.getAttribute('data-asset-label') || source && source.textContent || 'Dragging asset';
+      setCombatAssetDrawerOpen(true);
+      setCombatAssetDragGhost({ label: String(label || 'Dragging asset'), x: Number(ev.clientX || 0) + 18, y: Number(ev.clientY || 0) + 18 });
       safeNotif('Drop the asset onto the battlemap to place it directly.', 'info');
     };
 
@@ -6267,14 +6470,18 @@
         if (typeof window.setupSceneTemplate === 'function') window.setupSceneTemplate(value || 'quick');
       } else if (action === 'upload-map') {
         var uploadMapBtn = document.getElementById('combatUploadMapBtn');
+        setCombatAssetDrawerOpen(true);
         if (uploadMapBtn && typeof uploadMapBtn.click === 'function') uploadMapBtn.click();
       } else if (action === 'open-drawer') {
+        setCombatAssetDrawerOpen(true);
         var drawer = document.getElementById('combatBestiaryDrawer');
         if (drawer && typeof drawer.scrollIntoView === 'function') drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
       drawBoard();
       updateUiPanels();
     }
+
+    window.applyCombatAssetActionAt = applyCombatAssetActionAt;
 
     window.combatAssetAction = function combatAssetAction(kind, payload) {
       var action = String(kind || '');
@@ -6527,7 +6734,8 @@
     if (assetsBtn && !assetsBtn._bound) {
       assetsBtn._bound = true;
       assetsBtn.onclick = function () {
-        openCombatAssetsModal();
+        var ui = normalizeCombatUi(store.getState().ui);
+        setCombatAssetDrawerOpen(!ui.assetDrawerOpen);
       };
     }
 
@@ -7111,26 +7319,32 @@
     var uploadMapBtn = document.getElementById('combatUploadMapBtn');
     var clearMapBtn = document.getElementById('combatClearMapBtn');
     var uploadMapInput = document.getElementById('combatMapImageInput');
+    var assetDockUploadBtn = document.getElementById('combatAssetDockUploadBtn');
+    var assetDockToggleBtn = document.getElementById('combatAssetDockToggleBtn');
     if (uploadMapBtn && uploadMapInput && !uploadMapBtn._bound) {
       uploadMapBtn._bound = true;
       uploadMapBtn.onclick = function () { uploadMapInput.click(); };
       uploadMapInput.onchange = function () {
         var file = uploadMapInput.files && uploadMapInput.files[0];
         if (!file) return;
-        var reader = new FileReader();
-        reader.onload = function () {
-          var data = String(reader.result || '');
-          store.setState(function (state) {
-            var next = Object.assign({}, state);
-            next.board = Object.assign({}, state.board, { background: data });
-            persist(next);
-            return next;
-          });
-          addHistory('Battlemap image applied.');
-          drawBoard();
-        };
-        reader.readAsDataURL(file);
+        applyBattlemapFile(file, 'asset dock upload');
         uploadMapInput.value = '';
+      };
+    }
+
+    if (assetDockUploadBtn && uploadMapInput && !assetDockUploadBtn._bound) {
+      assetDockUploadBtn._bound = true;
+      assetDockUploadBtn.onclick = function () {
+        setCombatAssetDrawerOpen(true);
+        uploadMapInput.click();
+      };
+    }
+
+    if (assetDockToggleBtn && !assetDockToggleBtn._bound) {
+      assetDockToggleBtn._bound = true;
+      assetDockToggleBtn.onclick = function () {
+        var uiState = normalizeCombatUi(store.getState().ui);
+        setCombatAssetDrawerOpen(!uiState.assetDrawerOpen);
       };
     }
 
@@ -8490,6 +8704,11 @@
     var themePreset = String(themePresetEl && themePresetEl.value || 'obsidian');
     var accentEl = document.getElementById('combatSettingsAccent');
     var accent2El = document.getElementById('combatSettingsAccent2');
+    var surfaceEl = document.getElementById('combatSettingsSurface');
+    var textEl = document.getElementById('combatSettingsText');
+    var fogColorEl = document.getElementById('combatSettingsFogColor');
+    var pingEl = document.getElementById('combatSettingsPing');
+    var dangerEl = document.getElementById('combatSettingsDanger');
     store.setState(function (state) {
       var next = Object.assign({}, state, { autoRoll: autoRoll });
       next.fog = Object.assign({
@@ -8507,7 +8726,12 @@
         themePreset: themePreset,
         themeTokens: Object.assign({}, state.ui && state.ui.themeTokens || {}, {
           accent: String(accentEl && accentEl.value || ''),
-          accent2: String(accent2El && accent2El.value || '')
+          accent2: String(accent2El && accent2El.value || ''),
+          surface: String(surfaceEl && surfaceEl.value || ''),
+          text: String(textEl && textEl.value || ''),
+          fog: String(fogColorEl && fogColorEl.value || ''),
+          ping: String(pingEl && pingEl.value || ''),
+          danger: String(dangerEl && dangerEl.value || '')
         })
       }));
       persist(next);
@@ -8529,6 +8753,25 @@
     setState: store.setState,
     subscribe: store.subscribe,
     addHistory: addHistory
+  };
+
+  window.debugCombatDropAsset = function (kind, payload, clientX, clientY) {
+    var canvas = document.getElementById('combatSceneCanvas');
+    if (!canvas) return false;
+    var transfer = {
+      files: [],
+      getData: function (key) {
+        if (String(key || '') === 'text/combat-asset-kind') return String(kind || '');
+        if (String(key || '') === 'text/combat-asset-payload') return String(payload || '');
+        return '';
+      }
+    };
+    return handleCombatBoardDropEvent({
+      preventDefault: function () {},
+      clientX: Number(clientX || 0),
+      clientY: Number(clientY || 0),
+      dataTransfer: transfer
+    }, canvas);
   };
 
   window.getCombatSceneSharedModifier = function (actionKey, options) {

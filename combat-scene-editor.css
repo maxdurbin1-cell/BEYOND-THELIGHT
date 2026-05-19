@@ -702,6 +702,40 @@
   animation: float-up-heal 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }
 
+.combat-token-menu {
+  position: absolute;
+  z-index: 12;
+  min-width: 210px;
+  max-height: 68vh;
+  overflow: auto;
+  padding: 0.24rem;
+  gap: 0.16rem;
+  border: 1px solid rgba(227, 188, 94, 0.46);
+  border-radius: 9px;
+  background: rgba(7, 10, 20, 0.98);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.45);
+}
+
+.combat-token-menu-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--combat-text);
+  font: 600 0.74rem Rajdhani, sans-serif;
+  padding: 0.22rem 0.38rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.combat-token-menu-item:hover,
+.combat-token-menu-item:focus {
+  outline: none;
+  border-color: var(--combat-accent-2);
+  background: rgba(73, 201, 187, 0.15);
+  color: var(--combat-accent-2);
+}
+
 .combat-floating-number.crit {
   color: #ffd688;
   font-size: 22px;

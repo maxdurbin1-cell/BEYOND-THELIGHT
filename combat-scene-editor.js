@@ -474,7 +474,25 @@
     next.rulerOptions = Object.assign({ shape: 'line', fadeDelay: 'linger', snapToGrid: true }, next.rulerOptions && typeof next.rulerOptions === 'object' ? next.rulerOptions : {});
     next.assetBrowser = Object.assign({ category: 'heroes', query: '' }, next.assetBrowser && typeof next.assetBrowser === 'object' ? next.assetBrowser : {});
     next.tokens = Array.isArray(next.tokens) ? next.tokens : [];
+    next.tokens = next.tokens.map(function (token, idx) {
+      var row = Object.assign({}, token || {});
+      row.scale = Math.max(0.25, Math.min(2, Number(row.scale || 1)));
+      row.rotation = Number.isFinite(Number(row.rotation)) ? Number(row.rotation) : 0;
+      row.locked = !!row.locked;
+      row.layer = String(row.layer || 'token');
+      row.zIndex = Number.isFinite(Number(row.zIndex)) ? Number(row.zIndex) : idx;
+      return row;
+    });
     next.tokenRoundEffects = Array.isArray(next.tokenRoundEffects) ? next.tokenRoundEffects : [];
+    next.selectedTokenIds = Array.isArray(next.selectedTokenIds) ? next.selectedTokenIds.map(function (id) { return String(id); }) : [];
+    if (next.selectedTokenId && next.selectedTokenIds.indexOf(String(next.selectedTokenId)) < 0) {
+      next.selectedTokenIds.unshift(String(next.selectedTokenId));
+    }
+    next.clipboardTokens = Array.isArray(next.clipboardTokens) ? clone(next.clipboardTokens) : [];
+    next.undoStack = Array.isArray(next.undoStack) ? clone(next.undoStack).slice(0, 40) : [];
+    next.redoStack = Array.isArray(next.redoStack) ? clone(next.redoStack).slice(0, 40) : [];
+    next.draggingGroupIds = Array.isArray(next.draggingGroupIds) ? next.draggingGroupIds.map(function (id) { return String(id); }) : [];
+    next.dragTokenOrigins = next.dragTokenOrigins && typeof next.dragTokenOrigins === 'object' ? Object.assign({}, next.dragTokenOrigins) : {};
     var roundNum = Math.max(1, Number(next.round || 1));
     var appliedNum = Number(next.lastConditionRoundApplied);
     if (!Number.isFinite(appliedNum) || appliedNum <= 0) appliedNum = roundNum;
@@ -541,7 +559,11 @@
       scenes: synced.scenes,
       activeSceneId: synced.activeSceneId,
       rulerOptions: synced.rulerOptions,
-      assetBrowser: synced.assetBrowser
+      assetBrowser: synced.assetBrowser,
+      selectedTokenIds: synced.selectedTokenIds,
+      clipboardTokens: synced.clipboardTokens,
+      undoStack: synced.undoStack,
+      redoStack: synced.redoStack
     };
     try {
       localStorage.setItem(KEY, JSON.stringify(slim));
@@ -715,7 +737,13 @@
     fogBrush: 'reveal',
     paintValue: 'forest',
     selectedTokenId: '',
+    selectedTokenIds: [],
     draggingTokenId: '',
+    draggingGroupIds: [],
+    dragTokenOrigins: {},
+    clipboardTokens: [],
+    undoStack: [],
+    redoStack: [],
     playMode: true,
     autoRoll: true,
     initiativeIndex: 0,
@@ -846,6 +874,131 @@
       persist(next);
       return next;
     });
+  }
+
+  function snapshotEditableState(state) {
+    return {
+      board: clone(state.board || {}),
+      layers: clone(state.layers || {}),
+      fog: clone(state.fog || {}),
+      sceneRules: clone(state.sceneRules || {}),
+      tokens: clone(state.tokens || []),
+      tokenRoundEffects: clone(state.tokenRoundEffects || []),
+      initiative: clone(state.initiative || []),
+      initiativeIndex: Number(state.initiativeIndex || 0),
+      currentTurnIndex: Number(state.currentTurnIndex || 0),
+      round: Number(state.round || 1),
+      selectedTokenId: String(state.selectedTokenId || ''),
+      selectedTokenIds: clone(state.selectedTokenIds || []),
+      activeSceneId: String(state.activeSceneId || ''),
+      scenes: clone(state.scenes || [])
+    };
+  }
+
+  function captureUndoSnapshot(label) {
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      var undo = Array.isArray(state.undoStack) ? state.undoStack.slice() : [];
+      undo.unshift({ label: String(label || 'Edit'), at: Date.now(), payload: snapshotEditableState(state) });
+      next.undoStack = undo.slice(0, 40);
+      next.redoStack = [];
+      persist(next);
+      return next;
+    });
+  }
+
+  function restoreEditableSnapshot(snapshot, pushToRedo) {
+    var target = snapshot && snapshot.payload ? snapshot.payload : snapshot;
+    if (!target || typeof target !== 'object') return false;
+    store.setState(function (state) {
+      var next = normalizeCombatSceneState(Object.assign({}, state));
+      if (pushToRedo) {
+        var redo = Array.isArray(state.redoStack) ? state.redoStack.slice() : [];
+        redo.unshift({ label: 'Redo', at: Date.now(), payload: snapshotEditableState(state) });
+        next.redoStack = redo.slice(0, 40);
+      }
+      next.board = normalizeBoard(clone(target.board || next.board));
+      next.layers = clone(target.layers || next.layers);
+      next.fog = clone(target.fog || next.fog);
+      next.sceneRules = clone(target.sceneRules || next.sceneRules);
+      next.tokens = clone(target.tokens || []);
+      next.tokenRoundEffects = clone(target.tokenRoundEffects || []);
+      next.initiative = clone(target.initiative || []);
+      next.initiativeIndex = Number(target.initiativeIndex || 0);
+      next.currentTurnIndex = Number(target.currentTurnIndex || 0);
+      next.round = Math.max(1, Number(target.round || 1));
+      next.selectedTokenId = String(target.selectedTokenId || '');
+      next.selectedTokenIds = Array.isArray(target.selectedTokenIds) ? clone(target.selectedTokenIds) : [];
+      next.activeSceneId = String(target.activeSceneId || next.activeSceneId || '');
+      next.scenes = Array.isArray(target.scenes) ? clone(target.scenes) : clone(next.scenes || []);
+      persist(next);
+      return next;
+    });
+    drawBoard();
+    updateUiPanels();
+    return true;
+  }
+
+  function undoLastEdit() {
+    var state = store.getState();
+    var undo = Array.isArray(state.undoStack) ? state.undoStack.slice() : [];
+    if (!undo.length) {
+      safeNotif('Nothing to undo.', 'info');
+      return false;
+    }
+    var snapshot = undo.shift();
+    store.setState({ undoStack: undo });
+    var ok = restoreEditableSnapshot(snapshot, true);
+    if (ok) safeNotif('Undo applied.', 'good');
+    return ok;
+  }
+
+  function redoLastEdit() {
+    var state = store.getState();
+    var redo = Array.isArray(state.redoStack) ? state.redoStack.slice() : [];
+    if (!redo.length) {
+      safeNotif('Nothing to redo.', 'info');
+      return false;
+    }
+    var snapshot = redo.shift();
+    store.setState(function (inner) {
+      var next = Object.assign({}, inner);
+      next.redoStack = redo;
+      var undo = Array.isArray(inner.undoStack) ? inner.undoStack.slice() : [];
+      undo.unshift({ label: 'Undo', at: Date.now(), payload: snapshotEditableState(inner) });
+      next.undoStack = undo.slice(0, 40);
+      return next;
+    });
+    var ok = restoreEditableSnapshot(snapshot, false);
+    if (ok) safeNotif('Redo applied.', 'good');
+    return ok;
+  }
+
+  function normalizeSelection(primaryId, selectedIds) {
+    var state = store.getState();
+    var valid = {};
+    (state.tokens || []).forEach(function (token) {
+      if (!token || !token.id) return;
+      valid[String(token.id)] = true;
+    });
+    var list = Array.isArray(selectedIds) ? selectedIds.map(function (id) { return String(id); }).filter(function (id, idx, arr) {
+      return !!valid[id] && arr.indexOf(id) === idx;
+    }) : [];
+    var lead = String(primaryId || '');
+    if (!lead || !valid[lead]) lead = list[0] || '';
+    if (lead && list.indexOf(lead) < 0) list.unshift(lead);
+    store.setState({ selectedTokenId: lead, selectedTokenIds: list });
+    return { primary: lead, list: list };
+  }
+
+  function selectedTokenIdSet() {
+    var state = store.getState();
+    var selected = Array.isArray(state.selectedTokenIds) && state.selectedTokenIds.length
+      ? state.selectedTokenIds.map(function (id) { return String(id); })
+      : (state.selectedTokenId ? [String(state.selectedTokenId)] : []);
+    var set = {};
+    selected.forEach(function (id) { set[id] = true; });
+    return set;
   }
 
   function byId(id) {
@@ -2002,6 +2155,10 @@
     var state = store.getState();
     var actor = (state.tokens || []).find(function (token) { return token && String(token.id) === String(tokenId); }) || null;
     if (!actor) return;
+    if (actor.locked) {
+      safeNotif('Token is locked in place.', 'warn');
+      return;
+    }
     if (isTokenDead(actor)) return;
     var distance = hexDistance({ q: Number(actor.q || 0), r: Number(actor.r || 0) }, { q: Number(q), r: Number(r) });
     if (distance <= 0) return;
@@ -2039,6 +2196,303 @@
     }
   }
 
+  function moveTokenGroupToAnchor(groupIds, anchorId, targetQ, targetR) {
+    var state = store.getState();
+    var ids = Array.isArray(groupIds) ? groupIds.map(function (id) { return String(id); }) : [];
+    if (!ids.length) return false;
+    var anchor = (state.tokens || []).find(function (token) { return token && String(token.id) === String(anchorId); }) || null;
+    if (!anchor) return false;
+    var dq = Number(targetQ) - Number(anchor.q || 0);
+    var dr = Number(targetR) - Number(anchor.r || 0);
+    if (!dq && !dr) return false;
+    var moved = false;
+    captureUndoSnapshot('Move Group');
+    store.setState(function (inner) {
+      var next = Object.assign({}, inner);
+      var idMap = {};
+      ids.forEach(function (id) { idMap[id] = true; });
+      var occupied = {};
+      (inner.tokens || []).forEach(function (token) {
+        if (!token || idMap[String(token.id)]) return;
+        occupied[toKey(token.q, token.r)] = true;
+      });
+      next.tokens = (inner.tokens || []).map(function (token) {
+        if (!token || !idMap[String(token.id)] || token.locked) return token;
+        var nq = Number(token.q || 0) + dq;
+        var nr = Number(token.r || 0) + dr;
+        if (isBlocked(nq, nr)) return token;
+        if (occupied[toKey(nq, nr)]) return token;
+        moved = true;
+        return Object.assign({}, token, { q: nq, r: nr });
+      });
+      persist(next);
+      return next;
+    });
+    if (moved) {
+      addHistory('Moved group of ' + ids.length + ' token(s).');
+      drawBoard();
+      updateUiPanels();
+    }
+    return moved;
+  }
+
+  function getSelectedTokensOrPrimary(fallbackTokenId) {
+    var state = store.getState();
+    var selected = Array.isArray(state.selectedTokenIds) && state.selectedTokenIds.length
+      ? state.selectedTokenIds.slice()
+      : (state.selectedTokenId ? [String(state.selectedTokenId)] : []);
+    if (fallbackTokenId && selected.indexOf(String(fallbackTokenId)) < 0) selected = [String(fallbackTokenId)];
+    var map = {};
+    selected.forEach(function (id) { map[String(id)] = true; });
+    return (state.tokens || []).filter(function (token) { return token && map[String(token.id)]; });
+  }
+
+  function copyTokensToClipboard(tokenId) {
+    var rows = getSelectedTokensOrPrimary(tokenId);
+    if (!rows.length) {
+      safeNotif('Select token(s) first.', 'warn');
+      return;
+    }
+    var anchor = rows[0];
+    var payload = rows.map(function (token) {
+      var copy = clone(token);
+      copy._offsetQ = Number(token.q || 0) - Number(anchor.q || 0);
+      copy._offsetR = Number(token.r || 0) - Number(anchor.r || 0);
+      return copy;
+    });
+    store.setState(function (state) {
+      var next = Object.assign({}, state, { clipboardTokens: payload });
+      persist(next);
+      return next;
+    });
+    safeNotif('Copied ' + payload.length + ' token(s).', 'good');
+  }
+
+  function pasteTokensFromClipboard(baseQ, baseR) {
+    var state = store.getState();
+    var clip = Array.isArray(state.clipboardTokens) ? state.clipboardTokens : [];
+    if (!clip.length) {
+      safeNotif('Clipboard is empty.', 'warn');
+      return;
+    }
+    captureUndoSnapshot('Paste Tokens');
+    var created = [];
+    store.setState(function (inner) {
+      var next = Object.assign({}, inner);
+      var taken = {};
+      (inner.tokens || []).forEach(function (token) {
+        if (!token) return;
+        taken[toKey(token.q, token.r)] = true;
+      });
+      var add = clip.map(function (source, idx) {
+        var col = idx % 4;
+        var row = Math.floor(idx / 4);
+        var q = Number(baseQ || 0) + Number(source._offsetQ || 0) + col;
+        var r = Number(baseR || 0) + Number(source._offsetR || 0) + row;
+        var safety = 0;
+        while (taken[toKey(q, r)] && safety < 20) {
+          q += 1;
+          if (q % 2 === 0) r += 1;
+          safety += 1;
+        }
+        taken[toKey(q, r)] = true;
+        var token = Object.assign({}, source, {
+          id: uid('tok'),
+          q: q,
+          r: r,
+          locked: false
+        });
+        delete token._offsetQ;
+        delete token._offsetR;
+        created.push(String(token.id));
+        return token;
+      });
+      next.tokens = (inner.tokens || []).concat(add);
+      next.selectedTokenIds = created.slice();
+      next.selectedTokenId = created[0] || '';
+      next.initiative = [];
+      persist(next);
+      return next;
+    });
+    addHistory('Pasted ' + created.length + ' token(s) with auto spacing.');
+    drawBoard();
+    updateUiPanels();
+  }
+
+  function enumerateSelectedTokens(baseLabel) {
+    var selected = getSelectedTokensOrPrimary('');
+    if (!selected.length) {
+      safeNotif('Select one or more tokens first.', 'warn');
+      return;
+    }
+    var base = String(baseLabel || selected[0].name || 'Token').trim() || 'Token';
+    captureUndoSnapshot('Enumerate Tokens');
+    var ids = selected.map(function (token) { return String(token.id); });
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      var idMap = {};
+      ids.forEach(function (id) { idMap[id] = true; });
+      var n = 1;
+      next.tokens = (state.tokens || []).map(function (token) {
+        if (!token || !idMap[String(token.id)]) return token;
+        var out = Object.assign({}, token, { name: base + ' ' + n });
+        n += 1;
+        return out;
+      });
+      persist(next);
+      return next;
+    });
+    addHistory('Enumerated ' + selected.length + ' token(s) as ' + base + ' 1..' + selected.length + '.');
+    drawBoard();
+    updateUiPanels();
+  }
+
+  function transformSelectedTokens(kind, value) {
+    var selected = getSelectedTokensOrPrimary('');
+    if (!selected.length) {
+      safeNotif('Select token(s) first.', 'warn');
+      return;
+    }
+    captureUndoSnapshot('Transform Tokens');
+    var idMap = {};
+    selected.forEach(function (token) { idMap[String(token.id)] = true; });
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      next.tokens = (state.tokens || []).map(function (token) {
+        if (!token || !idMap[String(token.id)]) return token;
+        var out = Object.assign({}, token);
+        if (kind === 'rotate') {
+          out.rotation = Number(out.rotation || 0) + Number(value || 0);
+        } else if (kind === 'scale') {
+          out.scale = Math.max(0.25, Math.min(2, Number(value || out.scale || 1)));
+        }
+        return out;
+      });
+      persist(next);
+      return next;
+    });
+    drawBoard();
+    updateUiPanels();
+  }
+
+  function toggleSelectedLock(forceValue) {
+    var selected = getSelectedTokensOrPrimary('');
+    if (!selected.length) {
+      safeNotif('Select token(s) first.', 'warn');
+      return;
+    }
+    var targetValue = typeof forceValue === 'boolean' ? forceValue : !selected.every(function (token) { return !!token.locked; });
+    captureUndoSnapshot('Toggle Lock');
+    var idMap = {};
+    selected.forEach(function (token) { idMap[String(token.id)] = true; });
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      next.tokens = (state.tokens || []).map(function (token) {
+        if (!token || !idMap[String(token.id)]) return token;
+        return Object.assign({}, token, { locked: targetValue });
+      });
+      persist(next);
+      return next;
+    });
+    safeNotif(targetValue ? 'Placement locked.' : 'Placement unlocked.', 'good');
+    drawBoard();
+    updateUiPanels();
+  }
+
+  function reorderSelectedTokens(direction) {
+    var selected = getSelectedTokensOrPrimary('');
+    if (!selected.length) return;
+    captureUndoSnapshot('Reorder Tokens');
+    var ids = selected.map(function (token) { return String(token.id); });
+    var idMap = {};
+    ids.forEach(function (id) { idMap[id] = true; });
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      var rest = (state.tokens || []).filter(function (token) { return token && !idMap[String(token.id)]; });
+      var pick = (state.tokens || []).filter(function (token) { return token && idMap[String(token.id)]; });
+      next.tokens = direction === 'front' ? rest.concat(pick) : pick.concat(rest);
+      persist(next);
+      return next;
+    });
+    drawBoard();
+    updateUiPanels();
+  }
+
+  function cycleSelectedTokenLayer() {
+    var selected = getSelectedTokensOrPrimary('');
+    if (!selected.length) {
+      safeNotif('Select token(s) first.', 'warn');
+      return;
+    }
+    var order = ['background', 'token', 'foreground'];
+    captureUndoSnapshot('Change Token Layer');
+    var idMap = {};
+    selected.forEach(function (token) { idMap[String(token.id)] = true; });
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      next.tokens = (state.tokens || []).map(function (token) {
+        if (!token || !idMap[String(token.id)]) return token;
+        var cur = String(token.layer || 'token');
+        var idx = order.indexOf(cur);
+        if (idx < 0) idx = 1;
+        var layer = order[(idx + 1) % order.length];
+        return Object.assign({}, token, { layer: layer });
+      });
+      persist(next);
+      return next;
+    });
+    drawBoard();
+    updateUiPanels();
+  }
+
+  function placePartyNear(q, r) {
+    captureUndoSnapshot('Place Party');
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      var team = (state.tokens || []).filter(function (token) {
+        return token && (token.isPlayer || String(token.faction) === 'player');
+      });
+      var offsets = [
+        { q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }, { q: -1, r: 1 },
+        { q: -1, r: 0 }, { q: 0, r: -1 }, { q: 1, r: -1 }
+      ];
+      var idToPos = {};
+      team.forEach(function (token, idx) {
+        var off = offsets[idx % offsets.length];
+        idToPos[String(token.id)] = { q: Number(q || 0) + off.q, r: Number(r || 0) + off.r };
+      });
+      next.tokens = (state.tokens || []).map(function (token) {
+        if (!token) return token;
+        var p = idToPos[String(token.id)];
+        if (!p || token.locked) return token;
+        return Object.assign({}, token, { q: p.q, r: p.r });
+      });
+      next.selectedTokenIds = team.map(function (token) { return String(token.id); });
+      next.selectedTokenId = next.selectedTokenIds[0] || next.selectedTokenId;
+      persist(next);
+      return next;
+    });
+    addHistory('Placed party near ' + toKey(q, r) + '.');
+    drawBoard();
+    updateUiPanels();
+  }
+
+  function addTurnForToken(tokenId) {
+    var target = byId(tokenId);
+    if (!target) return;
+    captureUndoSnapshot('Add Turn');
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      var list = Array.isArray(state.initiative) ? state.initiative.slice() : [];
+      list.push({ tokenId: String(target.id), name: String(target.name || 'Token') });
+      next.initiative = list;
+      persist(next);
+      return next;
+    });
+    addHistory('Added extra turn for ' + String(target.name || 'Token') + '.');
+    updateUiPanels();
+  }
+
   function ensureOverlayDom() {
     var existing = document.getElementById('combatModeOverlay');
     if (existing) return existing;
@@ -2058,7 +2512,7 @@
       + '</div>'
       + '<div class="combat-topbar">'
       + '<div>'
-      + '<div class="combat-topbar-title">Combat Scene · Round <span id="combatRoundDisplay">1</span></div>'
+      + '<div class="combat-topbar-title">Page: <span id="combatActiveSceneName">Main Scene</span> · Round <span id="combatRoundDisplay">1</span></div>'
       + '<div class="combat-mini" id="combatTopMeta">No active scene. | Turn: <span id="combatTurnDisplay">Awaiting start</span> &middot; <span id="combatSharedSyncBadge">Sync --</span></div>'
       + '</div>'
       + '<div style="display:flex;gap:.28rem;align-items:center;">'
@@ -2068,6 +2522,9 @@
       + '<button class="btn btn-xs combat-editor-only" id="combatUploadMapBtn">Upload Battlemap</button>'
       + '<button class="btn btn-xs combat-editor-only" id="combatClearMapBtn">Remove Battlemap</button>'
       + '<button class="btn btn-xs combat-editor-only" id="combatAddTokenBtn">+ Add Enemy</button>'
+      + '<select class="combat-select combat-editor-only" id="combatPageSelect" style="max-width:180px;"></select>'
+      + '<button class="btn btn-xs combat-editor-only" id="combatCreatePageBtn" title="Create new map page">+ Create Page</button>'
+      + '<button class="btn btn-xs combat-editor-only" id="combatBuildMapBtn" title="Build map page with auto-filled hexes">Build Map</button>'
       + '<button class="btn btn-xs btn-red" id="combatCloseBtn">End Scene</button>'
       + '<div style="display:flex;gap:.28rem;align-items:center;margin-left:.4rem;border-left:1px solid rgba(227,188,94,.2);padding-left:.4rem;">'
       + '<button class="btn btn-xs" id="combatRulesReferenceBtn" title="Combat Rules Reference">Rules</button>'
@@ -2080,7 +2537,7 @@
       + '<input id="combatMapImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatTokenImageInput" type="file" accept="image/*" style="display:none;">'
       + '<input id="combatImportSceneInput" type="file" accept="application/json,.json" style="display:none;">'
-      + '<div class="combat-canvas-wrap" id="combatCanvasWrap"><canvas id="combatSceneCanvas"></canvas><input id="combatBubbleInlineInput" type="text" style="display:none;position:absolute;z-index:8;min-width:54px;height:20px;padding:0 .25rem;border:1px solid rgba(227,188,94,.8);background:rgba(4,6,12,.96);color:#fff;font-size:.72rem;"><div id="combatLootPopupCard" style="display:none;position:absolute;z-index:9;min-width:240px;max-width:300px;border:1px solid rgba(227,188,94,.65);background:rgba(5,8,16,.98);box-shadow:0 12px 28px rgba(0,0,0,.45);padding:.45rem .5rem;border-radius:10px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:.35rem;"><div id="combatLootPopupTitle" style="font:600 .83rem Rajdhani,sans-serif;color:var(--combat-accent-2);">Body Loot</div><button class="btn btn-xs" id="combatLootCloseBtn" style="padding:.08rem .3rem;">X</button></div><div id="combatLootPopupMeta" class="combat-mini" style="margin:.18rem 0 .28rem 0;"></div><div id="combatLootPopupList" style="display:grid;gap:.2rem;max-height:180px;overflow:auto;padding-right:.1rem;"></div><div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.34rem;"><button class="btn btn-xs" id="combatLootTakeSelectedBtn">Take Selected</button><button class="btn btn-xs" id="combatLootTakeAllBtn">Take All</button></div></div></div>'
+      + '<div class="combat-canvas-wrap" id="combatCanvasWrap"><canvas id="combatSceneCanvas"></canvas><input id="combatBubbleInlineInput" type="text" style="display:none;position:absolute;z-index:8;min-width:54px;height:20px;padding:0 .25rem;border:1px solid rgba(227,188,94,.8);background:rgba(4,6,12,.96);color:#fff;font-size:.72rem;"><div id="combatLootPopupCard" style="display:none;position:absolute;z-index:9;min-width:240px;max-width:300px;border:1px solid rgba(227,188,94,.65);background:rgba(5,8,16,.98);box-shadow:0 12px 28px rgba(0,0,0,.45);padding:.45rem .5rem;border-radius:10px;"><div style="display:flex;align-items:center;justify-content:space-between;gap:.35rem;"><div id="combatLootPopupTitle" style="font:600 .83rem Rajdhani,sans-serif;color:var(--combat-accent-2);">Body Loot</div><button class="btn btn-xs" id="combatLootCloseBtn" style="padding:.08rem .3rem;">X</button></div><div id="combatLootPopupMeta" class="combat-mini" style="margin:.18rem 0 .28rem 0;"></div><div id="combatLootPopupList" style="display:grid;gap:.2rem;max-height:180px;overflow:auto;padding-right:.1rem;"></div><div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.34rem;"><button class="btn btn-xs" id="combatLootTakeSelectedBtn">Take Selected</button><button class="btn btn-xs" id="combatLootTakeAllBtn">Take All</button></div></div><div id="combatTokenContextMenu" class="combat-token-menu" style="display:none;"></div></div>'
       + '<aside class="combat-icon-rail" id="combatIconRail">'
       + '<button class="combat-icon-btn" id="combatRailSelectBtn" title="Select Tool (V)"><span class="combat-svg-icon">'
       + '<svg viewBox="0 0 24 24" width="20" height="20" aria-label="Select Tool"><path d="M12 2l4 8h-3v8h-2v-8H8z" fill="currentColor"/></svg>'
@@ -2369,6 +2826,121 @@
       drawBoard();
       if (typeof requestAnimationFrame === 'function') requestAnimationFrame(animatePing);
     })();
+  }
+
+  function hideTokenContextMenu() {
+    var menu = document.getElementById('combatTokenContextMenu');
+    if (!menu) return;
+    menu.style.display = 'none';
+    menu.innerHTML = '';
+    menu.removeAttribute('data-token-id');
+  }
+
+  function runTokenContextAction(actionKey, tokenId, q, r) {
+    var token = byId(tokenId);
+    if (!token) return;
+    if (actionKey === 'ping') {
+      placeTablePing(token.q, token.r, currentPingIdentity());
+    } else if (actionKey === 'focus-ping') {
+      normalizeSelection(token.id, [token.id]);
+      placeTablePing(token.q, token.r, 'Focus ' + currentPingIdentity());
+      if (typeof openTokenSheetQuickView === 'function') openTokenSheetQuickView(token.id);
+    } else if (actionKey === 'place-party') {
+      placePartyNear(Number(q || token.q || 0), Number(r || token.r || 0));
+    } else if (actionKey === 'copy') {
+      copyTokensToClipboard(token.id);
+    } else if (actionKey === 'paste') {
+      pasteTokensFromClipboard(Number(q || token.q || 0), Number(r || token.r || 0));
+    } else if (actionKey === 'undo') {
+      undoLastEdit();
+    } else if (actionKey === 'redo') {
+      redoLastEdit();
+    } else if (actionKey === 'sheet') {
+      openTokenSheetQuickView(token.id);
+    } else if (actionKey === 'add-turn') {
+      addTurnForToken(token.id);
+    } else if (actionKey === 'vision') {
+      var raw = window.prompt('Token vision radius (1-12):', String(Math.max(1, Number(store.getState().fog && store.getState().fog.visionRadius || 3))));
+      if (raw !== null) {
+        var vr = Math.max(1, Math.min(12, Number(raw || 3)));
+        captureUndoSnapshot('Token Vision');
+        store.setState(function (state) {
+          var next = Object.assign({}, state);
+          next.fog = Object.assign({}, state.fog || {}, { enabled: true, visionRadius: vr });
+          next.selectedTokenId = String(token.id);
+          next.selectedTokenIds = [String(token.id)];
+          persist(next);
+          return next;
+        });
+        drawBoard();
+        updateUiPanels();
+      }
+    } else if (actionKey === 'reactions') {
+      addHistory(String(token.name || 'Token') + ' is set to reaction-ready.');
+      safeNotif('Reaction ready marker added to history.', 'good');
+      updateUiPanels();
+    } else if (actionKey === 'change-layer') {
+      normalizeSelection(token.id, [token.id]);
+      cycleSelectedTokenLayer();
+    } else if (actionKey === 'front') {
+      normalizeSelection(token.id, [token.id]);
+      reorderSelectedTokens('front');
+    } else if (actionKey === 'back') {
+      normalizeSelection(token.id, [token.id]);
+      reorderSelectedTokens('back');
+    } else if (actionKey === 'lock') {
+      normalizeSelection(token.id, [token.id]);
+      toggleSelectedLock();
+    } else if (actionKey === 'enumerate') {
+      enumerateSelectedTokens(token.name);
+    } else if (actionKey === 'rotate') {
+      transformSelectedTokens('rotate', 45);
+    } else if (actionKey === 'half') {
+      transformSelectedTokens('scale', 0.5);
+    } else if (actionKey === 'quarter') {
+      transformSelectedTokens('scale', 0.25);
+    }
+  }
+
+  function showTokenContextMenu(token, screenX, screenY, q, r) {
+    var menu = document.getElementById('combatTokenContextMenu');
+    if (!menu || !token) return;
+    var actions = [
+      { key: 'ping', label: 'Ping' },
+      { key: 'focus-ping', label: 'Focus Ping' },
+      { key: 'place-party', label: 'Place Party' },
+      { key: 'copy', label: 'Copy' },
+      { key: 'paste', label: 'Paste' },
+      { key: 'undo', label: 'Undo' },
+      { key: 'redo', label: 'Redo' },
+      { key: 'sheet', label: 'Character Sheet' },
+      { key: 'add-turn', label: 'Add Turn' },
+      { key: 'vision', label: 'Token Vision/Light' },
+      { key: 'reactions', label: 'Reactions' },
+      { key: 'change-layer', label: 'Change Layer' },
+      { key: 'front', label: 'Bring to Front' },
+      { key: 'back', label: 'Bring to Back' },
+      { key: 'lock', label: token.locked ? 'Unlock Placement' : 'Lock Placement' },
+      { key: 'enumerate', label: 'Enumerate Selected' },
+      { key: 'rotate', label: 'Rotate +45°' },
+      { key: 'half', label: 'Scale Half Hex' },
+      { key: 'quarter', label: 'Scale Quarter Hex' }
+    ];
+    menu.innerHTML = actions.map(function (entry) {
+      return '<button class="combat-token-menu-item" data-menu-action="' + entry.key + '">' + entry.label + '</button>';
+    }).join('');
+    menu.setAttribute('data-token-id', String(token.id));
+    menu.style.display = 'grid';
+    menu.style.left = Math.max(6, Number(screenX || 0)) + 'px';
+    menu.style.top = Math.max(6, Number(screenY || 0)) + 'px';
+    Array.prototype.slice.call(menu.querySelectorAll('[data-menu-action]')).forEach(function (btn) {
+      btn.onclick = function (ev) {
+        ev.preventDefault();
+        var action = String(btn.getAttribute('data-menu-action') || '');
+        hideTokenContextMenu();
+        runTokenContextAction(action, token.id, q, r);
+      };
+    });
   }
 
   function showInlineBubbleEditor(hit, token, canvas) {
@@ -2740,13 +3312,26 @@
       }
     }
 
-    (state.tokens || []).forEach(function (token) {
+    var selectedSet = selectedTokenIdSet();
+    var layerOrder = { background: 0, token: 1, foreground: 2 };
+    var tokensToDraw = (state.tokens || []).slice().sort(function (a, b) {
+      var la = layerOrder[String(a && a.layer || 'token')];
+      var lb = layerOrder[String(b && b.layer || 'token')];
+      if (la !== lb) return Number(la || 1) - Number(lb || 1);
+      return Number(a && a.zIndex || 0) - Number(b && b.zIndex || 0);
+    });
+
+    tokensToDraw.forEach(function (token) {
       var p = axialToPixel(Number(token.q || 0), Number(token.r || 0), size, board.panX, board.panY);
-      var radius = Math.max(14, (size * 0.32) * Math.max(1, Number(token.size || 1)));
+      var tokenScale = Math.max(0.25, Math.min(2, Number(token.scale || 1)));
+      var radius = Math.max(10, (size * 0.32) * Math.max(1, Number(token.size || 1)) * tokenScale);
       var dead = isTokenDead(token);
+      var rotationRad = (Number(token.rotation || 0) % 360) * (Math.PI / 180);
       ctx.save();
+      ctx.translate(p.x, p.y);
+      if (rotationRad) ctx.rotate(rotationRad);
       ctx.beginPath();
-      ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
       ctx.fillStyle = String(token.faction) === 'monster' ? 'rgba(160,58,58,.92)' : 'rgba(47,154,144,.92)';
       if (dead) ctx.fillStyle = 'rgba(94,98,110,.7)';
       ctx.fill();
@@ -2754,19 +3339,34 @@
         var img = new Image();
         img.onload = function () {
           ctx.save();
+          ctx.translate(p.x, p.y);
+          if (rotationRad) ctx.rotate(rotationRad);
           ctx.beginPath();
-          ctx.arc(p.x, p.y, radius - 2, 0, Math.PI * 2);
+          ctx.arc(0, 0, radius - 2, 0, Math.PI * 2);
           ctx.clip();
-          ctx.drawImage(img, p.x - radius, p.y - radius, radius * 2, radius * 2);
+          ctx.drawImage(img, -radius, -radius, radius * 2, radius * 2);
           ctx.restore();
         };
         img.src = token.image;
+      }
+      if (selectedSet[String(token.id)]) {
+        ctx.lineWidth = 2.2;
+        ctx.strokeStyle = 'rgba(73,201,187,.95)';
+        ctx.stroke();
       }
       if (String(state.selectedTokenId) === String(token.id)) {
         ctx.lineWidth = 2.6;
         ctx.strokeStyle = 'rgba(227,188,94,.95)';
         ctx.stroke();
       }
+      if (token.locked) {
+        ctx.fillStyle = 'rgba(255,214,136,.95)';
+        ctx.font = 'bold 11px Rajdhani, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('L', 0, 3);
+      }
+      ctx.restore();
+
       ctx.fillStyle = '#fff';
       ctx.font = '11px Rajdhani, sans-serif';
       ctx.textAlign = 'center';
@@ -2888,7 +3488,6 @@
         bubbleHotspots.push({ tokenId: String(token.id), statKey: String(b.key), x: bx, y: bubbleY, w: bw, h: bh, cx: bx + (bw / 2), cy: bubbleY + (bh / 2) });
       });
 
-      ctx.restore();
     });
 
     for (var fr = -board.rows; fr <= board.rows; fr++) {
@@ -3069,6 +3668,29 @@
     // Update round and turn display
     var roundDisplay = document.getElementById('combatRoundDisplay');
     if (roundDisplay) roundDisplay.textContent = String(Math.max(1, Number(state.round || 1)));
+
+    var activeSceneName = document.getElementById('combatActiveSceneName');
+    if (activeSceneName) {
+      var activeScene = (state.scenes || []).find(function (scene) {
+        return scene && String(scene.id || '') === String(state.activeSceneId || '');
+      }) || null;
+      activeSceneName.textContent = String(activeScene && activeScene.name || 'Main Scene');
+    }
+
+    var pageSelect = document.getElementById('combatPageSelect');
+    if (pageSelect) {
+      var scenes = Array.isArray(state.scenes) ? state.scenes : [];
+      var prevPage = String(pageSelect.value || '');
+      pageSelect.innerHTML = scenes.length
+        ? scenes.map(function (scene, idx) {
+          return '<option value="' + String(scene.id || '') + '">Page ' + (idx + 1) + ': ' + String(scene.name || ('Scene ' + (idx + 1))).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</option>';
+        }).join('')
+        : '<option value="">Page 1: Main Scene</option>';
+      var hasPrev = Array.prototype.slice.call(pageSelect.options || []).some(function (opt) {
+        return String(opt.value || '') === prevPage;
+      });
+      pageSelect.value = hasPrev ? prevPage : String(state.activeSceneId || (scenes[0] && scenes[0].id) || '');
+    }
 
     var turnDisplay = document.getElementById('combatTurnDisplay');
     if (turnDisplay) {
@@ -4016,6 +4638,10 @@
       var canvasX = ev.clientX - rect.left;
       var canvasY = ev.clientY - rect.top;
       var ax = pixelToAxial(canvasX, canvasY, size, board.panX, board.panY);
+      if (ev.button === 2) {
+        return;
+      }
+      hideTokenContextMenu();
       var lootCard = document.getElementById('combatLootPopupCard');
       if (lootCard && lootCard.style.display !== 'none') {
         var cardRect = lootCard.getBoundingClientRect();
@@ -4043,7 +4669,8 @@
       if (clickedToken && isTokenDead(clickedToken) && state.activeTool === 'select') {
         var corpseDrop = getLootDropForToken(state, clickedToken.id);
         if (corpseDrop && !corpseDrop.claimed && Array.isArray(corpseDrop.items) && corpseDrop.items.length) {
-          store.setState({ selectedTokenId: clickedToken.id, draggingTokenId: '' });
+          normalizeSelection(clickedToken.id, [clickedToken.id]);
+          store.setState({ draggingTokenId: '' });
           openLootPopupForToken(clickedToken.id, canvasX, canvasY);
           updateUiPanels();
           drawBoard();
@@ -4057,7 +4684,22 @@
       }
 
       if (clickedToken && state.activeTool !== 'paint' && state.activeTool !== 'erase') {
-        store.setState({ selectedTokenId: clickedToken.id, draggingTokenId: clickedToken.id });
+        var selectedIds = Array.isArray(state.selectedTokenIds) ? state.selectedTokenIds.slice() : [];
+        if (ev.shiftKey) {
+          var tokenId = String(clickedToken.id || '');
+          var idx = selectedIds.indexOf(tokenId);
+          if (idx >= 0) selectedIds.splice(idx, 1);
+          else selectedIds.push(tokenId);
+          var normalized = normalizeSelection(tokenId, selectedIds);
+          store.setState({ draggingTokenId: '', draggingGroupIds: normalized.list.slice(), dragTokenOrigins: {} });
+          updateUiPanels();
+          drawBoard();
+          return;
+        }
+        var shouldGroupDrag = selectedIds.indexOf(String(clickedToken.id || '')) >= 0 && selectedIds.length > 1;
+        var groupIds = shouldGroupDrag ? selectedIds.slice() : [String(clickedToken.id || '')];
+        normalizeSelection(clickedToken.id, groupIds);
+        store.setState({ selectedTokenId: clickedToken.id, draggingTokenId: clickedToken.id, draggingGroupIds: groupIds, dragTokenOrigins: {} });
         closeLootPopup();
         if (String(clickedToken.faction || '') === 'monster' && typeof window.setCombatFocusEnemy === 'function') {
           var focusId = Number(clickedToken.sourceEnemyId || clickedToken.id || 0);
@@ -4170,7 +4812,11 @@
         var board = state.board;
         var size = Number(board.size || 42) * Number(board.zoom || 1);
         var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, board.panX, board.panY);
-        moveToken(state.draggingTokenId, ax.q, ax.r);
+        if (Array.isArray(state.draggingGroupIds) && state.draggingGroupIds.length > 1 && !isSceneActive()) {
+          moveTokenGroupToAnchor(state.draggingGroupIds, state.draggingTokenId, ax.q, ax.r);
+        } else {
+          moveToken(state.draggingTokenId, ax.q, ax.r);
+        }
         drawBoard();
         updateUiPanels();
         return;
@@ -4220,7 +4866,7 @@
         store.setState({ mouse: { panning: false, lastX: 0, lastY: 0 } });
       }
       if (state.draggingTokenId) {
-        store.setState({ draggingTokenId: '' });
+        store.setState({ draggingTokenId: '', draggingGroupIds: [], dragTokenOrigins: {} });
       }
       if (state.activeTool === 'ruler' && state.ruler && state.ruler.active) {
         var ro3 = Object.assign({ fadeDelay: 'linger' }, state.rulerOptions || {});
@@ -4245,6 +4891,34 @@
       openTokenSheetQuickView(clickedToken.id);
       ev.preventDefault();
     });
+
+    canvas.addEventListener('contextmenu', function (ev) {
+      ev.preventDefault();
+      var state = store.getState();
+      var rect = canvas.getBoundingClientRect();
+      var board = state.board;
+      var size = Number(board.size || 42) * Number(board.zoom || 1);
+      var ax = pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, board.panX, board.panY);
+      var token = nearestTokenAt(ax.q, ax.r);
+      if (!token) {
+        hideTokenContextMenu();
+        return;
+      }
+      var selected = Array.isArray(state.selectedTokenIds) ? state.selectedTokenIds.slice() : [];
+      if (selected.indexOf(String(token.id || '')) < 0) normalizeSelection(token.id, [String(token.id || '')]);
+      showTokenContextMenu(token, ev.clientX - rect.left, ev.clientY - rect.top, ax.q, ax.r);
+      drawBoard();
+      updateUiPanels();
+    });
+
+    if (!canvas._contextCloseBound) {
+      canvas._contextCloseBound = true;
+      window.addEventListener('mousedown', function (ev) {
+        var menu = document.getElementById('combatTokenContextMenu');
+        if (!menu || menu.style.display === 'none') return;
+        if (!menu.contains(ev.target)) hideTokenContextMenu();
+      });
+    }
 
     canvas.addEventListener('wheel', function (ev) {
       ev.preventDefault();
@@ -6000,6 +6674,37 @@
         drawBoard();
       };
     }
+
+    var overlay = document.getElementById('combatModeOverlay');
+    if (overlay && !overlay._shortcutsBound) {
+      overlay._shortcutsBound = true;
+      overlay.addEventListener('keydown', function (ev) {
+        var key = String(ev.key || '').toLowerCase();
+        if ((ev.ctrlKey || ev.metaKey) && key === 'c') {
+          var st = store.getState();
+          copyTokensToClipboard(st.selectedTokenId || '');
+          ev.preventDefault();
+          return;
+        }
+        if ((ev.ctrlKey || ev.metaKey) && key === 'v') {
+          var st2 = store.getState();
+          var anchor = byId(st2.selectedTokenId) || { q: 0, r: 0 };
+          pasteTokensFromClipboard(Number(anchor.q || 0) + 1, Number(anchor.r || 0) + 1);
+          ev.preventDefault();
+          return;
+        }
+        if ((ev.ctrlKey || ev.metaKey) && key === 'z' && !ev.shiftKey) {
+          undoLastEdit();
+          ev.preventDefault();
+          return;
+        }
+        if (((ev.ctrlKey || ev.metaKey) && key === 'y') || ((ev.ctrlKey || ev.metaKey) && ev.shiftKey && key === 'z')) {
+          redoLastEdit();
+          ev.preventDefault();
+          return;
+        }
+      });
+    }
   }
 
   function showCombatRulesReference() {
@@ -6206,6 +6911,54 @@
       rulesBtn._bound = true;
       rulesBtn.onclick = function () {
         showCombatRulesReference();
+      };
+    }
+
+    var pageSelect = document.getElementById('combatPageSelect');
+    if (pageSelect && !pageSelect._bound) {
+      pageSelect._bound = true;
+      pageSelect.onchange = function () {
+        var id = String(pageSelect.value || '');
+        if (!id) return;
+        loadSceneCard(id);
+      };
+    }
+
+    var createPageBtn = document.getElementById('combatCreatePageBtn');
+    if (createPageBtn && !createPageBtn._bound) {
+      createPageBtn._bound = true;
+      createPageBtn.onclick = function () {
+        createSceneFromTemplate('blank');
+      };
+    }
+
+    var buildMapBtn = document.getElementById('combatBuildMapBtn');
+    if (buildMapBtn && !buildMapBtn._bound) {
+      buildMapBtn._bound = true;
+      buildMapBtn.onclick = function () {
+        captureUndoSnapshot('Build Map Pages');
+        var labels = ['Dungeon Wing A', 'Dungeon Wing B', 'Dungeon Wing C'];
+        var createdIds = [];
+        labels.forEach(function (label, idx) {
+          createSceneFromTemplate(idx % 2 === 0 ? 'dungeon' : 'quick');
+          var current = normalizeCombatSceneState(store.getState());
+          var activeId = String(current.activeSceneId || '');
+          if (!activeId) return;
+          createdIds.push(activeId);
+          store.setState(function (state) {
+            var next = Object.assign({}, state);
+            next.scenes = (state.scenes || []).map(function (scene) {
+              if (!scene || String(scene.id) !== activeId) return scene;
+              return Object.assign({}, scene, { name: label });
+            });
+            persist(next);
+            return next;
+          });
+        });
+        if (createdIds.length) loadSceneCard(createdIds[0]);
+        safeNotif('Built ' + createdIds.length + ' linked map pages.', 'good');
+        updateUiPanels();
+        drawBoard();
       };
     }
 

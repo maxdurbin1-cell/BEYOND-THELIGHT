@@ -265,6 +265,87 @@
   cursor: pointer;
 }
 
+.gmwb-graph-legend {
+  margin-top: 0.35rem;
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 0.28rem 0.35rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.gmwb-legend-title {
+  font-family: 'Cinzel', serif;
+  font-size: 0.58rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--gold2);
+  margin-bottom: 0.2rem;
+}
+
+.gmwb-legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.22rem;
+  margin-bottom: 0.18rem;
+}
+
+.gmwb-legend-row:last-child {
+  margin-bottom: 0;
+}
+
+.gmwb-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 0.08rem 0.36rem;
+  font-size: 0.66rem;
+  color: var(--text2);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.gmwb-legend-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  display: inline-block;
+}
+
+.gmwb-legend-loc {
+  background: #1c5c77;
+}
+
+.gmwb-legend-char {
+  background: #5d4b88;
+}
+
+.gmwb-legend-thing {
+  background: #7a5e2d;
+}
+
+.gmwb-legend-line {
+  width: 0.95rem;
+  height: 0;
+  border-top: 2px solid;
+  display: inline-block;
+}
+
+.gmwb-legend-rel {
+  border-top-color: var(--teal2);
+}
+
+.gmwb-legend-portal {
+  border-top-color: var(--gold2);
+}
+
+.gmwb-legend-arrow {
+  font-size: 0.7rem;
+  color: var(--gold2);
+  line-height: 1;
+}
+
 .gmwb-edge-editor {
   border: 1px solid var(--border2);
   border-radius: 8px;

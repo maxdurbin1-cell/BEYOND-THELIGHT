@@ -180,6 +180,8 @@
       this.effectPhase = null; // 'nat20' | 'nat1' | null
       this.effectTimer = 0;
       this.effectDuration = 1400;
+      this.rollMode = 'sum';
+      this.resultAggregator = null;
     }
 
     init() {
@@ -272,6 +274,8 @@
       this.presetValues = null;
       this.effectPhase = null;
       this.effectTimer = 0;
+      this.rollMode = 'sum';
+      this.resultAggregator = null;
       PARTICLE_POOL.length = 0;
 
       // Create dice with random initial velocities
@@ -304,7 +308,75 @@
       this.animate();
     }
 
+    initMixedRoll(pool, bonus = 0, options = {}) {
+      const safePool = Array.isArray(pool) ? pool.map(entry => {
+        const sides = Math.max(2, Number(entry && entry.sides || entry || 20));
+        const count = Math.max(1, Number(entry && entry.count || 1));
+        return {
+          sides,
+          count,
+          label: String(entry && entry.label || `d${sides}`)
+        };
+      }).filter(entry => entry.count > 0) : [];
+      if (!safePool.length) return null;
+      this.dice = [];
+      this.results = [];
+      this.timeElapsed = 0;
+      this.isAnimating = true;
+      this.bonus = Number(bonus || 0);
+      this.diceType = 'mixed';
+      this.presetValues = null;
+      this.effectPhase = null;
+      this.effectTimer = 0;
+      this.rollMode = String(options.mode || 'sum');
+      this.resultAggregator = typeof options.aggregate === 'function' ? options.aggregate : null;
+      PARTICLE_POOL.length = 0;
+
+      const startX = this.canvas.width / 2;
+      const startY = this.canvas.height / 2;
+      const totalDice = safePool.reduce((sum, entry) => sum + entry.count, 0);
+      let index = 0;
+      safePool.forEach(entry => {
+        for (let i = 0; i < entry.count; i++) {
+          const angle = (Math.PI * 2 * index) / Math.max(1, totalDice);
+          const velocity = 8 + Math.random() * 4;
+          const dieType = `d${entry.sides}`;
+          const die = {
+            id: index,
+            type: dieType,
+            x: startX + Math.cos(angle) * 40,
+            y: startY + Math.sin(angle) * 40,
+            vx: Math.cos(angle) * velocity,
+            vy: Math.sin(angle) * velocity - 2,
+            rotX: Math.random() * Math.PI * 2,
+            rotY: Math.random() * Math.PI * 2,
+            rotZ: Math.random() * Math.PI * 2,
+            angVelX: (Math.random() - 0.5) * 0.3,
+            angVelY: (Math.random() - 0.5) * 0.3,
+            angVelZ: (Math.random() - 0.5) * 0.3,
+            settled: false,
+            settledValue: null,
+            poolLabel: entry.label
+          };
+          this.dice.push(die);
+          index += 1;
+        }
+      });
+
+      this.animate();
+      return this;
+    }
+
     rollPreset(sides, values, bonus = 0) {
+      if (Array.isArray(sides)) {
+        const pool = sides;
+        const mixedBonus = typeof values === 'number' ? values : Number(bonus || 0);
+        const mixedOptions = values && typeof values === 'object' && !Array.isArray(values)
+          ? values
+          : {};
+        return this.initMixedRoll(pool, mixedBonus, mixedOptions);
+      }
+
       const safeSides = Math.max(2, Number(sides || 20));
       const safeValues = Array.isArray(values) ? values.map(v => Math.max(1, Math.min(safeSides, Number(v || 1)))) : [];
       if (!safeValues.length) return null;
@@ -544,11 +616,20 @@
       this.results = this.dice.map(d => ({
         id: d.id,
         type: d.type,
-        value: d.settledValue || this.getDiceResult(d)
+        value: d.settledValue || this.getDiceResult(d),
+        poolLabel: d.poolLabel || d.type
       }));
 
-      const total = this.results.reduce((sum, r) => sum + r.value, 0) + this.bonus;
-      const resultStr = this.results.map(r => r.value).join(' + ') + (this.bonus ? ` + ${this.bonus}` : '') + ` = ${total}`;
+      const rollValues = this.results.map(r => Number(r.value || 0));
+      const totalBase = typeof this.resultAggregator === 'function'
+        ? Number(this.resultAggregator(this.results, this.bonus) || 0)
+        : this.rollMode === 'highest'
+          ? (rollValues.length ? Math.max.apply(Math, rollValues) : 0) + this.bonus
+          : rollValues.reduce((sum, r) => sum + r, 0) + this.bonus;
+      const total = Number(totalBase || 0);
+      const resultStr = this.rollMode === 'highest'
+        ? `${rollValues.join(' / ')}${this.bonus ? ` + ${this.bonus}` : ''} = ${total}`
+        : `${rollValues.join(' + ')}${this.bonus ? ` + ${this.bonus}` : ''} = ${total}`;
 
       // Detect nat 20 / nat 1 for d20 rolls
       const d20Results = this.results.filter(r => r.type === 'd20');
@@ -771,11 +852,21 @@
     diceRoller.roll(diceString);
   }
 
+  function rollMixed3DDice(pool, bonus, options, onComplete) {
+    initializeDiceRoller();
+    const modal = document.getElementById('diceRollerModal');
+    if (modal) modal.style.display = 'flex';
+    if (typeof onComplete === 'function') diceRoller.onComplete = onComplete;
+    const safeOptions = options && typeof options === 'object' ? options : {};
+    return diceRoller.initMixedRoll(pool, bonus || 0, safeOptions);
+  }
+
   // Expose to window
   window.initializeDiceRoller = initializeDiceRoller;
   window.openDiceRoller = openDiceRoller;
   window.closeDiceRoller = closeDiceRoller;
   window.rollDiceFromUI = rollDiceFromUI;
+  window.rollMixed3DDice = rollMixed3DDice;
   window.Dice3DRoller = Dice3DRoller;
   window.DICE_SKINS = DICE_SKINS;
   window.getDiceActiveSkin = getActiveSkin;
@@ -785,7 +876,12 @@
     const modal = document.getElementById('diceRollerModal');
     if (modal) modal.style.display = 'flex';
     if (typeof onComplete === 'function') diceRoller.onComplete = onComplete;
-    return diceRoller.rollPreset(sides, values, bonus || 0);
+      if (Array.isArray(sides)) {
+        const mixedBonus = typeof values === 'number' ? values : Number(bonus || 0);
+        const mixedOptions = values && typeof values === 'object' && !Array.isArray(values) ? values : {};
+        return diceRoller.initMixedRoll(sides, mixedBonus, mixedOptions);
+      }
+      return diceRoller.rollPreset(sides, values, bonus || 0);
   };
 
   // Auto-initialize when DOM is ready

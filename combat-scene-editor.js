@@ -4285,6 +4285,40 @@
     return lines;
   }
 
+  function getWayfarerQuickRollProfile(actionKey) {
+    var key = String(actionKey || 'strike').toLowerCase();
+    var affix = (typeof window.getEquippedAffixCombatBonuses === 'function') ? window.getEquippedAffixCombatBonuses() : {};
+    var wpStrike = (typeof window.parseWeaponBonuses === 'function') ? window.parseWeaponBonuses('strike') : { flat: 0, advDie: 0 };
+    var wpShoot = (typeof window.parseWeaponBonuses === 'function') ? window.parseWeaponBonuses('shoot') : { flat: 0, advDie: 0 };
+    var flStrike = (typeof window.getFlavorBonus === 'function') ? window.getFlavorBonus('strike') : { flat: 0, advDice: [] };
+    var flShoot = (typeof window.getFlavorBonus === 'function') ? window.getFlavorBonus('shoot') : { flat: 0, advDice: [] };
+    var mtStrike = (typeof window.getMutationBonus === 'function') ? window.getMutationBonus('strike') : { flat: 0, advDice: [] };
+    var mtShoot = (typeof window.getMutationBonus === 'function') ? window.getMutationBonus('shoot') : { flat: 0, advDice: [] };
+    var rollMod = window.S && window.S.rollMod ? window.S.rollMod : { flat: 0, advDice: [] };
+    var isShoot = key.indexOf('shoot') >= 0 || key.indexOf('ranged') >= 0;
+    var baseDie = getWayfarerEffectiveDie(isShoot ? 'shoot' : key, 4);
+    var flat = Number(rollMod.flat || 0);
+    var advDice = [];
+    if (isShoot) {
+      flat += Number(wpShoot.flat || 0) + Number(flShoot.flat || 0) + Number(mtShoot.flat || 0) + Number(affix && affix.shootFlat || 0);
+      advDice = advDice.concat((flShoot && flShoot.advDice) || []).concat((mtShoot && mtShoot.advDice) || []);
+      if (Number(wpShoot && wpShoot.advDie || 0) > 0) advDice.push(Number(wpShoot.advDie));
+    } else {
+      flat += Number(wpStrike.flat || 0) + Number(flStrike.flat || 0) + Number(mtStrike.flat || 0) + Number(affix && affix.strikeFlat || 0);
+      advDice = advDice.concat((flStrike && flStrike.advDice) || []).concat((mtStrike && mtStrike.advDice) || []);
+      if (Number(wpStrike && wpStrike.advDie || 0) > 0) advDice.push(Number(wpStrike.advDie));
+    }
+    if (Array.isArray(rollMod && rollMod.advDice)) advDice = advDice.concat(rollMod.advDice);
+    advDice = advDice.map(function (die) { return Math.max(4, Number(die || 0)); }).filter(Boolean);
+    return {
+      actionKey: key,
+      baseDie: Math.max(4, Number(baseDie || 4)),
+      flat: flat,
+      advDice: advDice,
+      pool: [Math.max(4, Number(baseDie || 4))].concat(advDice)
+    };
+  }
+
   function formatSoulArraySummary() {
     var soul = Array.isArray(window.S && window.S.soulArray) ? window.S.soulArray.slice() : [];
     if (!soul.length) return 'Not rolled yet';
@@ -4696,8 +4730,8 @@
     if (v.indexOf('strike') >= 0) return Number(range || 0) <= 1;
     if (v.indexOf('shoot') >= 0) {
       var r = Number(range || 0);
-      // Shooting can pressure close through far bands in the scene editor.
-      return r >= 1 && r <= 3;
+      // Shoot is a ranged option; engaged targets must be struck in melee.
+      return r >= 2 && r <= 3;
     }
     return true;
   }
@@ -5656,7 +5690,20 @@
   function runTokenContextAction(actionKey, tokenId, q, r) {
     var token = byId(tokenId);
     if (!token) return;
-    if (actionKey === 'ping') {
+    if (actionKey === 'open-inventory') {
+      var isWayfarer = !!(token.isPlayer || String(token.faction || '') === 'player' || /wayfarer/i.test(String(token.name || '')));
+      if (!isWayfarer) {
+        safeNotif('Inventory is available for the Wayfarer token.', 'warn');
+        return;
+      }
+      if (typeof window.switchTab === 'function') {
+        try { window.switchTab('character'); } catch (_err) {}
+      }
+      if (typeof window.renderBackpackUI === 'function') {
+        try { window.renderBackpackUI(); } catch (_err2) {}
+      }
+      safeNotif('Inventory opened.', 'good');
+    } else if (actionKey === 'ping') {
       placeTablePing(token.q, token.r, currentPingIdentity());
     } else if (actionKey === 'focus-ping') {
       normalizeSelection(token.id, [token.id]);
@@ -5732,6 +5779,7 @@
       clearTimeout(tokenContextMenuHideTimer);
       tokenContextMenuHideTimer = null;
     }
+    var isWayfarer = !!(token.isPlayer || String(token.faction || '') === 'player' || /wayfarer/i.test(String(token.name || '')));
     var actions = [
       { key: 'ping', label: 'Ping' },
       { key: 'focus-ping', label: 'Focus Ping' },
@@ -5742,6 +5790,7 @@
       { key: 'redo', label: 'Redo' },
       { key: 'sheet', label: 'Character Sheet' },
       { key: 'hold-turn', label: 'Hold Turn' },
+      { key: 'open-inventory', label: 'Open Inventory' },
       { key: 'delay-turn', label: 'Delay Turn' },
       { key: 'add-turn', label: 'Add Turn' },
       { key: 'vision', label: 'Token Vision/Light' },
@@ -5755,6 +5804,9 @@
       { key: 'half', label: 'Scale Half Hex' },
       { key: 'quarter', label: 'Scale Quarter Hex' }
     ];
+    if (!isWayfarer) {
+      actions = actions.filter(function (entry) { return entry.key !== 'open-inventory'; });
+    }
     menu.innerHTML = actions.map(function (entry) {
       return '<button class="combat-token-menu-item" data-menu-action="' + entry.key + '">' + entry.label + '</button>';
     }).join('');
@@ -7558,36 +7610,85 @@
       Array.prototype.slice.call(quickRollBar.querySelectorAll('[data-quick-roll]')).forEach(function (btn) {
         btn.onclick = function () {
           var key = String(btn.getAttribute('data-quick-roll') || 'defend');
-          var die = getWayfarerEffectiveDie(key, 4);
-          var rollObj = (typeof window.explodingRoll === 'function')
-            ? window.explodingRoll(die, { type: 'action', major: true, label: 'Quick ' + key })
-            : { total: rollDie(die), exploded: false };
-          var total = Number(rollObj.total || 0);
-          var usedPreset3D = false;
-          if (typeof window.rollPreset3DDice === 'function') {
-            try {
-              var face = Math.max(1, Math.min(die, total || 1));
-              var bonus = Math.max(0, total - face);
-              window.rollPreset3DDice(die, [face], bonus);
-              usedPreset3D = true;
-            } catch (_err3d) {}
-          }
-          if (!usedPreset3D && typeof window.queueDiceRollVisual === 'function') {
-            try { window.queueDiceRollVisual(die, total, { type: 'action', major: true, label: 'Quick ' + key, exploded: !!rollObj.exploded }); } catch (_err) {}
-          }
-          if (window.AudioManager && typeof window.AudioManager.playSFX === 'function') {
-            try { window.AudioManager.playSFX('sfx-combat-block', 0.45); } catch (_err) {}
-          }
-          addCombatLogEntry({
-            eventType: 'roll',
-            action: 'Quick Roll ' + key.toUpperCase(),
-            actorName: String((window.S && window.S.name) || 'Wayfarer'),
-            roll: { label: key.toUpperCase(), formula: 'd' + die, total: total, breakdown: rollObj.exploded ? 'Exploded' : '' },
-            result: 'Quick roll total ' + total,
-            tags: ['roll', 'quick'],
-            message: 'Quick roll ' + key.toUpperCase() + ': d' + die + ' = ' + total
+          var profile = getWayfarerQuickRollProfile(key);
+          var mixedPoolMap = Object.create(null);
+          profile.pool.forEach(function (die) {
+            var sides = Math.max(2, Number(die || 20));
+            mixedPoolMap[sides] = (mixedPoolMap[sides] || 0) + 1;
           });
-          safeNotif('Quick ' + key + ': ' + total, 'good');
+          var mixedPool = Object.keys(mixedPoolMap).map(function (sides) {
+            return { sides: Number(sides), count: mixedPoolMap[sides], label: 'd' + sides };
+          });
+          var totalFormula = profile.pool.map(function (die) { return 'd' + die; }).join(' / ');
+          var fallbackRoll = function () {
+            var rolls = profile.pool.map(function (die) {
+              return (typeof window.explodingRoll === 'function')
+                ? window.explodingRoll(die, { type: 'action', major: true, label: 'Quick ' + key + ' d' + die })
+                : { total: rollDie(die), exploded: false };
+            });
+            var totals = rolls.map(function (entry) { return Number(entry.total || 0); });
+            var total = totals.length ? Math.max.apply(Math, totals) + Number(profile.flat || 0) : Number(profile.flat || 0);
+            if (typeof window.queueDiceRollVisual === 'function') {
+              try {
+                rolls.forEach(function (entry, idx) {
+                  var die = profile.pool[idx] || profile.baseDie;
+                  window.queueDiceRollVisual(die, Number(entry.total || 0), { type: 'action', major: true, label: 'Quick ' + key, exploded: !!entry.exploded });
+                });
+              } catch (_err) {}
+            }
+            if (window.AudioManager && typeof window.AudioManager.playSFX === 'function') {
+              try { window.AudioManager.playSFX('sfx-combat-block', 0.45); } catch (_err) {}
+            }
+            addCombatLogEntry({
+              eventType: 'roll',
+              action: 'Quick Roll ' + key.toUpperCase(),
+              actorName: String((window.S && window.S.name) || 'Wayfarer'),
+              roll: { label: key.toUpperCase(), formula: totalFormula, total: total, breakdown: profile.advDice.length ? ('Adv ' + profile.advDice.map(function (die) { return 'd' + die; }).join(', ')) : '' },
+              result: 'Quick roll total ' + total,
+              tags: ['roll', 'quick'],
+              message: 'Quick roll ' + key.toUpperCase() + ': ' + totalFormula + ' = ' + total
+            });
+            safeNotif('Quick ' + key + ': ' + total, 'good');
+          };
+
+          if (typeof window.rollMixed3DDice === 'function' && mixedPool.length) {
+            try {
+              if (window.AudioManager && typeof window.AudioManager.playSFX === 'function') {
+                try { window.AudioManager.playSFX('sfx-combat-block', 0.45); } catch (_err) {}
+              }
+              window.rollMixed3DDice(mixedPool, Number(profile.flat || 0), {
+                mode: 'highest',
+                aggregate: function (rolls, bonus) {
+                  var values = Array.isArray(rolls) ? rolls.map(function (entry) { return Number(entry && entry.value || 0); }) : [];
+                  return (values.length ? Math.max.apply(Math, values) : 0) + Number(bonus || 0);
+                }
+              }, function (result) {
+                var total = Number(result && result.total || 0);
+                var rolls = Array.isArray(result && result.rolls) ? result.rolls : [];
+                addCombatLogEntry({
+                  eventType: 'roll',
+                  action: 'Quick Roll ' + key.toUpperCase(),
+                  actorName: String((window.S && window.S.name) || 'Wayfarer'),
+                  roll: {
+                    label: key.toUpperCase(),
+                    formula: totalFormula,
+                    total: total,
+                    breakdown: rolls.map(function (entry) {
+                      return String(entry.poolLabel || entry.type || '').replace(/^d/, 'd') + ':' + Number(entry.value || 0);
+                    }).join(', ')
+                  },
+                  result: 'Quick roll total ' + total,
+                  tags: ['roll', 'quick'],
+                  message: 'Quick roll ' + key.toUpperCase() + ': ' + totalFormula + ' = ' + total
+                });
+                safeNotif('Quick ' + key + ': ' + total, 'good');
+              });
+            } catch (_err) {
+              fallbackRoll();
+            }
+          } else {
+            fallbackRoll();
+          }
         };
       });
     }
@@ -12879,18 +12980,18 @@
           '<input class="combat-input" id="bladeRulesSearch" placeholder="Search rules..." style="margin-bottom:.4rem;">' +
           '<div id="bladeRulesList" class="blade-scroll-list"></div>';
         var rules = [
-          { h: 'Initiative', t: 'Roll at combat start. Highest goes first. Ties: Wayfarers before Enemies.' },
-          { h: 'Actions per Turn', t: 'Each token gets 1 Action, 1 Bonus Action, and 1 Reaction per round.' },
-          { h: 'Attack Roll', t: 'Roll d20 + modifiers vs target Dread. Meet or beat = hit.' },
-          { h: 'Damage', t: 'On hit, roll damage dice. Apply after reductions.' },
-          { h: 'Critical Hit', t: 'Natural 20 = double dice damage.' },
-          { h: 'Stress', t: 'Stress accumulates on failure. At max Stress → Trauma.' },
-          { h: 'Cover', t: 'Light cover: -1 to attacker. Heavy cover: -2.' },
-          { h: 'Elevation', t: '+1 die bonus when attacking from higher ground.' },
-          { h: 'Flanking', t: 'Allies on opposite sides grant +1 die to attack rolls.' },
-          { h: 'Conditions', t: 'Burning: 1 Stress/round. Stunned: lose Action. Prone: halve movement.' },
-          { h: 'Loot', t: 'Defeated enemies may leave a loot cache. GM rolls the loot table on first interaction.' },
-          { h: 'Hold / Delay', t: 'Hold: act later in same round. Delay: move to bottom of order.' }
+            { h: 'Initiative', t: 'Combat starts by listing all tokens in turn order. The selected Wayfarer acts through the Combat tab or scene actions.' },
+            { h: 'Actions per Turn', t: 'Your combat action budget is shown in the Combat tab. Some effects add or spend actions; movement and utilities are tracked separately.' },
+            { h: 'Attack Roll', t: 'Roll your action die(s), including advantage dice and explosions, then compare the highest total to the target Dread die.' },
+            { h: 'Damage', t: 'On a hit, subtract the target Dread total from your highest action total. That difference is the damage dealt.' },
+            { h: 'Critical Hit', t: 'Exploding dice can push totals higher and can trigger extra effects when a weapon or skill says so.' },
+            { h: 'Stress', t: 'Failed checks and enemy pressure add Stress. At max Stress, the character risks Trauma or a bigger condition penalty.' },
+            { h: 'Cover', t: 'Cover and line-of-sight penalties are applied by the scene. The target selector shows whether an action is in range.' },
+            { h: 'Elevation', t: 'Higher ground can add a modifier in scene combat depending on the map and target positioning.' },
+            { h: 'Flanking', t: 'Some abilities or scene rules grant extra dice when allies pressure from multiple sides.' },
+            { h: 'Conditions', t: 'Conditions such as Focused, Protected, Vulnerable, and Shaken are tracked on the character sheet and modify rolls.' },
+            { h: 'Loot', t: 'Defeated enemies can leave a body loot cache. Open it to take items into the backpack, then manage them in the Character tab.' },
+            { h: 'Hold / Delay', t: 'Hold and delay are turn-order tools in combat scenes; they move your token within the current round order.' }
         ];
         var searchInput = document.getElementById('bladeRulesSearch');
         var list = document.getElementById('bladeRulesList');

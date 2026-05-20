@@ -575,22 +575,45 @@ function quickRollStat(key) {
   const radPenalty = (typeof getRadPenaltyForStat === 'function') ? getRadPenaltyForStat(key) : 0;
   const finalTotal = Math.max(0, total - radPenalty);
 
-  // Build detail breakdown
-  const details = [];
-  if (ra.advRolls.length) details.push(ra.breakdown.replace(/<[^>]+>/g, '').trim()); // plain-text from breakdown
-  if (ra.advRolls.length === 0 && advDiceArr.length === 0) {} // no adv dice, no note needed
-  if (flatBonus > 0) details.push('+' + flatBonus + ' (weapon/flavor/mutation/mod)');
-  if (Number(queuedValor.total || 0) > 0) details.push('Queued Valor Dice total = +' + Number(queuedValor.total || 0));
-  if (holyShieldRoll) details.push('Holy Shield +Spirit d' + (S.stats.spirit||4) + ' = ' + holyShieldRoll.total);
-  if (valorBonus) details.push('+V.D. d' + (S.stats.valor || 4) + ' = ' + valorBonus.total + ' (additive)');
-  gearAddRolls.forEach(function(rollObj, idx){ details.push('+d' + gearBonus.addDice[idx] + ' gear = ' + rollObj.total); });
-  if (augRoll) details.push('+d' + augDie + ' aug = ' + augRoll.total);
-  if (radPenalty > 0) details.push('-' + radPenalty + ' Radiation penalty');
-  if (gearBonus.notes && gearBonus.notes.length) details.push(gearBonus.notes.join(' · '));
-  if ((Array.isArray(mod.advDice) && mod.advDice.length) || mod.flat || (Array.isArray(mod.valorDice) && mod.valorDice.length)) details.push('Manual modifier active');
+  // Build explicit source-by-source breakdown (matching Defend transparency)
+  const sourceLines = [];
+  const sign = function(n){ return (Number(n) >= 0 ? '+' : '') + Number(n); };
+  sourceLines.push('Base ' + label + ' roll: +' + Number(ra.total || 0));
+  if ((key === 'strike' || key === 'shoot') && typeof parseWeaponBonuses === 'function') {
+    const wb = parseWeaponBonuses(key);
+    if (Number(wb.advDie || 0) > 0) sourceLines.push('Weapon Adv Die: Ad' + Number(wb.advDie) + ' (included in base roll)');
+    if (Number(wb.flat || 0) !== 0) sourceLines.push('Weapon flat: ' + sign(wb.flat));
+  }
+  if (key === 'defend' && typeof parseArmorAdvDie === 'function') {
+    const armorAdv = parseArmorAdvDie();
+    if (Number(armorAdv || 0) > 0) sourceLines.push('Armor Adv Die: Ad' + Number(armorAdv) + ' (included in base roll)');
+  }
+  if ((flB.advDice || []).length) sourceLines.push('Flavor Adv Dice: ' + flB.advDice.map(function(x){ return 'Ad' + x; }).join('+') + ' (included in base roll)');
+  if ((mtB.advDice || []).length) sourceLines.push('Mutation Adv Dice: ' + mtB.advDice.map(function(x){ return 'Ad' + x; }).join('+') + ' (included in base roll)');
+  if ((gearBonus.advDice || []).length) sourceLines.push('Gear Adv Dice: ' + gearBonus.advDice.map(function(x){ return 'Ad' + x; }).join('+') + ' (included in base roll)');
+  if (Array.isArray(mod.advDice) && mod.advDice.length) sourceLines.push('Manual Adv Dice: ' + mod.advDice.map(function(x){ return 'Ad' + x; }).join('+') + ' (included in base roll)');
 
-  const detailHtml = (ra.breakdown || details.length)
-    ? '<div style="font-size:.8rem;color:var(--muted2);margin-top:.3rem;">' + (ra.breakdown || '') + (details.slice(1).length ? '<br>' + details.slice(1).join('<br>') : '') + '</div>'
+  const flFlat = Number(flB.flat || 0);
+  const mtFlat = Number(mtB.flat || 0);
+  const gearFlat = Number(gearBonus.flat || 0);
+  const manualFlat = Number(mod.flat || 0);
+  if (flFlat) sourceLines.push('Flavor flat: ' + sign(flFlat));
+  if (mtFlat) sourceLines.push('Mutation flat: ' + sign(mtFlat));
+  if (gearFlat) sourceLines.push('Gear flat: ' + sign(gearFlat));
+  if (manualFlat) sourceLines.push('Manual flat: ' + sign(manualFlat));
+  if (Number(queuedValor.total || 0) > 0) sourceLines.push('Queued Valor Dice total: +' + Number(queuedValor.total || 0));
+  if (holyShieldRoll) sourceLines.push('Holy Shield roll: +' + Number(holyShieldRoll.total || 0));
+  if (valorBonus) sourceLines.push('Weapon V.D. roll: +' + Number(valorBonus.total || 0));
+  gearAddRolls.forEach(function(rollObj, idx){ sourceLines.push('Gear bonus d' + gearBonus.addDice[idx] + ': +' + Number(rollObj.total || 0)); });
+  if (augRoll) sourceLines.push('Augmentation d' + augDie + ': +' + Number(augRoll.total || 0));
+  if (radPenalty > 0) sourceLines.push('Radiation penalty: -' + Number(radPenalty));
+  if (gearBonus.notes && gearBonus.notes.length) sourceLines.push(gearBonus.notes.join(' · '));
+
+  const detailHtml = (ra.breakdown || sourceLines.length)
+    ? '<div style="font-size:.8rem;color:var(--muted2);margin-top:.3rem;">'
+      + (ra.breakdown || '')
+      + (sourceLines.length ? '<br>' + sourceLines.join('<br>') : '')
+      + '</div>'
     : '';
 
   openModal(

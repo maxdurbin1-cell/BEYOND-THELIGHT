@@ -5275,9 +5275,11 @@
       lava: 'rgba(186,69,43,.46)',
       ruins: 'rgba(126,108,86,.35)',
       water: 'rgba(59,107,166,.38)',
-      'difficult terrain': 'rgba(169,134,74,.35)'
+      'difficult terrain': 'rgba(169,134,74,.35)',
+      road: 'rgba(200,178,138,.50)',
+      cobblestone: 'rgba(155,150,142,.52)'
     };
-    return map[n] || 'rgba(255,255,255,.02)';
+    return map[n] || 'rgba(200,200,200,.18)';
   }
 
   function parseQuickEditValue(current, raw) {
@@ -7026,8 +7028,7 @@
         ? filtered.map(function (item) {
           var icon = assetEmoji(item.name, ab.category);
           return '<article class="combat-feed-line combat-asset-card" draggable="true" title="Drag onto the battlemap to place this asset" aria-label="Drag ' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + ' onto the battlemap" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '" data-asset-label="' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '">'
-            + '<div class="combat-asset-card-main"><strong>' + icon + ' ' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</strong><span class="combat-mini">' + (ab.category === 'battlemaps' ? 'Drop to update the board background or click to apply.' : (ab.category === 'utilities' ? 'Click to run utility workflow.' : 'Drop to place directly on the board.')) + '</span></div>'
-            + '<button class="btn btn-xs" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '">Use</button>'
+            + '<div class="combat-asset-card-main"><strong>' + icon + ' ' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</strong><span class="combat-mini">' + (ab.category === 'battlemaps' ? 'Click to apply or drag onto board.' : (ab.category === 'utilities' ? 'Click to run utility workflow.' : (ab.category === 'terrain' ? 'Click to arm painter. Drag onto a hex to stamp.' : 'Drag onto the board or click to place.'))) + '</span></div>'
             + '</article>';
         }).join('')
         : '<div class="combat-feed-line">No assets found.</div>';
@@ -7100,7 +7101,9 @@
           } else if (action === 'stock-cache') {
             applyCombatAssetActionAt('stock-cache', String(chosen.payload || 'balanced'), baseQ, baseR, true);
           } else if (action === 'paint-terrain') {
-            applyCombatAssetActionAt('set-tool', 'terrain:' + String(chosen.payload || 'road'), baseQ, baseR, true);
+            // directDrop=false arms the painter tool so the user can then click hexes to paint;
+            // drag-to-board uses directDrop=true for immediate placement at the dropped hex.
+            applyCombatAssetActionAt('set-tool', 'terrain:' + String(chosen.payload || 'road'), baseQ, baseR, false);
           } else if (action === 'hazard-check') {
             window.applyCombatAssetActionAt('hazard-check', '', baseQ, baseR, false);
           } else if (action === 'hazard-config') {
@@ -7129,11 +7132,12 @@
             dragKind = 'spawn';
             dragPayload = 'npc:' + String(chosen.name || 'NPC');
           } else if (action === 'spawn-villain') {
-            dragKind = 'spawn';
-            dragPayload = 'monster:' + String(chosen.name || 'Enemy');
+            dragKind = 'spawn-bestiary';
+            dragPayload = String(chosen.id || '');
           } else if (action === 'map-preset') {
             dragKind = 'preset';
-            dragPayload = String(chosen.name || 'urban').toLowerCase().indexOf('storm') >= 0 ? 'storm' : 'urban';
+            var presetItemId = String(chosen.id || '');
+            dragPayload = presetItemId.indexOf('storm') >= 0 ? 'storm' : presetItemId.indexOf('fog') >= 0 ? 'fog' : presetItemId.indexOf('blank') >= 0 ? 'blank' : 'urban';
           } else if (action === 'map-uploaded') {
             dragKind = 'set-map';
             dragPayload = String(chosen.payload || '');
@@ -9575,9 +9579,10 @@
         q: null,
         r: null
       });
-      setCombatAssetDrawerOpen(true);
+      // Do NOT call setCombatAssetDrawerOpen here — it triggers updateUiPanels() which rebuilds
+      // the assetFeed innerHTML, removing the dragged element from the DOM mid-dragstart which
+      // causes some browsers to silently cancel the drag operation.
       setCombatAssetDragGhost({ label: String(label || 'Dragging asset'), x: Number(ev.clientX || 0) + 18, y: Number(ev.clientY || 0) + 18 });
-      safeNotif('Drop the asset onto the battlemap to place it directly.', 'info');
     };
 
     function applyCombatAssetActionAt(action, value, baseQ, baseR, directDrop) {
@@ -9641,10 +9646,19 @@
           return next3;
         });
         addHistory('Asset placed: ' + name + ' at ' + toKey(q, r) + '.');
+      } else if (action === 'spawn-bestiary') {
+        var bestiaryEntry = (store.getState().codexBestiary || []).find(function (e) { return String(e.id || '') === String(value || ''); }) || null;
+        if (bestiaryEntry) {
+          spawnBestiaryToken(bestiaryEntry, q, r);
+        } else {
+          safeNotif('Bestiary entry not found — make sure your Codex has entries loaded.', 'warn');
+        }
       } else if (action === 'preset') {
         var presets = {
           urban: { cols: 20, rows: 20, weather: 'none' },
-          storm: { cols: 18, rows: 10, weather: 'storm' }
+          storm: { cols: 18, rows: 10, weather: 'storm' },
+          fog: { cols: 18, rows: 12, weather: 'fog' },
+          blank: { cols: 15, rows: 15, weather: 'none' }
         };
         var preset = presets[String(value || '')] || presets.urban;
         captureUndoSnapshot('Apply Preset');

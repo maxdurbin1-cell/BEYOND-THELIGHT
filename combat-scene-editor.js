@@ -770,6 +770,7 @@
     var ax = insideCanvas
       ? pixelToAxial(ev.clientX - rect.left, ev.clientY - rect.top, size, state.board.panX, state.board.panY)
       : pixelToAxial(Number(rect.width || 0) / 2, Number(rect.height || 0) / 2, size, state.board.panX, state.board.panY);
+    var targetHex = getDefaultAssetDropHex(state, state && state.selectedTokenId, { preferSelection: true });
     var source = 'none';
     var assetKind = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-kind') || '');
     var assetPayload = String(ev.dataTransfer && ev.dataTransfer.getData('text/combat-asset-payload') || '');
@@ -816,11 +817,12 @@
       r: Number(ax.r || 0)
     });
     if (assetKind) {
+      var dropQ = Number(targetHex && targetHex.q || ax.q || 0);
+      var dropR = Number(targetHex && targetHex.r || ax.r || 0);
       if (typeof window.applyCombatAssetActionAt === 'function') {
-        window.applyCombatAssetActionAt(assetKind, assetPayload, ax.q, ax.r, true);
+        window.applyCombatAssetActionAt(assetKind, assetPayload, dropQ, dropR, true);
       }
-      if (!insideCanvas) safeNotif('Dropped outside board bounds. Asset placed at board center.', 'info');
-      setCombatDragDebugState({ phase: 'drop-applied' });
+      setCombatDragDebugState({ phase: 'drop-applied', q: dropQ, r: dropR, source: source, dropSource: String(dropSourceLabel || 'board') });
       window.__combatAssetDragPayload = null;
       clearCombatAssetDragPreview();
       return true;
@@ -6960,6 +6962,14 @@
       var villainAssets = codex.slice(0, 32).map(function (entry) {
         return { id: String(entry.id || uid('vill')), name: String(entry.name || 'Enemy'), action: 'spawn-villain', payload: entry };
       });
+      if (!villainAssets.length) {
+        villainAssets = [
+          { id: 'vill-ash-raider', name: 'Ash Raider', action: 'spawn-villain', payload: { id: 'vill-ash-raider', name: 'Ash Raider', dread: 6, hp: 10, image: '' } },
+          { id: 'vill-pale-hound', name: 'Pale Hound', action: 'spawn-villain', payload: { id: 'vill-pale-hound', name: 'Pale Hound', dread: 5, hp: 9, image: '' } },
+          { id: 'vill-void-acolyte', name: 'Void Acolyte', action: 'spawn-villain', payload: { id: 'vill-void-acolyte', name: 'Void Acolyte', dread: 7, hp: 11, image: '' } },
+          { id: 'vill-iron-wraith', name: 'Iron Wraith', action: 'spawn-villain', payload: { id: 'vill-iron-wraith', name: 'Iron Wraith', dread: 8, hp: 12, image: '' } }
+        ];
+      }
       var townsfolkAssets = [
         { id: 'town-guide', name: 'Guide', action: 'spawn-npc' },
         { id: 'town-merchant', name: 'Merchant', action: 'spawn-npc' },

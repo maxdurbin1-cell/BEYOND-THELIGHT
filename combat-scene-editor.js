@@ -2263,6 +2263,7 @@
       if (changed) persist(next);
       return changed ? next : inner;
     });
+    return changed;
   }
 
   function normalizeTokenActionBudgetToken(token) {
@@ -3284,26 +3285,33 @@
   function syncLegacyEnemyStressToTokens(targetTokenId) {
     if (!window.S || !Array.isArray(window.S.enemies)) return false;
     var enemyMap = {};
+    var enemyNameMap = {};
     window.S.enemies.forEach(function (enemy) {
       if (!enemy) return;
       var id = Number(enemy.id || 0);
       if (id > 0) enemyMap[id] = enemy;
+      var nameKey = String(enemy.name || '').trim().toLowerCase();
+      if (!enemy.ally && nameKey && !enemyNameMap[nameKey]) enemyNameMap[nameKey] = enemy;
     });
     var changed = false;
     store.setState(function (state) {
       var next = Object.assign({}, state);
       next.tokens = (state.tokens || []).map(function (row) {
-        if (!row || String(row.faction || '') !== 'monster' || !Number(row.sourceEnemyId || 0)) return row;
+        if (!row || String(row.faction || '') !== 'monster') return row;
         if (targetTokenId && String(row.id || '') !== String(targetTokenId)) return row;
-        var legacy = enemyMap[Number(row.sourceEnemyId || 0)] || null;
+        var sourceId = Number(row.sourceEnemyId || 0);
+        var legacy = sourceId > 0 ? (enemyMap[sourceId] || null) : null;
+        if (!legacy) {
+          var rowNameKey = String(row.name || '').trim().toLowerCase();
+          legacy = rowNameKey ? (enemyNameMap[rowNameKey] || null) : null;
+        }
+        if (!legacy) return row;
         var nextHp = 0;
         var nextMax = Math.max(1, Number(row.maxHp || row.hp || 1));
         var nextDead = true;
-        if (legacy) {
-          nextMax = Math.max(1, Number(legacy.maxStress || nextMax));
-          nextHp = Math.max(0, nextMax - Math.max(0, Number(legacy.stress || 0)));
-          nextDead = nextHp <= 0;
-        }
+        nextMax = Math.max(1, Number(legacy.maxStress || nextMax));
+        nextHp = Math.max(0, nextMax - Math.max(0, Number(legacy.stress || 0)));
+        nextDead = nextHp <= 0;
         if (Number(row.hp || 0) === nextHp && Number(row.maxHp || 0) === nextMax && !!row.dead === nextDead) return row;
         changed = true;
         return Object.assign({}, row, {
@@ -10730,6 +10738,7 @@
           return;
         }
       }
+      var beforeSnapshot = captureLegacyCombatSnapshot();
       try {
         if (kind === 'strike' && typeof window.rollAttack === 'function') window.rollAttack('strike');
         else if (kind === 'shoot' && typeof window.rollAttack === 'function') window.rollAttack('shoot');
@@ -10737,53 +10746,70 @@
         else if (kind === 'trauma' && typeof window.rollTraumaCheck === 'function') window.rollTraumaCheck();
         else if (kind === 'enemy' && typeof window.doEnemyTurn === 'function') window.doEnemyTurn();
       } catch (_err) {}
-      tryApplyLegacyDamageToTokens(kind);
+      resolveLegacyDamageBridge(kind, beforeSnapshot);
       updateUiPanels();
     }
 
-    function tryApplyLegacyDamageToTokens(kind) {
-      var el = null;
-      if (kind === 'enemy') el = document.getElementById('enemyActionResult');
-      else if (kind === 'wayfarer') el = document.getElementById('wayfarerActionResult') || document.getElementById('attackResult');
-      else el = document.getElementById('attackResult');
-      if (!el) return;
-      var text = el.textContent || el.innerText || '';
-      var match = text.match(/HIT!\s*(\d+)\s*(Stress|Health\s*damage)/i)
-        || text.match(/(\d+)\s*(Stress|Health\s*damage)/i)
-        || text.match(/deals?\s*(\d+)\s*(Stress|Health\s*damage)/i);
-      if (!match) return;
-      var damage = Math.max(1, parseInt(match[1], 10));
-      var isCrit = /crit/i.test(text);
-      var state = store.getState();
-      var tokenTargetSel = document.getElementById('combatTokenTargetSel');
-      var targetId = String(tokenTargetSel && tokenTargetSel.value || '');
-      var target = targetId ? byId(targetId) : null;
-      if (!target) {
-        if (kind === 'enemy') {
-          var players = (state.tokens || []).filter(function (t) { return t && !isTokenDead(t) && String(t.faction) === 'player'; });
-          players.sort(function (a, b) { return Number(a.hp || 0) - Number(b.hp || 0); });
-          target = players[0] || null;
-        } else {
-          var actor = byId(state.selectedTokenId) || (state.tokens || []).find(function (t) { return t && t.isPlayer; });
-          var enemies = (state.tokens || []).filter(function (t) { return t && String(t.faction) === 'monster' && Number(t.hp || 0) > 0; });
-          if (actor && enemies.length) {
-            enemies.sort(function (a, b) { return hexDistance({ q: actor.q, r: actor.r }, { q: a.q, r: a.r }) - hexDistance({ q: actor.q, r: actor.r }, { q: b.q, r: b.r }); });
-            target = enemies[0];
+    function captureLegacyCombatSnapshot() {
+      var snap = {
+        wayfarer: getWayfarerHealthSnapshot(),
+        enemyStressById: {},
+        enemyNameById: {}
+      };
+      if (window.S && Array.isArray(window.S.enemies)) {
+        window.S.enemies.forEach(function (enemy) {
+          if (!enemy || enemy.ally) return;
+          var id = Number(enemy.id || 0);
+          if (id <= 0) return;
+          snap.enemyStressById[id] = Math.max(0, Number(enemy.stress || 0));
+          snap.enemyNameById[id] = String(enemy.name || 'Enemy');
+        });
+      }
+      return snap;
+    }
+
+    function resolveLegacyDamageBridge(kind, beforeSnapshot) {
+      var before = beforeSnapshot && typeof beforeSnapshot === 'object'
+        ? beforeSnapshot
+        : captureLegacyCombatSnapshot();
+      var afterWayfarer = getWayfarerHealthSnapshot();
+      var wayfarerDamageDelta = Math.max(0,
+        Number(afterWayfarer.damage || 0) - Number(before.wayfarer && before.wayfarer.damage || 0)
+      );
+
+      var wayfarerTokenChanged = syncWayfarerTokenHealthFromSheet();
+      var enemyTokenChanged = syncLegacyEnemyStressToTokens();
+
+      var topEnemyDelta = 0;
+      var topEnemyName = '';
+      if (window.S && Array.isArray(window.S.enemies)) {
+        window.S.enemies.forEach(function (enemy) {
+          if (!enemy || enemy.ally) return;
+          var id = Number(enemy.id || 0);
+          if (id <= 0) return;
+          var prevStress = Math.max(0, Number(before.enemyStressById && before.enemyStressById[id] || 0));
+          var nextStress = Math.max(0, Number(enemy.stress || 0));
+          var delta = Math.max(0, nextStress - prevStress);
+          if (delta > topEnemyDelta) {
+            topEnemyDelta = delta;
+            topEnemyName = String(enemy.name || (before.enemyNameById && before.enemyNameById[id]) || 'Enemy');
           }
+        });
+      }
+
+      var notifEl = document.getElementById('combatLastNotification');
+      if (notifEl) {
+        if (wayfarerDamageDelta > 0 && topEnemyDelta > 0) {
+          notifEl.textContent = 'Structured sync: Wayfarer takes ' + wayfarerDamageDelta + ' damage · ' + topEnemyName + ' takes ' + topEnemyDelta + ' stress.';
+        } else if (wayfarerDamageDelta > 0) {
+          notifEl.textContent = 'Structured sync: Wayfarer takes ' + wayfarerDamageDelta + ' damage.';
+        } else if (topEnemyDelta > 0) {
+          notifEl.textContent = 'Structured sync: ' + topEnemyName + ' takes ' + topEnemyDelta + ' stress.';
+        } else if (wayfarerTokenChanged || enemyTokenChanged) {
+          notifEl.textContent = 'Structured sync: token state refreshed from combat state.';
         }
       }
-      if (!target) return;
-      if (kind !== 'enemy' && Number(target.sourceEnemyId || 0) > 0) {
-        // Keep token HP in sync with any external enemy-tracker edits, then apply this hit.
-        syncLegacyEnemyStressToTokens(target.id);
-        target = byId(target.id) || target;
-      }
-      var deathNumber = Math.max(1, Number(target.deathNumber || target.dread || target.codexDread || 6));
-      var lethal = isCrit || damage >= deathNumber;
-      var dealt = lethal ? Math.max(0, Number(target.hp || 0)) : damage;
-      var newHp = applyDamageToToken(target.id, dealt, kind === 'enemy' ? 'Enemy Action' : 'Player Action');
-      var notifEl = document.getElementById('combatLastNotification');
-      if (notifEl) notifEl.textContent = String(target.name || 'Enemy') + ' takes ' + dealt + ' stress' + (lethal ? ' · Instant kill' : '') + ' · HP: ' + newHp;
+
       drawBoard();
     }
 
@@ -10842,6 +10868,7 @@
         var lowerAction = actionVal.toLowerCase();
         var utilityLike = /use_item|utility|backpack|hack|flavor|personal_flavor/.test(lowerAction);
         if (utilityLike) {
+          var utilitySnapshot = captureLegacyCombatSnapshot();
           if (!consumeWayfarerUtilityAction(actionVal)) {
             safeNotif('No combat actions left for that utility.', 'warn');
             return;
@@ -10861,7 +10888,7 @@
           } else {
             safeNotif('Utility actions are unavailable right now.', 'warn');
           }
-          tryApplyLegacyDamageToTokens('wayfarer');
+          resolveLegacyDamageBridge('wayfarer', utilitySnapshot);
           updateUiPanels();
           return;
         }
@@ -10886,6 +10913,7 @@
           }
         }
         var legacySel = document.getElementById('wayfarerActionSel');
+        var actionSnapshot = captureLegacyCombatSnapshot();
         if (legacySel) legacySel.value = actionVal;
         try {
           if (typeof window.updateWayfarerActionBtn === 'function') window.updateWayfarerActionBtn();
@@ -10893,7 +10921,7 @@
         if (typeof window.executeWayfarerAction === 'function') {
           try { window.executeWayfarerAction(); } catch (_err2) {}
         }
-        tryApplyLegacyDamageToTokens('wayfarer');
+        resolveLegacyDamageBridge('wayfarer', actionSnapshot);
         var selectedOpt = legacySel && legacySel.options ? legacySel.options[legacySel.selectedIndex] : null;
         var actionLabel = selectedOpt ? String(selectedOpt.textContent || actionVal) : actionVal;
         var resultNode = document.getElementById('wayfarerActionResult')

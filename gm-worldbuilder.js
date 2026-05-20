@@ -30,6 +30,14 @@
     return String(prefix || 'id') + '_' + Date.now().toString(36) + '_' + Math.floor(Math.random() * 1e5).toString(36);
   }
 
+  function tryReadGlobal(name) {
+    try {
+      return Function('return (typeof ' + String(name) + ' !== "undefined") ? ' + String(name) + ' : undefined;')();
+    } catch (_err) {
+      return undefined;
+    }
+  }
+
   function escapeHtml(v) {
     return String(v || '')
       .replace(/&/g, '&amp;')
@@ -256,30 +264,99 @@
   }
 
   function buildMonsterBlock(genre) {
-    var tags = {
-      force: Math.ceil(Math.random() * 12),
-      cunning: Math.ceil(Math.random() * 12),
-      resolve: Math.ceil(Math.random() * 12),
-      defend: Math.ceil(Math.random() * 12),
-      health: 6 + Math.ceil(Math.random() * 24),
-      deathNumber: 4 + Math.ceil(Math.random() * 8)
-    };
-    var skills = [
-      'Ambush: Gain +2 Cunning on first round.',
-      'Predatory Step: Move one extra zone per turn.',
-      'Warding Hide: First hit each round deals 0 damage.',
-      'Ruin Sense: Detect hidden PCs in adjacent location.'
-    ];
-    return 'Genre: ' + genre + '\n'
-      + 'Force ' + tags.force + ' | Cunning ' + tags.cunning + ' | Resolve ' + tags.resolve + ' | Defend ' + tags.defend + '\n'
-      + 'Health ' + tags.health + ' | Death Number ' + tags.deathNumber + '\n'
-      + 'Skills: ' + randomOf(skills) + ' / ' + randomOf(skills.filter(function (s) { return s !== skills[0]; }));
+    var codexByRegion = null;
+    if (typeof window.getCodexBestiaryByRegion === 'function') {
+      try { codexByRegion = window.getCodexBestiaryByRegion(); } catch (_err) {}
+    }
+    if (!codexByRegion || typeof codexByRegion !== 'object') {
+      var fn = tryReadGlobal('getCodexBestiaryByRegion');
+      if (typeof fn === 'function') {
+        try { codexByRegion = fn(); } catch (_err2) {}
+      }
+    }
+
+    var allEntries = [];
+    if (codexByRegion && typeof codexByRegion === 'object') {
+      Object.keys(codexByRegion).forEach(function (region) {
+        var list = codexByRegion[region];
+        if (!Array.isArray(list)) return;
+        list.forEach(function (entry) {
+          if (!entry || typeof entry !== 'object') return;
+          allEntries.push(Object.assign({ _region: String(region) }, entry));
+        });
+      });
+    }
+
+    var named = tryReadGlobal('NAMED_ENEMY_BESTIARY');
+    if (named && typeof named === 'object') {
+      Object.keys(named).forEach(function (region) {
+        var list = named[region];
+        if (!Array.isArray(list)) return;
+        list.forEach(function (entry) {
+          if (!entry || typeof entry !== 'object') return;
+          allEntries.push(Object.assign({ _region: String(region) }, entry));
+        });
+      });
+    }
+
+    var profile = allEntries.length ? randomOf(allEntries) : null;
+    var region = String((profile && profile._region) || 'unknown');
+    var name = String((profile && profile.name) || ('Generated ' + genre + ' threat'));
+    var desc = String((profile && profile.desc) || 'No codex flavor available.');
+
+    var dd = 6;
+    var deriveFn = (typeof window.getBestiaryDerivedStats === 'function')
+      ? window.getBestiaryDerivedStats
+      : tryReadGlobal('getBestiaryDerivedStats');
+    if (typeof deriveFn === 'function' && profile) {
+      try {
+        var derived = deriveFn(profile);
+        dd = Math.max(4, Math.min(12, Number((derived && derived.dread) || dd)));
+      } catch (_err3) {}
+    } else if (profile) {
+      var hp = Number(profile.hp || profile.health || 0);
+      var fromEntry = Number(profile.dread || profile.dd || 0);
+      dd = fromEntry > 0 ? fromEntry : Math.ceil(Math.max(4, hp) / 2);
+      dd = Math.max(4, Math.min(12, dd));
+    }
+
+    var stress = dd * 2;
+    var deathNumber = dd;
+
+    var allSkills = [];
+    allEntries.forEach(function (entry) {
+      if (!entry || !Array.isArray(entry.skills)) return;
+      entry.skills.forEach(function (skill) {
+        if (!skill) return;
+        if (typeof skill === 'string') {
+          allSkills.push(skill.trim());
+          return;
+        }
+        var skillName = String(skill.name || '').trim();
+        var skillDesc = String(skill.desc || skill.onFail || '').trim();
+        if (!skillName && !skillDesc) return;
+        allSkills.push(skillName ? (skillName + ': ' + skillDesc) : skillDesc);
+      });
+    });
+    allSkills = Array.from(new Set(allSkills.filter(Boolean)));
+
+    var skillA = allSkills.length ? randomOf(allSkills) : 'Codex skill unavailable.';
+    var skillBPool = allSkills.filter(function (s) { return s !== skillA; });
+    var skillB = skillBPool.length ? randomOf(skillBPool) : skillA;
+
+    return 'Genre: ' + genre + ' | Region: ' + region + '\n'
+      + 'Monster: ' + name + '\n'
+      + desc + '\n'
+      + 'Force 12 | Cunning 5 | Resolve 10 | Defend 12\n'
+      + 'DD' + dd + ' | ' + stress + ' Stress | ' + deathNumber + ' Death Number\n'
+      + 'Rule: A single hit reaching Death Number (' + deathNumber + ') kills immediately; otherwise deal total Stress (' + stress + ') to kill.\n'
+      + 'Skills: ' + skillA + ' / ' + skillB;
   }
 
   function getMerchantItems() {
     var out = [];
     try {
-      var data = window.SHOP_DATA;
+      var data = window.SHOP_DATA || tryReadGlobal('SHOP_DATA') || null;
       if (!data || typeof data !== 'object') return out;
       Object.keys(data).forEach(function (k) {
         var arr = data[k];
@@ -293,9 +370,33 @@
             cost: Number(it.cost || 0)
           });
         });
+
+        var customGetter = (typeof window.getCustomCodexShopItems === 'function')
+          ? window.getCustomCodexShopItems
+          : tryReadGlobal('getCustomCodexShopItems');
+        if (typeof customGetter === 'function') {
+          var customItems = customGetter(k);
+          if (Array.isArray(customItems)) {
+            customItems.forEach(function (it) {
+              if (!it || !it.name) return;
+              out.push({
+                name: String(it.name),
+                category: String(k),
+                desc: String(it.desc || ''),
+                cost: Number(it.cost || 0)
+              });
+            });
+          }
+        }
       });
     } catch (_err) {}
-    return out;
+    var seen = {};
+    return out.filter(function (entry) {
+      var key = (String(entry.category) + '::' + String(entry.name)).toLowerCase();
+      if (seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
   }
 
   function openImagePicker(cb) {
@@ -704,6 +805,10 @@
       return '<div class="gmwb-muted">' + escapeHtml(c.a) + ' -> ' + escapeHtml(c.b) + ' : ' + escapeHtml(c.label || 'related') + '</div>';
     }).join('');
 
+    var graphSelectionHint = st.graphDraftFrom
+      ? ('Selected node: ' + nodeLabel((buildGraphData(st).nodes.find(function (n) { return n.id === st.graphDraftFrom; }) || null), st) + '. Click a second node to create a ' + (String((document.getElementById('gmwbGraphMode') && document.getElementById('gmwbGraphMode').value) || 'relation')) + ' link.')
+      : 'Click one node, then another to create a link.';
+
     root.innerHTML = ''
       + '<div class="card" style="margin-bottom:.6rem;">'
       + '<div class="section-title">GM Worldbuilder Forge</div>'
@@ -762,7 +867,8 @@
       + '<div class="gmwb-title" style="margin-top:.6rem;">Node Graph (Click To Connect)</div>'
       + '<div class="gmwb-row"><select id="gmwbGraphMode" class="gmwb-select"><option value="relation">Relationship Link</option><option value="portal">Portal Link</option></select>'
       + '<button class="btn btn-xs" onclick="gmWorldbuilderGraphClearSelection()">Clear Selection</button></div>'
-      + '<div class="gmwb-muted" id="gmwbGraphHint">Click one node, then another to create a link.</div>'
+      + '<div class="gmwb-muted" id="gmwbGraphHint">' + escapeHtml(graphSelectionHint) + '</div>'
+      + '<div class="gmwb-muted">Relationship mode writes to Connections. Portal mode writes to Portal Links and requires two Location nodes.</div>'
       + '<div class="gmwb-graph-wrap">' + renderGraphSvg(st) + '</div>'
       + '<div class="gmwb-title" style="margin-top:.55rem;">Selected Edge</div>'
       + renderEdgeInspector(st)
@@ -1112,6 +1218,7 @@
       var dirEl = document.getElementById('gmwbPortalDirection');
       var direction = String((dirEl && dirEl.value) || 'oneway');
       st.portals.push({ id: uid('prt'), from: from, to: to, label: 'Graph Portal', direction: direction === 'twoway' ? 'twoway' : 'oneway' });
+      if (typeof showNotif === 'function') showNotif('Portal link created in GM Forge graph.', 'good');
       render();
       return;
     }
@@ -1130,6 +1237,7 @@
       b: nodeLabel(b, st),
       label: String(label)
     });
+    if (typeof showNotif === 'function') showNotif('Relationship link created in GM Forge graph.', 'good');
     render();
   }
 

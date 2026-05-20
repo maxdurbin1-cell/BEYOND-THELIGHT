@@ -9928,19 +9928,31 @@ function updateRollModDisplay(){
 //   addAdvDie — +V.D. bonus: roll the Valor Die and ADD to total
 function parseWeaponBonuses(stat) {
   if (!S || !S.equipment) return {flat:0, advDie:0, addAdvDie:false};
-  var weapons = [S.equipment.weapon1 || ''];
+  var weapons = [S.equipment.weapon1 || '', S.equipment.weapon2 || '', S.equipment.readied || ''];
   var flat = 0, advDie = 0, addAdvDie = false;
-  var label = stat.charAt(0).toUpperCase() + stat.slice(1);
+  var statKey = String(stat || '').toLowerCase();
+  function statListIncludes(labelText){
+    return String(labelText || '').toLowerCase().split('/').map(function(s){return s.trim();}).indexOf(statKey) >= 0;
+  }
   weapons.forEach(function(w) {
     if (!w) return;
-    // Flat: +N Strike / +N Shoot / +N Defend / +N Defend/Strike etc.
-    var fm = w.match(new RegExp('[+](\\d+)\\s+(?:[A-Za-z]+\\/)*' + label, 'i'));
-    if (fm) flat += parseInt(fm[1], 10);
-    // Advantage die: AdN Strike / AdN Shoot / AdN Defend
-    var am = w.match(new RegExp('\\bAd(\\d+)\\s+' + label, 'i'));
-    if (am) { var d = parseInt(am[1], 10); if (d > advDie) advDie = d; }
-    // V.D. bonus (+V.D. StatLabel) — roll Valor Die and ADD to result (V.D. legacy label supported)
-    if (new RegExp('[+]?(?:A\\.D\\.|V\\.D\\.)\\s+' + label, 'i').test(w)) addAdvDie = true;
+    var text = String(w);
+    var flatRx = /\+(\d+)\s+([A-Za-z/]+)/g;
+    var advRx = /\bAd(\d+)\s+([A-Za-z/]+)/g;
+    var vdRx = /[+]?(?:A\.D\.|V\.D\.)\s*(?:to\s+)?([A-Za-z/]+)/ig;
+    var m;
+    while ((m = flatRx.exec(text))) {
+      if (statListIncludes(m[2])) flat += parseInt(m[1], 10) || 0;
+    }
+    while ((m = advRx.exec(text))) {
+      if (statListIncludes(m[2])) {
+        var d = parseInt(m[1], 10) || 0;
+        if (d > advDie) advDie = d;
+      }
+    }
+    while ((m = vdRx.exec(text))) {
+      if (statListIncludes(m[1])) addAdvDie = true;
+    }
   });
   var affix=getEquippedAffixCombatBonuses();
   if(stat==='strike')flat+=Number(affix.strikeFlat||0)+Number(affix.attackFlat||0);
@@ -20288,18 +20300,24 @@ window.addEventListener('DOMContentLoaded', function() {
     try{
       var die = (typeof getEffectiveDie==='function') ? getEffectiveDie(statKey) : ((S.stats && S.stats[statKey]) ? S.stats[statKey] : 4);
       var rr = qpRollWithAdvMode(die);
+      var wpBonus = (statKey==='strike' || statKey==='shoot' || statKey==='defend') ? parseWeaponBonuses(statKey) : {flat:0,advDie:0,addAdvDie:false};
+      var queuedValor = consumeQueuedRollModValorDice((label||String(statKey||'Roll'))+' Queued Valor');
+      var wpValor = wpBonus.addAdvDie ? explodingRoll(getValorDieSize(),{type:'action',major:true,label:'Weapon Valor Bonus'}) : null;
       var relicRolls = (typeof getPermanentAdventureBonusRolls==='function') ? getPermanentAdventureBonusRolls(statKey, label + ' Relic') : [];
       var relicTotal = (typeof sumAdventureBonusRolls==='function') ? sumAdventureBonusRolls(relicRolls) : 0;
       var radPenalty = (typeof getRadPenaltyForStat==='function') ? getRadPenaltyForStat(statKey) : 0;
-      var finalTotal = Math.max(0, rr.total + relicTotal - radPenalty);
+      var finalTotal = Math.max(0, rr.total + Number(wpBonus.flat||0) + Number(queuedValor.total||0) + Number(wpValor&&wpValor.total||0) + relicTotal - radPenalty);
       var detail = rr.r2===null ? ('d'+die+'='+rr.r1) : ('d'+die+' vs d'+rr.advDie+' ['+rr.r1+', '+rr.r2+'] '+(rr.mode==='adv'?'adv':'dis'));
       var detail2 = rr.flat ? (' <span style="color:var(--gold2);">'+(rr.flat>0?'+':'')+rr.flat+'</span>') : '';
+      var detailWp = Number(wpBonus.flat||0) ? (' <span style="color:var(--gold2);">weapon '+(Number(wpBonus.flat||0)>0?'+':'')+Number(wpBonus.flat||0)+'</span>') : '';
+      var detailQv = Number(queuedValor.total||0) ? (' <span style="color:var(--gold2);">queued V.D. +'+Number(queuedValor.total||0)+'</span>') : '';
+      var detailVd = Number(wpValor&&wpValor.total||0) ? (' <span style="color:var(--gold2);">weapon V.D. +'+Number(wpValor.total||0)+'</span>') : '';
       var detail3 = radPenalty ? (' <span style="color:var(--red2);">- '+radPenalty+' rad</span>') : '';
       var relicHtml = (typeof formatAdventureBonusRolls==='function') ? formatAdventureBonusRolls(relicRolls) : '';
       var resultEl=document.getElementById('qpRollResult');
       if(resultEl){
         resultEl.innerHTML =
-          '<span style="color:var(--muted2);">' + label + '</span> <span style="font-size:.76rem;color:var(--muted2);">(' + detail + ')' + detail2 + detail3 + '</span>' + relicHtml + ' = <strong style="color:var(--teal);font-size:1.2rem;">' + finalTotal + '</strong>';
+          '<span style="color:var(--muted2);">' + label + '</span> <span style="font-size:.76rem;color:var(--muted2);">(' + detail + ')' + detail2 + detailWp + detailQv + detailVd + detail3 + '</span>' + relicHtml + ' = <strong style="color:var(--teal);font-size:1.2rem;">' + finalTotal + '</strong>';
       }
       qpPushDiceResult(label+' d'+die,finalTotal,'var(--teal)');
       if(typeof clearConditionOnUse==='function')clearConditionOnUse(statKey);
@@ -24261,6 +24279,8 @@ window.addEventListener('DOMContentLoaded', function() {
       adAddRolls.push(r);
       total+=r.total;
     }
+    const queuedValor=consumeQueuedRollModValorDice('Lead Queued Valor');
+    total+=Number(queuedValor.total||0);
 
     return {
       total:total,
@@ -24270,6 +24290,7 @@ window.addEventListener('DOMContentLoaded', function() {
       augRoll:augRoll,
       gearAddRolls:gearAddRolls,
       adAddRolls:adAddRolls,
+      queuedValor:queuedValor,
       notes:invBonus.notes
     };
   }
@@ -24407,6 +24428,7 @@ window.addEventListener('DOMContentLoaded', function() {
     const bonusNotes = [];
     if(leadRoll.flat)bonusNotes.push((leadRoll.flat>0?'+':'')+leadRoll.flat+' flat');
     if(leadRoll.augRoll)bonusNotes.push('+Aug '+leadRoll.augRoll.total);
+    if(leadRoll.queuedValor&&Number(leadRoll.queuedValor.total||0)>0)bonusNotes.push('+Queued V.D. '+Number(leadRoll.queuedValor.total||0));
     if(Array.isArray(leadRoll.adAddRolls)&&leadRoll.adAddRolls.length){
       leadRoll.adAddRolls.forEach(function(r){ bonusNotes.push('+V.D. '+r.total); });
     }

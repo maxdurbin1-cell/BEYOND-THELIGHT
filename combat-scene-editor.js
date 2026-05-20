@@ -2501,7 +2501,12 @@
   }
 
   function addHistory(line) {
-    return addCombatLogEntry({ message: String(line), result: String(line) });
+    var text = String(line || '');
+    var entry = addCombatLogEntry({ message: text, result: text });
+    if (typeof window.combatChatPostSystem === 'function' && text) {
+      try { window.combatChatPostSystem(text); } catch (_err) {}
+    }
+    return entry;
   }
 
   function inferCombatLogMetaFromLine(line) {
@@ -8014,6 +8019,9 @@
       var enemyPool = activeTokenNow && String(activeTokenNow.faction) === 'monster'
         ? Math.max(0, Number(state.teamActions && state.teamActions[activeTokenNow.id] || 0))
         : Math.max(0, enemiesCount ? 1 : 0);
+      var enemyPoolMax = activeTokenNow && String(activeTokenNow.faction) === 'monster'
+        ? Math.max(1, Number(activeTokenNow.actionsPerTurn || activeTokenNow.maxActions || 2))
+        : Math.max(1, enemiesCount ? 2 : 1);
       var dreadDie = Math.max(4, Number(window.S && window.S.combat && window.S.combat.enemyDread || 8));
       var sceneLabel = (window.S && window.S.combat && window.S.combat.active) ? ('Round ' + Math.max(1, Number(window.S.combat.round || state.round || 1))) : 'Scene Not Started';
       statusGrid.innerHTML = ''
@@ -8021,7 +8029,7 @@
         + '<div class="combat-feed-line">Health: <strong style="color:var(--combat-accent-2);">' + hpNow + '/' + hpMax + '</strong></div>'
         + '<div class="combat-feed-line">TMW: <strong style="color:var(--combat-accent-2);">' + tmwNow + '</strong></div>'
         + '<div class="combat-feed-line">Ally Actions: <strong style="color:var(--combat-accent-2);">' + alliesCount + '</strong></div>'
-        + '<div class="combat-feed-line">Enemy Actions: <strong style="color:var(--combat-accent-2);">' + enemyPool + '/' + Math.max(enemyPool, enemiesCount ? 1 : 0) + '</strong></div>'
+        + '<div class="combat-feed-line">Enemy Actions: <strong style="color:var(--combat-accent-2);">' + enemyPool + '/' + enemyPoolMax + '</strong></div>'
         + '<div class="combat-feed-line">Dread: <strong style="color:var(--combat-accent-2);">d' + dreadDie + '</strong></div>'
         + '<div class="combat-feed-line">' + sceneLabel + '</div>';
     }
@@ -8111,18 +8119,7 @@
       var previous = String(tokenActionSel.value || '');
       if (actor && (actor.isPlayer || String(actor.faction) === 'player') && mirroredSel) {
         var mirroredOptions = Array.prototype.slice.call(mirroredSel.options || []);
-        var filteredOptions = mirroredOptions.filter(function (opt) {
-          if (!opt || !opt.value) return false;
-          var lower = String(opt.value || '') + ' ' + String(opt.textContent || '');
-          if (/strike/i.test(lower)) {
-            return typeof canUseAttackAtCurrentRange === 'function' ? !!canUseAttackAtCurrentRange('strike') : true;
-          }
-          if (/shoot/i.test(lower)) {
-            return typeof canUseAttackAtCurrentRange === 'function' ? !!canUseAttackAtCurrentRange('shoot') : true;
-          }
-          return true;
-        });
-        tokenActionSel.innerHTML = (filteredOptions.length ? filteredOptions : mirroredOptions).map(function (opt) {
+        tokenActionSel.innerHTML = mirroredOptions.map(function (opt) {
           var val = String(opt.value || '');
           return '<option value="' + val + '">' + String(opt.textContent || '') + '</option>';
         }).join('');
@@ -10872,6 +10869,12 @@
           var target = byId(targetVal);
           if (target && actor) {
             var dist = hexDistance({ q: actor.q, r: actor.r }, { q: target.q, r: target.r });
+            if (typeof window.setCombatSpacing === 'function') {
+              var spacingLabel = dist <= 1
+                ? 'Engaged (Strike)'
+                : (dist <= 2 ? 'Close (Scrolls)' : (dist <= 4 ? 'Nearby (Shoot)' : 'Far (Out of Range)'));
+              try { window.setCombatSpacing(spacingLabel, false); } catch (_syncErr) {}
+            }
             if (dist <= 1 && /shoot/i.test(actionVal)) {
               safeNotif('Target is engaged. Use Strike instead of Shoot.', 'warn');
               return;
@@ -10893,7 +10896,11 @@
         tryApplyLegacyDamageToTokens('wayfarer');
         var selectedOpt = legacySel && legacySel.options ? legacySel.options[legacySel.selectedIndex] : null;
         var actionLabel = selectedOpt ? String(selectedOpt.textContent || actionVal) : actionVal;
-        addHistory('Wayfarer action executed (Combat Tab rules): ' + actionLabel + '.');
+        var resultNode = document.getElementById('wayfarerActionResult')
+          || document.getElementById('attackResult')
+          || document.getElementById('defendResult');
+        var resultSummary = String(resultNode && (resultNode.textContent || resultNode.innerText) || '').replace(/\s+/g, ' ').trim();
+        addHistory('Wayfarer action executed (Combat Tab rules): ' + actionLabel + (resultSummary ? (' · ' + resultSummary) : '.') );
         updateUiPanels();
       };
     }
@@ -12447,6 +12454,8 @@
     var originalStartCombat = window.startCombat;
     window.startCombat = function () {
       var result = originalStartCombat.apply(this, arguments);
+      var overlay = document.getElementById('combatModeOverlay');
+      if (overlay && overlay.classList.contains('open')) return result;
       try {
         window.openCombatSceneEditorFromExpedition();
       } catch (_err) {

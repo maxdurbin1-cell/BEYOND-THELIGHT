@@ -170,14 +170,14 @@ async function run() {
       throw new Error(`Asset drag/drop did not stamp an object: ${JSON.stringify(dragResult)}`);
     }
 
-    const usePlacement = await page.evaluate(() => {
+    const cardPlacement = await page.evaluate(() => {
       const before = window.CombatSceneStore.getState();
-      const useBtn = document.querySelector('button[data-asset-id="obj-obstacle"][data-asset-action="paint-object"]');
-      if (!useBtn) return { ok: false, reason: "use-button-missing" };
+      const assetCard = document.querySelector('article.combat-asset-card[data-asset-id="obj-obstacle"][data-asset-action="paint-object"]');
+      if (!assetCard) return { ok: false, reason: "asset-card-missing" };
       const selected = (before.tokens || []).find((row) => row && row.id === before.selectedTokenId) || null;
       const expectedKey = selected ? `${Number(selected.q || 0) + 1},${Number(selected.r || 0) + 1}` : "0,0";
-      const onclickBound = typeof useBtn.onclick === "function";
-      useBtn.click();
+      const onclickBound = typeof assetCard.onclick === "function";
+      assetCard.click();
       const after = window.CombatSceneStore.getState();
       const valueAtExpected = (after.layers && after.layers.objects && after.layers.objects[expectedKey]) || "";
       return {
@@ -189,8 +189,8 @@ async function run() {
       };
     });
 
-    if (!usePlacement.ok || usePlacement.valueAtExpected !== "obstacle") {
-      throw new Error(`Asset Use click did not place object: ${JSON.stringify(usePlacement)}`);
+    if (!cardPlacement.ok || cardPlacement.valueAtExpected !== "obstacle") {
+      throw new Error(`Asset card click did not place object: ${JSON.stringify(cardPlacement)}`);
     }
 
     const hoverLabels = await page.evaluate(() => {

@@ -3097,6 +3097,13 @@
       if (lower.indexOf('difficult') >= 0) return '🪨';
       return '🗺';
     }
+    if (lower.indexOf('terrain-forest') >= 0 || lower.indexOf('forest') >= 0) return '🌲';
+    if (lower.indexOf('terrain-marsh') >= 0 || lower.indexOf('marsh') >= 0 || lower.indexOf('swamp') >= 0) return '🌿';
+    if (lower.indexOf('terrain-crags') >= 0 || lower.indexOf('terrain-crag') >= 0 || lower.indexOf('crag') >= 0 || lower.indexOf('rock') >= 0) return '⛰';
+    if (lower.indexOf('terrain-lava') >= 0 || lower.indexOf('lava') >= 0) return '🌋';
+    if (lower.indexOf('terrain-ruins') >= 0 || lower.indexOf('ruin') >= 0) return '🏛';
+    if (lower.indexOf('terrain-water') >= 0 || lower.indexOf('water') >= 0) return '🌊';
+    if (lower.indexOf('terrain-road') >= 0 || lower.indexOf('road') >= 0) return '🛣';
     if (lower.indexOf('door') >= 0) return '🚪';
     if (lower.indexOf('turret') >= 0) return '🔫';
     if (lower.indexOf('trap') >= 0) return '⚠';
@@ -5876,6 +5883,8 @@
     if (backgroundCache.src !== src || !backgroundCache.img) {
       backgroundCache.src = src;
       backgroundCache.img = new Image();
+      backgroundCache.img.onload = function () { drawBoard(); };
+      backgroundCache.img.onerror = function () { drawBoard(); };
       backgroundCache.img.src = src;
     }
     var img = backgroundCache.img;
@@ -6968,6 +6977,13 @@
       var objectAssets = ['obstacle', 'door', 'turret', 'trap', 'shrine', 'spawn', 'wall', 'vision-blocker', 'crate', 'pillar', 'barricade', 'altar', 'console', 'loot-cache', 'beacon'].map(function (name) {
         return { id: 'obj-' + name, name: name, action: 'paint-object', payload: name };
       }).concat([
+        { id: 'obj-terrain-road', name: 'terrain icon - road', action: 'paint-object', payload: 'terrain-road' },
+        { id: 'obj-terrain-forest', name: 'terrain icon - forest', action: 'paint-object', payload: 'terrain-forest' },
+        { id: 'obj-terrain-water', name: 'terrain icon - water', action: 'paint-object', payload: 'terrain-water' },
+        { id: 'obj-terrain-crags', name: 'terrain icon - crags', action: 'paint-object', payload: 'terrain-crags' },
+        { id: 'obj-terrain-lava', name: 'terrain icon - lava', action: 'paint-object', payload: 'terrain-lava' },
+        { id: 'obj-terrain-ruins', name: 'terrain icon - ruins', action: 'paint-object', payload: 'terrain-ruins' }
+      ]).concat([
         { id: 'obj-loot-cache-stocked', name: 'loot-cache (stocked)', action: 'stock-cache', payload: 'balanced' },
         { id: 'obj-loot-cache-credits', name: 'loot-cache (credits only)', action: 'stock-cache', payload: 'credits' }
       ]);
@@ -7001,6 +7017,7 @@
         if (category === 'heroes') return '🛡';
         if (category === 'villains') return '☠';
         if (category === 'townsfolk') return '👥';
+        if (category === 'objects') return getCombatAssetGlyph(itemName, 'objects');
         if (n.indexOf('door') >= 0) return '🚪';
         if (n.indexOf('turret') >= 0) return '🔫';
         if (n.indexOf('trap') >= 0) return '⚠';
@@ -7133,7 +7150,7 @@
             dragPayload = 'npc:' + String(chosen.name || 'NPC');
           } else if (action === 'spawn-villain') {
             dragKind = 'spawn-bestiary';
-            dragPayload = String(chosen.id || '');
+            dragPayload = String(chosen.id || '') + '|' + String(chosen.name || 'Enemy');
           } else if (action === 'map-preset') {
             dragKind = 'preset';
             var presetItemId = String(chosen.id || '');
@@ -9647,11 +9664,22 @@
         });
         addHistory('Asset placed: ' + name + ' at ' + toKey(q, r) + '.');
       } else if (action === 'spawn-bestiary') {
-        var bestiaryEntry = (store.getState().codexBestiary || []).find(function (e) { return String(e.id || '') === String(value || ''); }) || null;
+        var rawBestiary = String(value || '');
+        var splitAt = rawBestiary.indexOf('|');
+        var bestiaryId = splitAt >= 0 ? rawBestiary.slice(0, splitAt) : rawBestiary;
+        var bestiaryName = splitAt >= 0 ? rawBestiary.slice(splitAt + 1) : '';
+        var bestiaryPool = Array.isArray(store.getState().codexBestiary) ? store.getState().codexBestiary : [];
+        var bestiaryEntry = bestiaryPool.find(function (e) { return String(e.id || '') === String(bestiaryId || ''); }) || null;
+        if (!bestiaryEntry && bestiaryName) {
+          var lowerBestiaryName = String(bestiaryName || '').toLowerCase();
+          bestiaryEntry = bestiaryPool.find(function (e) { return String(e && e.name || '').toLowerCase() === lowerBestiaryName; }) || null;
+        }
         if (bestiaryEntry) {
           spawnBestiaryToken(bestiaryEntry, q, r);
         } else {
-          safeNotif('Bestiary entry not found — make sure your Codex has entries loaded.', 'warn');
+          var fallbackName = String(bestiaryName || bestiaryId || 'Enemy');
+          applyCombatAssetActionAt('spawn', 'enemy:' + fallbackName, q, r, true);
+          safeNotif('Bestiary profile missing; spawned fallback token for ' + fallbackName + '.', 'warn');
         }
       } else if (action === 'preset') {
         var presets = {
@@ -9791,7 +9819,7 @@
       var value = String(payload || '');
       var st = store.getState();
       var dropHex = getDefaultAssetDropHex(st, st.selectedTokenId);
-      var placeNow = action === 'set-tool' || action === 'spawn' || action === 'stock-cache' || action === 'set-map' || action === 'preset';
+      var placeNow = action === 'set-tool' || action === 'spawn' || action === 'spawn-bestiary' || action === 'stock-cache' || action === 'set-map' || action === 'preset';
       applyCombatAssetActionAt(action, value, Number(dropHex.q || 0), Number(dropHex.r || 0), placeNow);
       if (placeNow) {
         safeNotif('Placed ' + action + ' at ' + toKey(Number(dropHex.q || 0), Number(dropHex.r || 0)) + '.', 'good');

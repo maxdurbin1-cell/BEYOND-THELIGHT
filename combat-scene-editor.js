@@ -2087,7 +2087,17 @@
     var sceneIdx = state.scenes.findIndex(function (scene) {
       return scene && String(scene.id) === String(state.activeSceneId);
     });
-    if (sceneIdx < 0) return state;
+    if (sceneIdx < 0) {
+      var appended = state.scenes.slice();
+      appended.push(Object.assign({
+        id: String(state.activeSceneId),
+        name: 'Scene ' + String(appended.length + 1),
+        createdAt: Date.now()
+      }, makeSceneSnapshot(state), {
+        updatedAt: Date.now()
+      }));
+      return Object.assign({}, state, { scenes: appended });
+    }
 
     var nextScenes = state.scenes.slice();
     var currentScene = nextScenes[sceneIdx] || {};
@@ -2097,6 +2107,30 @@
       updatedAt: Date.now()
     });
     return Object.assign({}, state, { scenes: nextScenes });
+  }
+
+  var persistWriteTimer = null;
+  var persistQueuedSlim = null;
+  var lastPersistJson = '';
+
+  function flushPersistStorage() {
+    persistWriteTimer = null;
+    if (!persistQueuedSlim) return;
+    try {
+      var json = JSON.stringify(persistQueuedSlim);
+      if (json !== lastPersistJson) {
+        localStorage.setItem(KEY, json);
+        writeRecoverySnapshot(persistQueuedSlim);
+        lastPersistJson = json;
+      }
+    } catch (_err) {}
+    persistQueuedSlim = null;
+  }
+
+  function queuePersistStorageWrite(slim) {
+    persistQueuedSlim = slim;
+    if (persistWriteTimer) return;
+    persistWriteTimer = setTimeout(flushPersistStorage, 180);
   }
 
   function persist(state) {
@@ -2134,10 +2168,7 @@
       undoStack: synced.undoStack,
       redoStack: synced.redoStack
     };
-    try {
-      localStorage.setItem(KEY, JSON.stringify(slim));
-    } catch (_err) {}
-    writeRecoverySnapshot(slim);
+    queuePersistStorageWrite(slim);
     if (window.S) {
       if (!window.S.combat || typeof window.S.combat !== 'object') window.S.combat = {};
       window.S.combat.sceneEditor = clone(synced);
@@ -11824,14 +11855,52 @@
       }
       store.setState(function (state) {
         var next = normalizeCombatSceneState(Object.assign({}, state));
-        if (seed.id) {
-          next.activeSceneId = String(seed.id);
-        }
-        if (typeof seed.name === 'string' && Array.isArray(next.scenes) && next.activeSceneId) {
-          next.scenes = (next.scenes || []).map(function (scene) {
-            if (!scene || String(scene.id) !== String(next.activeSceneId)) return scene;
-            return Object.assign({}, scene, { name: String(seed.name || scene.name || 'Scene') });
+        var targetSceneId = String(seed.id || uid('scene'));
+        next.activeSceneId = targetSceneId;
+        var sceneName = String(seed.name || 'Scene');
+        var scenes = Array.isArray(next.scenes) ? next.scenes.slice() : [];
+        var sceneIdx = scenes.findIndex(function (scene) {
+          return scene && String(scene.id || '') === targetSceneId;
+        });
+        var existingScene = sceneIdx >= 0 ? scenes[sceneIdx] : null;
+        if (sceneIdx < 0) {
+          scenes.push({
+            id: targetSceneId,
+            name: sceneName,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            board: clone(next.board || {}),
+            layers: clone(next.layers || {}),
+            fog: clone(next.fog || {}),
+            sceneRules: clone(next.sceneRules || {}),
+            tokens: clone(next.tokens || []),
+            initiative: clone(next.initiative || []),
+            actionHistory: clone(next.actionHistory || [])
           });
+        } else {
+          scenes[sceneIdx] = Object.assign({}, scenes[sceneIdx] || {}, {
+            id: targetSceneId,
+            name: sceneName,
+            updatedAt: Date.now()
+          });
+        }
+        next.scenes = scenes;
+        if (existingScene) {
+          next.board = normalizeBoard(Object.assign({}, next.board || {}, clone(existingScene.board || {})));
+          next.layers = normalizeCombatSceneState({ layers: clone(existingScene.layers || {}) }).layers;
+          next.fog = Object.assign({}, next.fog || {}, clone(existingScene.fog || {}));
+          next.sceneRules = ensureCombatSceneRulesExtensions(Object.assign({}, next.sceneRules || {}, clone(existingScene.sceneRules || {})));
+          next.tokens = clone(existingScene.tokens || []);
+          next.initiative = clone(existingScene.initiative || []);
+          next.actionHistory = clone(existingScene.actionHistory || []);
+        } else {
+          next.board = normalizeBoard(Object.assign({}, next.board || {}, { cols: 15, rows: 15, zoom: 1, panX: 640, panY: 340, background: '' }));
+          next.layers = createEmptySceneLayers();
+          next.fog = Object.assign({}, next.fog || {}, { enabled: false, revealed: {}, revealOrder: {}, revealSeq: 0, revealStep: 0 });
+          next.sceneRules = ensureCombatSceneRulesExtensions(Object.assign({}, next.sceneRules || {}));
+          next.tokens = [];
+          next.initiative = [];
+          next.actionHistory = [];
         }
         if (Array.isArray(seed.tokens) && seed.tokens.length) {
           next.tokens = seed.tokens.map(function (token, idx) {

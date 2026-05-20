@@ -1836,11 +1836,14 @@
     if (!seed || typeof seed !== 'object') return seed;
     var active = getActiveScopedTravelScene(scopeName, sceneKey);
     if (!active) return seed;
+    if (active.id) seed.id = String(active.id);
     if (active.name) seed.name = String(active.name);
     if (active.image) {
       if (!seed.board || typeof seed.board !== 'object') seed.board = {};
       seed.board.background = String(active.image);
     }
+    seed.travelSceneScope = String(scopeName || 'generic').toLowerCase();
+    seed.travelSceneKey = String(sceneKey || 'unknown');
     if (Array.isArray(seed.history)) {
       seed.history.push('Travel Scene loaded: ' + String(active.name || 'Scene') + '.');
     }

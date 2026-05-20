@@ -8405,10 +8405,20 @@ function getEquippedAffixTextBlob(){
 }
 
 function hasEquippedAffix(name){
-  var needle=normalizeAffixLabel(name);
-  var blob=getEquippedAffixTextBlob();
-  if(!needle||!blob)return false;
-  return blob.indexOf(needle)>=0;
+  var needle=normalizeAffixLabel(name).trim();
+  if(!needle)return false;
+  var equipped=[];
+  if(S&&S.equipment&&typeof S.equipment==='object'){
+    ['weapon1','weapon2','armor','readied'].forEach(function(slot){
+      var itemText=String(S.equipment[slot]||'');
+      if(!itemText)return;
+      var affixes=getItemAffixList(itemText);
+      if(Array.isArray(affixes)&&affixes.length){
+        equipped=equipped.concat(affixes.map(normalizeAffixLabel));
+      }
+    });
+  }
+  return equipped.indexOf(needle)>=0;
 }
 
 var AFFIX_EFFECT_DESCRIPTIONS={

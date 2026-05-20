@@ -62,9 +62,11 @@ setTimeout(function() {
 <link rel="stylesheet" href="./faction-intro-system.css" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="./settings-system.css" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="./combat-scene-editor.css" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="./gm-worldbuilder.css" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="./faction-intro-system.css"></noscript>
 <noscript><link rel="stylesheet" href="./settings-system.css"></noscript>
 <noscript><link rel="stylesheet" href="./combat-scene-editor.css"></noscript>
+<noscript><link rel="stylesheet" href="./gm-worldbuilder.css"></noscript>
 <style>
 /* ── ACCESSIBILITY ── */
 .skip-link{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:9999;background:var(--surface);color:var(--gold);font-family:'Cinzel',serif;font-size:.75rem;letter-spacing:.1em;padding:.6rem 1rem;border:1px solid var(--gold);text-transform:uppercase;text-decoration:none;}
@@ -559,6 +561,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-gambling" id="tabnav-gambling" onclick="switchTab('gambling',this)">Gambling</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-caravan" id="tabnav-caravan" onclick="switchTab('caravan',this)">Caravan</button>
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-holding" id="tabnav-holding" style="display:none;" onclick="switchTab('holding',this)">Holdings</button>
+    <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-gmworldbuilder" id="tabnav-gmworldbuilder" style="display:none;" onclick="switchTab('gmworldbuilder',this)">GM Forge</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-howto" id="tabnav-howto" onclick="switchTab('howto',this)">How To Use</button>
     <button class="tab-btn solo-reference-btn" aria-label="Solo Reference" onclick="openSoloReference()" title="Solo Reference">🧭 Solo</button>
     <button class="tab-btn gm-dashboard-btn" aria-label="GM Dashboard" onclick="openGmDashboard()" title="GM Dashboard">👥 GM</button>
@@ -1713,6 +1716,9 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 
 <!-- HOLDING TAB -->
 <div class="tab-panel" id="tab-holding"></div>
+
+<!-- GM WORLDBUILDER TAB -->
+<div class="tab-panel" id="tab-gmworldbuilder" role="tabpanel" aria-labelledby="tabnav-gmworldbuilder" tabindex="0"></div>
 
 <!-- ORACLE TAB -->
 <div class="tab-panel" id="tab-oracle"></div>
@@ -25019,6 +25025,7 @@ window.addEventListener('DOMContentLoaded', function() {
 <script defer src="./storyline-choices-system.js"></script>
 <script defer src="./solo-reference.js"></script>
 <script defer src="./gm-dashboard.js"></script>
+<script defer src="./gm-worldbuilder.js"></script>
 <script defer src="./portrait-generator.js"></script>
 <script defer src="./colosseum-gate-system.js"></script>
 <script defer src="/socket.io/socket.io.js"></script>

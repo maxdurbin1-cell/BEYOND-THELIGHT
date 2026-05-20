@@ -523,6 +523,7 @@ window.playCustomMusicFromSettings = function() {
               <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
                 <button id="gmRevealDCBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleGMReveal('dc')">Reveal DC: ${Settings.gmRevealDC ? 'On' : 'Off'}</button>
                 <button id="gmRevealHiddenBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleGMReveal('hidden')">Reveal Hidden Info: ${Settings.gmRevealHiddenInfo ? 'On' : 'Off'}</button>
+                <button class="btn btn-xs" onclick="if(typeof switchTab==='function'){switchTab('gmworldbuilder',document.getElementById('tabnav-gmworldbuilder'));}">GM Forge</button>
                 <button class="btn btn-xs" onclick="if(typeof openGMStoryComposer==='function'){openGMStoryComposer();}">Story Composer</button>
                 <button class="btn btn-xs" onclick="if(typeof openGMHexMarkerEditor==='function'){openGMHexMarkerEditor();}">Hex Marker</button>
                 <button class="btn btn-xs" onclick="if(typeof openGMDreadDirector==='function'){openGMDreadDirector();}">Dread Director</button>
@@ -1021,6 +1022,10 @@ window.playCustomMusicFromSettings = function() {
       gmBtn.style.borderColor = isGM ? 'var(--purple)' : '';
       gmBtn.style.color = isGM ? 'var(--purple)' : '';
       gmBtn.title = isGM ? 'GM Dashboard (GM Mode Active)' : 'GM Dashboard';
+    }
+
+    if (typeof window.updateGmWorldbuilderVisibility === 'function') {
+      window.updateGmWorldbuilderVisibility();
     }
 
     const colorBlindBtn = document.getElementById('colorBlindModeBtn');

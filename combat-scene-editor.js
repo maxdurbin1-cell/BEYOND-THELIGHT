@@ -10777,13 +10777,9 @@
       }
       if (!target) return;
       if (kind !== 'enemy' && Number(target.sourceEnemyId || 0) > 0) {
+        // Keep token HP in sync with any external enemy-tracker edits, then apply this hit.
         syncLegacyEnemyStressToTokens(target.id);
-        var syncedTarget = byId(target.id) || target;
-        var syncedHp = Math.max(0, Number(syncedTarget.hp || 0));
-        var notifElSynced = document.getElementById('combatLastNotification');
-        if (notifElSynced) notifElSynced.textContent = String(syncedTarget.name || 'Enemy') + ' stress synced from legacy enemy state · HP: ' + syncedHp;
-        drawBoard();
-        return;
+        target = byId(target.id) || target;
       }
       var deathNumber = Math.max(1, Number(target.deathNumber || target.dread || target.codexDread || 6));
       var lethal = isCrit || damage >= deathNumber;

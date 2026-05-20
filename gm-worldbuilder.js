@@ -12,8 +12,31 @@
     return list[Math.floor(Math.random() * list.length)] || '';
   }
 
+  function weightedChoice(entries) {
+    if (!Array.isArray(entries) || !entries.length) return null;
+    var total = 0;
+    entries.forEach(function (e) { total += Number(e.weight || 0); });
+    if (total <= 0) return entries[0] || null;
+    var roll = Math.random() * total;
+    var sum = 0;
+    for (var i = 0; i < entries.length; i += 1) {
+      sum += Number(entries[i].weight || 0);
+      if (roll <= sum) return entries[i];
+    }
+    return entries[entries.length - 1] || null;
+  }
+
   function uid(prefix) {
     return String(prefix || 'id') + '_' + Date.now().toString(36) + '_' + Math.floor(Math.random() * 1e5).toString(36);
+  }
+
+  function escapeHtml(v) {
+    return String(v || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function ensureState() {
@@ -30,22 +53,169 @@
       things: Array.isArray(base.things) ? base.things : [],
       stickyNotes: Array.isArray(base.stickyNotes) ? base.stickyNotes : [],
       checklists: Array.isArray(base.checklists) ? base.checklists : [],
-      connections: Array.isArray(base.connections) ? base.connections : []
+      connections: Array.isArray(base.connections) ? base.connections : [],
+      graphDraftFrom: String(base.graphDraftFrom || ''),
+      nameStyle: String(base.nameStyle || 'weighted')
     };
+
+    window.S.gmWorldbuilder.characters.forEach(function (c) {
+      c.locationId = String(c.locationId || '');
+      c.type = String(c.type || 'NPC');
+    });
+    window.S.gmWorldbuilder.things.forEach(function (t) {
+      t.locationId = String(t.locationId || '');
+      t.ownerCharacterId = String(t.ownerCharacterId || '');
+      t.owner = String(t.owner || '');
+    });
     return window.S.gmWorldbuilder;
   }
 
-  var NAME_GROUPS = {
-    Spanish: ['Iria', 'Mateo', 'Lucia', 'Tomas', 'Rocio', 'Sergio', 'Adela', 'Gael'],
-    Inuit: ['Aputi', 'Nuka', 'Siku', 'Panik', 'Nanuq', 'Qannik', 'Ivalu', 'Tulimaq'],
-    Persian: ['Arash', 'Darya', 'Mehrdad', 'Soraya', 'Rostam', 'Parisa', 'Kian', 'Laleh'],
-    Egyptian: ['Amunet', 'Seti', 'Neferu', 'Khepri', 'Iset', 'Djoser', 'Merit', 'Bastet'],
-    Navajo: ['Ashkii', 'Yazhi', 'Atsa', 'Tadita', 'Hastiin', 'Nizhoni', 'Kai', 'Atsaidi'],
-    Celtic: ['Eira', 'Bran', 'Maeve', 'Cian', 'Nessa', 'Ronan', 'Orla', 'Taran'],
-    Japanese: ['Akira', 'Ren', 'Yui', 'Kaede', 'Sora', 'Haru', 'Mio', 'Takumi'],
-    Yoruba: ['Ade', 'Kemi', 'Tunde', 'Sade', 'Bola', 'Ayo', 'Femi', 'Nia'],
-    Norse: ['Astrid', 'Leif', 'Freya', 'Ivar', 'Sigrid', 'Bjorn', 'Runa', 'Eirik'],
-    Slavic: ['Mira', 'Viktor', 'Anya', 'Boris', 'Ilya', 'Nadia', 'Sasha', 'Yelena']
+  var NAME_PACKS = {
+    Spanish: {
+      given: ['Iria', 'Mateo', 'Lucia', 'Tomas', 'Rocio', 'Sergio', 'Adela', 'Gael', 'Ines', 'Pablo', 'Lola', 'Javier', 'Nuria', 'Alvaro', 'Marta', 'Hector', 'Leire', 'Xavier'],
+      family: ['Valdes', 'Ortega', 'Mendoza', 'Cortez', 'Navarro', 'Santos', 'Rivas', 'Delmar', 'Solano', 'Lorca', 'Quintero', 'Beltran'],
+      styles: [{ key: 'weighted', weight: 60 }, { key: 'formal', weight: 22 }, { key: 'clan', weight: 18 }]
+    },
+    Inuit: {
+      given: ['Aputi', 'Nuka', 'Siku', 'Panik', 'Nanuq', 'Qannik', 'Ivalu', 'Tulimaq', 'Kallik', 'Anik', 'Pitsi', 'Sanna', 'Taqi', 'Miki', 'Uyarak'],
+      family: ['Kalluk', 'Nutarak', 'Sinaaq', 'Pipaluk', 'Tariuq', 'Iksu', 'Aqiaruq', 'Navik'],
+      styles: [{ key: 'weighted', weight: 54 }, { key: 'single', weight: 30 }, { key: 'formal', weight: 16 }]
+    },
+    Persian: {
+      given: ['Arash', 'Darya', 'Mehrdad', 'Soraya', 'Rostam', 'Parisa', 'Kian', 'Laleh', 'Shirin', 'Farid', 'Nima', 'Roya', 'Arman', 'Kamran', 'Azar'],
+      family: ['Darvishi', 'Vaziri', 'Farzan', 'Nabavi', 'Kashani', 'Aminpour', 'Mehrabi', 'Rostami', 'Dastan'],
+      styles: [{ key: 'weighted', weight: 55 }, { key: 'formal', weight: 30 }, { key: 'poetic', weight: 15 }]
+    },
+    Egyptian: {
+      given: ['Amunet', 'Seti', 'Neferu', 'Khepri', 'Iset', 'Djoser', 'Merit', 'Bastet', 'Ramsen', 'Tahira', 'Ankhu', 'Sahra', 'Menet'],
+      family: ['Of Karnak', 'Of The Nile Gate', 'Of Sun Court', 'Ibn Set', 'Of Red Dunes', 'Of The Fifth Obelisk'],
+      styles: [{ key: 'weighted', weight: 45 }, { key: 'formal', weight: 35 }, { key: 'honorific', weight: 20 }]
+    },
+    Navajo: {
+      given: ['Ashkii', 'Yazhi', 'Atsa', 'Tadita', 'Hastiin', 'Nizhoni', 'Kai', 'Atsaidi', 'Nataani', 'Tliish', 'Shiye', 'Yiska'],
+      family: ['Begay', 'Nez', 'Bitsui', 'Tsosie', 'Manygoats', 'Chee', 'Begaye', 'Benally'],
+      styles: [{ key: 'weighted', weight: 58 }, { key: 'single', weight: 20 }, { key: 'formal', weight: 22 }]
+    },
+    Japanese: {
+      given: ['Akira', 'Ren', 'Yui', 'Kaede', 'Sora', 'Haru', 'Mio', 'Takumi', 'Aoi', 'Kaito', 'Rin', 'Nagi', 'Yuna', 'Daichi', 'Hina', 'Jun'],
+      family: ['Sato', 'Kobayashi', 'Tanaka', 'Kuroda', 'Ishikawa', 'Shimada', 'Asakura', 'Nakamori', 'Fujita'],
+      styles: [{ key: 'weighted', weight: 62 }, { key: 'formal', weight: 28 }, { key: 'single', weight: 10 }]
+    },
+    Celtic: {
+      given: ['Eira', 'Bran', 'Maeve', 'Cian', 'Nessa', 'Ronan', 'Orla', 'Taran', 'Aisling', 'Finnan', 'Keira', 'Brennan', 'Iona'],
+      family: ['MacRath', 'O Doran', 'O Cael', 'Briarwyn', 'Keenreach', 'Mournvale', 'Carrig'],
+      styles: [{ key: 'weighted', weight: 52 }, { key: 'clan', weight: 33 }, { key: 'single', weight: 15 }]
+    },
+    Slavic: {
+      given: ['Mira', 'Viktor', 'Anya', 'Boris', 'Ilya', 'Nadia', 'Sasha', 'Yelena', 'Dmitri', 'Vera', 'Lev', 'Irina', 'Maksim'],
+      family: ['Volkov', 'Morozov', 'Petrenko', 'Sidorov', 'Kravets', 'Dragunov', 'Belik', 'Novik'],
+      styles: [{ key: 'weighted', weight: 62 }, { key: 'formal', weight: 28 }, { key: 'single', weight: 10 }]
+    },
+    Norse: {
+      given: ['Astrid', 'Leif', 'Freya', 'Ivar', 'Sigrid', 'Bjorn', 'Runa', 'Eirik', 'Alva', 'Kjell', 'Solveig', 'Sten', 'Yrsa'],
+      family: ['Skallson', 'Stormhand', 'Ravenmark', 'Northvein', 'Ulfar', 'Iceward'],
+      styles: [{ key: 'weighted', weight: 46 }, { key: 'clan', weight: 34 }, { key: 'single', weight: 20 }]
+    },
+    Yoruba: {
+      given: ['Ade', 'Kemi', 'Tunde', 'Sade', 'Bola', 'Ayo', 'Femi', 'Nia', 'Temi', 'Bisi', 'Tayo', 'Yemi'],
+      family: ['Adebayo', 'Ogunleye', 'Balogun', 'Akinola', 'Adeyemi', 'Oladele'],
+      styles: [{ key: 'weighted', weight: 58 }, { key: 'formal', weight: 30 }, { key: 'single', weight: 12 }]
+    },
+    Arabic: {
+      given: ['Samir', 'Layla', 'Rashid', 'Noura', 'Karim', 'Amal', 'Zayd', 'Hana', 'Farah', 'Yasin', 'Salma', 'Idris'],
+      family: ['Al Rafi', 'Ibn Wadi', 'Al Nasri', 'Darim', 'Ibn Najm', 'Al Qamar'],
+      styles: [{ key: 'weighted', weight: 55 }, { key: 'formal', weight: 35 }, { key: 'single', weight: 10 }]
+    },
+    Turkish: {
+      given: ['Deniz', 'Eren', 'Aylin', 'Baran', 'Selin', 'Kaan', 'Merve', 'Emir', 'Leyla', 'Orhan', 'Ipek', 'Can'],
+      family: ['Yilmaz', 'Aydin', 'Demir', 'Kaya', 'Kurt', 'Sahin', 'Aslan'],
+      styles: [{ key: 'weighted', weight: 60 }, { key: 'formal', weight: 30 }, { key: 'single', weight: 10 }]
+    },
+    Hindi: {
+      given: ['Asha', 'Rohan', 'Mira', 'Kiran', 'Anil', 'Ishani', 'Dev', 'Leela', 'Arjun', 'Nisha', 'Vikram', 'Priya'],
+      family: ['Patel', 'Sharma', 'Rao', 'Singh', 'Verma', 'Kapoor', 'Das'],
+      styles: [{ key: 'weighted', weight: 61 }, { key: 'formal', weight: 29 }, { key: 'single', weight: 10 }]
+    },
+    Bengali: {
+      given: ['Ila', 'Anik', 'Ritu', 'Suman', 'Mita', 'Rafi', 'Nabin', 'Tuli', 'Arka', 'Joya', 'Rana', 'Bani'],
+      family: ['Sen', 'Basu', 'Datta', 'Roy', 'Bose', 'Sarkar', 'Chowdhury'],
+      styles: [{ key: 'weighted', weight: 60 }, { key: 'formal', weight: 27 }, { key: 'single', weight: 13 }]
+    },
+    Chinese: {
+      given: ['Liang', 'Mei', 'Jin', 'Yue', 'Qiao', 'Wei', 'Xin', 'Lan', 'Bo', 'Hua', 'Feng', 'Rui'],
+      family: ['Li', 'Wang', 'Zhao', 'Chen', 'Xu', 'Zhou', 'Lin', 'Guo'],
+      styles: [{ key: 'weighted', weight: 57 }, { key: 'formal', weight: 33 }, { key: 'single', weight: 10 }]
+    },
+    Korean: {
+      given: ['Min', 'Seo', 'Jin', 'Hana', 'Joon', 'Sora', 'Yuna', 'Taek', 'Nari', 'Hyun', 'Dae', 'Ara'],
+      family: ['Kim', 'Lee', 'Park', 'Choi', 'Jung', 'Kang', 'Han'],
+      styles: [{ key: 'weighted', weight: 58 }, { key: 'formal', weight: 34 }, { key: 'single', weight: 8 }]
+    },
+    Thai: {
+      given: ['Anong', 'Kiet', 'Mali', 'Niran', 'Pim', 'Suda', 'Chai', 'Kanya', 'Som', 'Rin'],
+      family: ['Suwan', 'Kraisri', 'Boonmee', 'Rattan', 'Jintana', 'Sombat'],
+      styles: [{ key: 'weighted', weight: 60 }, { key: 'formal', weight: 25 }, { key: 'single', weight: 15 }]
+    },
+    Vietnamese: {
+      given: ['Minh', 'Lan', 'Bao', 'Thao', 'Quang', 'Linh', 'Huy', 'Mai', 'Trung', 'Vy'],
+      family: ['Nguyen', 'Tran', 'Le', 'Pham', 'Hoang', 'Vo', 'Dang'],
+      styles: [{ key: 'weighted', weight: 64 }, { key: 'formal', weight: 28 }, { key: 'single', weight: 8 }]
+    },
+    Swahili: {
+      given: ['Amani', 'Jabari', 'Zuri', 'Kato', 'Nia', 'Baraka', 'Imani', 'Rafiki', 'Kesi', 'Tamu'],
+      family: ['Mwinyi', 'Juma', 'Kassim', 'Bakari', 'Mosi', 'Tumaini'],
+      styles: [{ key: 'weighted', weight: 56 }, { key: 'formal', weight: 24 }, { key: 'single', weight: 20 }]
+    },
+    Ethiopian: {
+      given: ['Dawit', 'Lulit', 'Bekele', 'Selam', 'Tigist', 'Yonatan', 'Meklit', 'Abel', 'Meron'],
+      family: ['Tesfaye', 'Bekele', 'Hailu', 'Kebede', 'Alemu', 'Abate'],
+      styles: [{ key: 'weighted', weight: 60 }, { key: 'formal', weight: 30 }, { key: 'single', weight: 10 }]
+    },
+    Hausa: {
+      given: ['Aminu', 'Zainab', 'Ibrahim', 'Hadiza', 'Sani', 'Maryam', 'Bello', 'Aisha', 'Musa', 'Rabi'],
+      family: ['Lawal', 'Sule', 'Garba', 'Usman', 'Bala', 'Adamu'],
+      styles: [{ key: 'weighted', weight: 59 }, { key: 'formal', weight: 31 }, { key: 'single', weight: 10 }]
+    },
+    Greek: {
+      given: ['Nikos', 'Eleni', 'Dorian', 'Thalia', 'Iris', 'Petros', 'Lyra', 'Alexis', 'Daphne', 'Kostas'],
+      family: ['Papadopoulos', 'Karalis', 'Theon', 'Nikolaou', 'Vassos', 'Ariston'],
+      styles: [{ key: 'weighted', weight: 54 }, { key: 'formal', weight: 29 }, { key: 'single', weight: 17 }]
+    },
+    Roman: {
+      given: ['Cassia', 'Lucan', 'Tiber', 'Marcellus', 'Livia', 'Aurelia', 'Silvan', 'Flavia', 'Cato'],
+      family: ['Valerius', 'Severus', 'Octavian', 'Drusus', 'Varro', 'Corvinus'],
+      styles: [{ key: 'weighted', weight: 47 }, { key: 'formal', weight: 35 }, { key: 'honorific', weight: 18 }]
+    },
+    Gaelic: {
+      given: ['Sorcha', 'Aedan', 'Niamh', 'Conall', 'Brigid', 'Eoin', 'Fiora', 'Padraig', 'Ruairi'],
+      family: ['MacAuley', 'O Suilleabhain', 'MacRae', 'O Briain', 'MacDara', 'O Faolain'],
+      styles: [{ key: 'weighted', weight: 53 }, { key: 'clan', weight: 34 }, { key: 'single', weight: 13 }]
+    },
+    Basque: {
+      given: ['Ane', 'Iker', 'Leire', 'Unai', 'Naroa', 'Aitor', 'June', 'Xabi', 'Mikel'],
+      family: ['Etxeberria', 'Arrieta', 'Aizpuru', 'Mendieta', 'Ibarra', 'Goiko'],
+      styles: [{ key: 'weighted', weight: 63 }, { key: 'formal', weight: 27 }, { key: 'single', weight: 10 }]
+    },
+    Polynesian: {
+      given: ['Moana', 'Koa', 'Lani', 'Nalu', 'Ikaika', 'Aroha', 'Noa', 'Keoni', 'Hoku'],
+      family: ['Of Tides', 'Ahi', 'Kai', 'Moeru', 'Taniko', 'Wai'],
+      styles: [{ key: 'weighted', weight: 50 }, { key: 'single', weight: 30 }, { key: 'formal', weight: 20 }]
+    },
+    Indigenous_American: {
+      given: ['Takoda', 'Aiyana', 'Kiona', 'Mika', 'Elsu', 'Nodin', 'Wapi', 'Nokosi', 'Tala'],
+      family: ['Gray River', 'Red Cedar', 'Stone Elk', 'Winter Hawk', 'Tall Reed', 'Iron Creek'],
+      styles: [{ key: 'weighted', weight: 56 }, { key: 'single', weight: 28 }, { key: 'formal', weight: 16 }]
+    },
+    Armenian: {
+      given: ['Aram', 'Mariam', 'Levon', 'Ani', 'Suren', 'Nare', 'Tigran', 'Lilit', 'Vardan'],
+      family: ['Petrosyan', 'Sarkisian', 'Harutyun', 'Mkrtchyan', 'Davtyan', 'Grigoryan'],
+      styles: [{ key: 'weighted', weight: 62 }, { key: 'formal', weight: 30 }, { key: 'single', weight: 8 }]
+    },
+    Georgian: {
+      given: ['Nika', 'Tamar', 'Giorgi', 'Mariam', 'Dato', 'Luka', 'Sopo', 'Irakli', 'Ana'],
+      family: ['Beridze', 'Kapanadze', 'Mchedlidze', 'Dvali', 'Gelashvili', 'Tsiklauri'],
+      styles: [{ key: 'weighted', weight: 61 }, { key: 'formal', weight: 29 }, { key: 'single', weight: 10 }]
+    }
   };
 
   var GENRES = ['Dark Fantasy', 'Sword And Sorcery', 'Post-Apocalyptic', 'Cosmic Horror', 'Dieselpunk', 'Folkloric Mystery', 'Mythic Sci-Fi', 'Nautical Ruinpunk'];
@@ -127,12 +297,153 @@
       var file = picker.files && picker.files[0] ? picker.files[0] : null;
       if (!file) return;
       var r = new FileReader();
-      r.onload = function () {
-        cb(String(r.result || ''));
-      };
+      r.onload = function () { cb(String(r.result || '')); };
       r.readAsDataURL(file);
     };
     picker.click();
+  }
+
+  function getLocationById(id) {
+    var st = ensureState();
+    return st.locations.find(function (l) { return l.id === id; }) || null;
+  }
+
+  function getCharacterById(id) {
+    var st = ensureState();
+    return st.characters.find(function (c) { return c.id === id; }) || null;
+  }
+
+  function getThingById(id) {
+    var st = ensureState();
+    return st.things.find(function (t) { return t.id === id; }) || null;
+  }
+
+  function nodeLabel(node, st) {
+    if (!node) return '?';
+    if (node.kind === 'location') {
+      var loc = st.locations.find(function (x) { return x.id === node.refId; });
+      return loc ? loc.name : '?';
+    }
+    if (node.kind === 'character') {
+      var c = st.characters.find(function (x) { return x.id === node.refId; });
+      return c ? c.name : '?';
+    }
+    var t = st.things.find(function (x) { return x.id === node.refId; });
+    return t ? t.name : '?';
+  }
+
+  function buildGraphData(st) {
+    var nodes = [];
+    st.locations.forEach(function (loc) {
+      nodes.push({ id: 'loc_' + loc.id, kind: 'location', refId: loc.id });
+    });
+    st.characters.forEach(function (c) {
+      nodes.push({ id: 'char_' + c.id, kind: 'character', refId: c.id });
+    });
+    st.things.forEach(function (t) {
+      nodes.push({ id: 'thing_' + t.id, kind: 'thing', refId: t.id });
+    });
+
+    var edges = [];
+    st.connections.forEach(function (c) {
+      var aid = findNodeIdByName(nodes, st, c.a);
+      var bid = findNodeIdByName(nodes, st, c.b);
+      if (!aid || !bid) return;
+      edges.push({ from: aid, to: bid, label: String(c.label || 'related'), type: 'relation' });
+    });
+    st.portals.forEach(function (p) {
+      edges.push({ from: 'loc_' + p.from, to: 'loc_' + p.to, label: String(p.label || 'Portal'), type: 'portal' });
+    });
+
+    return { nodes: nodes, edges: edges };
+  }
+
+  function findNodeIdByName(nodes, st, name) {
+    var needle = String(name || '').toLowerCase();
+    for (var i = 0; i < nodes.length; i += 1) {
+      if (String(nodeLabel(nodes[i], st)).toLowerCase() === needle) return nodes[i].id;
+    }
+    return '';
+  }
+
+  function renderGraphSvg(st) {
+    var graph = buildGraphData(st);
+    var nodes = graph.nodes;
+    if (!nodes.length) {
+      return '<div class="gmwb-muted">Graph appears after adding locations, characters, or things.</div>';
+    }
+    var width = 640;
+    var height = 360;
+    var cx = width / 2;
+    var cy = height / 2;
+    var radius = Math.max(90, Math.min(width, height) / 2 - 60);
+    var pos = {};
+    nodes.forEach(function (n, i) {
+      var a = ((Math.PI * 2) / nodes.length) * i - Math.PI / 2;
+      pos[n.id] = { x: cx + Math.cos(a) * radius, y: cy + Math.sin(a) * radius };
+    });
+
+    var edgeHtml = graph.edges.map(function (e) {
+      var a = pos[e.from];
+      var b = pos[e.to];
+      if (!a || !b) return '';
+      var color = e.type === 'portal' ? 'var(--gold2)' : 'var(--teal2)';
+      var mx = (a.x + b.x) / 2;
+      var my = (a.y + b.y) / 2;
+      return '<g>'
+        + '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="' + color + '" stroke-width="2" opacity="0.8" />'
+        + '<text x="' + mx + '" y="' + (my - 4) + '" fill="' + color + '" font-size="10" text-anchor="middle">' + escapeHtml(e.label) + '</text>'
+        + '</g>';
+    }).join('');
+
+    var nodeHtml = nodes.map(function (n) {
+      var p = pos[n.id];
+      var label = nodeLabel(n, st);
+      var fill = n.kind === 'location' ? '#1c5c77' : (n.kind === 'character' ? '#5d4b88' : '#7a5e2d');
+      var selected = st.graphDraftFrom === n.id;
+      return '<g class="gmwb-graph-node" onclick="gmWorldbuilderGraphClick(\'' + n.id + '\')">'
+        + '<circle cx="' + p.x + '" cy="' + p.y + '" r="20" fill="' + fill + '" stroke="' + (selected ? 'var(--gold3)' : 'var(--border2)') + '" stroke-width="' + (selected ? '3' : '1.5') + '" />'
+        + '<text x="' + p.x + '" y="' + (p.y + 33) + '" fill="var(--text2)" font-size="11" text-anchor="middle">' + escapeHtml(label.slice(0, 18)) + '</text>'
+        + '</g>';
+    }).join('');
+
+    return '<svg viewBox="0 0 ' + width + ' ' + height + '" class="gmwb-graph-svg">' + edgeHtml + nodeHtml + '</svg>';
+  }
+
+  function buildDropChip(kind, id, text) {
+    var payload = kind + ':' + id;
+    return '<div class="gmwb-drag-chip" draggable="true" ondragstart="gmWorldbuilderDragStart(event,\'' + payload + '\')">'
+      + escapeHtml(text)
+      + '</div>';
+  }
+
+  function renderLocationCard(st, loc) {
+    var chars = st.characters.filter(function (c) { return c.locationId === loc.id; });
+    var things = st.things.filter(function (t) { return t.locationId === loc.id; });
+    var charChips = chars.length
+      ? chars.map(function (c) {
+        var held = st.things.filter(function (t) { return t.ownerCharacterId === c.id; });
+        var heldHtml = held.length ? '<div class="gmwb-holder-drop-list">' + held.map(function (t) {
+          return buildDropChip('thing', t.id, 'Item: ' + t.name);
+        }).join('') + '</div>' : '';
+        return '<div class="gmwb-holder-drop" ondragover="gmWorldbuilderAllowDrop(event)" ondrop="gmWorldbuilderDropOnCharacter(event,\'' + c.id + '\')">'
+          + buildDropChip('char', c.id, c.name + ' [' + c.type + ']')
+          + '<div class="gmwb-muted">Drop item here to assign.</div>'
+          + heldHtml
+          + '</div>';
+      }).join('')
+      : '<div class="gmwb-muted">No characters in this location.</div>';
+    var thingChips = things.length
+      ? things.map(function (t) { return buildDropChip('thing', t.id, 'Item: ' + t.name); }).join('')
+      : '<div class="gmwb-muted">No loose items here.</div>';
+
+    return '<div class="gmwb-loc-drop gmwb-loc" style="border-left-color:' + escapeHtml(loc.bg || 'var(--teal)') + '" '
+      + 'ondragover="gmWorldbuilderAllowDrop(event)" ondrop="gmWorldbuilderDropOnLocation(event,\'' + loc.id + '\')">'
+      + '<div class="gmwb-entity-name">' + escapeHtml(loc.name) + '</div>'
+      + '<div class="gmwb-muted">' + escapeHtml(loc.desc || 'No description') + '</div>'
+      + '<div class="gmwb-drop-zone-label">Characters</div>' + charChips
+      + '<div class="gmwb-drop-zone-label">Loose Items</div><div class="gmwb-drag-list">' + thingChips + '</div>'
+      + '</div>';
   }
 
   function render() {
@@ -142,12 +453,7 @@
 
     var levelsHtml = st.levels.map(function (lvl) {
       var locs = st.locations.filter(function (l) { return l.levelId === lvl.id; });
-      var locHtml = locs.map(function (loc) {
-        return '<div class="gmwb-loc" style="border-left-color:' + (loc.bg || 'var(--teal)') + '">'
-          + '<div class="gmwb-entity-name">' + escapeHtml(loc.name) + '</div>'
-          + '<div class="gmwb-muted">' + escapeHtml(loc.desc || 'No description') + '</div>'
-          + '</div>';
-      }).join('');
+      var locHtml = locs.map(function (loc) { return renderLocationCard(st, loc); }).join('');
       return '<div class="gmwb-level" style="background:' + escapeHtml(lvl.bg || 'rgba(255,255,255,.02)') + ';">'
         + '<div class="gmwb-level-head"><strong>' + escapeHtml(lvl.name) + '</strong>'
         + '<button class="btn btn-xs" onclick="gmWorldbuilderAddLocation(\'' + lvl.id + '\')">+ Location</button></div>'
@@ -155,17 +461,14 @@
         + '</div>';
     }).join('');
 
-    var charsHtml = st.characters.map(function (c) {
-      return '<div class="gmwb-entity">'
-        + '<div class="gmwb-entity-head"><span class="gmwb-entity-name">' + escapeHtml(c.name) + ' (' + escapeHtml(c.type) + ')</span>'
-        + '<button class="btn btn-xs" onclick="gmWorldbuilderMoveCharacter(\'' + c.id + '\')">Move</button></div>'
-        + '<div class="gmwb-muted">' + escapeHtml(c.desc || 'No description') + '</div>'
-        + '<div class="gmwb-row" style="margin-top:.25rem;"><span class="gmwb-chip">F ' + Number((c.stats && c.stats.force) || 0) + '</span>'
-        + '<span class="gmwb-chip">C ' + Number((c.stats && c.stats.cunning) || 0) + '</span>'
-        + '<span class="gmwb-chip">R ' + Number((c.stats && c.stats.resolve) || 0) + '</span>'
-        + '<span class="gmwb-chip">D ' + Number((c.stats && c.stats.defend) || 0) + '</span></div>'
-        + '</div>';
-    }).join('');
+    var unassignedChars = st.characters.filter(function (c) { return !c.locationId; });
+    var unassignedThings = st.things.filter(function (t) { return !t.locationId && !t.ownerCharacterId; });
+    var charsPoolHtml = unassignedChars.length
+      ? unassignedChars.map(function (c) { return buildDropChip('char', c.id, c.name + ' [' + c.type + ']'); }).join('')
+      : '<div class="gmwb-muted">No unassigned characters.</div>';
+    var thingsPoolHtml = unassignedThings.length
+      ? unassignedThings.map(function (t) { return buildDropChip('thing', t.id, 'Item: ' + t.name); }).join('')
+      : '<div class="gmwb-muted">No unassigned items.</div>';
 
     var checklistHtml = st.checklists.map(function (c) {
       return '<label class="gmwb-check ' + (c.done ? 'done' : '') + '"><input type="checkbox" ' + (c.done ? 'checked' : '') + ' onchange="gmWorldbuilderToggleChecklist(\'' + c.id + '\')">' + escapeHtml(c.text) + '</label>';
@@ -180,8 +483,8 @@
     }).join('');
 
     var portalsHtml = st.portals.map(function (p) {
-      var from = st.locations.find(function (l) { return l.id === p.from; });
-      var to = st.locations.find(function (l) { return l.id === p.to; });
+      var from = getLocationById(p.from);
+      var to = getLocationById(p.to);
       return '<div class="gmwb-muted">' + escapeHtml((from && from.name) || '?') + ' -> ' + escapeHtml((to && to.name) || '?') + ' (' + escapeHtml(p.label || 'Portal') + ')</div>';
     }).join('');
 
@@ -192,7 +495,7 @@
     root.innerHTML = ''
       + '<div class="card" style="margin-bottom:.6rem;">'
       + '<div class="section-title">GM Worldbuilder Forge</div>'
-      + '<div class="gmwb-muted">Build campaign nodes, random prompts, NPCs, and links. This tab is visible only in GM Mode.</div>'
+      + '<div class="gmwb-muted">Drag and drop characters/items between locations, click nodes to create portals/relations, and generate weighted culture names.</div>'
       + '</div>'
       + '<div class="gmwb-root">'
       + '<section class="gmwb-card">'
@@ -212,10 +515,13 @@
       + '<div class="gmwb-title" style="margin-top:.6rem;">Task Checklist</div>'
       + '<div class="gmwb-row"><input id="gmwbTaskText" class="gmwb-input" placeholder="Add prep task..."><button class="btn btn-xs" onclick="gmWorldbuilderAddChecklist()">Add</button></div>'
       + '<div class="gmwb-list">' + (checklistHtml || '<div class="gmwb-muted">No tasks.</div>') + '</div>'
+      + '<div class="gmwb-title" style="margin-top:.6rem;">Unassigned Pools (Drop Targets)</div>'
+      + '<div class="gmwb-drop-pool" ondragover="gmWorldbuilderAllowDrop(event)" ondrop="gmWorldbuilderDropOnUnassigned(event)"><div class="gmwb-drop-zone-label">Characters</div><div class="gmwb-drag-list">' + charsPoolHtml + '</div></div>'
+      + '<div class="gmwb-drop-pool" ondragover="gmWorldbuilderAllowDrop(event)" ondrop="gmWorldbuilderDropOnUnassigned(event)"><div class="gmwb-drop-zone-label">Items</div><div class="gmwb-drag-list">' + thingsPoolHtml + '</div></div>'
       + '</section>'
 
       + '<section class="gmwb-card">'
-      + '<div class="gmwb-title">Levels, Locations, Portals</div>'
+      + '<div class="gmwb-title">Levels, Locations, Drag-And-Drop</div>'
       + '<div class="gmwb-row"><input id="gmwbLevelName" class="gmwb-input" placeholder="Level name (e.g. Surface)"><input id="gmwbLevelBg" class="gmwb-input" placeholder="Background color/gradient (CSS)"><button class="btn btn-xs" onclick="gmWorldbuilderAddLevel()">Add Level</button></div>'
       + '<div class="gmwb-list">' + (levelsHtml || '<div class="gmwb-muted">No levels yet.</div>') + '</div>'
       + '<div class="gmwb-title" style="margin-top:.6rem;">Portal Links</div>'
@@ -227,20 +533,25 @@
       + '</section>'
 
       + '<section class="gmwb-card">'
-      + '<div class="gmwb-title">Characters, Items, Sticky Notes</div>'
+      + '<div class="gmwb-title">Characters, Names, Graph Canvas</div>'
       + '<div class="gmwb-row"><input id="gmwbCharName" class="gmwb-input" placeholder="Character name">'
       + '<select id="gmwbCharType" class="gmwb-select"><option value="NPC">NPC</option><option value="PC">PC</option></select>'
-      + '<button class="btn btn-xs" onclick="gmWorldbuilderGenerateName()">Name Gen</button>'
       + '<button class="btn btn-xs btn-teal" onclick="gmWorldbuilderAddCharacter()">Add</button></div>'
       + '<div class="gmwb-row" style="margin-top:.22rem;"><select id="gmwbNameCulture" class="gmwb-select">'
-      + Object.keys(NAME_GROUPS).map(function (k) { return '<option>' + escapeHtml(k) + '</option>'; }).join('')
-      + '</select><span class="gmwb-muted">Culture group quick picker.</span></div>'
-      + '<div class="gmwb-list">' + (charsHtml || '<div class="gmwb-muted">No characters yet.</div>') + '</div>'
+      + Object.keys(NAME_PACKS).map(function (k) { return '<option>' + escapeHtml(k) + '</option>'; }).join('')
+      + '</select>'
+      + '<select id="gmwbNameStyle" class="gmwb-select"><option value="weighted">Weighted</option><option value="formal">Formal</option><option value="single">Single</option><option value="clan">Clan</option><option value="honorific">Honorific</option><option value="poetic">Poetic</option></select>'
+      + '<button class="btn btn-xs" onclick="gmWorldbuilderGenerateName()">Generate Name</button></div>'
       + '<div class="gmwb-title" style="margin-top:.6rem;">Things And Assignment</div>'
       + '<div class="gmwb-row"><button class="btn btn-xs" onclick="gmWorldbuilderAddThing()">Add Thing</button><button class="btn btn-xs" onclick="gmWorldbuilderTransferThing()">Transfer Thing</button></div>'
       + '<div class="gmwb-title" style="margin-top:.6rem;">Sticky Notes + Images</div>'
       + '<div class="gmwb-row"><input id="gmwbStickyText" class="gmwb-input" placeholder="Sticky note text"><input id="gmwbStickyColor" class="gmwb-input" placeholder="#f8e36a"><button class="btn btn-xs" onclick="gmWorldbuilderAddSticky()">Add Sticky</button><button class="btn btn-xs" onclick="gmWorldbuilderAddStickyWithImage()">Add Sticky + Image</button></div>'
       + '<div class="gmwb-sticky-grid" style="margin-top:.35rem;">' + (stickyHtml || '<div class="gmwb-muted">No sticky notes yet.</div>') + '</div>'
+      + '<div class="gmwb-title" style="margin-top:.6rem;">Node Graph (Click To Connect)</div>'
+      + '<div class="gmwb-row"><select id="gmwbGraphMode" class="gmwb-select"><option value="relation">Relationship Link</option><option value="portal">Portal Link</option></select>'
+      + '<button class="btn btn-xs" onclick="gmWorldbuilderGraphClearSelection()">Clear Selection</button></div>'
+      + '<div class="gmwb-muted" id="gmwbGraphHint">Click one node, then another to create a link.</div>'
+      + '<div class="gmwb-graph-wrap">' + renderGraphSvg(st) + '</div>'
       + '<div class="gmwb-row" style="margin-top:.55rem;"><button class="btn btn-sm" onclick="if(typeof saveCharacter===\'function\'){saveCharacter();}">Save Campaign Data</button></div>'
       + '</section>'
       + '</div>';
@@ -251,15 +562,6 @@
         ensureState().genre = String(this.value || 'Dark Fantasy');
       };
     }
-  }
-
-  function escapeHtml(v) {
-    return String(v || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
   }
 
   function addLevel() {
@@ -345,11 +647,27 @@
     render();
   }
 
+  function composeNameFromPack(pack, selectedStyle) {
+    var style = selectedStyle === 'weighted'
+      ? ((weightedChoice(pack.styles || [{ key: 'weighted', weight: 1 }]) || {}).key || 'weighted')
+      : selectedStyle;
+    var given = randomOf(pack.given || []);
+    var family = randomOf(pack.family || []);
+    if (!given) return '';
+    if (style === 'single') return given;
+    if (style === 'clan') return given + ' of Clan ' + family;
+    if (style === 'honorific') return 'High ' + given + ' ' + family;
+    if (style === 'poetic') return given + ' of the ' + randomOf(['Quiet Moon', 'Broken Tide', 'Last Ember', 'Hollow Bell']);
+    return family ? (given + ' ' + family) : given;
+  }
+
   function generateName() {
     var cultureEl = document.getElementById('gmwbNameCulture');
+    var styleEl = document.getElementById('gmwbNameStyle');
     var culture = String((cultureEl && cultureEl.value) || 'Spanish');
-    var arr = NAME_GROUPS[culture] || NAME_GROUPS.Spanish;
-    var next = randomOf(arr) + ' ' + randomOf(['Vale', 'Ash', 'Kerr', 'Sol', 'Thorn', 'Nox', 'Reed', 'Mourn']);
+    var selectedStyle = String((styleEl && styleEl.value) || 'weighted');
+    var pack = NAME_PACKS[culture] || NAME_PACKS.Spanish;
+    var next = composeNameFromPack(pack, selectedStyle);
     var target = document.getElementById('gmwbCharName');
     if (target) target.value = next;
   }
@@ -358,8 +676,14 @@
     var st = ensureState();
     var name = prompt('Thing / Relic / Item name?');
     if (!name) return;
-    var owner = prompt('Assign to which character or location name? (optional)', '');
-    st.things.push({ id: uid('thing'), name: String(name), owner: String(owner || ''), desc: 'Add details and mechanics.' });
+    st.things.push({
+      id: uid('thing'),
+      name: String(name),
+      owner: '',
+      ownerCharacterId: '',
+      locationId: '',
+      desc: 'Add details and mechanics.'
+    });
     render();
   }
 
@@ -373,9 +697,13 @@
     if (!name) return;
     var thing = st.things.find(function (t) { return t.name.toLowerCase() === String(name).toLowerCase(); });
     if (!thing) return;
-    var owner = prompt('New owner (NPC or location name):', thing.owner || '');
+    var owner = prompt('New owner (character or location name):', thing.owner || '');
     if (owner === null) return;
     thing.owner = String(owner || '');
+    var chr = st.characters.find(function (c) { return c.name.toLowerCase() === thing.owner.toLowerCase(); });
+    var loc = st.locations.find(function (l) { return l.name.toLowerCase() === thing.owner.toLowerCase(); });
+    thing.ownerCharacterId = chr ? chr.id : '';
+    thing.locationId = loc ? loc.id : '';
     render();
   }
 
@@ -462,6 +790,135 @@
     }
   }
 
+  function dragStart(event, payload) {
+    if (!event || !event.dataTransfer) return;
+    event.dataTransfer.setData('text/plain', String(payload || ''));
+    event.dataTransfer.effectAllowed = 'move';
+  }
+
+  function allowDrop(event) {
+    if (!event) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  }
+
+  function applyDropPayload(payload, opts) {
+    var st = ensureState();
+    var p = String(payload || '');
+    var parts = p.split(':');
+    if (parts.length < 2) return false;
+    var kind = parts[0];
+    var id = parts.slice(1).join(':');
+    var locationId = String((opts && opts.locationId) || '');
+    var characterId = String((opts && opts.characterId) || '');
+    var unassigned = !!(opts && opts.unassigned);
+    if (kind === 'char') {
+      var c = getCharacterById(id);
+      if (!c) return false;
+      if (unassigned) c.locationId = '';
+      else c.locationId = locationId;
+      return true;
+    }
+    if (kind === 'thing') {
+      var t = getThingById(id);
+      if (!t) return false;
+      if (characterId) {
+        t.ownerCharacterId = characterId;
+        t.locationId = '';
+        var chr = getCharacterById(characterId);
+        t.owner = chr ? chr.name : '';
+      } else if (unassigned) {
+        t.ownerCharacterId = '';
+        t.locationId = '';
+        t.owner = '';
+      } else if (locationId) {
+        t.ownerCharacterId = '';
+        t.locationId = locationId;
+        var loc = getLocationById(locationId);
+        t.owner = loc ? loc.name : '';
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function dropOnLocation(event, locationId) {
+    if (!event || !event.dataTransfer) return;
+    event.preventDefault();
+    var payload = event.dataTransfer.getData('text/plain');
+    if (applyDropPayload(payload, { locationId: locationId })) render();
+  }
+
+  function dropOnCharacter(event, characterId) {
+    if (!event || !event.dataTransfer) return;
+    event.preventDefault();
+    var payload = event.dataTransfer.getData('text/plain');
+    if (applyDropPayload(payload, { characterId: characterId })) render();
+  }
+
+  function dropOnUnassigned(event) {
+    if (!event || !event.dataTransfer) return;
+    event.preventDefault();
+    var payload = event.dataTransfer.getData('text/plain');
+    if (applyDropPayload(payload, { unassigned: true })) render();
+  }
+
+  function graphClick(nodeId) {
+    var st = ensureState();
+    var node = String(nodeId || '');
+    if (!node) return;
+    if (!st.graphDraftFrom) {
+      st.graphDraftFrom = node;
+      render();
+      return;
+    }
+    if (st.graphDraftFrom === node) {
+      st.graphDraftFrom = '';
+      render();
+      return;
+    }
+
+    var first = st.graphDraftFrom;
+    st.graphDraftFrom = '';
+    var modeEl = document.getElementById('gmwbGraphMode');
+    var mode = String((modeEl && modeEl.value) || 'relation');
+
+    if (mode === 'portal') {
+      if (first.indexOf('loc_') !== 0 || node.indexOf('loc_') !== 0) {
+        if (typeof showNotif === 'function') showNotif('Portal links require two location nodes.', 'warn');
+        render();
+        return;
+      }
+      var from = first.replace(/^loc_/, '');
+      var to = node.replace(/^loc_/, '');
+      st.portals.push({ id: uid('prt'), from: from, to: to, label: 'Graph Portal' });
+      render();
+      return;
+    }
+
+    var g = buildGraphData(st);
+    var a = g.nodes.find(function (n) { return n.id === first; });
+    var b = g.nodes.find(function (n) { return n.id === node; });
+    if (!a || !b) {
+      render();
+      return;
+    }
+    var label = prompt('Relationship label?', 'related') || 'related';
+    st.connections.push({
+      id: uid('lnk'),
+      a: nodeLabel(a, st),
+      b: nodeLabel(b, st),
+      label: String(label)
+    });
+    render();
+  }
+
+  function graphClearSelection() {
+    var st = ensureState();
+    st.graphDraftFrom = '';
+    render();
+  }
+
   function mount() {
     ensureState();
     render();
@@ -497,6 +954,13 @@
   window.gmWorldbuilderToggleChecklist = toggleChecklist;
   window.gmWorldbuilderAddConnection = addConnection;
   window.gmWorldbuilderPullMerchantItem = pullMerchantItem;
+  window.gmWorldbuilderAllowDrop = allowDrop;
+  window.gmWorldbuilderDragStart = dragStart;
+  window.gmWorldbuilderDropOnLocation = dropOnLocation;
+  window.gmWorldbuilderDropOnCharacter = dropOnCharacter;
+  window.gmWorldbuilderDropOnUnassigned = dropOnUnassigned;
+  window.gmWorldbuilderGraphClick = graphClick;
+  window.gmWorldbuilderGraphClearSelection = graphClearSelection;
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', mount, { once: true });

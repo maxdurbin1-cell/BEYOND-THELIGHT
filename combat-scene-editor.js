@@ -3061,8 +3061,7 @@
     var n = Number(raw);
     if (!Number.isFinite(n)) return null;
     var low = Math.max(1, Number(min || 1));
-    var high = Math.max(low, Number(max || 20));
-    return Math.max(low, Math.min(high, Math.round(n)));
+    return Math.max(low, Math.round(n));
   }
 
   function parseArmorDefendFlatBonus() {

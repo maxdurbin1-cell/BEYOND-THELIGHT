@@ -4360,9 +4360,9 @@
       + "<div style='font-size:.85rem;color:var(--muted2);margin-top:.3rem;'>Enter your physical dice results below. Apply all modifiers shown.</div>"
       + "<div style='display:grid;grid-template-columns:1fr 1fr;gap:.32rem;margin-top:.4rem;'>"
       + "<div><div style='font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;'>" + statLabel + " d" + actionDie + "</div>"
-      + "<input type='number' id='storyManualActionValue' min='1' max='" + actionDie + "' placeholder='1-" + actionDie + "' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
+      + "<input type='number' id='storyManualActionValue' min='1' placeholder='1+' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
       + "<div><div style='font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;'>Dread d" + dreadDie + "</div>"
-      + "<input type='number' id='storyManualDreadValue' min='1' max='" + dreadDie + "' placeholder='1-" + dreadDie + "' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
+      + "<input type='number' id='storyManualDreadValue' min='1' placeholder='1+' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
       + "</div>"
       + modifierHtml
       + "<div style='display:flex;gap:.26rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.46rem;'>"
@@ -4389,8 +4389,8 @@
         if (typeof showNotif === "function") showNotif("Enter both dice values first.", "warn");
         return;
       }
-      if (actionValue < 1 || actionValue > pending.actionDie || dreadValue < 1 || dreadValue > pending.dreadDie) {
-        if (typeof showNotif === "function") showNotif("Dice values are out of range.", "warn");
+      if (actionValue < 1 || dreadValue < 1) {
+        if (typeof showNotif === "function") showNotif("Dice totals must be 1 or higher.", "warn");
         return;
       }
     }

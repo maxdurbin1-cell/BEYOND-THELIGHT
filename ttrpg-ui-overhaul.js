@@ -1220,11 +1220,19 @@
       if (modeBtn) {
         modeBtn.onclick = function () {
           state.mapTools.manualFogMode = !state.mapTools.manualFogMode;
-          if (state.mapTools.manualFogMode && typeof window.getMapFogConfig === 'function') {
-            var region = resolveMapRegionFromControls(controls);
+          var region = resolveMapRegionFromControls(controls);
+          if (typeof window.getMapFogConfig === 'function' && typeof window.toggleMapFogForRegion === 'function') {
             var cfg = window.getMapFogConfig(region);
-            if (cfg && !cfg.enabled && typeof window.toggleMapFogForRegion === 'function') {
-              window.toggleMapFogForRegion(region);
+            if (state.mapTools.manualFogMode) {
+              // Turning ON: enable fog if not already enabled
+              if (cfg && !cfg.enabled) {
+                window.toggleMapFogForRegion(region);
+              }
+            } else {
+              // Turning OFF: disable fog if it is enabled
+              if (cfg && cfg.enabled) {
+                window.toggleMapFogForRegion(region);
+              }
             }
           }
           modeBtn.textContent = 'Fog Manual: ' + (state.mapTools.manualFogMode ? 'On' : 'Off');

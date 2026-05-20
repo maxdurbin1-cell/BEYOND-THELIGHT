@@ -817,8 +817,8 @@
       r: Number(ax.r || 0)
     });
     if (assetKind) {
-      var dropQ = Number(targetHex && targetHex.q || ax.q || 0);
-      var dropR = Number(targetHex && targetHex.r || ax.r || 0);
+      var dropQ = insideCanvas ? Number(ax.q || 0) : Number(targetHex && targetHex.q || 0);
+      var dropR = insideCanvas ? Number(ax.r || 0) : Number(targetHex && targetHex.r || 0);
       if (typeof window.applyCombatAssetActionAt === 'function') {
         window.applyCombatAssetActionAt(assetKind, assetPayload, dropQ, dropR, true);
       }
@@ -6964,15 +6964,35 @@
         { id: 'hero-ally-scout', name: 'Ally Scout', action: 'spawn-ally' },
         { id: 'hero-ally-warden', name: 'Ally Warden', action: 'spawn-ally' }
       ];
+      function summarizeCodexSkills(entry) {
+        if (!entry || typeof entry !== 'object') return '';
+        var source = [];
+        if (Array.isArray(entry.skills)) source = entry.skills;
+        else if (Array.isArray(entry.abilities)) source = entry.abilities;
+        else if (Array.isArray(entry.moves)) source = entry.moves;
+        var labels = source.map(function (row) {
+          if (!row) return '';
+          if (typeof row === 'string') return row;
+          return String(row.name || row.label || row.title || '').trim();
+        }).filter(Boolean).slice(0, 3);
+        return labels.join(' · ');
+      }
+
       var villainAssets = codex.slice(0, 32).map(function (entry) {
-        return { id: String(entry.id || uid('vill')), name: String(entry.name || 'Enemy'), action: 'spawn-villain', payload: entry };
+        return {
+          id: String(entry.id || uid('vill')),
+          name: String(entry.name || 'Enemy'),
+          action: 'spawn-villain',
+          payload: entry,
+          meta: summarizeCodexSkills(entry)
+        };
       });
       if (!villainAssets.length) {
         villainAssets = [
-          { id: 'vill-ash-raider', name: 'Ash Raider', action: 'spawn-villain', payload: { id: 'vill-ash-raider', name: 'Ash Raider', dread: 6, hp: 10, image: '' } },
-          { id: 'vill-pale-hound', name: 'Pale Hound', action: 'spawn-villain', payload: { id: 'vill-pale-hound', name: 'Pale Hound', dread: 5, hp: 9, image: '' } },
-          { id: 'vill-void-acolyte', name: 'Void Acolyte', action: 'spawn-villain', payload: { id: 'vill-void-acolyte', name: 'Void Acolyte', dread: 7, hp: 11, image: '' } },
-          { id: 'vill-iron-wraith', name: 'Iron Wraith', action: 'spawn-villain', payload: { id: 'vill-iron-wraith', name: 'Iron Wraith', dread: 8, hp: 12, image: '' } }
+          { id: 'vill-ash-raider', name: 'Ash Raider', action: 'spawn-villain', payload: { id: 'vill-ash-raider', name: 'Ash Raider', dread: 6, hp: 10, image: '' }, meta: 'Cleave · Bleed · Rush' },
+          { id: 'vill-pale-hound', name: 'Pale Hound', action: 'spawn-villain', payload: { id: 'vill-pale-hound', name: 'Pale Hound', dread: 5, hp: 9, image: '' }, meta: 'Pounce · Pin · Howl' },
+          { id: 'vill-void-acolyte', name: 'Void Acolyte', action: 'spawn-villain', payload: { id: 'vill-void-acolyte', name: 'Void Acolyte', dread: 7, hp: 11, image: '' }, meta: 'Hex Bolt · Shield Drain · Warp Step' },
+          { id: 'vill-iron-wraith', name: 'Iron Wraith', action: 'spawn-villain', payload: { id: 'vill-iron-wraith', name: 'Iron Wraith', dread: 8, hp: 12, image: '' }, meta: 'Armor Break · Anchor · Fear Pulse' }
         ];
       }
       var townsfolkAssets = [
@@ -7059,8 +7079,9 @@
       assetFeed.innerHTML = filtered.length
         ? filtered.map(function (item) {
           var icon = assetEmoji(item.name, ab.category);
+          var helperText = String(item && item.meta || (ab.category === 'battlemaps' ? 'Click to apply or drag onto board.' : (ab.category === 'utilities' ? 'Click to run utility workflow.' : (ab.category === 'terrain' ? 'Click to arm painter. Drag onto a hex to stamp.' : 'Drag onto the board or click to place.'))));
           return '<article class="combat-feed-line combat-asset-card" draggable="true" title="Drag onto the battlemap to place this asset" aria-label="Drag ' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + ' onto the battlemap" data-asset-action="' + String(item.action || '') + '" data-asset-id="' + String(item.id || '') + '" data-asset-label="' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '">'
-            + '<div class="combat-asset-card-main"><strong>' + icon + ' ' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</strong><span class="combat-mini">' + (ab.category === 'battlemaps' ? 'Click to apply or drag onto board.' : (ab.category === 'utilities' ? 'Click to run utility workflow.' : (ab.category === 'terrain' ? 'Click to arm painter. Drag onto a hex to stamp.' : 'Drag onto the board or click to place.'))) + '</span></div>'
+            + '<div class="combat-asset-card-main"><strong>' + icon + ' ' + String(item.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</strong><span class="combat-mini">' + helperText.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span></div>'
             + '</article>';
         }).join('')
         : '<div class="combat-feed-line">No assets found.</div>';
@@ -7080,14 +7101,15 @@
             if (action === 'paint-object') fallbackPayload = String(id || '').replace(/^obj-/, '') || 'obstacle';
             else if (action === 'paint-terrain') fallbackPayload = String(id || '').replace(/^terrain-/, '').replace(/-/g, ' ') || 'road';
             else if (action === 'stock-cache') fallbackPayload = String(id || '').indexOf('credits') >= 0 ? 'credits' : 'balanced';
+            else if (action === 'map-uploaded') fallbackPayload = String(id || '').replace(/^map-upload-/, '');
             else if (action === 'map-preset') {
               if (String(id || '') === 'map-blank') fallbackPayload = { cols: 15, rows: 15, weather: 'none' };
               else if (String(id || '') === 'map-urban') fallbackPayload = { cols: 20, rows: 20, weather: 'none' };
               else if (String(id || '') === 'map-fog') fallbackPayload = { cols: 18, rows: 12, weather: 'fog' };
               else if (String(id || '') === 'map-storm') fallbackPayload = { cols: 18, rows: 10, weather: 'storm' };
             }
-            else if (action === 'spawn-villain') fallbackPayload = { id: String(id || uid('vill')), name: String(id || 'Enemy'), dread: 6, hp: 10, image: '' };
-            chosen = { id: id, name: id, action: action, payload: fallbackPayload };
+            else if (action === 'spawn-villain') fallbackPayload = { id: String(id || uid('vill')), name: String(btn.getAttribute('data-asset-label') || id || 'Enemy'), dread: 6, hp: 10, image: '' };
+            chosen = { id: id, name: String(btn.getAttribute('data-asset-label') || id || ''), action: action, payload: fallbackPayload };
           }
           if (action === 'spawn-villain' && (!chosen.payload || typeof chosen.payload !== 'object')) {
             chosen = Object.assign({}, chosen, {
@@ -7172,7 +7194,16 @@
           var action = String(card.getAttribute('data-asset-action') || '');
           var id = String(card.getAttribute('data-asset-id') || '');
           var chosen = filtered.find(function (item) { return String(item.id || '') === id; }) || null;
-          if (!chosen) return null;
+          if (!chosen) {
+            var fallbackPayload = '';
+            var fallbackName = String(card.getAttribute('data-asset-label') || id || 'Asset');
+            if (action === 'paint-object') fallbackPayload = String(id || '').replace(/^obj-/, '') || 'obstacle';
+            else if (action === 'paint-terrain') fallbackPayload = String(id || '').replace(/^terrain-/, '').replace(/-/g, ' ') || 'road';
+            else if (action === 'stock-cache') fallbackPayload = String(id || '').indexOf('credits') >= 0 ? 'credits' : 'balanced';
+            else if (action === 'map-uploaded') fallbackPayload = String(id || '').replace(/^map-upload-/, '');
+            else if (action === 'spawn-villain') fallbackPayload = { id: String(id || uid('vill')), name: fallbackName, dread: 6, hp: 10, image: '' };
+            chosen = { id: id, name: fallbackName, action: action, payload: fallbackPayload };
+          }
           var dragKind = '';
           var dragPayload = '';
           if (action === 'spawn-ally') {
@@ -9715,7 +9746,7 @@
           spawnBestiaryToken(bestiaryEntry, q, r);
         } else {
           var fallbackName = String(bestiaryName || bestiaryId || 'Enemy');
-          applyCombatAssetActionAt('spawn', 'enemy:' + fallbackName, q, r, true);
+          applyCombatAssetActionAt('spawn', 'monster:' + fallbackName, q, r, true);
           safeNotif('Bestiary profile missing; spawned fallback token for ' + fallbackName + '.', 'warn');
         }
       } else if (action === 'preset') {

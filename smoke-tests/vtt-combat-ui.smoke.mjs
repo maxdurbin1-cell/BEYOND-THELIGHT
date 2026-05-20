@@ -160,29 +160,33 @@ async function run() {
     const dragResult = await page.evaluate(() => {
       const canvas = document.getElementById("combatSceneCanvas");
       const rect = canvas.getBoundingClientRect();
-      // Seed and select a concrete target hex so drop routing must honor TARGET ring selection.
+      // Seed a concrete TARGET hex; drag/drop should still land at the cursor hex.
       window.applyCombatAssetActionAt("set-tool", "terrain:road", 5, 2, true);
       const seeded = window.CombatSceneStore.getState();
       window.CombatSceneStore.setState(Object.assign({}, seeded, {
         selectedMapItem: { layer: "terrain", key: "5,2" }
       }));
-      const dropped = window.debugCombatDropAsset("set-tool", "objects:obstacle", rect.left + 560, rect.top + 360);
       const st = window.CombatSceneStore.getState();
-      const objectKeys = Object.keys((st.layers && st.layers.objects) || {});
+      const dropClientX = rect.left + 560;
+      const dropClientY = rect.top + 360;
+      const dropped = window.debugCombatDropAsset("set-tool", "objects:obstacle", dropClientX, dropClientY);
+      const after = window.CombatSceneStore.getState();
+      const objectKeys = Object.keys((after.layers && after.layers.objects) || {});
+      const selectedTarget = after.selectedMapItem ? String(after.selectedMapItem.key || "") : "";
       return {
         dropped,
         objectCount: objectKeys.length,
         lastObject: objectKeys[objectKeys.length - 1] || "",
-        selectedTarget: st.selectedMapItem ? String(st.selectedMapItem.key || "") : "",
-        valueAtSelectedTarget: (st.layers && st.layers.objects && st.layers.objects["5,2"]) || ""
+        selectedTarget,
+        valueAtSelectedTarget: (after.layers && after.layers.objects && after.layers.objects[selectedTarget]) || ""
       };
     });
 
     if (!dragResult.dropped || Number(dragResult.objectCount || 0) <= 0) {
       throw new Error(`Asset drag/drop did not stamp an object: ${JSON.stringify(dragResult)}`);
     }
-    if (dragResult.selectedTarget !== "5,2" || dragResult.valueAtSelectedTarget !== "obstacle") {
-      throw new Error(`Asset drop did not land on selected TARGET hex: ${JSON.stringify(dragResult)}`);
+    if (dragResult.valueAtSelectedTarget !== "obstacle" || dragResult.selectedTarget === "5,2") {
+      throw new Error(`Asset drop did not land at the cursor hex: ${JSON.stringify(dragResult)}`);
     }
 
     const cardPlacement = await page.evaluate(() => {
@@ -227,6 +231,9 @@ async function run() {
         assetBrowser: Object.assign({}, st.assetBrowser || {}, { category: "villains", query: "" })
       }));
       window.combatOpenAssetsHub();
+      window.CombatSceneStore.setState(Object.assign({}, window.CombatSceneStore.getState(), {
+        selectedMapItem: { layer: "terrain", key: "5,2" }
+      }));
     });
     await page.waitForSelector('article.combat-asset-card[data-asset-action="spawn-villain"]', { timeout: 10000 });
     await page.locator('article.combat-asset-card[data-asset-action="spawn-villain"]').first().click();

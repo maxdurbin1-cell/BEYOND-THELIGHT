@@ -189,8 +189,9 @@ async function run() {
       const before = window.CombatSceneStore.getState();
       const assetCard = document.querySelector('article.combat-asset-card[data-asset-id="obj-obstacle"][data-asset-action="paint-object"]');
       if (!assetCard) return { ok: false, reason: "asset-card-missing" };
+      const selectedTarget = before.selectedMapItem && before.selectedMapItem.key ? String(before.selectedMapItem.key || "") : "";
       const selected = (before.tokens || []).find((row) => row && row.id === before.selectedTokenId) || null;
-      const expectedKey = selected ? `${Number(selected.q || 0) + 1},${Number(selected.r || 0) + 1}` : "0,0";
+      const expectedKey = selectedTarget || (selected ? `${Number(selected.q || 0) + 1},${Number(selected.r || 0) + 1}` : "0,0");
       const onclickBound = typeof assetCard.onclick === "function";
       assetCard.click();
       const after = window.CombatSceneStore.getState();
@@ -200,6 +201,7 @@ async function run() {
         onclickBound,
         expectedKey,
         valueAtExpected,
+        selectedTarget,
         historyTail: (after.actionHistory || []).slice(-1)[0] || ""
       };
     });

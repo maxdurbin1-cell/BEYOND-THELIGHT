@@ -3882,11 +3882,24 @@
 
   function applyFogAt(q, r, brush) {
     store.setState(function (state) {
-      if (!state.fog) return state;
       var next = Object.assign({}, state);
-      next.fog = Object.assign({}, state.fog);
-      next.fog.revealed = Object.assign({}, state.fog.revealed || {});
-      next.fog.revealOrder = Object.assign({}, state.fog.revealOrder || {});
+      next.fog = Object.assign({
+        enabled: true,
+        showMask: true,
+        revealMode: 'manual',
+        visionRadius: 3,
+        sharedVision: true,
+        explorerMode: true,
+        softEdges: true,
+        seen: {},
+        revealed: {},
+        revealOrder: {},
+        revealSeq: 0,
+        revealStep: 0
+      }, state.fog || {});
+      next.fog.enabled = true;
+      next.fog.revealed = Object.assign({}, next.fog.revealed || {});
+      next.fog.revealOrder = Object.assign({}, next.fog.revealOrder || {});
       var brushRadius = Math.max(1, Math.min(5, Number(state.paintBrushSize || 1)));
       for (var dr = -brushRadius + 1; dr <= brushRadius - 1; dr++) {
         for (var dq = -brushRadius + 1; dq <= brushRadius - 1; dq++) {
@@ -5236,6 +5249,7 @@
       + '</div>'
       + '<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:.24rem;align-items:end;margin-top:.28rem;">'
       + '<div><div class="combat-label">Condition</div><input class="combat-input" id="combatRoundEffectName" type="text" maxlength="30" placeholder="Burning"></div>'
+      + '<div><div class="combat-label">Color</div><input class="combat-input" id="combatRoundEffectColor" type="color" value="#e3bc5e"></div>'
       + '<div><div class="combat-label">Stress/Round</div><input class="combat-input" id="combatRoundEffectStress" type="number" min="0" max="20" value="1"></div>'
       + '<div><div class="combat-label">Rounds</div><input class="combat-input" id="combatRoundEffectRounds" type="number" min="1" max="20" value="2"></div>'
       + '<button class="btn btn-xs" id="combatApplyRoundEffectBtn">Apply Condition</button>'
@@ -6392,16 +6406,7 @@
         var iconY = p.y + radius + 14;
         activeEffects.forEach(function (effect, idx) {
           var iconX = iconStartX + idx * (iconSize + iconSpacing);
-          var condType = getConditionTypeForLabel(String(effect.label || ''));
-          var colorMap = {
-            'burn': '#ff9b5c',
-            'chill': '#7dd3ff',
-            'stun': '#ffd688',
-            'poison': '#9bdb5a',
-            'fear': '#c690ff',
-            'bleed': '#ff6b6b'
-          };
-          var color = colorMap[condType] || '#e3bc5e';
+          var color = String(effect.color || '#e3bc5e');
           ctx.beginPath();
           ctx.arc(iconX + (iconSize / 2), iconY, iconSize / 2, 0, Math.PI * 2);
           ctx.fillStyle = color;
@@ -7066,7 +7071,7 @@
           var action = String(btn.getAttribute('data-asset-action') || '');
           var id = String(btn.getAttribute('data-asset-id') || '');
           var useState = store.getState();
-          var dropHex = getDefaultAssetDropHex(useState, useState.selectedTokenId);
+          var dropHex = getDefaultAssetDropHex(useState, useState.selectedTokenId, { preferSelection: true });
           var baseQ = Number(dropHex.q || 0);
           var baseR = Number(dropHex.r || 0);
           var chosen = filtered.find(function (item) { return String(item.id || '') === id; }) || null;
@@ -7517,8 +7522,9 @@
       });
       effectList.innerHTML = effects.length
         ? effects.map(function (effect) {
+          var tone = String(effect.color || '#e3bc5e');
           return '<div class="combat-feed-line">'
-            + '<strong>' + String(effect.label || 'Condition') + '</strong>'
+            + '<strong style="display:inline-flex;align-items:center;gap:.35rem;"><span style="display:inline-block;width:.7rem;height:.7rem;border-radius:999px;background:' + tone + ';border:1px solid rgba(255,255,255,.25);"></span>' + String(effect.label || 'Condition') + '</strong>'
             + ' · ' + Math.max(0, Number(effect.stressPerRound || 0)) + '/round'
             + ' · ' + Math.max(0, Number(effect.roundsLeft || 0)) + ' rounds left'
             + ' <button class="btn btn-xs" type="button" data-remove-round-effect="' + String(effect.id || '') + '">Clear</button>'
@@ -9229,12 +9235,14 @@
           return;
         }
         var effectNameInput = document.getElementById('combatRoundEffectName');
+        var effectColorInput = document.getElementById('combatRoundEffectColor');
         var effectStressInput = document.getElementById('combatRoundEffectStress');
         var effectRoundsInput = document.getElementById('combatRoundEffectRounds');
         var label = String(effectNameInput && effectNameInput.value || 'Condition').trim() || 'Condition';
+        var color = String(effectColorInput && effectColorInput.value || '#e3bc5e');
         var stress = Math.max(0, Number(effectStressInput && effectStressInput.value || 0));
         var rounds = Math.max(1, Number(effectRoundsInput && effectRoundsInput.value || 1));
-        var applied = addTokenRoundEffect(targetId, label, stress, rounds, '#e3bc5e');
+        var applied = addTokenRoundEffect(targetId, label, stress, rounds, color);
         if (applied) {
           if (effectNameInput) effectNameInput.value = '';
           updateUiPanels();
@@ -9347,9 +9355,10 @@
         + '<div style="font-size:.78rem;color:var(--text2);">Apply a timed effect to any active token.</div>'
         + '<select id="combatFxTarget" class="combat-select">' + targetOptions + '</select>'
         + '<input id="combatFxName" class="combat-input" placeholder="Condition name (Burning)">'
+        + '<div style="display:grid;grid-template-columns:1fr auto;gap:.24rem;align-items:end;"><input id="combatFxColor" class="combat-input" type="color" value="#e3bc5e"><div class="combat-mini" style="padding:.35rem .2rem;">Condition color</div></div>'
         + '<input id="combatFxStress" class="combat-input" type="number" min="0" max="20" value="1">'
         + '<input id="combatFxRounds" class="combat-input" type="number" min="1" max="20" value="2">'
-        + '<button class="btn btn-xs btn-primary" onclick="(function(){var t=document.getElementById(\'combatFxTarget\');var n=document.getElementById(\'combatFxName\');var s=document.getElementById(\'combatFxStress\');var r=document.getElementById(\'combatFxRounds\');if(window.applyCombatQuickEffectTo){window.applyCombatQuickEffectTo(String(t&&t.value||\'\'),String(n&&n.value||\'Condition\'),Number(s&&s.value||1),Number(r&&r.value||2));}if(typeof window.closeModal===\'function\')window.closeModal();})();">Apply</button>'
+        + '<button class="btn btn-xs btn-primary" onclick="(function(){var t=document.getElementById(\'combatFxTarget\');var n=document.getElementById(\'combatFxName\');var c=document.getElementById(\'combatFxColor\');var s=document.getElementById(\'combatFxStress\');var r=document.getElementById(\'combatFxRounds\');if(window.applyCombatQuickEffectTo){window.applyCombatQuickEffectTo(String(t&&t.value||\'\'),String(n&&n.value||\'Condition\'),Number(s&&s.value||1),Number(r&&r.value||2),String(c&&c.value||\'#e3bc5e\'));}if(typeof window.closeModal===\'function\')window.closeModal();})();">Apply</button>'
         + '</div>';
       if (typeof window.openModal === 'function') {
         window.openModal('Combat Effects', html, null, { preventScroll: true, focusTrap: true });
@@ -12325,14 +12334,14 @@
     drawBoard();
   };
 
-  window.applyCombatQuickEffectTo = function (targetTokenId, label, stress, rounds) {
+  window.applyCombatQuickEffectTo = function (targetTokenId, label, stress, rounds, color) {
     var token = byId(targetTokenId);
     if (!token) {
       safeNotif('Pick a valid target token for effects.', 'warn');
       return;
     }
     store.setState({ selectedTokenId: String(token.id || '') });
-    addTokenRoundEffect(String(token.id), String(label || 'Condition'), Number(stress || 1), Number(rounds || 2), '#e3bc5e');
+    addTokenRoundEffect(String(token.id), String(label || 'Condition'), Number(stress || 1), Number(rounds || 2), String(color || '#e3bc5e'));
     updateUiPanels();
     drawBoard();
   };

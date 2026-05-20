@@ -56,6 +56,7 @@
       connections: Array.isArray(base.connections) ? base.connections : [],
       graphDraftFrom: String(base.graphDraftFrom || ''),
       graphDraftEdge: String(base.graphDraftEdge || ''),
+      contextMenu: (base.contextMenu && typeof base.contextMenu === 'object') ? base.contextMenu : null,
       nameStyle: String(base.nameStyle || 'weighted')
     };
 
@@ -336,6 +337,113 @@
     return st.connections.find(function (c) { return c.id === id; }) || null;
   }
 
+  function closeContextMenu() {
+    var st = ensureState();
+    if (!st.contextMenu) return;
+    st.contextMenu = null;
+    render();
+  }
+
+  function openContextMenu(event, targetType, targetId) {
+    if (!event) return;
+    if (typeof event.preventDefault === 'function') event.preventDefault();
+    if (typeof event.stopPropagation === 'function') event.stopPropagation();
+    var st = ensureState();
+    st.contextMenu = {
+      type: String(targetType || ''),
+      id: String(targetId || ''),
+      x: Number(event.clientX || 0),
+      y: Number(event.clientY || 0)
+    };
+    render();
+  }
+
+  function contextRenameTarget() {
+    var st = ensureState();
+    var menu = st.contextMenu || {};
+    if (!menu.type || !menu.id) return;
+    if (menu.type === 'node') {
+      if (menu.id.indexOf('loc_') === 0) {
+        var loc = getLocationById(menu.id.replace(/^loc_/, ''));
+        if (!loc) return;
+        var nextLoc = prompt('Rename location:', loc.name || '');
+        if (!nextLoc) return;
+        loc.name = String(nextLoc).trim() || loc.name;
+      } else if (menu.id.indexOf('char_') === 0) {
+        var chr = getCharacterById(menu.id.replace(/^char_/, ''));
+        if (!chr) return;
+        var nextChr = prompt('Rename character:', chr.name || '');
+        if (!nextChr) return;
+        chr.name = String(nextChr).trim() || chr.name;
+      } else if (menu.id.indexOf('thing_') === 0) {
+        var thing = getThingById(menu.id.replace(/^thing_/, ''));
+        if (!thing) return;
+        var nextThing = prompt('Rename item/thing:', thing.name || '');
+        if (!nextThing) return;
+        thing.name = String(nextThing).trim() || thing.name;
+      }
+      st.contextMenu = null;
+      render();
+      return;
+    }
+    if (menu.type === 'edge') {
+      st.graphDraftEdge = menu.id;
+      st.contextMenu = null;
+      render();
+    }
+  }
+
+  function contextDeleteTarget() {
+    var st = ensureState();
+    var menu = st.contextMenu || {};
+    if (!menu.type || !menu.id) return;
+    if (menu.type === 'edge') {
+      st.graphDraftEdge = menu.id;
+      st.contextMenu = null;
+      deleteSelectedEdge();
+      return;
+    }
+    if (menu.type !== 'node') return;
+
+    if (menu.id.indexOf('loc_') === 0) {
+      var lid = menu.id.replace(/^loc_/, '');
+      st.locations = st.locations.filter(function (l) { return l.id !== lid; });
+      st.portals = st.portals.filter(function (p) { return p.from !== lid && p.to !== lid; });
+      st.characters.forEach(function (c) { if (c.locationId === lid) c.locationId = ''; });
+      st.things.forEach(function (t) { if (t.locationId === lid) t.locationId = ''; });
+    } else if (menu.id.indexOf('char_') === 0) {
+      var cid = menu.id.replace(/^char_/, '');
+      var cRef = getCharacterById(cid);
+      st.characters = st.characters.filter(function (c) { return c.id !== cid; });
+      st.things.forEach(function (t) {
+        if (t.ownerCharacterId === cid) {
+          t.ownerCharacterId = '';
+          t.owner = '';
+        }
+      });
+      if (cRef) {
+        st.connections = st.connections.filter(function (c) {
+          return String(c.a || '').toLowerCase() !== String(cRef.name || '').toLowerCase()
+            && String(c.b || '').toLowerCase() !== String(cRef.name || '').toLowerCase();
+        });
+      }
+    } else if (menu.id.indexOf('thing_') === 0) {
+      var tid = menu.id.replace(/^thing_/, '');
+      var tRef = getThingById(tid);
+      st.things = st.things.filter(function (t) { return t.id !== tid; });
+      if (tRef) {
+        st.connections = st.connections.filter(function (c) {
+          return String(c.a || '').toLowerCase() !== String(tRef.name || '').toLowerCase()
+            && String(c.b || '').toLowerCase() !== String(tRef.name || '').toLowerCase();
+        });
+      }
+    }
+    st.contextMenu = null;
+    st.graphDraftFrom = '';
+    st.graphDraftEdge = '';
+    render();
+  }
+
   function nodeLabel(node, st) {
     if (!node) return '?';
     if (node.kind === 'location') {
@@ -406,18 +514,41 @@
       pos[n.id] = { x: cx + Math.cos(a) * radius, y: cy + Math.sin(a) * radius };
     });
 
+    var pairCounter = {};
+    graph.edges.forEach(function (e) {
+      var key = [e.from, e.to].sort().join('|');
+      pairCounter[key] = (pairCounter[key] || 0) + 1;
+    });
+    var pairSeen = {};
+
     var edgeHtml = graph.edges.map(function (e) {
       var a = pos[e.from];
       var b = pos[e.to];
       if (!a || !b) return '';
       var color = e.type === 'portal' ? 'var(--gold2)' : 'var(--teal2)';
-      var mx = (a.x + b.x) / 2;
-      var my = (a.y + b.y) / 2;
       var selected = st.graphDraftEdge === e.id;
       var marker = e.directional ? 'url(#gmwbArrowHead)' : 'none';
-      return '<g class="gmwb-edge-hit" onclick="gmWorldbuilderGraphEdgeClick(\'' + e.id + '\')">'
-        + '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="' + color + '" stroke-width="' + (selected ? 4 : 2) + '" marker-end="' + marker + '" opacity="0.85" />'
-        + '<text x="' + mx + '" y="' + (my - 4) + '" fill="' + color + '" font-size="10" text-anchor="middle">' + escapeHtml(e.label) + '</text>'
+      var key = [e.from, e.to].sort().join('|');
+      var count = pairCounter[key] || 1;
+      var seen = pairSeen[key] || 0;
+      pairSeen[key] = seen + 1;
+      var signedIndex = seen - (count - 1) / 2;
+
+      var dx = b.x - a.x;
+      var dy = b.y - a.y;
+      var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      var nx = -dy / dist;
+      var ny = dx / dist;
+      var curve = signedIndex * 18;
+      var cx1 = (a.x + b.x) / 2 + nx * curve;
+      var cy1 = (a.y + b.y) / 2 + ny * curve;
+      var pathD = 'M ' + a.x + ' ' + a.y + ' Q ' + cx1 + ' ' + cy1 + ' ' + b.x + ' ' + b.y;
+      var tx = 0.25 * a.x + 0.5 * cx1 + 0.25 * b.x;
+      var ty = 0.25 * a.y + 0.5 * cy1 + 0.25 * b.y;
+
+      return '<g class="gmwb-edge-hit" onclick="gmWorldbuilderGraphEdgeClick(\'' + e.id + '\')" oncontextmenu="gmWorldbuilderOpenContextMenu(event,\'edge\',\'' + e.id + '\')">'
+        + '<path d="' + pathD + '" stroke="' + color + '" stroke-width="' + (selected ? 4 : 2) + '" marker-end="' + marker + '" opacity="0.88" fill="none" />'
+        + '<text x="' + tx + '" y="' + (ty - 4) + '" fill="' + color + '" font-size="10" text-anchor="middle">' + escapeHtml(e.label) + '</text>'
         + '</g>';
     }).join('');
 
@@ -426,7 +557,7 @@
       var label = nodeLabel(n, st);
       var fill = n.kind === 'location' ? '#1c5c77' : (n.kind === 'character' ? '#5d4b88' : '#7a5e2d');
       var selected = st.graphDraftFrom === n.id;
-      return '<g class="gmwb-graph-node" onclick="gmWorldbuilderGraphClick(\'' + n.id + '\')">'
+      return '<g class="gmwb-graph-node" onclick="gmWorldbuilderGraphClick(\'' + n.id + '\')" oncontextmenu="gmWorldbuilderOpenContextMenu(event,\'node\',\'' + n.id + '\')">'
         + '<circle cx="' + p.x + '" cy="' + p.y + '" r="20" fill="' + fill + '" stroke="' + (selected ? 'var(--gold3)' : 'var(--border2)') + '" stroke-width="' + (selected ? '3' : '1.5') + '" />'
         + '<text x="' + p.x + '" y="' + (p.y + 33) + '" fill="var(--text2)" font-size="11" text-anchor="middle">' + escapeHtml(label.slice(0, 18)) + '</text>'
         + '</g>';
@@ -458,6 +589,27 @@
       + '<div class="gmwb-muted"><strong>Relationship:</strong> ' + escapeHtml(c.a) + ' -> ' + escapeHtml(c.b) + '</div>'
       + '<div class="gmwb-row"><input id="gmwbEdgeLabel" class="gmwb-input" value="' + escapeHtml(c.label || 'related') + '"></div>'
       + '<div class="gmwb-row"><button class="btn btn-xs" onclick="gmWorldbuilderApplyEdgeEdit()">Apply</button><button class="btn btn-xs btn-red" onclick="gmWorldbuilderDeleteSelectedEdge()">Delete</button></div>'
+      + '</div>';
+  }
+
+  function renderContextMenu(st) {
+    var menu = st.contextMenu;
+    if (!menu || !menu.type || !menu.id) return '';
+    var left = Math.max(10, Number(menu.x || 0) - 4);
+    var top = Math.max(10, Number(menu.y || 0) - 4);
+    var typeLabel = menu.type === 'edge' ? 'Edge Actions' : 'Node Actions';
+    var btns = '';
+    if (menu.type === 'edge') {
+      btns += '<button class="btn btn-xs" onclick="gmWorldbuilderContextRenameTarget()">Edit Edge</button>';
+      btns += '<button class="btn btn-xs btn-red" onclick="gmWorldbuilderContextDeleteTarget()">Delete Edge</button>';
+    } else {
+      btns += '<button class="btn btn-xs" onclick="gmWorldbuilderContextRenameTarget()">Rename Node</button>';
+      btns += '<button class="btn btn-xs btn-red" onclick="gmWorldbuilderContextDeleteTarget()">Delete Node</button>';
+    }
+    return '<div class="gmwb-context-backdrop" onclick="gmWorldbuilderCloseContextMenu()"></div>'
+      + '<div class="gmwb-context-menu" style="left:' + left + 'px;top:' + top + 'px;">'
+      + '<div class="gmwb-context-title">' + escapeHtml(typeLabel) + '</div>'
+      + '<div class="gmwb-row">' + btns + '<button class="btn btn-xs" onclick="gmWorldbuilderCloseContextMenu()">Close</button></div>'
       + '</div>';
   }
 
@@ -499,6 +651,10 @@
       + '</div>';
   }
 
+  function renderLevelDropLane(levelId) {
+    return '<div class="gmwb-level-drop-lane" ondragover="gmWorldbuilderAllowDrop(event)" ondrop="gmWorldbuilderLocationReorderDropOnLevel(event,\'' + levelId + '\')">Drop Location Here</div>';
+  }
+
   function render() {
     var root = document.getElementById('tab-gmworldbuilder');
     if (!root) return;
@@ -510,7 +666,9 @@
       return '<div class="gmwb-level" style="background:' + escapeHtml(lvl.bg || 'rgba(255,255,255,.02)') + ';">'
         + '<div class="gmwb-level-head"><strong>' + escapeHtml(lvl.name) + '</strong>'
         + '<button class="btn btn-xs" onclick="gmWorldbuilderAddLocation(\'' + lvl.id + '\')">+ Location</button></div>'
+        + renderLevelDropLane(lvl.id)
         + (locHtml || '<div class="gmwb-muted">No locations yet.</div>')
+        + renderLevelDropLane(lvl.id)
         + '</div>';
     }).join('');
 
@@ -611,6 +769,8 @@
       + '<div class="gmwb-row" style="margin-top:.55rem;"><button class="btn btn-sm" onclick="if(typeof saveCharacter===\'function\'){saveCharacter();}">Save Campaign Data</button></div>'
       + '</section>'
       + '</div>';
+
+    root.innerHTML += renderContextMenu(st);
 
     var genreSel = document.getElementById('gmwbGenre');
     if (genreSel) {
@@ -1036,14 +1196,43 @@
     var st = ensureState();
     var src = st.locations.find(function (l) { return l.id === srcId; });
     var dst = st.locations.find(function (l) { return l.id === String(targetLocId || ''); });
-    if (!src || !dst || src.levelId !== dst.levelId) return;
-    var list = st.locations.filter(function (l) { return l.levelId === src.levelId; }).sort(function (a, b) { return Number(a.order || 0) - Number(b.order || 0); });
+    if (!src || !dst) return;
+
+    var srcLevelList = st.locations.filter(function (l) { return l.levelId === src.levelId; }).sort(function (a, b) { return Number(a.order || 0) - Number(b.order || 0); });
+    srcLevelList = srcLevelList.filter(function (l) { return l.id !== src.id; });
+    srcLevelList.forEach(function (l, i) { l.order = i + 1; });
+
+    var targetLevel = dst.levelId;
+    src.levelId = targetLevel;
+    var list = st.locations.filter(function (l) { return l.levelId === targetLevel; }).sort(function (a, b) { return Number(a.order || 0) - Number(b.order || 0); });
     var fromIdx = list.findIndex(function (l) { return l.id === src.id; });
     var toIdx = list.findIndex(function (l) { return l.id === dst.id; });
-    if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
-    var moved = list.splice(fromIdx, 1)[0];
-    list.splice(toIdx, 0, moved);
+    if (fromIdx < 0 || toIdx < 0) return;
+    if (fromIdx !== toIdx) {
+      var moved = list.splice(fromIdx, 1)[0];
+      list.splice(toIdx, 0, moved);
+    }
     list.forEach(function (l, i) { l.order = i + 1; });
+    render();
+  }
+
+  function locationReorderDropOnLevel(event, levelId) {
+    if (!event || !event.dataTransfer) return;
+    event.preventDefault();
+    var srcId = String(event.dataTransfer.getData('text/x-gmwb-location-order') || '');
+    if (!srcId) return;
+    var st = ensureState();
+    var src = st.locations.find(function (l) { return l.id === srcId; });
+    if (!src) return;
+
+    var oldList = st.locations.filter(function (l) { return l.levelId === src.levelId; }).sort(function (a, b) { return Number(a.order || 0) - Number(b.order || 0); });
+    oldList = oldList.filter(function (l) { return l.id !== src.id; });
+    oldList.forEach(function (l, i) { l.order = i + 1; });
+
+    src.levelId = String(levelId || src.levelId);
+    var newList = st.locations.filter(function (l) { return l.levelId === src.levelId && l.id !== src.id; }).sort(function (a, b) { return Number(a.order || 0) - Number(b.order || 0); });
+    newList.push(src);
+    newList.forEach(function (l, i) { l.order = i + 1; });
     render();
   }
 
@@ -1094,6 +1283,11 @@
   window.gmWorldbuilderDeleteSelectedEdge = deleteSelectedEdge;
   window.gmWorldbuilderLocationReorderDragStart = locationReorderDragStart;
   window.gmWorldbuilderLocationReorderDragEnter = locationReorderDragEnter;
+  window.gmWorldbuilderLocationReorderDropOnLevel = locationReorderDropOnLevel;
+  window.gmWorldbuilderOpenContextMenu = openContextMenu;
+  window.gmWorldbuilderCloseContextMenu = closeContextMenu;
+  window.gmWorldbuilderContextRenameTarget = contextRenameTarget;
+  window.gmWorldbuilderContextDeleteTarget = contextDeleteTarget;
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', mount, { once: true });

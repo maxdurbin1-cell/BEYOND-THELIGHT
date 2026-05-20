@@ -1112,7 +1112,11 @@
             desc: String(entry.desc || ''),
             dread: Math.max(4, Number(entry.dread || 4)),
             hp: Math.max(1, Number(entry.health || 8)),
-            image: String(entry.image || '')
+            image: String(entry.image || ''),
+            skills: Array.isArray(entry.skills) ? entry.skills.slice() : [],
+            abilities: Array.isArray(entry.abilities) ? entry.abilities.slice() : [],
+            moves: Array.isArray(entry.moves) ? entry.moves.slice() : [],
+            tactic: String(entry.tactic || '')
           });
         });
       });
@@ -2780,19 +2784,121 @@
     return getEnemyProfileByName(token.name);
   }
 
+  function asEnemySkillRangeArray(skill) {
+    if (!skill) return ['engaged'];
+    if (Array.isArray(skill.range) && skill.range.length) {
+      return skill.range.map(function (row) {
+        return String(row || '').trim().toLowerCase();
+      }).filter(Boolean);
+    }
+    var raw = String(skill.range || skill.rangeBand || skill.distance || '').trim();
+    if (!raw) return ['engaged'];
+    return raw.split(/[\/,|]/).map(function (part) {
+      return String(part || '').trim().toLowerCase();
+    }).filter(Boolean);
+  }
+
+  function normalizeEnemySkillRow(skill, idx, actorName) {
+    var row = skill && typeof skill === 'object' ? skill : { name: String(skill || '') };
+    var lowerActor = String(actorName || '').toLowerCase();
+    var baseName = String(row.name || row.title || row.label || ('Skill ' + (Number(idx || 0) + 1))).trim();
+    var defaultDesc = Number(idx || 0) === 0
+      ? 'A brutal opener used to pressure nearby targets.'
+      : 'A follow-up attack that keeps pressure on the Wayfarer.';
+    var defaultFail = Number(idx || 0) === 0
+      ? 'Apply distracted until end of next enemy turn.'
+      : 'Take 1 stress.';
+    var defaultSuccess = Number(idx || 0) === 0
+      ? 'Resist the effect. No condition applied.'
+      : 'Resist the effect. No condition applied.';
+    var normalized = {
+      name: baseName,
+      desc: String(row.desc || row.description || row.text || defaultDesc),
+      save: String(row.save || row.saveStat || row.stat || (Number(idx || 0) === 0 ? 'mind' : 'defend')).toLowerCase(),
+      range: asEnemySkillRangeArray(row),
+      onFail: String(row.onFail || row.fail || row.failure || defaultFail),
+      onSuccess: String(row.onSuccess || row.success || defaultSuccess),
+      source: String(row.source || 'Combat Tab'),
+      kind: String(row.kind || 'special'),
+      dreadDie: Math.max(0, Number(row.dreadDie || row.dread || 0)),
+      costActions: 1
+    };
+
+    if (lowerActor.indexOf('bandit') >= 0 && Number(idx || 0) === 0) {
+      normalized.name = 'Shock Snare';
+      normalized.desc = 'A charged net overloads your senses.';
+      normalized.save = 'mind';
+      normalized.range = ['close'];
+      normalized.onFail = 'Apply distracted until end of next enemy turn.';
+      normalized.onSuccess = 'Resist the effect. No condition applied.';
+      normalized.source = 'Combat Tab';
+      normalized.kind = 'range: close';
+    }
+    return normalized;
+  }
+
+  function getEnemySkillsForToken(actor) {
+    var profile = actor ? getEnemyProfileForToken(actor) : null;
+    var rawSkills = [];
+    if (actor && Array.isArray(actor.enemySkills) && actor.enemySkills.length) rawSkills = actor.enemySkills.slice();
+    else if (profile && Array.isArray(profile.skills) && profile.skills.length) rawSkills = profile.skills.slice();
+    else if (profile && Array.isArray(profile.abilities) && profile.abilities.length) rawSkills = profile.abilities.slice();
+    else if (profile && Array.isArray(profile.moves) && profile.moves.length) rawSkills = profile.moves.slice();
+    var normalized = rawSkills.map(function (skill, idx) {
+      return normalizeEnemySkillRow(skill, idx, actor && actor.name || 'Enemy');
+    }).filter(Boolean);
+    if (!normalized.length) {
+      normalized = [
+        normalizeEnemySkillRow({
+          name: 'Shock Snare',
+          desc: 'A charged net overloads your senses.',
+          save: 'mind',
+          range: ['close'],
+          onFail: 'Apply distracted until end of next enemy turn.',
+          onSuccess: 'Resist the effect. No condition applied.',
+          source: 'Combat Tab',
+          kind: 'range: close'
+        }, 0, actor && actor.name || 'Enemy'),
+        normalizeEnemySkillRow({
+          name: 'Rending Strike',
+          desc: 'A focused strike aimed at weak points.',
+          save: 'defend',
+          range: ['engaged'],
+          onFail: 'Take 1 stress.',
+          onSuccess: 'Resist the effect. No condition applied.',
+          source: 'Combat Tab',
+          kind: 'melee'
+        }, 1, actor && actor.name || 'Enemy')
+      ];
+    }
+    if (normalized.length < 2) {
+      normalized.push(normalizeEnemySkillRow({
+        name: 'Rending Strike',
+        desc: 'A focused strike aimed at weak points.',
+        save: 'defend',
+        range: ['engaged'],
+        onFail: 'Take 1 stress.',
+        onSuccess: 'Resist the effect. No condition applied.',
+        source: 'Combat Tab',
+        kind: 'melee'
+      }, 1, actor && actor.name || 'Enemy'));
+    }
+    return normalized.slice(0, 2);
+  }
+
   function parseSkillRangeMax(skill) {
     var rangeMap = { engaged: 1, close: 2, nearby: 4, far: 99 };
-    var ranges = Array.isArray(skill && skill.range) ? skill.range : [];
+    var ranges = asEnemySkillRangeArray(skill);
     return ranges.reduce(function (mx, r) {
       return Math.max(mx, rangeMap[String(r || '').toLowerCase()] || 1);
     }, 1);
   }
 
   function getEnemySkillOptionsForToken(actor, target) {
-    var profile = actor ? getEnemyProfileForToken(actor) : null;
-    if (!profile || !Array.isArray(profile.skills)) return [];
+    var skills = getEnemySkillsForToken(actor);
+    if (!skills.length) return [];
     var dist = (actor && target) ? hexDistance({ q: actor.q, r: actor.r }, { q: target.q, r: target.r }) : null;
-    return profile.skills.map(function (skill, idx) {
+    return skills.map(function (skill, idx) {
       var maxR = parseSkillRangeMax(skill);
       var inRange = dist === null ? true : dist <= maxR;
       return {
@@ -2800,9 +2906,10 @@
         id: 'enemy_skill:' + idx,
         name: String(skill && skill.name || ('Skill ' + (idx + 1))),
         skill: skill,
+        actionCost: Math.max(1, Number(skill && skill.costActions || 1)),
         maxRange: maxR,
         inRange: inRange,
-        rangeLabel: Array.isArray(skill && skill.range) && skill.range.length ? skill.range.join('/') : 'engaged'
+        rangeLabel: asEnemySkillRangeArray(skill).join('/') || 'engaged'
       };
     });
   }
@@ -2985,8 +3092,9 @@
 
   function skillRangeVerbatim(skill) {
     if (!skill) return 'Engaged';
-    if (Array.isArray(skill.range) && skill.range.length) {
-      return skill.range.map(function (r) {
+    var ranges = asEnemySkillRangeArray(skill);
+    if (ranges.length) {
+      return ranges.map(function (r) {
         var raw = String(r || '').trim();
         if (!raw) return '';
         return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
@@ -3470,6 +3578,7 @@
     var failTxt = escapeHtml(String(skill.onFail || 'Apply effect.'));
     var successTxt = escapeHtml(String(skill.onSuccess || 'Resist the effect.'));
     var sourceTxt = escapeHtml(skillSourceVerbatim(skill));
+    var costTxt = '1 Action';
     var actorTxt = escapeHtml(String(actorName || 'Enemy'));
     var targetTxt = escapeHtml(String(targetName || 'Target'));
     var stateBadge = entry.inRange
@@ -3488,6 +3597,7 @@
       + '<div style="font-size:.72rem;color:var(--text2);margin-top:.2rem;">'
       + '<div><strong>Save:</strong> ' + saveTxt + '</div>'
       + '<div><strong>Range:</strong> ' + rangeTxt + '</div>'
+      + '<div><strong>Cost:</strong> ' + costTxt + '</div>'
       + '<div><strong>Roll:</strong> ' + rollTxt + '</div>'
       + '<div><strong>On Fail:</strong> ' + failTxt + '</div>'
       + '<div><strong>On Success:</strong> ' + successTxt + '</div>'
@@ -4579,7 +4689,8 @@
         r: Number(r || 0),
         image: String(profile.image || ''),
         size: Number(profile.size || 1),
-        codexRegion: String(profile.region || 'province')
+        codexRegion: String(profile.region || 'province'),
+        enemySkills: (Array.isArray(profile.skills) && profile.skills.length ? profile.skills.slice(0, 2) : (Array.isArray(profile.abilities) && profile.abilities.length ? profile.abilities.slice(0, 2) : (Array.isArray(profile.moves) && profile.moves.length ? profile.moves.slice(0, 2) : [])))
       };
       next.tokens = (state.tokens || []).concat([token]);
       next.selectedTokenId = token.id;
@@ -7766,20 +7877,23 @@
           });
         }
       }
-      if (selected && !selected.isPlayer && String(selected.faction) !== 'player' && enemyProfile && Array.isArray(enemyProfile.skills) && enemyProfile.skills.length) {
+      if (selected && !selected.isPlayer && String(selected.faction) !== 'player') {
+        var normalizedSkills = getEnemySkillsForToken(selected);
+        if (normalizedSkills.length) {
         var tknSheetState = store.getState();
         var actorForDist = byId(tknSheetState.selectedTokenId) || (tknSheetState.tokens || []).find(function (t) { return t && (t.isPlayer || String(t.faction) === 'player'); });
         var distToActor = actorForDist ? hexDistance({ q: selected.q, r: selected.r }, { q: actorForDist.q, r: actorForDist.r }) : 999;
         var HEX_RANGE_MAP = { 'engaged': 1, 'close': 2, 'nearby': 4, 'far': 99 };
-        var skillLines = enemyProfile.skills.map(function (sk) {
-          var maxSkillRange = (sk.range || []).reduce(function (max, r) { return Math.max(max, HEX_RANGE_MAP[r] || 1); }, 0);
+        var skillLines = normalizedSkills.map(function (sk) {
+          var maxSkillRange = asEnemySkillRangeArray(sk).reduce(function (max, r) { return Math.max(max, HEX_RANGE_MAP[r] || 1); }, 0);
           var inRange = distToActor <= maxSkillRange;
           return '<div class="combat-feed-line" style="color:' + (inRange ? 'var(--accent-2)' : 'var(--muted2)') + ';">'
-            + '⚡ ' + String(sk.name) + ' [' + (sk.range || []).join('/') + '] — ' + (inRange ? '✓ In Range' : '✗ Out of range → defaults to Strike/Shoot')
+            + '⚡ ' + String(sk.name) + ' [1 Action · ' + asEnemySkillRangeArray(sk).join('/') + '] — ' + (inRange ? '✓ In Range' : '✗ Out of range')
             + '</div>'
             + '<div class="combat-feed-line" style="font-size:.72rem;color:var(--muted2);padding-left:.5rem;">' + String(sk.desc) + ' · On fail: ' + String(sk.onFail) + '</div>';
         }).join('');
         tokenSheetMirror.innerHTML += '<div style="margin-top:.3rem;border-top:1px solid var(--border2);padding-top:.25rem;">' + skillLines + '</div>';
+        }
       }
     }
 
@@ -7843,7 +7957,7 @@
         var visibleSkills = skillOpts.filter(function (entry) { return !!entry.inRange; });
         var extra = (visibleSkills.length ? visibleSkills : skillOpts).map(function (entry) {
           var suffix = entry.inRange ? ' \u00b7 In Range' : ' \u00b7 Out of Range';
-          return '<option value="' + entry.id + '">' + entry.name + ' [' + entry.rangeLabel + ']' + suffix + '</option>';
+          return '<option value="' + entry.id + '">' + entry.name + ' [1 Action · ' + entry.rangeLabel + ']' + suffix + '</option>';
         }).join('');
         tokenActionSel.innerHTML = baseOpt + extra;
       } else {

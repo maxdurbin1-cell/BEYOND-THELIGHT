@@ -533,7 +533,6 @@
     var endgame = ensureEndgameDirectorState();
     var col = endgame.colosseum || { clears: 0, bestClearDie: 0 };
     var gate = endgame.gateWar || { closedHellscape: 0, closedCelestial: 0, pinnacleUnlocked: false, pinnacleCleared: false };
-    var crucible = (S.holding && S.holding.crucible) ? S.holding.crucible : { wins: 0, losses: 0, bestWinStreak: 0, currentWinStreak: 0 };
     var soulForge = (typeof ensureSoulForgeState === 'function')
       ? ensureSoulForgeState()
       : (S.soulForge = S.soulForge || { unlocked: false, inventory: [] });
@@ -545,16 +544,7 @@
         }).length
       : 0;
 
-    var topSummary = '<div style="margin-bottom:.45rem;font-size:.84rem;color:var(--text2);line-height:1.58;">'
-      + 'Track all endgame progression here: Crucible Control, Gate War seals, Colosseum clears, and Soul Forge hunts.'
-      + '</div>';
-
     var grid = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.42rem;margin-bottom:.5rem;">'
-      + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.46rem .5rem;">'
-        + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.14rem;">Crucible Control</div>'
-        + '<div style="font-size:.8rem;color:var(--text2);line-height:1.5;">Wins: <strong style="color:var(--green2);">' + Number(crucible.wins || 0) + '</strong> · Losses: <strong style="color:var(--red2);">' + Number(crucible.losses || 0) + '</strong></div>'
-        + '<div style="font-size:.78rem;color:var(--text2);margin-top:.12rem;line-height:1.45;">Best streak: ' + Number(crucible.bestWinStreak || 0) + ' · Current: ' + Number(crucible.currentWinStreak || 0) + '</div>'
-      + '</div>'
       + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.46rem .5rem;">'
         + '<div style="font-size:.78rem;color:var(--teal);margin-bottom:.14rem;">Gate War</div>'
         + '<div style="font-size:.8rem;color:var(--text2);line-height:1.5;">Hellscape seals: <strong style="color:var(--red2);">' + Number(gate.closedHellscape || 0) + '/10</strong></div>'
@@ -577,7 +567,7 @@
       + '<div style="font-size:.81rem;color:var(--text2);line-height:1.55;">No endgame progression recorded yet. Defeat endgame encounters to populate this board.</div>'
     + '</div>';
 
-    container.innerHTML = topSummary + grid + operationsCard;
+    container.innerHTML = grid + operationsCard;
   }
 
   function spawnRandomSoulForgeMissionEvent(seedHint, force) {

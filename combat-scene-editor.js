@@ -5716,18 +5716,21 @@
     var token = byId(tokenId);
     if (!token) return;
     if (actionKey === 'open-inventory') {
-      var isWayfarer = !!(token.isPlayer || String(token.faction || '') === 'player' || /wayfarer/i.test(String(token.name || '')));
-      if (!isWayfarer) {
-        safeNotif('Inventory is available for the Wayfarer token.', 'warn');
-        return;
+      var openedInventory = false;
+      if (typeof window.openGridInventory === 'function') {
+        try {
+          window.openGridInventory();
+          openedInventory = true;
+        } catch (_gridErr) {}
       }
       if (typeof window.switchTab === 'function') {
-        try { window.switchTab('character'); } catch (_err) {}
+        try { window.switchTab('character'); openedInventory = true; } catch (_err) {}
       }
       if (typeof window.renderBackpackUI === 'function') {
-        try { window.renderBackpackUI(); } catch (_err2) {}
+        try { window.renderBackpackUI(); openedInventory = true; } catch (_err2) {}
       }
-      safeNotif('Inventory opened.', 'good');
+      if (openedInventory) safeNotif('Inventory opened.', 'good');
+      else safeNotif('Inventory is unavailable in this scene.', 'warn');
     } else if (actionKey === 'ping') {
       placeTablePing(token.q, token.r, currentPingIdentity());
     } else if (actionKey === 'focus-ping') {

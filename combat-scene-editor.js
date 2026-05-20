@@ -5294,6 +5294,7 @@
       + '<button class="combat-chip" id="combatAssetsBtn" title="Toggle Asset Dock">Assets</button>'
       + '<button class="combat-chip" id="combatRailRulesBtn" title="Rules Reference">Rules</button>'
       + '<button class="combat-chip" id="combatSettingsBtn" title="Settings">Settings</button>'
+      + '<button class="combat-chip" id="combatContentBladeBtn" title="Toggle Content Blade">Content</button>'
       + '</div>'
       + '<div id="combatInitiativeRibbon" class="combat-initiative-ribbon"></div>'
       + '<div id="combatInitiativeList"></div>'
@@ -10315,6 +10316,19 @@
       settingsBtn._bound = true;
       settingsBtn.onclick = function () {
         openCombatSettingsHub();
+      };
+    }
+
+    var contentBladeBtn = document.getElementById('combatContentBladeBtn');
+    if (contentBladeBtn && !contentBladeBtn._bound) {
+      contentBladeBtn._bound = true;
+      contentBladeBtn.onclick = function () {
+        var panel = document.getElementById('contentBladePanel');
+        if (panel && panel.classList.contains('open')) {
+          if (typeof window.toggleContentBlade === 'function') window.toggleContentBlade();
+          return;
+        }
+        if (typeof window.openContentBlade === 'function') window.openContentBlade('rules');
       };
     }
 

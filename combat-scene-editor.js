@@ -5950,6 +5950,12 @@
     var token = byId(tokenId);
     var drop = getLootDropForToken(state, tokenId);
     var items = drop && Array.isArray(drop.items) ? drop.items : [];
+    if (token && isTokenDead(token) && (!drop || !items.length)) {
+      ensureLootDropForToken(token, 'loot popup');
+      state = store.getState();
+      drop = getLootDropForToken(state, tokenId);
+      items = drop && Array.isArray(drop.items) ? drop.items : [];
+    }
     if (!token || !drop || drop.claimed || !items.length) {
       closeLootPopup();
       return false;
@@ -5973,6 +5979,12 @@
     var card = document.getElementById('combatLootPopupCard');
     var wrap = document.getElementById('combatCanvasWrap');
     if (!card || !wrap) return;
+    var state = store.getState();
+    var token = byId(tokenId);
+    var drop = token ? getLootDropForToken(state, tokenId) : null;
+    if (token && isTokenDead(token) && (!drop || !Array.isArray(drop.items) || !drop.items.length)) {
+      ensureLootDropForToken(token, 'loot popup');
+    }
     if (!renderLootPopupForToken(tokenId)) return;
     card.style.display = 'block';
     card.style.position = 'fixed'; // Ensure overlay is fixed to viewport
@@ -6000,6 +6012,11 @@
     var state = store.getState();
     var token = byId(tokenId);
     var drop = token ? getLootDropForToken(state, tokenId) : null;
+    if (token && isTokenDead(token) && (!drop || !Array.isArray(drop.items) || !drop.items.length)) {
+      ensureLootDropForToken(token, 'loot popup');
+      state = store.getState();
+      drop = getLootDropForToken(state, tokenId);
+    }
     if (!token || !drop || drop.claimed) {
       safeNotif('No loot available on this body.', 'warn');
       closeLootPopup();

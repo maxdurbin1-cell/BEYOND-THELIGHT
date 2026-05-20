@@ -204,11 +204,11 @@ function performWildernessObservationManualRoll(col,row,directionKey,target){
     +'<div><strong style="color:var(--text2);">Lead d'+leadDie+'</strong> <span style="color:var(--muted2);">vs</span> <strong style="color:var(--red);">Dread d'+dreadDie+'</strong></div>'
     +'</div>'
     +'<div style="background:rgba(232,192,80,.04);border:1px solid rgba(232,192,80,.3);padding:.35rem .45rem;margin-bottom:.4rem;border-radius:3px;">'
-    +'<div id="wildernessManualCheckPrompt" style="font-size:.78rem;color:var(--text2);">Roll physically, apply modifiers listed below, then enter totals.</div>'
+    +'<div id="wildernessManualCheckPrompt" style="font-size:.78rem;color:var(--text2);">Roll physically, including any explosions, then enter the final totals after modifiers.</div>'
     +'</div>'
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-bottom:.4rem;">'
-    +'<div><label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Lead d'+leadDie+'</label><input type="number" id="wildcardActionValue" min="1" max="'+leadDie+'" placeholder="1-'+leadDie+'" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;"></div>'
-    +'<div><label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Dread d'+dreadDie+'</label><input type="number" id="wildcardDreadValue" min="1" max="'+dreadDie+'" placeholder="1-'+dreadDie+'" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;"></div>'
+    +'<div><label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Lead d'+leadDie+'</label><input type="number" id="wildcardActionValue" min="1" placeholder="1+" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;"></div>'
+    +'<div><label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Dread d'+dreadDie+'</label><input type="number" id="wildcardDreadValue" min="1" placeholder="1+" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.85rem;border-radius:3px;"></div>'
     +'</div>'
     +modifierHtml
     +'</div>'
@@ -237,7 +237,7 @@ function finalizeWildernessManualRoll(col,row,directionKey,forcedSuccess){
   }
   const leadDie=window.selectedDice.action||4;
   const dreadDie=window.selectedDice.dread||6;
-  if(actionValue<1||actionValue>leadDie||dreadValue<1||dreadValue>dreadDie){
+  if(actionValue<1||dreadValue<1){
     if(typeof showNotif==='function')showNotif('Dice values out of range','warn');
     return;
   }

@@ -6423,8 +6423,6 @@
         var sprite = getTokenSprite(token.image);
         if (sprite && sprite.loaded && sprite.image && !sprite.errored) {
           ctx.save();
-          ctx.translate(p.x, p.y);
-          if (rotationRad) ctx.rotate(rotationRad);
           ctx.beginPath();
           ctx.arc(0, 0, radius - 2, 0, Math.PI * 2);
           ctx.clip();

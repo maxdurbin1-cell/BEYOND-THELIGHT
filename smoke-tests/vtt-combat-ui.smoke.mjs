@@ -210,6 +210,65 @@ async function run() {
       throw new Error(`Asset card click did not place object: ${JSON.stringify(cardPlacement)}`);
     }
 
+    const targetPoint = await page.evaluate(() => {
+      const canvas = document.getElementById("combatSceneCanvas");
+      const rect = canvas.getBoundingClientRect();
+      const st = window.CombatSceneStore.getState();
+      const size = Number(st.board && st.board.size || 42) * Number(st.board && st.board.zoom || 1);
+      const x = size * (Math.sqrt(3) * 5 + (Math.sqrt(3) / 2) * 2) + Number(st.board && st.board.panX || 0);
+      const y = size * (1.5 * 2) + Number(st.board && st.board.panY || 0);
+      return { x: rect.left + x, y: rect.top + y };
+    });
+    await page.mouse.click(targetPoint.x, targetPoint.y);
+
+    await page.evaluate(() => {
+      const st = window.CombatSceneStore.getState();
+      window.CombatSceneStore.setState(Object.assign({}, st, {
+        assetBrowser: Object.assign({}, st.assetBrowser || {}, { category: "villains", query: "" })
+      }));
+      window.combatOpenAssetsHub();
+    });
+    await page.waitForSelector('article.combat-asset-card[data-asset-action="spawn-villain"]', { timeout: 10000 });
+    await page.locator('article.combat-asset-card[data-asset-action="spawn-villain"]').first().click();
+
+    const villainPlacement = await page.evaluate(() => {
+      const targetKey = "5,2";
+      const after = window.CombatSceneStore.getState();
+      const monsterTokens = (after.tokens || [])
+        .filter((row) => row && String(row.faction || "") === "monster")
+        .map((row) => ({ id: String(row.id || ""), name: String(row.name || ""), q: Number(row.q || 0), r: Number(row.r || 0) }));
+      const placed = (after.tokens || []).find((row) => row && Number(row.q || 0) === 5 && Number(row.r || 0) === 2 && String(row.faction || "") === "monster") || null;
+      return { ok: !!placed, placedName: placed ? String(placed.name || "") : "", targetKey, monsterTokens };
+    });
+
+    if (!villainPlacement.ok) {
+      throw new Error(`Villain card did not place on the selected target hex: ${JSON.stringify(villainPlacement)}`);
+    }
+
+    await page.evaluate(() => {
+      const st = window.CombatSceneStore.getState();
+      window.CombatSceneStore.setState(Object.assign({}, st, {
+        assetBrowser: Object.assign({}, st.assetBrowser || {}, { category: "battlemaps", query: "" })
+      }));
+      window.combatOpenAssetsHub();
+    });
+    await page.waitForSelector('article.combat-asset-card[data-asset-action="map-preset"][data-asset-id="map-storm"]', { timeout: 10000 });
+    await page.locator('article.combat-asset-card[data-asset-action="map-preset"][data-asset-id="map-storm"]').first().click();
+
+    const battlemapPlacement = await page.evaluate(() => {
+      const after = window.CombatSceneStore.getState();
+      return {
+        ok: Number(after.board && after.board.cols || 0) === 18 && Number(after.board && after.board.rows || 0) === 10 && String(after.board && after.board.weatherOverlay || "") === "storm",
+        cols: Number(after.board && after.board.cols || 0),
+        rows: Number(after.board && after.board.rows || 0),
+        weather: String(after.board && after.board.weatherOverlay || "")
+      };
+    });
+
+    if (!battlemapPlacement.ok) {
+      throw new Error(`Battlemap preset did not apply correctly: ${JSON.stringify(battlemapPlacement)}`);
+    }
+
     const hoverLabels = await page.evaluate(() => {
       const icon = document.getElementById("combatRailSelectBtn");
       const tools = document.getElementById("combatToolsPanel")?.querySelector(".combat-panel-header");

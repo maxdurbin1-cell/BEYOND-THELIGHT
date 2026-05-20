@@ -154,15 +154,15 @@
     var opts = options && typeof options === 'object' ? options : {};
     var preferSelection = !!opts.preferSelection;
     if (preferSelection) {
+      if (lastCombatBoardHex && Number.isFinite(Number(lastCombatBoardHex.q)) && Number.isFinite(Number(lastCombatBoardHex.r))) {
+        return { q: Number(lastCombatBoardHex.q || 0), r: Number(lastCombatBoardHex.r || 0), source: 'last-board-hex' };
+      }
       var selectedMapItem = state && state.selectedMapItem && typeof state.selectedMapItem === 'object'
         ? state.selectedMapItem
         : null;
       if (selectedMapItem && selectedMapItem.key) {
         var selectedCoords = fromKeyString(String(selectedMapItem.key || '0,0'));
         return { q: Number(selectedCoords.q || 0), r: Number(selectedCoords.r || 0), source: 'selected-map-item' };
-      }
-      if (lastCombatBoardHex && Number.isFinite(Number(lastCombatBoardHex.q)) && Number.isFinite(Number(lastCombatBoardHex.r))) {
-        return { q: Number(lastCombatBoardHex.q || 0), r: Number(lastCombatBoardHex.r || 0), source: 'last-board-hex' };
       }
     }
     var board = normalizeBoard(state && state.board);
@@ -7080,7 +7080,25 @@
             if (action === 'paint-object') fallbackPayload = String(id || '').replace(/^obj-/, '') || 'obstacle';
             else if (action === 'paint-terrain') fallbackPayload = String(id || '').replace(/^terrain-/, '').replace(/-/g, ' ') || 'road';
             else if (action === 'stock-cache') fallbackPayload = String(id || '').indexOf('credits') >= 0 ? 'credits' : 'balanced';
+            else if (action === 'map-preset') {
+              if (String(id || '') === 'map-blank') fallbackPayload = { cols: 15, rows: 15, weather: 'none' };
+              else if (String(id || '') === 'map-urban') fallbackPayload = { cols: 20, rows: 20, weather: 'none' };
+              else if (String(id || '') === 'map-fog') fallbackPayload = { cols: 18, rows: 12, weather: 'fog' };
+              else if (String(id || '') === 'map-storm') fallbackPayload = { cols: 18, rows: 10, weather: 'storm' };
+            }
+            else if (action === 'spawn-villain') fallbackPayload = { id: String(id || uid('vill')), name: String(id || 'Enemy'), dread: 6, hp: 10, image: '' };
             chosen = { id: id, name: id, action: action, payload: fallbackPayload };
+          }
+          if (action === 'spawn-villain' && (!chosen.payload || typeof chosen.payload !== 'object')) {
+            chosen = Object.assign({}, chosen, {
+              payload: { id: String(id || uid('vill')), name: String(chosen.name || id || 'Enemy'), dread: 6, hp: 10, image: '' }
+            });
+          }
+          if (action === 'map-preset' && (!chosen.payload || typeof chosen.payload !== 'object')) {
+            if (String(id || '') === 'map-blank') chosen = Object.assign({}, chosen, { payload: { cols: 15, rows: 15, weather: 'none' } });
+            else if (String(id || '') === 'map-urban') chosen = Object.assign({}, chosen, { payload: { cols: 20, rows: 20, weather: 'none' } });
+            else if (String(id || '') === 'map-fog') chosen = Object.assign({}, chosen, { payload: { cols: 18, rows: 12, weather: 'fog' } });
+            else if (String(id || '') === 'map-storm') chosen = Object.assign({}, chosen, { payload: { cols: 18, rows: 10, weather: 'storm' } });
           }
           if (action === 'add-wayfarer') {
             var addWayfarerBtn = document.getElementById('combatAddWayfarerBtn');
@@ -7088,7 +7106,7 @@
           } else if (action === 'spawn-ally') {
             store.setState(function (inner) {
               var next = Object.assign({}, inner);
-              var t = { id: uid('ally'), name: String(chosen.name || 'Ally'), faction: 'player', hp: 10, maxHp: 10, status: [], q: baseQ + 1, r: baseR + 1, image: '', size: 1, isPlayer: false };
+              var t = { id: uid('ally'), name: String(chosen.name || 'Ally'), faction: 'player', hp: 10, maxHp: 10, status: [], q: baseQ, r: baseR, image: '', size: 1, isPlayer: false };
               next.tokens = (inner.tokens || []).concat([t]);
               next.selectedTokenId = t.id;
               persist(next);
@@ -7096,11 +7114,11 @@
             });
             addHistory('Asset placed: ' + chosen.name + '.');
           } else if (action === 'spawn-villain' && chosen.payload) {
-            spawnBestiaryToken(chosen.payload, baseQ + 2, baseR);
+            spawnBestiaryToken(chosen.payload, baseQ, baseR);
           } else if (action === 'spawn-npc') {
             store.setState(function (inner2) {
               var next2 = Object.assign({}, inner2);
-              var n = { id: uid('npc'), name: String(chosen.name || 'NPC'), faction: 'npc', hp: 8, maxHp: 8, status: [], q: baseQ + 1, r: baseR, image: '', size: 1 };
+              var n = { id: uid('npc'), name: String(chosen.name || 'NPC'), faction: 'npc', hp: 8, maxHp: 8, status: [], q: baseQ, r: baseR, image: '', size: 1 };
               next2.tokens = (inner2.tokens || []).concat([n]);
               next2.selectedTokenId = n.id;
               persist(next2);

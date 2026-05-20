@@ -3770,6 +3770,32 @@
         if (!row || String(row.id) !== String(tokenId)) return row;
         return Object.assign({}, row, { hp: newHp, dead: newHp <= 0 });
       });
+
+      if (window.S && Array.isArray(window.S.enemies)) {
+        var sourceId = Number(target.sourceEnemyId || 0);
+        var targetName = String(target.name || '').trim().toLowerCase();
+        next.enemies = Array.isArray(state.enemies) ? state.enemies.slice() : state.enemies;
+        next.enemies = (window.S.enemies || []).map(function (enemy) {
+          if (!enemy || enemy.ally) return enemy;
+          var enemyId = Number(enemy.id || 0);
+          var matchesSource = sourceId > 0 && enemyId === sourceId;
+          var matchesName = !matchesSource && !sourceId && String(enemy.name || '').trim().toLowerCase() === targetName;
+          if (!matchesSource && !matchesName) return enemy;
+          var maxStress = Math.max(1, Number(enemy.maxStress || enemy.dread || target.maxHp || newHp || amount));
+          var nextStress = Math.max(0, maxStress - newHp);
+          return Object.assign({}, enemy, {
+            stress: nextStress,
+            maxStress: maxStress,
+            hp: newHp,
+            dead: newHp <= 0
+          });
+        });
+        window.S.enemies = next.enemies.map(function (enemy) { return enemy ? Object.assign({}, enemy) : enemy; });
+        if (typeof window.renderEnemies === 'function') {
+          try { window.renderEnemies(); } catch (_err) {}
+        }
+      }
+
       persist(next);
       return next;
     });

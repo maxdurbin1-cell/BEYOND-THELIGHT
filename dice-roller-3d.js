@@ -1,14 +1,74 @@
 /**
  * BEYOND: The Light - 3D Dice Roller
- * Professional animated dice with physics simulation
- * Matches D&D Beyond / Roll20 visual style
- * Integrates with BEYOND's game math
+ * Professional animated dice with physics simulation, skins, and Fabled-style roll effects
+ * Nat 20 → gold fireworks burst | Nat 1 → comical downward sprinkle
+ * Collectible dice skin system with persistent selection
  */
 
 (function() {
   'use strict';
 
-  // Dice configuration
+  // ── Dice Skins ────────────────────────────────────────────────────────────
+  const DICE_SKINS = {
+    obsidian: {
+      label: 'Obsidian',
+      icon: '🖤',
+      colors: { d4:'#3d3d4d', d6:'#2e2e40', d8:'#3a3a50', d10:'#464658', d12:'#3f3f55', d20:'#292940' },
+      numberColor: '#e3bc5e',
+      edgeColor: 'rgba(227,188,94,0.5)',
+      glowColor: 'rgba(227,188,94,0.4)'
+    },
+    arcane: {
+      label: 'Arcane',
+      icon: '🔮',
+      colors: { d4:'#5c2d91', d6:'#6b35a8', d8:'#7c42c2', d10:'#8a4dd4', d12:'#7038b8', d20:'#4a2280' },
+      numberColor: '#c9f0ff',
+      edgeColor: 'rgba(160,100,255,0.6)',
+      glowColor: 'rgba(140,80,255,0.5)'
+    },
+    bloodForge: {
+      label: 'Blood Forge',
+      icon: '🔴',
+      colors: { d4:'#6b1414', d6:'#7d1a1a', d8:'#8c2020', d10:'#9c2828', d12:'#8a1c1c', d20:'#5a0e0e' },
+      numberColor: '#ffd0d0',
+      edgeColor: 'rgba(220,60,60,0.6)',
+      glowColor: 'rgba(200,40,40,0.5)'
+    },
+    voidWalker: {
+      label: 'Void Walker',
+      icon: '✨',
+      colors: { d4:'#0a0a1a', d6:'#060614', d8:'#0c0c20', d10:'#08081c', d12:'#0a0a18', d20:'#040410' },
+      numberColor: '#49c9bb',
+      edgeColor: 'rgba(73,201,187,0.7)',
+      glowColor: 'rgba(73,201,187,0.6)'
+    },
+    aurora: {
+      label: 'Aurora',
+      icon: '🌈',
+      colors: { d4:'#1a5e4a', d6:'#1c4e6e', d8:'#3a1f6b', d10:'#5e2060', d12:'#6e1a2e', d20:'#1a3a5e' },
+      numberColor: '#ffffff',
+      edgeColor: 'rgba(120,220,200,0.5)',
+      glowColor: 'rgba(140,200,255,0.4)'
+    },
+    classic: {
+      label: 'Classic',
+      icon: '🎲',
+      colors: { d4:'#8b8b9a', d6:'#49c9bb', d8:'#7bc87b', d10:'#f0a840', d12:'#f0b028', d20:'#e05050' },
+      numberColor: '#ffffff',
+      edgeColor: 'rgba(255,255,255,0.2)',
+      glowColor: 'rgba(255,255,255,0.15)'
+    }
+  };
+
+  const SKIN_STORAGE_KEY = 'btl-dice-skin-v1';
+  function getActiveSkin() {
+    try { return DICE_SKINS[localStorage.getItem(SKIN_STORAGE_KEY)] || DICE_SKINS.classic; } catch(e) { return DICE_SKINS.classic; }
+  }
+  function setActiveSkin(key) {
+    try { localStorage.setItem(SKIN_STORAGE_KEY, key); } catch(e) {}
+  }
+
+  // ── Base dice config (sides / range only — colours come from skin) ─────────
   const DICE_CONFIG = {
     d4: { sides: 4, color: '#8b8b9a', min: 1, max: 4 },
     d6: { sides: 6, color: '#49c9bb', min: 1, max: 6 },
@@ -17,6 +77,91 @@
     d12: { sides: 12, color: '#f0b028', min: 1, max: 12 },
     d20: { sides: 20, color: '#e05050', min: 1, max: 20 }
   };
+
+  // ── Particle / Effect helpers ─────────────────────────────────────────────
+  const PARTICLE_POOL = [];
+
+  function spawnParticles(ctx, cx, cy, count, opts) {
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.6;
+      const speed = (opts.minSpeed || 2) + Math.random() * ((opts.maxSpeed || 8) - (opts.minSpeed || 2));
+      PARTICLE_POOL.push({
+        x: cx, y: cy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed + (opts.gravityBias || 0),
+        life: 1,
+        decay: 0.015 + Math.random() * 0.02,
+        size: (opts.minSize || 3) + Math.random() * ((opts.maxSize || 7) - (opts.minSize || 3)),
+        color: opts.colors[Math.floor(Math.random() * opts.colors.length)],
+        shape: opts.shapes ? opts.shapes[Math.floor(Math.random() * opts.shapes.length)] : 'circle',
+        gravity: opts.gravity || 0,
+        spin: (Math.random() - 0.5) * 0.3
+      });
+    }
+  }
+
+  function updateAndDrawParticles(ctx) {
+    for (let i = PARTICLE_POOL.length - 1; i >= 0; i--) {
+      const p = PARTICLE_POOL[i];
+      p.life -= p.decay;
+      if (p.life <= 0) { PARTICLE_POOL.splice(i, 1); continue; }
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += p.gravity;
+      p.vx *= 0.97;
+      ctx.save();
+      ctx.globalAlpha = p.life;
+      ctx.fillStyle = p.color;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.spin * (1 - p.life) * 10);
+      if (p.shape === 'star') {
+        drawStar(ctx, 0, 0, p.size);
+      } else if (p.shape === 'confetti') {
+        ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawStar(ctx, x, y, r) {
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const outer = { x: x + r * Math.cos((Math.PI * 2 * i) / 5 - Math.PI / 2), y: y + r * Math.sin((Math.PI * 2 * i) / 5 - Math.PI / 2) };
+      const inner = { x: x + r * 0.4 * Math.cos((Math.PI * 2 * i) / 5 - Math.PI / 2 + Math.PI / 5), y: y + r * 0.4 * Math.sin((Math.PI * 2 * i) / 5 - Math.PI / 2 + Math.PI / 5) };
+      i === 0 ? ctx.moveTo(outer.x, outer.y) : ctx.lineTo(outer.x, outer.y);
+      ctx.lineTo(inner.x, inner.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ── Nat-20 firework burst ──────────────────────────────────────────────────
+  function triggerNat20Effect(ctx, cx, cy) {
+    const colors = ['#e3bc5e','#ffd700','#ff9f00','#ffffff','#49c9bb','#ff6b6b','#c9a0ff'];
+    spawnParticles(ctx, cx, cy, 60, {
+      colors, minSpeed: 4, maxSpeed: 14, minSize: 4, maxSize: 9,
+      shapes: ['star', 'circle', 'confetti'], gravity: 0.08, gravityBias: -2
+    });
+    // Second burst ring
+    spawnParticles(ctx, cx, cy, 30, {
+      colors: ['#ffffff','#fffacd','#ffd700'],
+      minSpeed: 1, maxSpeed: 4, minSize: 2, maxSize: 4,
+      shapes: ['circle'], gravity: 0.04, gravityBias: -1
+    });
+  }
+
+  // ── Nat-1 comical sprinkle ─────────────────────────────────────────────────
+  function triggerNat1Effect(ctx, cx, cy) {
+    const colors = ['#888','#9fa7bc','#555','#777','#bbb'];
+    spawnParticles(ctx, cx, cy, 28, {
+      colors, minSpeed: 0.5, maxSpeed: 3, minSize: 2, maxSize: 5,
+      shapes: ['circle', 'confetti'], gravity: 0.18, gravityBias: 3
+    });
+  }
 
   class Dice3DRoller {
     constructor() {
@@ -32,6 +177,9 @@
       this.damping = 0.98;
       this.results = [];
       this.onComplete = null;
+      this.effectPhase = null; // 'nat20' | 'nat1' | null
+      this.effectTimer = 0;
+      this.effectDuration = 1400;
     }
 
     init() {
@@ -122,6 +270,9 @@
       this.bonus = bonus;
       this.diceType = diceType;
       this.presetValues = null;
+      this.effectPhase = null;
+      this.effectTimer = 0;
+      PARTICLE_POOL.length = 0;
 
       // Create dice with random initial velocities
       const startX = this.canvas.width / 2;
@@ -256,14 +407,48 @@
       this.ctx.lineTo(this.canvas.width, this.canvas.height - 20);
       this.ctx.stroke();
 
+      // Draw particles (effects layer behind dice)
+      updateAndDrawParticles(this.ctx);
+
       // Draw dice
       this.dice.forEach(die => {
         this.drawDice(die);
       });
+
+      // Nat-20 flash overlay
+      if (this.effectPhase === 'nat20') {
+        const t = Math.min(1, this.effectTimer / 300);
+        const alpha = t < 0.5 ? t * 2 * 0.35 : (1 - t) * 0.35;
+        this.ctx.save();
+        this.ctx.fillStyle = `rgba(227,188,94,${alpha})`;
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.font = `bold ${Math.round(32 + t * 20)}px Cinzel, serif`;
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillStyle = `rgba(255,255,255,${Math.min(1, t * 3)})`;
+        this.ctx.fillText('NAT 20!', this.canvas.width / 2, this.canvas.height / 2 - 20);
+        this.ctx.restore();
+      }
+
+      // Nat-1 sad overlay
+      if (this.effectPhase === 'nat1') {
+        const t = Math.min(1, this.effectTimer / 300);
+        const alpha = t < 0.5 ? t * 2 * 0.2 : (1 - t) * 0.2;
+        this.ctx.save();
+        this.ctx.fillStyle = `rgba(80,80,80,${alpha})`;
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.font = `bold ${Math.round(26 + t * 10)}px Cinzel, serif`;
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillStyle = `rgba(200,200,200,${Math.min(1, t * 3)})`;
+        this.ctx.fillText('Nat 1... 😬', this.canvas.width / 2, this.canvas.height / 2 - 20);
+        this.ctx.restore();
+      }
     }
 
     drawDice(die) {
-      const config = DICE_CONFIG[die.type];
+      const skin = getActiveSkin();
+      const baseColor = skin.colors[die.type] || DICE_CONFIG[die.type].color;
       const x = die.x;
       const y = die.y;
       const size = this.diceSize;
@@ -276,17 +461,24 @@
       this.ctx.rotate(die.rotY);
       this.ctx.rotate(die.rotX);
 
+      // Skin glow when settled
+      if (die.settled && skin.glowColor) {
+        this.ctx.shadowColor = skin.glowColor;
+        this.ctx.shadowBlur = 14;
+      }
+
       // Draw die cube with shading
-      this.ctx.fillStyle = config.color;
-      this.ctx.strokeStyle = 'rgba(255,255,255,.2)';
-      this.ctx.lineWidth = 0.5;
+      this.ctx.fillStyle = baseColor;
+      this.ctx.strokeStyle = skin.edgeColor || 'rgba(255,255,255,.2)';
+      this.ctx.lineWidth = die.settled ? 1.5 : 0.5;
 
       // Front face
       this.ctx.fillRect(-size / 2, -size / 2, size, size);
       this.ctx.strokeRect(-size / 2, -size / 2, size, size);
 
       // Top face (light)
-      this.ctx.fillStyle = this.lightenColor(config.color, 0.3);
+      this.ctx.shadowBlur = 0;
+      this.ctx.fillStyle = this.lightenColor(baseColor, 0.3);
       this.ctx.beginPath();
       this.ctx.moveTo(-size / 2, -size / 2);
       this.ctx.lineTo(-size / 2 + size / 4, -size / 2 - size / 4);
@@ -296,7 +488,7 @@
       this.ctx.stroke();
 
       // Right face (darker)
-      this.ctx.fillStyle = this.darkenColor(config.color, 0.2);
+      this.ctx.fillStyle = this.darkenColor(baseColor, 0.2);
       this.ctx.beginPath();
       this.ctx.moveTo(size / 2, -size / 2);
       this.ctx.lineTo(size / 2 + size / 4, -size / 2 - size / 4);
@@ -306,7 +498,9 @@
       this.ctx.stroke();
 
       // Draw pip/number indicator
-      this.ctx.fillStyle = '#fff';
+      this.ctx.shadowBlur = 0;
+      const skin2 = getActiveSkin();
+      this.ctx.fillStyle = skin2.numberColor || '#fff';
       this.ctx.font = 'bold 14px Rajdhani, sans-serif';
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'middle';
@@ -356,10 +550,41 @@
       const total = this.results.reduce((sum, r) => sum + r.value, 0) + this.bonus;
       const resultStr = this.results.map(r => r.value).join(' + ') + (this.bonus ? ` + ${this.bonus}` : '') + ` = ${total}`;
 
+      // Detect nat 20 / nat 1 for d20 rolls
+      const d20Results = this.results.filter(r => r.type === 'd20');
+      const hasNat20 = d20Results.some(r => r.value === 20);
+      const hasNat1  = d20Results.some(r => r.value === 1);
+
+      // Trigger effect animation
+      if (hasNat20 || hasNat1) {
+        this.effectPhase = hasNat20 ? 'nat20' : 'nat1';
+        this.effectTimer = 0;
+        const cx = this.canvas.width / (window.devicePixelRatio || 1) / 2;
+        const cy = this.canvas.height / (window.devicePixelRatio || 1) / 2;
+        if (hasNat20) triggerNat20Effect(this.ctx, cx, cy);
+        else triggerNat1Effect(this.ctx, cx, cy);
+
+        const effectAnimate = () => {
+          this.effectTimer += 16;
+          this.draw();
+          if (this.effectTimer < this.effectDuration) {
+            requestAnimationFrame(effectAnimate);
+          } else {
+            this.effectPhase = null;
+            PARTICLE_POOL.length = 0;
+            this.draw();
+          }
+        };
+        requestAnimationFrame(effectAnimate);
+      }
+
       // Display result
       const resultEl = document.getElementById('diceRollerResult');
       if (resultEl) {
-        resultEl.innerHTML = `<span style="color:var(--gold2);margin-right:.5rem;">📊</span>${resultStr}`;
+        let badge = '';
+        if (hasNat20) badge = '<span style="color:#e3bc5e;font-weight:700;margin-left:.4rem;text-transform:uppercase;letter-spacing:.08em;font-size:.7rem;border:1px solid rgba(227,188,94,.5);padding:.1rem .35rem;border-radius:4px;">Nat 20 🎉</span>';
+        else if (hasNat1) badge = '<span style="color:#9fa7bc;font-weight:700;margin-left:.4rem;text-transform:uppercase;letter-spacing:.08em;font-size:.7rem;border:1px solid rgba(159,167,188,.3);padding:.1rem .35rem;border-radius:4px;">Nat 1 😬</span>';
+        resultEl.innerHTML = `<span style="color:var(--gold2);margin-right:.5rem;">📊</span>${resultStr}${badge}`;
       }
 
       if (this.onComplete) {
@@ -400,8 +625,23 @@
 
     const diceTypes = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20'];
     const counts = [1, 2, 3, 4, 5];
+    const activeSkinKey = (() => { try { return localStorage.getItem(SKIN_STORAGE_KEY) || 'classic'; } catch(e) { return 'classic'; } })();
 
-    let html = `
+    // ── Skin selector row ──────────────────────────────────────────────────
+    let skinHtml = `<div style="margin-bottom:.8rem;">
+      <div style="font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin-bottom:.4rem;">Dice Skin</div>
+      <div style="display:flex;gap:.3rem;flex-wrap:wrap;">`;
+    Object.entries(DICE_SKINS).forEach(([key, skin]) => {
+      const active = key === activeSkinKey;
+      skinHtml += `<button class="dice-skin-btn" data-skin="${key}" title="${skin.label}" style="
+        background:${active ? 'rgba(227,188,94,.22)' : 'rgba(255,255,255,.05)'};
+        border:2px solid ${active ? 'rgba(227,188,94,.7)' : 'rgba(255,255,255,.12)'};
+        color:var(--text);border-radius:6px;padding:.3rem .5rem;cursor:pointer;font-size:.78rem;
+        transition:all .15s;">${skin.icon} ${skin.label}</button>`;
+    });
+    skinHtml += `</div></div>`;
+
+    let html = skinHtml + `
       <div style="margin-bottom:1rem;">
         <div style="font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin-bottom:.5rem;">Select Dice</div>
         <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:.4rem;">
@@ -487,6 +727,14 @@
 
     controlsEl.innerHTML = html;
 
+    // Skin selection
+    document.querySelectorAll('.dice-skin-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        setActiveSkin(this.dataset.skin);
+        renderDiceRollerControls();
+      });
+    });
+
     // Setup event listeners
     let selectedDice = 'd20';
     let selectedCount = 1;
@@ -508,8 +756,10 @@
     });
 
     // Set defaults selected
-    document.querySelector('[data-type="d20"]').style.opacity = '1';
-    document.querySelector('[data-count="1"]').style.background = 'rgba(46,196,182,.5)';
+    const defaultDiceBtn = document.querySelector('[data-type="d20"]');
+    if (defaultDiceBtn) defaultDiceBtn.style.opacity = '1';
+    const defaultCountBtn = document.querySelector('[data-count="1"]');
+    if (defaultCountBtn) defaultCountBtn.style.background = 'rgba(46,196,182,.5)';
   }
 
   function rollDiceFromUI() {
@@ -527,6 +777,9 @@
   window.closeDiceRoller = closeDiceRoller;
   window.rollDiceFromUI = rollDiceFromUI;
   window.Dice3DRoller = Dice3DRoller;
+  window.DICE_SKINS = DICE_SKINS;
+  window.getDiceActiveSkin = getActiveSkin;
+  window.setDiceActiveSkin = function(key) { setActiveSkin(key); renderDiceRollerControls(); };
   window.rollPreset3DDice = function(sides, values, bonus, onComplete) {
     initializeDiceRoller();
     const modal = document.getElementById('diceRollerModal');

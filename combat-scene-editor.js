@@ -12682,4 +12682,587 @@
     var rr = Number(r || 0);
     placeTablePing(qq, rr, String(identity || currentPingIdentity()));
   };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // COMBAT CHAT SYSTEM — Interactive text chat with emoji reactions
+  // Inspired by Fabled VTT's party chat with GIF-style emotes and reactions
+  // ══════════════════════════════════════════════════════════════════════════
+  (function () {
+    var CHAT_KEY = 'btl-combat-chat-v1';
+    var CHAT_MAX = 120;
+    var EMOTE_REACTIONS = ['👍','🎲','⚔️','🛡️','💀','🔥','✨','😬','🎉','💀','❤️','🤔'];
+    var QUICK_EMOTES = [
+      { label: 'Attack!',  text: '⚔️ Attack!' },
+      { label: 'Healing',  text: '✨ Healing the party!' },
+      { label: 'Nat 20',   text: '🎉 NAT 20!' },
+      { label: 'Help',     text: '🙋 Need help here!' },
+      { label: 'Retreat',  text: '🏃 Retreat!' },
+      { label: 'Loot',     text: '💰 Found loot!' }
+    ];
+
+    var chatMessages = (function () {
+      try { return JSON.parse(localStorage.getItem(CHAT_KEY) || '[]'); } catch (e) { return []; }
+    })();
+
+    function saveChat() {
+      try { localStorage.setItem(CHAT_KEY, JSON.stringify(chatMessages.slice(-CHAT_MAX))); } catch (e) {}
+    }
+
+    function getPlayerName() {
+      var state = store.getState();
+      return String(state && state.playerName || 'Adventurer');
+    }
+
+    function addChatMessage(text, type, sender) {
+      var msg = {
+        id: uid('chat'),
+        text: String(text || '').slice(0, 400),
+        type: String(type || 'player'),   // 'player' | 'system' | 'roll'
+        sender: String(sender || getPlayerName()),
+        at: Date.now(),
+        reactions: {}
+      };
+      chatMessages.push(msg);
+      chatMessages = chatMessages.slice(-CHAT_MAX);
+      saveChat();
+      renderCombatChat();
+      return msg;
+    }
+
+    function addReaction(msgId, emoji) {
+      var msg = chatMessages.find(function (m) { return m.id === msgId; });
+      if (!msg) return;
+      msg.reactions = msg.reactions || {};
+      msg.reactions[emoji] = (Number(msg.reactions[emoji] || 0) + 1);
+      saveChat();
+      renderCombatChat();
+    }
+
+    function renderCombatChat() {
+      var panel = document.getElementById('combatChatPanel');
+      if (!panel) return;
+      var feed = document.getElementById('combatChatFeed');
+      if (!feed) return;
+      var msgs = chatMessages.slice(-50);
+      feed.innerHTML = msgs.map(function (msg) {
+        var isSystem = msg.type === 'system' || msg.type === 'roll';
+        var timeStr = new Date(msg.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        var reactionHtml = Object.keys(msg.reactions || {}).filter(function (e) { return msg.reactions[e] > 0; }).map(function (e) {
+          return '<button class="chat-reaction-btn" onclick="window.combatChatAddReaction(\'' + String(msg.id || '').replace(/'/g,"'") + '\',\'' + e + '\')" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:.06rem .28rem;font-size:.72rem;cursor:pointer;color:var(--text);">' + e + ' ' + msg.reactions[e] + '</button>';
+        }).join('');
+        var emojiPickHtml = '<div class="chat-emoji-pick" style="display:none;position:absolute;bottom:100%;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:.3rem;z-index:20;flex-wrap:wrap;gap:.15rem;width:160px;">' +
+          EMOTE_REACTIONS.map(function (e) { return '<button onclick="window.combatChatAddReaction(\'' + String(msg.id || '').replace(/'/g,"'") + '\',\'' + e + '\');this.closest(\'.chat-emoji-pick\').style.display=\'none\'" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:.1rem .15rem;">' + e + '</button>'; }).join('') +
+          '</div>';
+        return '<div class="combat-chat-msg' + (isSystem ? ' system' : '') + '" style="padding:.3rem .4rem;border-bottom:1px solid rgba(255,255,255,.04);position:relative;">' +
+          (isSystem ? '' : '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.1rem;"><span style="font-size:.68rem;font-weight:700;color:var(--combat-accent);">' + escapeHtml(msg.sender) + '</span><span style="font-size:.6rem;color:var(--combat-muted);">' + timeStr + '</span></div>') +
+          '<div style="font-size:.78rem;color:' + (isSystem ? 'var(--teal)' : 'var(--text)') + ';word-break:break-word;">' + escapeHtml(msg.text) + '</div>' +
+          (reactionHtml ? '<div style="display:flex;flex-wrap:wrap;gap:.2rem;margin-top:.2rem;">' + reactionHtml + '</div>' : '') +
+          '<div style="position:relative;display:inline-block;">' +
+          '<button onclick="var p=this.nextElementSibling;p.style.display=p.style.display===\'flex\'?\'none\':\'flex\'" style="background:none;border:none;cursor:pointer;font-size:.7rem;color:var(--combat-muted);padding:0;margin-top:.12rem;">+ React</button>' +
+          emojiPickHtml + '</div></div>';
+      }).join('');
+      feed.scrollTop = feed.scrollHeight;
+    }
+
+    function mountCombatChatPanel() {
+      if (document.getElementById('combatChatPanel')) return;
+      var root = document.getElementById('combatModeOverlay');
+      if (!root) return;
+      var panel = document.createElement('div');
+      panel.id = 'combatChatPanel';
+      panel.className = 'combat-chat-panel';
+      panel.innerHTML =
+        '<div class="combat-chat-header" onclick="window.toggleCombatChat()">' +
+          '<span>💬 Party Chat</span>' +
+          '<span id="combatChatUnread" class="combat-chat-unread" style="display:none;">0</span>' +
+          '<span style="float:right;font-size:.7rem;cursor:pointer;" id="combatChatToggleArrow">▼</span>' +
+        '</div>' +
+        '<div class="combat-chat-body" id="combatChatBody">' +
+          '<div class="combat-chat-feed" id="combatChatFeed"></div>' +
+          '<div class="combat-chat-quick-row" id="combatChatQuickRow">' +
+            QUICK_EMOTES.map(function (e) {
+              return '<button class="combat-chip" onclick="window.combatChatSend(\'' + e.text.replace(/'/g, "\\'") + '\')" style="font-size:.7rem;">' + e.label + '</button>';
+            }).join('') +
+          '</div>' +
+          '<div class="combat-chat-input-row">' +
+            '<input id="combatChatInput" class="combat-input" type="text" maxlength="280" placeholder="Message party..." style="flex:1;">' +
+            '<button class="btn btn-xs" onclick="window.combatChatSend()">Send</button>' +
+          '</div>' +
+        '</div>';
+      root.appendChild(panel);
+
+      var input = document.getElementById('combatChatInput');
+      if (input) {
+        input.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); window.combatChatSend(); }
+        });
+      }
+      renderCombatChat();
+    }
+
+    window.combatChatSend = function (preset) {
+      var input = document.getElementById('combatChatInput');
+      var text = preset || (input && input.value.trim()) || '';
+      if (!text) return;
+      addChatMessage(text, 'player', getPlayerName());
+      if (input && !preset) input.value = '';
+    };
+
+    window.combatChatAddReaction = addReaction;
+
+    window.combatChatPostSystem = function (text) {
+      addChatMessage(text, 'system', 'System');
+    };
+
+    window.toggleCombatChat = function () {
+      var body = document.getElementById('combatChatBody');
+      var arrow = document.getElementById('combatChatToggleArrow');
+      if (!body) return;
+      var collapsed = body.style.display === 'none';
+      body.style.display = collapsed ? 'flex' : 'none';
+      if (arrow) arrow.textContent = collapsed ? '▼' : '▲';
+    };
+
+    // Mount after overlay renders
+    store.subscribe(function () { mountCombatChatPanel(); });
+    if (document.readyState !== 'loading') {
+      setTimeout(mountCombatChatPanel, 800);
+    } else {
+      document.addEventListener('DOMContentLoaded', function () { setTimeout(mountCombatChatPanel, 800); });
+    }
+  })();
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONTENT BLADE SYSTEM — Tabbed side panels (Fabled-style "Content Blades")
+  // Quick-access tabbed drawer for Rules, Items, Bestiary, Notes, Loot Tables
+  // ══════════════════════════════════════════════════════════════════════════
+  (function () {
+    var BLADE_STORAGE_KEY = 'btl-content-blade-v1';
+    var bladeState = { open: false, activeTab: 'rules' };
+
+    var BLADE_TABS = [
+      { id: 'rules',    icon: '📖', label: 'Rules' },
+      { id: 'items',    icon: '🗡️', label: 'Items' },
+      { id: 'bestiary', icon: '🐉', label: 'Bestiary' },
+      { id: 'notes',    icon: '📝', label: 'Notes' },
+      { id: 'loot',     icon: '💰', label: 'Loot' }
+    ];
+
+    function saveBladeNotes(text) {
+      try { localStorage.setItem(BLADE_STORAGE_KEY + '-notes', String(text || '')); } catch (e) {}
+    }
+    function loadBladeNotes() {
+      try { return localStorage.getItem(BLADE_STORAGE_KEY + '-notes') || ''; } catch (e) { return ''; }
+    }
+
+    function renderBladeContent(tabId) {
+      var body = document.getElementById('contentBladeBody');
+      if (!body) return;
+      var state = store.getState();
+
+      if (tabId === 'rules') {
+        body.innerHTML = '<div class="blade-section-title">Quick Rules Reference</div>' +
+          '<input class="combat-input" id="bladeRulesSearch" placeholder="Search rules..." style="margin-bottom:.4rem;">' +
+          '<div id="bladeRulesList" class="blade-scroll-list"></div>';
+        var rules = [
+          { h: 'Initiative', t: 'Roll at combat start. Highest goes first. Ties: Wayfarers before Enemies.' },
+          { h: 'Actions per Turn', t: 'Each token gets 1 Action, 1 Bonus Action, and 1 Reaction per round.' },
+          { h: 'Attack Roll', t: 'Roll d20 + modifiers vs target Dread. Meet or beat = hit.' },
+          { h: 'Damage', t: 'On hit, roll damage dice. Apply after reductions.' },
+          { h: 'Critical Hit', t: 'Natural 20 = double dice damage.' },
+          { h: 'Stress', t: 'Stress accumulates on failure. At max Stress → Trauma.' },
+          { h: 'Cover', t: 'Light cover: -1 to attacker. Heavy cover: -2.' },
+          { h: 'Elevation', t: '+1 die bonus when attacking from higher ground.' },
+          { h: 'Flanking', t: 'Allies on opposite sides grant +1 die to attack rolls.' },
+          { h: 'Conditions', t: 'Burning: 1 Stress/round. Stunned: lose Action. Prone: halve movement.' },
+          { h: 'Loot', t: 'Defeated enemies may leave a loot cache. GM rolls the loot table on first interaction.' },
+          { h: 'Hold / Delay', t: 'Hold: act later in same round. Delay: move to bottom of order.' }
+        ];
+        var searchInput = document.getElementById('bladeRulesSearch');
+        var list = document.getElementById('bladeRulesList');
+        function renderRules(filter) {
+          var f = String(filter || '').toLowerCase();
+          list.innerHTML = rules.filter(function (r) {
+            return !f || r.h.toLowerCase().indexOf(f) >= 0 || r.t.toLowerCase().indexOf(f) >= 0;
+          }).map(function (r) {
+            return '<div class="blade-rule-entry"><div class="blade-rule-heading">' + escapeHtml(r.h) + '</div><div class="blade-rule-body">' + escapeHtml(r.t) + '</div></div>';
+          }).join('');
+        }
+        renderRules('');
+        if (searchInput) searchInput.addEventListener('input', function () { renderRules(this.value); });
+
+      } else if (tabId === 'items') {
+        var itemRows = (state.codexItems || []).slice(0, 80);
+        body.innerHTML = '<div class="blade-section-title">Item Compendium</div>' +
+          '<input class="combat-input" id="bladeItemSearch" placeholder="Search items..." style="margin-bottom:.4rem;">' +
+          '<div id="bladeItemList" class="blade-scroll-list"></div>';
+        function renderItems(filter) {
+          var f = String(filter || '').toLowerCase();
+          var filtered = itemRows.filter(function (it) { return !f || String(it.name || it.id || '').toLowerCase().indexOf(f) >= 0; });
+          var list = document.getElementById('bladeItemList');
+          if (!list) return;
+          list.innerHTML = filtered.length
+            ? filtered.map(function (it) {
+              return '<div class="blade-item-row"><span class="blade-item-name">' + escapeHtml(String(it.name || it.id || '—')) + '</span>' +
+                (it.type ? '<span class="blade-item-type">' + escapeHtml(String(it.type)) + '</span>' : '') +
+                (it.effect ? '<div class="blade-item-effect">' + escapeHtml(String(it.effect)) + '</div>' : '') + '</div>';
+            }).join('')
+            : '<div class="blade-empty">No items in codex. Add items via the main codex panel.</div>';
+        }
+        renderItems('');
+        var si = document.getElementById('bladeItemSearch');
+        if (si) si.addEventListener('input', function () { renderItems(this.value); });
+
+      } else if (tabId === 'bestiary') {
+        var beastRows = (state.codexBestiary || []).slice(0, 80);
+        body.innerHTML = '<div class="blade-section-title">Bestiary</div>' +
+          '<input class="combat-input" id="bladeBeastSearch" placeholder="Search creatures..." style="margin-bottom:.4rem;">' +
+          '<div id="bladeBeastList" class="blade-scroll-list"></div>';
+        function renderBeasts(filter) {
+          var f = String(filter || '').toLowerCase();
+          var filtered = beastRows.filter(function (b) { return !f || String(b.name || b.id || '').toLowerCase().indexOf(f) >= 0; });
+          var list = document.getElementById('bladeBeastList');
+          if (!list) return;
+          list.innerHTML = filtered.length
+            ? filtered.map(function (b) {
+              return '<div class="blade-item-row"><span class="blade-item-name">' + escapeHtml(String(b.name || b.id || '—')) + '</span>' +
+                (b.dread !== undefined ? '<span class="blade-item-type">Dread ' + b.dread + '</span>' : '') +
+                (b.hp !== undefined ? '<span class="blade-item-type" style="margin-left:.2rem;">HP ' + b.hp + '</span>' : '') +
+                (b.traits ? '<div class="blade-item-effect">' + escapeHtml(String(b.traits)) + '</div>' : '') + '</div>';
+            }).join('')
+            : '<div class="blade-empty">No bestiary entries yet.</div>';
+        }
+        renderBeasts('');
+        var sb = document.getElementById('bladeBeastSearch');
+        if (sb) sb.addEventListener('input', function () { renderBeasts(this.value); });
+
+      } else if (tabId === 'notes') {
+        body.innerHTML = '<div class="blade-section-title">GM Notes</div>' +
+          '<textarea id="bladeNotesArea" class="blade-notes-area" placeholder="Freeform notes for this session...">' + escapeHtml(loadBladeNotes()) + '</textarea>' +
+          '<button class="btn btn-xs" style="margin-top:.4rem;" onclick="window.saveBladeNotes()">Save Notes</button>';
+        var ta = document.getElementById('bladeNotesArea');
+        if (ta) ta.addEventListener('input', function () { saveBladeNotes(this.value); });
+
+      } else if (tabId === 'loot') {
+        body.innerHTML = '<div class="blade-section-title">Loot Tables</div>' +
+          '<div id="bladeLootList" class="blade-scroll-list"></div>' +
+          '<div style="margin-top:.6rem;"><div class="combat-label">New Loot Entry</div>' +
+          '<div style="display:grid;grid-template-columns:1fr .6fr .5fr auto;gap:.24rem;align-items:end;">' +
+          '<input class="combat-input" id="bladeLootName" placeholder="Item name" maxlength="60">' +
+          '<input class="combat-input" id="bladeLootType" placeholder="Type" maxlength="30">' +
+          '<input class="combat-input" id="bladeLootChance" type="number" min="1" max="100" value="50" title="Drop %">' +
+          '<button class="btn btn-xs" onclick="window.addLootTableEntry()">Add</button>' +
+          '</div></div>';
+        renderLootTableBlade();
+      }
+    }
+
+    function renderLootTableBlade() {
+      var list = document.getElementById('bladeLootList');
+      if (!list) return;
+      var tables = getLootTables();
+      list.innerHTML = tables.length
+        ? tables.map(function (entry, idx) {
+          return '<div class="blade-item-row" style="display:grid;grid-template-columns:1fr .5fr .4fr auto;gap:.3rem;align-items:center;">' +
+            '<span class="blade-item-name">' + escapeHtml(String(entry.name || '—')) + '</span>' +
+            '<span class="blade-item-type">' + escapeHtml(String(entry.type || '')) + '</span>' +
+            '<span class="blade-item-type" style="color:var(--teal);">' + Number(entry.chance || 50) + '%</span>' +
+            '<button class="btn btn-xs btn-red" onclick="window.removeLootTableEntry(' + idx + ')">✕</button>' +
+            '</div>';
+        }).join('')
+        : '<div class="blade-empty">No loot table entries. Add items below.</div>';
+    }
+
+    function getLootTables() {
+      try { return JSON.parse(localStorage.getItem('btl-loot-tables-v1') || '[]'); } catch (e) { return []; }
+    }
+    function saveLootTables(tables) {
+      try { localStorage.setItem('btl-loot-tables-v1', JSON.stringify(tables.slice(0, 200))); } catch (e) {}
+    }
+
+    window.addLootTableEntry = function () {
+      var name = (document.getElementById('bladeLootName') || {}).value || '';
+      var type = (document.getElementById('bladeLootType') || {}).value || '';
+      var chance = parseInt((document.getElementById('bladeLootChance') || {}).value || '50');
+      if (!name.trim()) return;
+      var tables = getLootTables();
+      tables.push({ name: name.trim(), type: type.trim(), chance: Math.min(100, Math.max(1, chance || 50)) });
+      saveLootTables(tables);
+      var nameEl = document.getElementById('bladeLootName');
+      if (nameEl) nameEl.value = '';
+      renderLootTableBlade();
+    };
+
+    window.removeLootTableEntry = function (idx) {
+      var tables = getLootTables();
+      tables.splice(idx, 1);
+      saveLootTables(tables);
+      renderLootTableBlade();
+    };
+
+    window.rollLootTable = function (count) {
+      var tables = getLootTables();
+      if (!tables.length) { safeNotif('No loot table entries. Add items in the Loot blade.', 'warn'); return []; }
+      var n = Math.max(1, Number(count || 1));
+      var results = [];
+      for (var i = 0; i < n; i++) {
+        tables.forEach(function (entry) {
+          if (Math.random() * 100 <= Number(entry.chance || 50)) {
+            results.push(Object.assign({}, entry));
+          }
+        });
+      }
+      if (results.length) {
+        safeNotif('Loot dropped: ' + results.map(function (r) { return r.name; }).join(', '), 'info');
+        if (typeof window.combatChatPostSystem === 'function') {
+          window.combatChatPostSystem('💰 Loot: ' + results.map(function (r) { return r.name; }).join(', '));
+        }
+      } else {
+        safeNotif('No loot dropped this time.', 'info');
+      }
+      return results;
+    };
+
+    window.saveBladeNotes = function () {
+      var ta = document.getElementById('bladeNotesArea');
+      if (ta) saveBladeNotes(ta.value);
+      safeNotif('Notes saved.', 'info');
+    };
+
+    function setBladeTab(tabId) {
+      bladeState.activeTab = tabId;
+      document.querySelectorAll('.blade-tab-btn').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.tab === tabId);
+      });
+      renderBladeContent(tabId);
+    }
+
+    function mountContentBlade() {
+      if (document.getElementById('contentBladePanel')) return;
+      var root = document.getElementById('combatModeOverlay');
+      if (!root) return;
+
+      var panel = document.createElement('div');
+      panel.id = 'contentBladePanel';
+      panel.className = 'content-blade-panel';
+      panel.innerHTML =
+        '<div class="content-blade-header">' +
+          '<div style="display:flex;align-items:center;gap:.4rem;">' +
+            '<span style="font-size:.78rem;font-family:\'Cinzel\',serif;letter-spacing:.06em;">Content Blade</span>' +
+          '</div>' +
+          '<button onclick="window.toggleContentBlade()" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:.8rem;" id="contentBladeToggleBtn">◀</button>' +
+        '</div>' +
+        '<div class="content-blade-tabs" id="contentBladeTabs">' +
+          BLADE_TABS.map(function (t) {
+            return '<button class="blade-tab-btn' + (t.id === bladeState.activeTab ? ' active' : '') + '" data-tab="' + t.id + '" title="' + t.label + '">' + t.icon + '<span class="blade-tab-label"> ' + t.label + '</span></button>';
+          }).join('') +
+        '</div>' +
+        '<div class="content-blade-body" id="contentBladeBody"></div>';
+
+      root.appendChild(panel);
+
+      document.querySelectorAll('.blade-tab-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () { setBladeTab(this.dataset.tab); });
+      });
+
+      renderBladeContent(bladeState.activeTab);
+    }
+
+    window.toggleContentBlade = function () {
+      var panel = document.getElementById('contentBladePanel');
+      if (!panel) return;
+      bladeState.open = !bladeState.open;
+      panel.classList.toggle('open', bladeState.open);
+      var btn = document.getElementById('contentBladeToggleBtn');
+      if (btn) btn.textContent = bladeState.open ? '▶' : '◀';
+    };
+
+    window.openContentBlade = function (tabId) {
+      var panel = document.getElementById('contentBladePanel');
+      if (!panel) { mountContentBlade(); panel = document.getElementById('contentBladePanel'); }
+      if (!panel) return;
+      bladeState.open = true;
+      panel.classList.add('open');
+      var btn = document.getElementById('contentBladeToggleBtn');
+      if (btn) btn.textContent = '▶';
+      if (tabId) setBladeTab(tabId);
+    };
+
+    store.subscribe(function () { mountContentBlade(); });
+    if (document.readyState !== 'loading') {
+      setTimeout(mountContentBlade, 600);
+    } else {
+      document.addEventListener('DOMContentLoaded', function () { setTimeout(mountContentBlade, 600); });
+    }
+  })();
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // GRID INVENTORY SYSTEM — Visual drag-and-drop grid loot management
+  // Inspired by Fabled VTT's grid-based inventory with loot tables
+  // ══════════════════════════════════════════════════════════════════════════
+  (function () {
+    var INV_KEY = 'btl-grid-inventory-v1';
+    var GRID_COLS = 8;
+    var GRID_ROWS = 5;
+    var TOTAL_SLOTS = GRID_COLS * GRID_ROWS;
+
+    function loadInventory() {
+      try { return JSON.parse(localStorage.getItem(INV_KEY) || '{}'); } catch (e) { return {}; }
+    }
+    function saveInventory(inv) {
+      try { localStorage.setItem(INV_KEY, JSON.stringify(inv)); } catch (e) {}
+    }
+
+    function addItemToInventory(item) {
+      var inv = loadInventory();
+      for (var i = 0; i < TOTAL_SLOTS; i++) {
+        if (!inv[String(i)]) {
+          inv[String(i)] = Object.assign({ slotId: i }, item, { id: uid('inv') });
+          saveInventory(inv);
+          renderGridInventory();
+          return true;
+        }
+      }
+      safeNotif('Inventory full!', 'warn');
+      return false;
+    }
+
+    function removeItemFromInventory(slotId) {
+      var inv = loadInventory();
+      delete inv[String(slotId)];
+      saveInventory(inv);
+      renderGridInventory();
+    }
+
+    function moveItem(fromSlot, toSlot) {
+      var inv = loadInventory();
+      var item = inv[String(fromSlot)];
+      if (!item) return;
+      if (inv[String(toSlot)]) {
+        // Swap
+        var temp = inv[String(toSlot)];
+        inv[String(toSlot)] = Object.assign({}, item, { slotId: toSlot });
+        inv[String(fromSlot)] = Object.assign({}, temp, { slotId: fromSlot });
+      } else {
+        inv[String(toSlot)] = Object.assign({}, item, { slotId: toSlot });
+        delete inv[String(fromSlot)];
+      }
+      saveInventory(inv);
+      renderGridInventory();
+    }
+
+    function renderGridInventory() {
+      var container = document.getElementById('gridInventorySlots');
+      if (!container) return;
+      var inv = loadInventory();
+      var html = '';
+      for (var i = 0; i < TOTAL_SLOTS; i++) {
+        var item = inv[String(i)];
+        var slotId = i;
+        if (item) {
+          var typeColors = { 'One-Time': '#e3bc5e', 'Passive': '#49c9bb', 'Condition': '#c690ff', '': '#9fa7bc' };
+          var color = typeColors[String(item.type || '')] || '#9fa7bc';
+          html += '<div class="inv-slot occupied" draggable="true" data-slot="' + slotId + '" data-item-id="' + escapeHtml(String(item.id || '')) + '" title="' + escapeHtml(String(item.name || '')) + (item.effect ? '\n' + item.effect : '') + '">' +
+            '<div class="inv-slot-icon" style="border-color:' + color + ';color:' + color + ';">' + escapeHtml((String(item.name || '?')[0] || '?').toUpperCase()) + '</div>' +
+            '<div class="inv-slot-name">' + escapeHtml(String(item.name || '').slice(0, 10)) + '</div>' +
+            '<button class="inv-slot-remove" onclick="window.removeInvItem(' + slotId + ')">✕</button>' +
+            '</div>';
+        } else {
+          html += '<div class="inv-slot empty" data-slot="' + slotId + '"></div>';
+        }
+      }
+      container.innerHTML = html;
+
+      // Drag-and-drop wiring
+      container.querySelectorAll('.inv-slot.occupied').forEach(function (el) {
+        el.addEventListener('dragstart', function (e) {
+          e.dataTransfer.setData('text/inv-slot', String(this.dataset.slot || ''));
+        });
+      });
+      container.querySelectorAll('.inv-slot').forEach(function (el) {
+        el.addEventListener('dragover', function (e) { e.preventDefault(); el.classList.add('drag-over'); });
+        el.addEventListener('dragleave', function () { el.classList.remove('drag-over'); });
+        el.addEventListener('drop', function (e) {
+          e.preventDefault();
+          el.classList.remove('drag-over');
+          var from = e.dataTransfer.getData('text/inv-slot');
+          var to = String(this.dataset.slot || '');
+          if (from !== '' && to !== '' && from !== to) moveItem(Number(from), Number(to));
+        });
+      });
+    }
+
+    window.removeInvItem = function (slotId) { removeItemFromInventory(Number(slotId)); };
+    window.addToInventory = addItemToInventory;
+
+    window.lootAndAddToInventory = function (count) {
+      var dropped = typeof window.rollLootTable === 'function' ? window.rollLootTable(count || 1) : [];
+      dropped.forEach(function (item) { addItemToInventory(item); });
+      if (dropped.length) openGridInventory();
+    };
+
+    function mountGridInventory() {
+      if (document.getElementById('gridInventoryPanel')) return;
+      var root = document.getElementById('combatModeOverlay');
+      if (!root) return;
+      var panel = document.createElement('div');
+      panel.id = 'gridInventoryPanel';
+      panel.className = 'grid-inventory-panel';
+      panel.style.display = 'none';
+      panel.innerHTML =
+        '<div class="combat-chat-header" style="display:flex;justify-content:space-between;align-items:center;">' +
+          '<span>🎒 Inventory</span>' +
+          '<div style="display:flex;gap:.4rem;align-items:center;">' +
+            '<button class="btn btn-xs" onclick="window.lootAndAddToInventory(1)" title="Roll loot table and add result">Roll Loot</button>' +
+            '<button class="btn btn-xs" onclick="window.openContentBlade(\'loot\')" title="Manage loot tables">Tables</button>' +
+            '<button style="background:none;border:none;color:var(--text);cursor:pointer;" onclick="window.closeGridInventory()">✕</button>' +
+          '</div>' +
+        '</div>' +
+        '<div style="padding:.4rem;">' +
+          '<div class="inv-quick-add-row">' +
+            '<input class="combat-input" id="invQuickAddName" placeholder="Item name" maxlength="60" style="flex:1;">' +
+            '<select class="combat-select" id="invQuickAddType">' +
+              '<option value="">Type</option><option>One-Time</option><option>Passive</option><option>Condition</option>' +
+            '</select>' +
+            '<button class="btn btn-xs" onclick="window.invQuickAdd()">Add</button>' +
+          '</div>' +
+          '<div class="grid-inventory-grid" id="gridInventorySlots"></div>' +
+          '<div id="gridInventoryItemDetail" class="inv-item-detail" style="display:none;"></div>' +
+        '</div>';
+      root.appendChild(panel);
+      renderGridInventory();
+    }
+
+    window.invQuickAdd = function () {
+      var name = (document.getElementById('invQuickAddName') || {}).value || '';
+      var type = (document.getElementById('invQuickAddType') || {}).value || '';
+      if (!name.trim()) return;
+      addItemToInventory({ name: name.trim(), type: type });
+      var el = document.getElementById('invQuickAddName');
+      if (el) el.value = '';
+    };
+
+    window.openGridInventory = function () {
+      var panel = document.getElementById('gridInventoryPanel');
+      if (!panel) { mountGridInventory(); panel = document.getElementById('gridInventoryPanel'); }
+      if (panel) { panel.style.display = 'block'; renderGridInventory(); }
+    };
+    window.closeGridInventory = function () {
+      var panel = document.getElementById('gridInventoryPanel');
+      if (panel) panel.style.display = 'none';
+    };
+    window.toggleGridInventory = function () {
+      var panel = document.getElementById('gridInventoryPanel');
+      if (!panel || panel.style.display === 'none') window.openGridInventory();
+      else window.closeGridInventory();
+    };
+
+    store.subscribe(function () { mountGridInventory(); });
+    if (document.readyState !== 'loading') {
+      setTimeout(mountGridInventory, 700);
+    } else {
+      document.addEventListener('DOMContentLoaded', function () { setTimeout(mountGridInventory, 700); });
+    }
+  })();
+
 })();

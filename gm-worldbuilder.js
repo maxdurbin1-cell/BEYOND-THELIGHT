@@ -55,12 +55,20 @@
       checklists: Array.isArray(base.checklists) ? base.checklists : [],
       connections: Array.isArray(base.connections) ? base.connections : [],
       graphDraftFrom: String(base.graphDraftFrom || ''),
+      graphDraftEdge: String(base.graphDraftEdge || ''),
       nameStyle: String(base.nameStyle || 'weighted')
     };
 
     window.S.gmWorldbuilder.characters.forEach(function (c) {
       c.locationId = String(c.locationId || '');
       c.type = String(c.type || 'NPC');
+    });
+    window.S.gmWorldbuilder.locations.forEach(function (l, idx) {
+      l.levelId = String(l.levelId || '');
+      l.order = Number(l.order || idx + 1);
+    });
+    window.S.gmWorldbuilder.portals.forEach(function (p) {
+      p.direction = (String(p.direction || 'oneway') === 'twoway') ? 'twoway' : 'oneway';
     });
     window.S.gmWorldbuilder.things.forEach(function (t) {
       t.locationId = String(t.locationId || '');
@@ -318,6 +326,16 @@
     return st.things.find(function (t) { return t.id === id; }) || null;
   }
 
+  function getPortalById(id) {
+    var st = ensureState();
+    return st.portals.find(function (p) { return p.id === id; }) || null;
+  }
+
+  function getConnectionById(id) {
+    var st = ensureState();
+    return st.connections.find(function (c) { return c.id === id; }) || null;
+  }
+
   function nodeLabel(node, st) {
     if (!node) return '?';
     if (node.kind === 'location') {
@@ -349,10 +367,15 @@
       var aid = findNodeIdByName(nodes, st, c.a);
       var bid = findNodeIdByName(nodes, st, c.b);
       if (!aid || !bid) return;
-      edges.push({ from: aid, to: bid, label: String(c.label || 'related'), type: 'relation' });
+      edges.push({ id: 'rel_' + c.id, sourceId: c.id, from: aid, to: bid, label: String(c.label || 'related'), type: 'relation', directional: true });
     });
     st.portals.forEach(function (p) {
-      edges.push({ from: 'loc_' + p.from, to: 'loc_' + p.to, label: String(p.label || 'Portal'), type: 'portal' });
+      var direction = String(p.direction || 'oneway');
+      if (direction === 'twoway') {
+        edges.push({ id: 'portal_' + p.id, sourceId: p.id, from: 'loc_' + p.from, to: 'loc_' + p.to, label: String(p.label || 'Portal'), type: 'portal', directional: false });
+      } else {
+        edges.push({ id: 'portal_' + p.id, sourceId: p.id, from: 'loc_' + p.from, to: 'loc_' + p.to, label: String(p.label || 'Portal'), type: 'portal', directional: true });
+      }
     });
 
     return { nodes: nodes, edges: edges };
@@ -390,8 +413,10 @@
       var color = e.type === 'portal' ? 'var(--gold2)' : 'var(--teal2)';
       var mx = (a.x + b.x) / 2;
       var my = (a.y + b.y) / 2;
-      return '<g>'
-        + '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="' + color + '" stroke-width="2" opacity="0.8" />'
+      var selected = st.graphDraftEdge === e.id;
+      var marker = e.directional ? 'url(#gmwbArrowHead)' : 'none';
+      return '<g class="gmwb-edge-hit" onclick="gmWorldbuilderGraphEdgeClick(\'' + e.id + '\')">'
+        + '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" stroke="' + color + '" stroke-width="' + (selected ? 4 : 2) + '" marker-end="' + marker + '" opacity="0.85" />'
         + '<text x="' + mx + '" y="' + (my - 4) + '" fill="' + color + '" font-size="10" text-anchor="middle">' + escapeHtml(e.label) + '</text>'
         + '</g>';
     }).join('');
@@ -407,7 +432,33 @@
         + '</g>';
     }).join('');
 
-    return '<svg viewBox="0 0 ' + width + ' ' + height + '" class="gmwb-graph-svg">' + edgeHtml + nodeHtml + '</svg>';
+    return '<svg viewBox="0 0 ' + width + ' ' + height + '" class="gmwb-graph-svg">'
+      + '<defs><marker id="gmwbArrowHead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="var(--gold2)"></polygon></marker></defs>'
+      + edgeHtml + nodeHtml + '</svg>';
+  }
+
+  function renderEdgeInspector(st) {
+    var edgeId = String(st.graphDraftEdge || '');
+    if (!edgeId) return '<div class="gmwb-muted">Click an edge in the graph to edit or delete it.</div>';
+    if (edgeId.indexOf('portal_') === 0) {
+      var p = getPortalById(edgeId.replace(/^portal_/, ''));
+      if (!p) return '<div class="gmwb-muted">Selected portal no longer exists.</div>';
+      var from = getLocationById(p.from);
+      var to = getLocationById(p.to);
+      return '<div class="gmwb-edge-editor">'
+        + '<div class="gmwb-muted"><strong>Portal:</strong> ' + escapeHtml((from && from.name) || '?') + ' -> ' + escapeHtml((to && to.name) || '?') + '</div>'
+        + '<div class="gmwb-row"><input id="gmwbEdgeLabel" class="gmwb-input" value="' + escapeHtml(p.label || 'Portal') + '">'
+        + '<select id="gmwbEdgeDirection" class="gmwb-select"><option value="oneway" ' + (p.direction === 'oneway' ? 'selected' : '') + '>One Way</option><option value="twoway" ' + (p.direction === 'twoway' ? 'selected' : '') + '>Two Way</option></select></div>'
+        + '<div class="gmwb-row"><button class="btn btn-xs" onclick="gmWorldbuilderApplyEdgeEdit()">Apply</button><button class="btn btn-xs btn-red" onclick="gmWorldbuilderDeleteSelectedEdge()">Delete</button></div>'
+        + '</div>';
+    }
+    var c = getConnectionById(edgeId.replace(/^rel_/, ''));
+    if (!c) return '<div class="gmwb-muted">Selected connection no longer exists.</div>';
+    return '<div class="gmwb-edge-editor">'
+      + '<div class="gmwb-muted"><strong>Relationship:</strong> ' + escapeHtml(c.a) + ' -> ' + escapeHtml(c.b) + '</div>'
+      + '<div class="gmwb-row"><input id="gmwbEdgeLabel" class="gmwb-input" value="' + escapeHtml(c.label || 'related') + '"></div>'
+      + '<div class="gmwb-row"><button class="btn btn-xs" onclick="gmWorldbuilderApplyEdgeEdit()">Apply</button><button class="btn btn-xs btn-red" onclick="gmWorldbuilderDeleteSelectedEdge()">Delete</button></div>'
+      + '</div>';
   }
 
   function buildDropChip(kind, id, text) {
@@ -438,8 +489,10 @@
       : '<div class="gmwb-muted">No loose items here.</div>';
 
     return '<div class="gmwb-loc-drop gmwb-loc" style="border-left-color:' + escapeHtml(loc.bg || 'var(--teal)') + '" '
+      + 'draggable="true" ondragstart="gmWorldbuilderLocationReorderDragStart(event,\'' + loc.id + '\')" '
+      + 'ondragenter="gmWorldbuilderLocationReorderDragEnter(event,\'' + loc.id + '\')" '
       + 'ondragover="gmWorldbuilderAllowDrop(event)" ondrop="gmWorldbuilderDropOnLocation(event,\'' + loc.id + '\')">'
-      + '<div class="gmwb-entity-name">' + escapeHtml(loc.name) + '</div>'
+      + '<div class="gmwb-entity-name"><span class="gmwb-order-handle">::</span> ' + escapeHtml(loc.name) + '</div>'
       + '<div class="gmwb-muted">' + escapeHtml(loc.desc || 'No description') + '</div>'
       + '<div class="gmwb-drop-zone-label">Characters</div>' + charChips
       + '<div class="gmwb-drop-zone-label">Loose Items</div><div class="gmwb-drag-list">' + thingChips + '</div>'
@@ -452,7 +505,7 @@
     var st = ensureState();
 
     var levelsHtml = st.levels.map(function (lvl) {
-      var locs = st.locations.filter(function (l) { return l.levelId === lvl.id; });
+      var locs = st.locations.filter(function (l) { return l.levelId === lvl.id; }).sort(function (a, b) { return Number(a.order || 0) - Number(b.order || 0); });
       var locHtml = locs.map(function (loc) { return renderLocationCard(st, loc); }).join('');
       return '<div class="gmwb-level" style="background:' + escapeHtml(lvl.bg || 'rgba(255,255,255,.02)') + ';">'
         + '<div class="gmwb-level-head"><strong>' + escapeHtml(lvl.name) + '</strong>'
@@ -485,7 +538,8 @@
     var portalsHtml = st.portals.map(function (p) {
       var from = getLocationById(p.from);
       var to = getLocationById(p.to);
-      return '<div class="gmwb-muted">' + escapeHtml((from && from.name) || '?') + ' -> ' + escapeHtml((to && to.name) || '?') + ' (' + escapeHtml(p.label || 'Portal') + ')</div>';
+      var marker = p.direction === 'twoway' ? '<->' : '->';
+      return '<div class="gmwb-muted">' + escapeHtml((from && from.name) || '?') + ' ' + marker + ' ' + escapeHtml((to && to.name) || '?') + ' (' + escapeHtml(p.label || 'Portal') + ')</div>';
     }).join('');
 
     var connHtml = st.connections.map(function (c) {
@@ -525,7 +579,7 @@
       + '<div class="gmwb-row"><input id="gmwbLevelName" class="gmwb-input" placeholder="Level name (e.g. Surface)"><input id="gmwbLevelBg" class="gmwb-input" placeholder="Background color/gradient (CSS)"><button class="btn btn-xs" onclick="gmWorldbuilderAddLevel()">Add Level</button></div>'
       + '<div class="gmwb-list">' + (levelsHtml || '<div class="gmwb-muted">No levels yet.</div>') + '</div>'
       + '<div class="gmwb-title" style="margin-top:.6rem;">Portal Links</div>'
-      + '<div class="gmwb-row"><button class="btn btn-xs" onclick="gmWorldbuilderAddPortal()">Create Portal</button></div>'
+      + '<div class="gmwb-row"><button class="btn btn-xs" onclick="gmWorldbuilderAddPortal()">Create Portal</button><select id="gmwbPortalDirection" class="gmwb-select"><option value="oneway">One Way</option><option value="twoway">Two Way</option></select></div>'
       + '<div class="gmwb-list">' + (portalsHtml || '<div class="gmwb-muted">No portals yet.</div>') + '</div>'
       + '<div class="gmwb-title" style="margin-top:.6rem;">Connections</div>'
       + '<div class="gmwb-row"><input id="gmwbConnA" class="gmwb-input" placeholder="From (name)"><input id="gmwbConnB" class="gmwb-input" placeholder="To (name)"><input id="gmwbConnLabel" class="gmwb-input" placeholder="Relation"><button class="btn btn-xs" onclick="gmWorldbuilderAddConnection()">Link</button></div>'
@@ -552,6 +606,8 @@
       + '<button class="btn btn-xs" onclick="gmWorldbuilderGraphClearSelection()">Clear Selection</button></div>'
       + '<div class="gmwb-muted" id="gmwbGraphHint">Click one node, then another to create a link.</div>'
       + '<div class="gmwb-graph-wrap">' + renderGraphSvg(st) + '</div>'
+      + '<div class="gmwb-title" style="margin-top:.55rem;">Selected Edge</div>'
+      + renderEdgeInspector(st)
       + '<div class="gmwb-row" style="margin-top:.55rem;"><button class="btn btn-sm" onclick="if(typeof saveCharacter===\'function\'){saveCharacter();}">Save Campaign Data</button></div>'
       + '</section>'
       + '</div>';
@@ -599,8 +655,10 @@
       if (typeof showNotif === 'function') showNotif('Location not found. Use exact names.', 'warn');
       return;
     }
-    var label = prompt('Portal label?', 'One-way gate') || 'Portal';
-    st.portals.push({ id: uid('prt'), from: a.id, to: b.id, label: String(label) });
+    var label = prompt('Portal label?', 'Transit Gate') || 'Portal';
+    var dirEl = document.getElementById('gmwbPortalDirection');
+    var direction = String((dirEl && dirEl.value) || 'oneway');
+    st.portals.push({ id: uid('prt'), from: a.id, to: b.id, label: String(label), direction: direction === 'twoway' ? 'twoway' : 'oneway' });
     render();
   }
 
@@ -891,7 +949,9 @@
       }
       var from = first.replace(/^loc_/, '');
       var to = node.replace(/^loc_/, '');
-      st.portals.push({ id: uid('prt'), from: from, to: to, label: 'Graph Portal' });
+      var dirEl = document.getElementById('gmwbPortalDirection');
+      var direction = String((dirEl && dirEl.value) || 'oneway');
+      st.portals.push({ id: uid('prt'), from: from, to: to, label: 'Graph Portal', direction: direction === 'twoway' ? 'twoway' : 'oneway' });
       render();
       return;
     }
@@ -916,6 +976,74 @@
   function graphClearSelection() {
     var st = ensureState();
     st.graphDraftFrom = '';
+    st.graphDraftEdge = '';
+    render();
+  }
+
+  function graphEdgeClick(edgeId) {
+    var st = ensureState();
+    st.graphDraftEdge = String(edgeId || '');
+    st.graphDraftFrom = '';
+    render();
+  }
+
+  function applyEdgeEdit() {
+    var st = ensureState();
+    var edgeId = String(st.graphDraftEdge || '');
+    if (!edgeId) return;
+    var labelEl = document.getElementById('gmwbEdgeLabel');
+    var nextLabel = String((labelEl && labelEl.value) || '').trim();
+    if (!nextLabel) return;
+    if (edgeId.indexOf('portal_') === 0) {
+      var p = getPortalById(edgeId.replace(/^portal_/, ''));
+      if (!p) return;
+      p.label = nextLabel;
+      var dirEl = document.getElementById('gmwbEdgeDirection');
+      if (dirEl) p.direction = String(dirEl.value || 'oneway') === 'twoway' ? 'twoway' : 'oneway';
+    } else {
+      var c = getConnectionById(edgeId.replace(/^rel_/, ''));
+      if (!c) return;
+      c.label = nextLabel;
+    }
+    render();
+  }
+
+  function deleteSelectedEdge() {
+    var st = ensureState();
+    var edgeId = String(st.graphDraftEdge || '');
+    if (!edgeId) return;
+    if (edgeId.indexOf('portal_') === 0) {
+      var pid = edgeId.replace(/^portal_/, '');
+      st.portals = st.portals.filter(function (p) { return p.id !== pid; });
+    } else {
+      var cid = edgeId.replace(/^rel_/, '');
+      st.connections = st.connections.filter(function (c) { return c.id !== cid; });
+    }
+    st.graphDraftEdge = '';
+    render();
+  }
+
+  function locationReorderDragStart(event, locId) {
+    if (!event || !event.dataTransfer) return;
+    event.dataTransfer.setData('text/x-gmwb-location-order', String(locId || ''));
+    event.dataTransfer.effectAllowed = 'move';
+  }
+
+  function locationReorderDragEnter(event, targetLocId) {
+    if (!event || !event.dataTransfer) return;
+    var srcId = String(event.dataTransfer.getData('text/x-gmwb-location-order') || '');
+    if (!srcId || srcId === String(targetLocId || '')) return;
+    var st = ensureState();
+    var src = st.locations.find(function (l) { return l.id === srcId; });
+    var dst = st.locations.find(function (l) { return l.id === String(targetLocId || ''); });
+    if (!src || !dst || src.levelId !== dst.levelId) return;
+    var list = st.locations.filter(function (l) { return l.levelId === src.levelId; }).sort(function (a, b) { return Number(a.order || 0) - Number(b.order || 0); });
+    var fromIdx = list.findIndex(function (l) { return l.id === src.id; });
+    var toIdx = list.findIndex(function (l) { return l.id === dst.id; });
+    if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+    var moved = list.splice(fromIdx, 1)[0];
+    list.splice(toIdx, 0, moved);
+    list.forEach(function (l, i) { l.order = i + 1; });
     render();
   }
 
@@ -961,6 +1089,11 @@
   window.gmWorldbuilderDropOnUnassigned = dropOnUnassigned;
   window.gmWorldbuilderGraphClick = graphClick;
   window.gmWorldbuilderGraphClearSelection = graphClearSelection;
+  window.gmWorldbuilderGraphEdgeClick = graphEdgeClick;
+  window.gmWorldbuilderApplyEdgeEdit = applyEdgeEdit;
+  window.gmWorldbuilderDeleteSelectedEdge = deleteSelectedEdge;
+  window.gmWorldbuilderLocationReorderDragStart = locationReorderDragStart;
+  window.gmWorldbuilderLocationReorderDragEnter = locationReorderDragEnter;
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', mount, { once: true });

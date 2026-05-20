@@ -147,6 +147,13 @@
   margin-bottom: 0.2rem;
 }
 
+.gmwb-order-handle {
+  color: var(--muted2);
+  letter-spacing: 0.02em;
+  margin-right: 0.15rem;
+  cursor: grab;
+}
+
 .gmwb-check {
   display: flex;
   align-items: center;
@@ -240,4 +247,16 @@
 
 .gmwb-graph-node {
   cursor: pointer;
+}
+
+.gmwb-edge-hit {
+  cursor: pointer;
+}
+
+.gmwb-edge-editor {
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 0.35rem;
+  background: rgba(255, 255, 255, 0.02);
+  margin-top: 0.35rem;
 }

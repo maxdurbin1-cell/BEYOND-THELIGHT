@@ -2151,10 +2151,7 @@ function normalizePersonalFlavorWording(text){
 }
 const PERSONAL_FLAVORS=(function(){
   var out=PERSONAL_FLAVORS_BASE.concat(PERSONAL_FLAVORS_EXTRAS).map(normalizePersonalFlavorWording);
-  while(out.length<150){
-    out.push('Legacy Quirk #'+String(out.length+1).padStart(2,'0')+': Unique edge in narrow circumstances');
-  }
-  return out.slice(0,150);
+  return out;
 })();
 const MUTATIONS=['Change your skin and hair color at will','Superhuman reflexes — Step up Advantage to Body Saves','Thick fur — you can never feel cold','Crocodile face — Bite attack (Ad4 Strike)','Secret Pocket — hide 1 apple-sized thing inside your body','Rippling Muscles — +3 to Body and Power Checks','Your voice rises three octaves unexpectedly','Tusks, like a boar','Churning Guts — can eat rotten food as full rations','Plastic bone structure — adjust shape and size of bones','Large Ears, doubled in size — features become animalistic','You grow 1d6 new limbs from your body','You smell terrible — most creatures won\'t consider you edible','Dead nerves — completely immune to physical pain','Lizard tail','Chameleon Skin — shifts to vibrant colors','Your eyes bulge forth on stalks — (Ad4) to Lead and Notice checks','Sensitive skin — rash if you touch iron','Thick scales — +2 to Defend vs physical attacks','Your bones glow faintly through your skin in darkness'];
 const RANDOM_ITEMS=['Staff made of fused pistols','Lavender plant that cannot die','Mug that turns any liquid to water','Boots that leave no footprints','A cloak that repels all dust','A clockwork songbird','Teacup that chills its contents','Multicolored shifting Cloak','A book that writes down your dreams','A size-changing Scarf','Goggles that reveal undead','A completely weightless rock',"Ram's horn","Rat brain preserved in a crystal case",'Book proclaiming a coming revolution','Pink bottle that smells wonderful','Thermos perpetually full of soup','A mechanical hand','A kite and a copper key','A bone flute','Book: Tidecaller Log','Book: Neon Testament','Book: Hollow Crown Record'];

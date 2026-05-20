@@ -7099,7 +7099,10 @@
           if (!chosen) {
             var fallbackPayload = '';
             if (action === 'paint-object') fallbackPayload = String(id || '').replace(/^obj-/, '') || 'obstacle';
-            else if (action === 'paint-terrain') fallbackPayload = String(id || '').replace(/^terrain-/, '').replace(/-/g, ' ') || 'road';
+            else if (action === 'paint-terrain') {
+              if (String(id || '').indexOf('hex-upload-') === 0) fallbackPayload = 'hexasset:' + String(id || '').replace(/^hex-upload-/, '');
+              else fallbackPayload = String(id || '').replace(/^terrain-/, '').replace(/-/g, ' ') || 'road';
+            }
             else if (action === 'stock-cache') fallbackPayload = String(id || '').indexOf('credits') >= 0 ? 'credits' : 'balanced';
             else if (action === 'map-uploaded') fallbackPayload = String(id || '').replace(/^map-upload-/, '');
             else if (action === 'map-preset') {
@@ -7198,7 +7201,10 @@
             var fallbackPayload = '';
             var fallbackName = String(card.getAttribute('data-asset-label') || id || 'Asset');
             if (action === 'paint-object') fallbackPayload = String(id || '').replace(/^obj-/, '') || 'obstacle';
-            else if (action === 'paint-terrain') fallbackPayload = String(id || '').replace(/^terrain-/, '').replace(/-/g, ' ') || 'road';
+            else if (action === 'paint-terrain') {
+              if (String(id || '').indexOf('hex-upload-') === 0) fallbackPayload = 'hexasset:' + String(id || '').replace(/^hex-upload-/, '');
+              else fallbackPayload = String(id || '').replace(/^terrain-/, '').replace(/-/g, ' ') || 'road';
+            }
             else if (action === 'stock-cache') fallbackPayload = String(id || '').indexOf('credits') >= 0 ? 'credits' : 'balanced';
             else if (action === 'map-uploaded') fallbackPayload = String(id || '').replace(/^map-upload-/, '');
             else if (action === 'spawn-villain') fallbackPayload = { id: String(id || uid('vill')), name: fallbackName, dread: 6, hp: 10, image: '' };

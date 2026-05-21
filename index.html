@@ -3418,34 +3418,38 @@ function createBackstoryMissionTabMission(anchorId,scope,key,title){
 function doHometownDowntimeRest(key,scope){
   const k=String(key||'');
   const sk=String(scope||'province').toLowerCase();
+  const stats=['lead','control','mind','body','spirit','defend','strike','shoot'];
   const html=''
     +'<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">Choose your downtime approach (Action Die vs Dread d6):</div>'
     +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">'
-    +'<button class="btn btn-sm btn-teal" onclick="resolveHometownDowntimeCheck(\''+k+'\',\''+sk+'\',\'spirit\')">Spirit</button>'
-    +'<button class="btn btn-sm btn-primary" onclick="resolveHometownDowntimeCheck(\''+k+'\',\''+sk+'\',\'lead\')">Lead</button>'
-    +'<button class="btn btn-sm" onclick="resolveHometownDowntimeCheck(\''+k+'\',\''+sk+'\',\'mind\')">Mind</button>'
-    +'<button class="btn btn-sm" onclick="resolveHometownDowntimeCheck(\''+k+'\',\''+sk+'\',\'control\')">Control</button>'
+    +stats.map(function(stat){
+      var label=stat.charAt(0).toUpperCase()+stat.slice(1);
+      return '<button class="btn btn-sm'+(stat==='lead'?' btn-primary':(stat==='spirit'?' btn-teal':''))+'" onclick="resolveHometownDowntimeCheck(\''+k+'\',\''+sk+'\',\''+stat+'\')">'+label+'</button>';
+    }).join('')
     +'</div>';
   if(typeof openModal==='function')openModal('Hometown Downtime Approach',html);
 }
 
 function resolveHometownDowntimeCheck(key,scope,stat){
   const st=ensureBackstoryAnchorState();
-  const die=(typeof getEffectiveDie==='function')?getEffectiveDie(stat||'spirit'):(S.stats&&S.stats[stat])||4;
-  const a=explodingRoll(die,{type:'action',major:true,label:'Hometown Downtime '+String(stat).toUpperCase()+' d'+die});
+  const allowedStats=['lead','control','mind','body','spirit','defend','strike','shoot'];
+  const statKey=String(stat||'').toLowerCase();
+  const normalizedStat=allowedStats.indexOf(statKey)>=0?statKey:'lead';
+  const die=(typeof getEffectiveDie==='function')?getEffectiveDie(normalizedStat):((S.stats&&S.stats[normalizedStat])||4);
+  const a=explodingRoll(die,{type:'action',major:true,label:'Hometown Downtime '+String(normalizedStat).toUpperCase()+' d'+die});
   const d=explodingRoll(6,{type:'dread',major:true,label:'Hometown Downtime DD6'});
   const success=a.total>=d.total;
   st.home.visits=(st.home.visits||0)+1;
   if(success){
     st.home.bond=(st.home.bond||0)+1;
     applyBackstoryDowntimeLongRest('Hometown Downtime');
-    if(typeof showNotif==='function')showNotif('Downtime success: '+String(stat).toUpperCase()+' d'+die+' '+a.total+' vs DD6 '+d.total+'.','good');
+    if(typeof showNotif==='function')showNotif('Downtime success: '+String(normalizedStat).toUpperCase()+' d'+die+' '+a.total+' vs DD6 '+d.total+'.','good');
   }else{
     st.home.bond=Math.max(-5,(st.home.bond||0)-1);
     if(typeof halfStress==='function')halfStress();
     else if(typeof changeStress==='function')changeStress(-2);
     if(typeof changeMentalStress==='function')changeMentalStress(1);
-    if(typeof showNotif==='function')showNotif('Downtime failed: '+String(stat).toUpperCase()+' d'+die+' '+a.total+' vs DD6 '+d.total+'. Partial rest only.','warn');
+    if(typeof showNotif==='function')showNotif('Downtime failed: '+String(normalizedStat).toUpperCase()+' d'+die+' '+a.total+' vs DD6 '+d.total+'. Partial rest only.','warn');
   }
   if(typeof closeModal==='function')closeModal();
   if(selectedHex&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
@@ -3470,13 +3474,14 @@ function rollHometownRandomEvent(key,scope){
   st.home.pendingEvent=ev;
   const k=String(key||'');
   const sk=String(scope||'province').toLowerCase();
+  const stats=['lead','control','mind','body','spirit','defend','strike','shoot'];
   const html=''
     +'<div style="font-size:.82rem;color:var(--text2);line-height:1.6;"><strong>'+escapeHtmlLite(ev.name)+'</strong><br>Choose your approach (Action Die vs Dread d6):</div>'
     +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">'
-    +'<button class="btn btn-sm btn-teal" onclick="resolveHometownEventCheck(\''+k+'\',\''+sk+'\',\'spirit\')">Spirit</button>'
-    +'<button class="btn btn-sm btn-primary" onclick="resolveHometownEventCheck(\''+k+'\',\''+sk+'\',\'lead\')">Lead</button>'
-    +'<button class="btn btn-sm" onclick="resolveHometownEventCheck(\''+k+'\',\''+sk+'\',\'mind\')">Mind</button>'
-    +'<button class="btn btn-sm" onclick="resolveHometownEventCheck(\''+k+'\',\''+sk+'\',\'control\')">Control</button>'
+    +stats.map(function(stat){
+      var label=stat.charAt(0).toUpperCase()+stat.slice(1);
+      return '<button class="btn btn-sm'+(stat==='lead'?' btn-primary':(stat==='spirit'?' btn-teal':''))+'" onclick="resolveHometownEventCheck(\''+k+'\',\''+sk+'\',\''+stat+'\')">'+label+'</button>';
+    }).join('')
     +'</div>';
   if(typeof openModal==='function')openModal('Hometown Event',html);
 }
@@ -3535,8 +3540,11 @@ function resolveHometownEventCheck(key,scope,stat){
     if(typeof showNotif==='function')showNotif('No hometown event is pending.','warn');
     return;
   }
-  const die=(typeof getEffectiveDie==='function')?getEffectiveDie(stat||'lead'):(S.stats&&S.stats[stat])||4;
-  const a=explodingRoll(die,{type:'action',major:true,label:'Hometown Event '+String(stat).toUpperCase()+' d'+die});
+  const allowedStats=['lead','control','mind','body','spirit','defend','strike','shoot'];
+  const statKey=String(stat||'').toLowerCase();
+  const normalizedStat=allowedStats.indexOf(statKey)>=0?statKey:'lead';
+  const die=(typeof getEffectiveDie==='function')?getEffectiveDie(normalizedStat):((S.stats&&S.stats[normalizedStat])||4);
+  const a=explodingRoll(die,{type:'action',major:true,label:'Hometown Event '+String(normalizedStat).toUpperCase()+' d'+die});
   const d=explodingRoll(6,{type:'dread',major:true,label:'Hometown Event DD6'});
   const success=a.total>=d.total;
   st.home.lastEvent=ev.name+' ('+(success?'success':'failure')+')';
@@ -3546,13 +3554,13 @@ function resolveHometownEventCheck(key,scope,stat){
     if(ev.name==='Community Festival'&&typeof changeCounter==='function')changeCounter('renown',1);
     if(ev.name==='Old Debt Calls'){S.credits=(S.credits||0)+45;if(typeof updateCreditsUI==='function')updateCreditsUI();}
     if(ev.name==='Neighborhood Watch'&&typeof toggleCond==='function'&&S.conditions&&!S.conditions.protected)toggleCond('protected');
-    if(typeof showNotif==='function')showNotif(ev.name+': '+ev.success+' ('+String(stat).toUpperCase()+' d'+die+' '+a.total+' vs DD6 '+d.total+')','good');
+    if(typeof showNotif==='function')showNotif(ev.name+': '+ev.success+' ('+String(normalizedStat).toUpperCase()+' d'+die+' '+a.total+' vs DD6 '+d.total+')','good');
   }else{
     st.home.bond=Math.max(-5,(st.home.bond||0)-1);
     if(ev.name==='Community Festival'&&typeof changeMentalStress==='function')changeMentalStress(1);
     if(ev.name==='Old Debt Calls'){S.credits=Math.max(0,(S.credits||0)-25);if(typeof updateCreditsUI==='function')updateCreditsUI();}
     if(ev.name==='Neighborhood Watch'&&typeof toggleCond==='function'&&S.conditions&&!S.conditions.distracted)toggleCond('distracted');
-    if(typeof showNotif==='function')showNotif(ev.name+': '+ev.fail+' ('+String(stat).toUpperCase()+' d'+die+' '+a.total+' vs DD6 '+d.total+')','warn');
+    if(typeof showNotif==='function')showNotif(ev.name+': '+ev.fail+' ('+String(normalizedStat).toUpperCase()+' d'+die+' '+a.total+' vs DD6 '+d.total+')','warn');
   }
   if(typeof closeModal==='function')closeModal();
   if(selectedHex&&typeof renderHexInfo==='function')renderHexInfo(selectedHex);
@@ -18212,7 +18220,9 @@ function resolveProvinceHoldingDowntime(col,row,statKey){
   const hex=mapData.find(h=>h.col===col&&h.row===row&&(h.type==='seat'||h.type==='holding'));
   const evt=hex&&hex.data?hex.data.pendingDowntimeEvent:null;
   if(!hex||!evt)return;
-  const key=String(statKey||'lead').toLowerCase();
+  const allowedStats=['lead','control','mind','body','spirit','defend','strike','shoot'];
+  const requestedKey=String(statKey||'').toLowerCase();
+  const key=allowedStats.indexOf(requestedKey)>=0?requestedKey:'lead';
   const die=(typeof getEffectiveDie==='function')?getEffectiveDie(key):((S.stats&&S.stats[key])||4);
   const a=explodingRoll(die),d=explodingRoll(evt.dd||6);
   const success=a.total>=d.total;

@@ -2619,7 +2619,9 @@
     var hex = seaHexByCoord(col, row);
     var evt = hex && hex.pendingDowntimeEvent;
     if (!hex || !evt) return;
-    var key = String(statKey || 'lead').toLowerCase();
+    var allowedStats = ['lead', 'control', 'mind', 'body', 'spirit', 'defend', 'strike', 'shoot'];
+    var requestedKey = String(statKey || '').toLowerCase();
+    var key = allowedStats.indexOf(requestedKey) >= 0 ? requestedKey : 'lead';
     var die = (typeof getEffectiveDie === 'function') ? getEffectiveDie(key) : ((S.stats && S.stats[key]) || 4);
     var itemFlags = getSeaNarrativeItemFlags();
     var checkBonus = 0;

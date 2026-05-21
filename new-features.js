@@ -9999,7 +9999,9 @@
   function resolveHoldingDowntimeEvent(statKey) {
     var evt = S.holding && S.holding.pendingDowntimeEvent;
     if (!evt) { return; }
-    var key = String(statKey || 'lead').toLowerCase();
+    var allowedStats = ['lead', 'control', 'mind', 'body', 'spirit', 'defend', 'strike', 'shoot'];
+    var requestedKey = String(statKey || '').toLowerCase();
+    var key = allowedStats.indexOf(requestedKey) >= 0 ? requestedKey : 'lead';
     var die = (typeof getEffectiveDie === 'function') ? getEffectiveDie(key) : ((S.stats && S.stats[key]) || 4);
     var a = explodingRoll(die, { type: 'action', major: true, label: 'Downtime ' + key.toUpperCase() + ' d' + die });
     var d = explodingRoll(evt.dd || 6, { type: 'dread', major: true, label: 'Downtime DD' + Number(evt.dd || 6) });

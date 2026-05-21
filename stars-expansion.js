@@ -13852,7 +13852,9 @@ function resolvePlanetCelebrationEvent(statKey) {
   if (!state || !selected || selected.marker !== 'merchant_colony') return;
   const evt = selected.data && selected.data.pendingCelebrationEvent;
   if (!evt) return;
-  const key = String(statKey || 'lead').toLowerCase();
+  const allowedStats = ['lead', 'control', 'mind', 'body', 'spirit', 'defend', 'strike', 'shoot'];
+  const requestedKey = String(statKey || '').toLowerCase();
+  const key = allowedStats.indexOf(requestedKey) >= 0 ? requestedKey : 'lead';
   const die = (typeof getEffectiveDie === 'function') ? getEffectiveDie(key) : ((S.stats && S.stats[key]) || 4);
   const a = explodingRoll(die);
   const d = explodingRoll(evt.dd || 6);

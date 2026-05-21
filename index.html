@@ -6301,16 +6301,50 @@ function getCodexFlavorList(){
   return base.concat(custom);
 }
 
+var ALLOWED_BESTIARY_DREAD_DICE=[4,6,8,10,12,20];
+
+function normalizeBestiaryDreadDie(raw){
+  var val=Number(raw||0);
+  if(!isFinite(val)||val<=0)return 6;
+  var best=ALLOWED_BESTIARY_DREAD_DICE[0];
+  var bestDiff=Math.abs(val-best);
+  for(var i=1;i<ALLOWED_BESTIARY_DREAD_DICE.length;i++){
+    var die=ALLOWED_BESTIARY_DREAD_DICE[i];
+    var diff=Math.abs(val-die);
+    if(diff<bestDiff||(diff===bestDiff&&die>best)){
+      best=die;
+      bestDiff=diff;
+    }
+  }
+  return best;
+}
+
+function normalizeBestiaryEntryStats(entry){
+  var row=Object.assign({},entry||{});
+  var fromDread=Number(row.dread||0);
+  var fromHp=Number(row.hp||row.health||0);
+  var inferred=fromDread>0?fromDread:(fromHp>0?Math.round(fromHp/2):6);
+  var dread=normalizeBestiaryDreadDie(inferred);
+  var health=dread*2;
+  row.dread=dread;
+  row.hp=health;
+  row.health=health;
+  row.deathNumber=dread;
+  return row;
+}
+
 function getCodexBestiaryByRegion(){
   ensureCustomCodexState();
   var out={};
   Object.keys(CODEX_BESTIARY||{}).forEach(function(region){
-    out[region]=Array.isArray(CODEX_BESTIARY[region])?CODEX_BESTIARY[region].slice():[];
+    out[region]=Array.isArray(CODEX_BESTIARY[region])
+      ?CODEX_BESTIARY[region].map(function(entry){return normalizeBestiaryEntryStats(entry);})
+      :[];
   });
   S.customContent.bestiary.forEach(function(entry,idx){
     var region=String(entry&&entry.region||'province').toLowerCase();
     if(!out[region])out[region]=[];
-    var row=Object.assign({},entry||{});
+    var row=normalizeBestiaryEntryStats(entry);
     row._customIndex=idx;
     out[region].push(row);
   });
@@ -6318,12 +6352,10 @@ function getCodexBestiaryByRegion(){
 }
 
 function getBestiaryDerivedStats(entry){
-  var hpSource=Number(entry&&entry.hp||0);
-  var dreadRaw=Number(entry&&entry.dread||0);
-  var dread=dreadRaw>0?dreadRaw:Math.ceil(Math.max(4,hpSource)/2);
-  dread=Math.max(4,Math.min(12,dread));
-  var health=hpSource>0?Math.max(4,hpSource):Math.max(8,dread*2);
-  var death=Math.max(1,Math.ceil(health/2));
+  var normalized=normalizeBestiaryEntryStats(entry);
+  var dread=Number(normalized.dread||6);
+  var health=Number(normalized.health||12);
+  var death=Number(normalized.deathNumber||dread);
   return {dread:dread,health:health,deathNumber:death};
 }
 
@@ -6443,9 +6475,9 @@ function saveCustomBestiaryFromCodex(){
   var region=String((document.getElementById('codexBestiaryRegion')||{}).value||'province').trim().toLowerCase();
   var name=String((document.getElementById('codexBestiaryName')||{}).value||'').trim();
   var desc=String((document.getElementById('codexBestiaryDesc')||{}).value||'').trim();
-  var dread=Math.max(4,Math.min(12,Number((document.getElementById('codexBestiaryDread')||{}).value||8)));
+  var dread=normalizeBestiaryDreadDie(Number((document.getElementById('codexBestiaryDread')||{}).value||8));
   if(!region||!name||!desc){showNotif('Region, name, and description are required.','warn');return;}
-  var payload={region:region,name:name,desc:desc,dread:dread};
+  var payload=normalizeBestiaryEntryStats({region:region,name:name,desc:desc,dread:dread});
   var edit=getCustomCodexEditState();
   if(edit.bestiary>=0&&edit.bestiary<S.customContent.bestiary.length){
     S.customContent.bestiary[edit.bestiary]=payload;
@@ -6462,7 +6494,7 @@ function editCustomBestiaryEntry(idx){
   ensureCustomCodexState();
   var i=Number(idx);
   if(isNaN(i)||i<0||i>=S.customContent.bestiary.length)return;
-  var row=S.customContent.bestiary[i]||{};
+  var row=normalizeBestiaryEntryStats(S.customContent.bestiary[i]||{});
   getCustomCodexEditState().bestiary=i;
   var set=function(id,val){var el=document.getElementById(id);if(el)el.value=String(val||'');};
   set('codexBestiaryRegion',row.region||'province');
@@ -6477,7 +6509,7 @@ function clearCustomBestiaryForm(){
   var regionEl=document.getElementById('codexBestiaryRegion');
   if(regionEl)regionEl.value='province';
   var dreadEl=document.getElementById('codexBestiaryDread');
-  if(dreadEl)dreadEl.value='8';
+  if(dreadEl)dreadEl.value='6';
 }
 
 function removeCustomBestiaryEntry(idx){
@@ -10448,12 +10480,13 @@ function rollDefend(skipEnemyTurnTick) {
   ensureRollModState();
   if(!skipEnemyTurnTick) maybeResetActionsAfterDefend();
 
+  var defendDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('defend') : Math.max(4, Number(S && S.stats && S.stats.defend || 4));
   var armorAdv = parseArmorAdvDie();
   var wpBonus = parseWeaponBonuses('defend');
   var flBonus = getFlavorBonus('defend');
   var mtBonus = getMutationBonus('defend');
   var augDie = getAugBonus('defend');
-  var gearBonus = typeof getGearRollBonuses === 'function' ? getGearRollBonuses('defend', S.stats.defend) : {advDice:[], flat:0, addDice:[], notes:[]};
+  var gearBonus = typeof getGearRollBonuses === 'function' ? getGearRollBonuses('defend', defendDie) : {advDice:[], flat:0, addDice:[], notes:[]};
 
   // Collect ALL advantage dice — armor, weapon, flavor, mutation, manual rollMod
   var advDiceArr = [];
@@ -10463,7 +10496,7 @@ function rollDefend(skipEnemyTurnTick) {
   advDiceArr = advDiceArr.concat(gearBonus.advDice||[]);
   if(S.rollMod && Array.isArray(S.rollMod.advDice)) advDiceArr = advDiceArr.concat(S.rollMod.advDice);
 
-  var ra = rollWithAdvantage(S.stats.defend, advDiceArr, {type:'action',major:true,label:'Defend'});
+  var ra = rollWithAdvantage(defendDie, advDiceArr, {type:'action',major:true,label:'Defend'});
   var a = ra.base;
   var weaponFlat = Number(wpBonus.flat||0);
   var flavorFlat = Number(flBonus.flat||0);
@@ -20012,7 +20045,7 @@ function showCodexCat(cat,btn){
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.28rem;border:1px solid var(--border2);background:rgba(255,255,255,.03);padding:.42rem .45rem;margin-bottom:.6rem;">
         <select class="input" id="codexBestiaryRegion"><option value="province">province</option><option value="sea">sea</option><option value="wtw">wtw</option><option value="planet">planet</option><option value="galaxy">galaxy</option></select>
         <input class="input" id="codexBestiaryName" placeholder="Creature name">
-        <input class="input" id="codexBestiaryDread" type="number" min="4" max="12" step="1" value="8" placeholder="Dread">
+        <select class="input" id="codexBestiaryDread" title="Dread Die"><option value="4">Dread d4</option><option value="6" selected>Dread d6</option><option value="8">Dread d8</option><option value="10">Dread d10</option><option value="12">Dread d12</option><option value="20">Dread d20</option></select>
         <input class="input" id="codexBestiaryDesc" placeholder="Description" style="grid-column:1/-1;">
         <div style="display:flex;gap:.3rem;grid-column:1/-1;">
           <button class="btn btn-teal btn-sm" onclick="saveCustomBestiaryFromCodex()">Save GM Bestiary Entry</button>
@@ -20021,7 +20054,7 @@ function showCodexCat(cat,btn){
       </div>
       <div class="codex-grid">
         ${Object.keys(bestiaryByRegion).map(region=>`<div class="card"><div class="section-title" style="display:flex;align-items:center;gap:.45rem;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,{name:region==='wtw'?'World That Was':'Bestiary Region'},{size:26}):''}<span>${region==='wtw'?'World That Was':region.charAt(0).toUpperCase()+region.slice(1)}</span></div>
-          ${bestiaryByRegion[region].map(entry=>{var stats=getBestiaryDerivedStats(entry);var skills=Array.isArray(entry.skills)?entry.skills:(Array.isArray(entry.abilities)?entry.abilities:(Array.isArray(entry.moves)?entry.moves:[]));return `<div class="hist-entry" style="display:grid;grid-template-columns:auto auto 1fr auto;gap:.55rem;align-items:center;cursor:pointer;" onclick="openBestiaryEntryDetails(${JSON.stringify(region)},${JSON.stringify(entry.name)})">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,entry,{size:42}):''}<div class="hist-num">d${stats.dread}</div><div class="hist-text"><strong>${entry.name}</strong>${entry._customIndex!==undefined?' <span style="font-size:.68rem;color:var(--teal);">GM</span>':''}<br>${entry.desc}<br><span style="color:var(--gold2);">Health ${stats.health} · Death Number ${stats.deathNumber}</span>${skills.length?`<br><span style="color:var(--teal);font-size:.72rem;">Skills: ${skills.slice(0,3).map(function(s){return String(s);}).join(', ')}${skills.length>3?' +more':''}</span>`:'<br><span style="color:var(--muted2);font-size:.72rem;">Click to inspect skill details.</span>'}${entry._customIndex!==undefined?`<br><div style="margin-top:.22rem;display:flex;gap:.22rem;"><button class="btn btn-xs" onclick="event.stopPropagation();editCustomBestiaryEntry(${Number(entry._customIndex)})">Edit</button><button class="btn btn-xs" onclick="event.stopPropagation();removeCustomBestiaryEntry(${Number(entry._customIndex)})">Remove</button></div>`:''}</div><div style="font-size:.68rem;color:var(--muted2);align-self:start;padding-top:.15rem;">View</div></div>`;}).join('')}
+          ${bestiaryByRegion[region].map(entry=>{var stats=getBestiaryDerivedStats(entry);var skills=Array.isArray(entry.skills)?entry.skills:(Array.isArray(entry.abilities)?entry.abilities:(Array.isArray(entry.moves)?entry.moves:[]));return `<div class="hist-entry" style="display:grid;grid-template-columns:auto auto 1fr auto;gap:.55rem;align-items:center;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,entry,{size:42}):''}<div class="hist-num">d${stats.dread}</div><div class="hist-text"><strong>${entry.name}</strong>${entry._customIndex!==undefined?' <span style="font-size:.68rem;color:var(--teal);">GM</span>':''}<br>${entry.desc}<br><span style="color:var(--gold2);">Health ${stats.health} · Death Number ${stats.deathNumber}</span><br><button class="btn btn-xs" style="margin-top:.22rem;" onclick="openBestiaryEntryDetails(${JSON.stringify(region)},${JSON.stringify(entry.name)})">View</button>${skills.length?`<br><button class="btn btn-xs" style="margin-top:.22rem;" onclick="openBestiaryEntryDetails(${JSON.stringify(region)},${JSON.stringify(entry.name)})">Inspect Skills</button><br><span style="color:var(--teal);font-size:.72rem;">Skills: ${skills.slice(0,3).map(function(s){return String(s);}).join(', ')}${skills.length>3?' +more':''}</span>`:'<br><button class="btn btn-xs" style="margin-top:.22rem;" onclick="openBestiaryEntryDetails(${JSON.stringify(region)},${JSON.stringify(entry.name)})">Inspect Skills</button><br><span style="color:var(--muted2);font-size:.72rem;">No listed skills yet. Click Inspect Skills for full details.</span>'}${entry._customIndex!==undefined?`<br><div style="margin-top:.22rem;display:flex;gap:.22rem;"><button class="btn btn-xs" onclick="editCustomBestiaryEntry(${Number(entry._customIndex)})">Edit</button><button class="btn btn-xs" onclick="removeCustomBestiaryEntry(${Number(entry._customIndex)})">Remove</button></div>`:''}</div><div style="font-size:.68rem;color:var(--muted2);align-self:start;padding-top:.15rem;">Entry</div></div>`;}).join('')}
         </div>`).join('')}
         <div id="codexBestiaryForgeSlot">${typeof renderCodexBestiaryForgeCard==='function' ? renderCodexBestiaryForgeCard() : '<div class="card"><div class="section-title">Monster Forge</div><div style="font-size:.82rem;color:var(--muted2);">The monster forge is loading.</div></div>'}</div>
       </div>
@@ -20098,34 +20131,39 @@ function clearNotifHistory(){
 function rollWayfarer(){const pool=(typeof getCodexWayfarers==='function')?getCodexWayfarers():TRAVELING_WAYFARERS;const w=pick(pool);const el=document.getElementById('wayfarerResult');if(el&&w)el.innerHTML=`<div class="wayfarer-card"><div style="display:grid;grid-template-columns:auto 1fr;gap:.55rem;align-items:center;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getWayfarerPortraitHtml==='function'?window.SharedIconSystem.getWayfarerPortraitHtml({name:w[1]+' '+w[2],career:w[0],background:w[3],omen:w[4]},{size:58}):''}<div><div class="wf-name">${w[1]} ${w[2]}</div><div class="wf-bg">${w[0]}</div><div class="wf-story">${w[3]}</div><div class="wf-drive">Drive: ${w[4]}</div></div></div></div>`;}
 const CODEX_BESTIARY={
   province:[
-    {name:'Mutated Wolves',hp:8,desc:'Pack predators that test the edge of torchlight before rushing a weak flank.'},
-    {name:'Twisted Guard',hp:12,desc:'Former sentries wrapped in rusted duty and spite, often found holding ruined thresholds.'},
-    {name:'Stitched Rat Horror',hp:16,desc:'A nest-creature sewn from vermin and field surgery; fast in vents, louder on open stone.'},
-    {name:'Red Harvest Horror',hp:24,desc:'A province tyrant grown from famine rituals, threshing whole lanes with hooked limbs.'}
+    {name:'Mutated Wolves',dread:4,hp:8,desc:'Pack predators that test the edge of torchlight before rushing a weak flank.'},
+    {name:'Twisted Guard',dread:6,hp:12,desc:'Former sentries wrapped in rusted duty and spite, often found holding ruined thresholds.'},
+    {name:'Stitched Rat Horror',dread:8,hp:16,desc:'A nest-creature sewn from vermin and field surgery; fast in vents, louder on open stone.'},
+    {name:'Red Harvest Horror',dread:12,hp:24,desc:'A province tyrant grown from famine rituals, threshing whole lanes with hooked limbs.'},
+    {name:'Azrael, Scourge of the Province',dread:20,hp:40,desc:'A raid tyrant cast in broken sunlight who judges whole settlements with a single decree.'}
   ],
   sea:[
-    {name:'Irradiated Corsair',hp:10,desc:'Sea-raiders hardened by salt, glow, and black-market tide medicine.'},
-    {name:'Brine Eel Swarm',hp:12,desc:'Needle-fast predators that strike in sheets from flooded cracks.'},
-    {name:'Undertow Archivist',hp:24,desc:'A drowned route-keeper that remembers every port it buried and fights like the tide itself.'},
-    {name:'Whalebone Regent',hp:28,desc:'A reef-throne sovereign armored in cathedral-sized remains and barnacle plate.'}
+    {name:'Irradiated Corsair',dread:4,hp:8,desc:'Sea-raiders hardened by salt, glow, and black-market tide medicine.'},
+    {name:'Brine Eel Swarm',dread:6,hp:12,desc:'Needle-fast predators that strike in sheets from flooded cracks.'},
+    {name:'Undertow Archivist',dread:12,hp:24,desc:'A drowned route-keeper that remembers every port it buried and fights like the tide itself.'},
+    {name:'Whalebone Regent',dread:10,hp:20,desc:'A reef-throne sovereign armored in cathedral-sized remains and barnacle plate.'},
+    {name:'Mephisto, Breakwater Tyrant',dread:20,hp:40,desc:'A raid sovereign of ember-black scripture that drowns fleets in infernal undertow.'}
   ],
   wtw:[
-    {name:'District Mneme Hound',hp:10,desc:'Memory-fed trackers that hunt by grief signatures instead of scent.'},
-    {name:'Cathedral Rail Warden',hp:22,desc:'A transit executioner built to police impossible districts and punish wrong routes.'},
-    {name:'Mirror Docket Oracle',hp:20,desc:'A clerk-prophet that weaponizes perfect records and mirrored identity.'},
-    {name:'Ashcourt Colossus',hp:32,desc:'A court-furnace giant that turns verdicts into crushing thermal waves.'}
+    {name:'District Mneme Hound',dread:4,hp:8,desc:'Memory-fed trackers that hunt by grief signatures instead of scent.'},
+    {name:'Cathedral Rail Warden',dread:10,hp:20,desc:'A transit executioner built to police impossible districts and punish wrong routes.'},
+    {name:'Mirror Docket Oracle',dread:10,hp:20,desc:'A clerk-prophet that weaponizes perfect records and mirrored identity.'},
+    {name:'Ashcourt Colossus',dread:12,hp:24,desc:'A court-furnace giant that turns verdicts into crushing thermal waves.'},
+    {name:'The Hollow Saint',dread:20,hp:40,desc:'A raid abomination that rules impossible districts with silence and fire.'}
   ],
   planet:[
-    {name:'Dustspine Stalker',hp:9,desc:'A low-slung ambush beast that vanishes completely in bad weather.'},
-    {name:'Crater Widow Empress',hp:18,desc:'A colony-mother that rules crater nests with silk, poison, and patient geometry.'},
-    {name:'Sunslag Gorgon',hp:20,desc:'A heat-soaked ruin guardian whose stare locks joints before the killing blow.'},
-    {name:'Archive Devourer',hp:26,desc:'A bunker apex predator that eats records, maps, and then the people carrying them.'}
+    {name:'Dustspine Stalker',dread:4,hp:8,desc:'A low-slung ambush beast that vanishes completely in bad weather.'},
+    {name:'Crater Widow Empress',dread:10,hp:20,desc:'A colony-mother that rules crater nests with silk, poison, and patient geometry.'},
+    {name:'Sunslag Gorgon',dread:10,hp:20,desc:'A heat-soaked ruin guardian whose stare locks joints before the killing blow.'},
+    {name:'Archive Devourer',dread:12,hp:24,desc:'A bunker apex predator that eats records, maps, and then the people carrying them.'},
+    {name:'The Bone Regent',dread:20,hp:40,desc:'A raid monarch that crowns itself with city bones and burns out all resistance.'}
   ],
   galaxy:[
-    {name:'Voidwing Dragon',hp:20,desc:'A lane-hunting vacuum predator that folds around rail-light and broken satellites.'},
-    {name:'Plasma Hydra Prime',hp:24,desc:'A storm-breeding warform that multiplies pressure faster than crews can reposition.'},
-    {name:'Eclipse Harvester',hp:24,desc:'A star-lane execution engine that harvests light, routes, and civilian convoys.'},
-    {name:'Null Rail Executor',hp:24,desc:'A transit erasure weapon that deletes the wrong answer and everyone standing on it.'}
+    {name:'Voidwing Dragon',dread:10,hp:20,desc:'A lane-hunting vacuum predator that folds around rail-light and broken satellites.'},
+    {name:'Plasma Hydra Prime',dread:12,hp:24,desc:'A storm-breeding warform that multiplies pressure faster than crews can reposition.'},
+    {name:'Eclipse Harvester',dread:12,hp:24,desc:'A star-lane execution engine that harvests light, routes, and civilian convoys.'},
+    {name:'Null Rail Executor',dread:12,hp:24,desc:'A transit erasure weapon that deletes the wrong answer and everyone standing on it.'},
+    {name:'The Rift Shepherd',dread:20,hp:40,desc:'A raid cosmic horror that folds starlanes into a single lethal mouth.'}
   ]
 };
 function rollTradeRouteCodex(){const r=roll(10);let result='',title='';if(r<=2){title='Safe Route';result=pick(TRADE_SAFE_EVENTS);}else if(r<=4){title='Profitable Route';result=pick(TRADE_PROFITABLE_EVENTS);}else if(r<=6){title='Aggressive/Illegal Route';result=pick(TRADE_AGGRESSIVE_EVENTS);}else if(r<=8){title='Trade Obstacle';result=pick(TRADE_OBSTACLES);}else{title='Traveling Wayfarer';const pool=(typeof getCodexWayfarers==='function')?getCodexWayfarers():TRAVELING_WAYFARERS;const w=pick(pool);result=w?`<strong>${w[1]} ${w[2]}</strong> (${w[0]}) — ${w[3]}`:'A lone traveler appears on the route.';}const el=document.getElementById('tradeResult');if(el)el.innerHTML=`<div class="venture-result"><div class="vr-type">d10 = ${r}: ${title}</div>${result}</div>`;}

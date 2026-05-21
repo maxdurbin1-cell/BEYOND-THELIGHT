@@ -1093,6 +1093,24 @@
     return String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   }
 
+  var ALLOWED_DREAD_DICE = [4, 6, 8, 10, 12, 20];
+
+  function normalizeDreadDie(value) {
+    var val = Number(value || 0);
+    if (!isFinite(val) || val <= 0) return 6;
+    var best = ALLOWED_DREAD_DICE[0];
+    var bestDiff = Math.abs(val - best);
+    for (var i = 1; i < ALLOWED_DREAD_DICE.length; i++) {
+      var die = ALLOWED_DREAD_DICE[i];
+      var diff = Math.abs(val - die);
+      if (diff < bestDiff || (diff === bestDiff && die > best)) {
+        best = die;
+        bestDiff = diff;
+      }
+    }
+    return best;
+  }
+
   function stripHtml(text) {
     return String(text || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
   }
@@ -1105,13 +1123,14 @@
         if (!Array.isArray(list)) return;
         list.forEach(function (entry) {
           if (!entry) return;
+          var dread = normalizeDreadDie(entry.dread || (Number(entry.health || entry.hp || 0) / 2));
           out.push({
             id: slug(region + '-' + (entry.name || 'beast')),
             region: String(region),
             name: String(entry.name || 'Unknown Beast'),
             desc: String(entry.desc || ''),
-            dread: Math.max(4, Number(entry.dread || 4)),
-            hp: Math.max(1, Number(entry.health || 8)),
+            dread: dread,
+            hp: dread * 2,
             image: String(entry.image || ''),
             skills: Array.isArray(entry.skills) ? entry.skills.slice() : [],
             abilities: Array.isArray(entry.abilities) ? entry.abilities.slice() : [],
@@ -3004,11 +3023,16 @@
   function parseArmorDefendAdvDice() {
     var armor = String(window.S && window.S.equipment && window.S.equipment.armor || '');
     var dice = [];
-    var rx = /ad\s*(\d+)/ig;
+    var seen = {};
+    var rx = /ad\s*(\d+)|advantage\s*d?\s*(\d+)/ig;
     var m;
     while ((m = rx.exec(armor))) {
-      var d = Math.max(4, Number(m[1] || 0));
-      if (d > 0) dice.push(d);
+      var raw = Number(m[1] || m[2] || 0);
+      var d = Math.max(4, raw);
+      if (d > 0 && !seen[d]) {
+        seen[d] = true;
+        dice.push(d);
+      }
     }
     return dice;
   }

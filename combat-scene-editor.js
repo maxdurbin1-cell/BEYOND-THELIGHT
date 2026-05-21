@@ -10900,6 +10900,55 @@
       drawBoard();
     }
 
+    function enemyNameCanonicalKey(name) {
+      return String(name || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s*\(.*?\)\s*$/, '')
+        .replace(/\s+#?\d+\s*$/, '')
+        .trim();
+    }
+
+    function findLegacyEnemyForToken(token) {
+      if (!token || !window.S || !Array.isArray(window.S.enemies)) return null;
+      var hostiles = window.S.enemies.filter(function (enemy) {
+        return enemy && !enemy.ally;
+      });
+      if (!hostiles.length) return null;
+      var sourceId = Number(token.sourceEnemyId || 0);
+      if (sourceId > 0) {
+        var bySource = hostiles.find(function (enemy) { return Number(enemy.id || 0) === sourceId; });
+        if (bySource) return bySource;
+      }
+      var exactName = String(token.name || '').trim().toLowerCase();
+      if (exactName) {
+        var byExact = hostiles.find(function (enemy) {
+          return String(enemy.name || '').trim().toLowerCase() === exactName;
+        });
+        if (byExact) return byExact;
+      }
+      var canonical = enemyNameCanonicalKey(token.name || '');
+      if (!canonical) return null;
+      return hostiles.find(function (enemy) {
+        return enemyNameCanonicalKey(enemy && enemy.name || '') === canonical;
+      }) || null;
+    }
+
+    function parseWayfarerHitDamageFromResult() {
+      var candidates = [
+        document.getElementById('attackResult'),
+        document.getElementById('wayfarerActionResult')
+      ];
+      for (var i = 0; i < candidates.length; i++) {
+        var node = candidates[i];
+        var text = String(node && (node.textContent || node.innerText) || '').replace(/\s+/g, ' ').trim();
+        if (!text) continue;
+        var m = text.match(/HIT!\s*([0-9]+)\s*(?:Stress|Health\s*damage)/i);
+        if (m) return Math.max(0, Number(m[1] || 0));
+      }
+      return 0;
+    }
+
     var cmdStrike = document.getElementById('combatCmdStrikeBtn');
     if (cmdStrike && !cmdStrike._bound) {
       cmdStrike._bound = true;
@@ -11000,6 +11049,18 @@
           }
         }
         var legacySel = document.getElementById('wayfarerActionSel');
+        var selectedTarget = targetVal ? byId(targetVal) : null;
+        var targetHadLegacyBinding = false;
+        if (selectedTarget && String(selectedTarget.faction || '') === 'monster') {
+          var legacyEnemy = findLegacyEnemyForToken(selectedTarget);
+          if (legacyEnemy) {
+            targetHadLegacyBinding = true;
+            if (typeof window.setCombatFocusEnemy === 'function') {
+              try { window.setCombatFocusEnemy(Number(legacyEnemy.id || 0)); } catch (_focusErr) {}
+            }
+          }
+        }
+        var targetBeforeHp = selectedTarget ? Math.max(0, Number(selectedTarget.hp || 0)) : 0;
         var actionSnapshot = captureLegacyCombatSnapshot();
         if (legacySel) legacySel.value = actionVal;
         try {
@@ -11009,6 +11070,17 @@
           try { window.executeWayfarerAction(); } catch (_err2) {}
         }
         resolveLegacyDamageBridge('wayfarer', actionSnapshot);
+        if (selectedTarget && String(selectedTarget.faction || '') === 'monster' && !targetHadLegacyBinding) {
+          var targetAfter = byId(String(selectedTarget.id || ''));
+          var targetAfterHp = targetAfter ? Math.max(0, Number(targetAfter.hp || 0)) : 0;
+          if (targetBeforeHp > 0 && targetBeforeHp === targetAfterHp) {
+            var inferredDamage = parseWayfarerHitDamageFromResult();
+            if (inferredDamage > 0) {
+              applyDamageToToken(String(selectedTarget.id || ''), inferredDamage, actor.name || 'Wayfarer');
+              safeNotif('Applied ' + inferredDamage + ' damage directly to selected enemy token.', 'good');
+            }
+          }
+        }
         var selectedOpt = legacySel && legacySel.options ? legacySel.options[legacySel.selectedIndex] : null;
         var actionLabel = selectedOpt ? String(selectedOpt.textContent || actionVal) : actionVal;
         var resultNode = document.getElementById('wayfarerActionResult')

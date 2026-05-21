@@ -5858,7 +5858,6 @@
       + '<div style="margin-top:.2rem;"><div class="combat-label">Cover Override</div><select class="combat-select" id="combatTargetCoverOverrideSel"><option value="auto">Auto (terrain/object)</option><option value="none">None (+0)</option><option value="light">Light (-1)</option><option value="heavy">Heavy (-2)</option></select></div>'
       + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.2rem;">'
       + '<button class="btn btn-xs" id="combatTokenExecuteActionBtn">Execute</button>'
-      + '<button class="btn btn-xs" id="combatTokenEnemyActionBtn">Enemy Action</button>'
       + '<button class="btn btn-xs" id="combatGenerateLootBtn">Generate Loot</button>'
       + '<button class="btn btn-xs" id="combatLootBodyBtn">Loot Body</button>'
       + '</div>'
@@ -9622,6 +9621,9 @@
     return Object.keys(set).sort(function (a, b) { return a.localeCompare(b); });
   }
 
+  // Track action click counts for "2 clicks = 1 action" economy
+  var __enemyActionClickCounts = {};
+  
   function executeEnemyTokenAction(actor, target, actionId) {
     if (!actor || isTokenDead(actor)) {
       safeNotif('No valid enemy token selected.', 'warn');
@@ -9632,9 +9634,17 @@
       safeNotif('Start Scene before running enemy actions.', 'warn');
       return false;
     }
+    // Allow manual token selection to execute actions without strict turn checks
+    // Count clicks: every 2 Execute clicks = 1 action consumed from pool
     if (!isTokenTurnActive(state, actor.id)) {
-      safeNotif('It is not this enemy token\'s turn.', 'warn');
-      return false;
+      if (!__enemyActionClickCounts[actor.id]) __enemyActionClickCounts[actor.id] = 0;
+      __enemyActionClickCounts[actor.id]++;
+      // Only consume action from pool every 2 clicks
+      if (__enemyActionClickCounts[actor.id] % 2 !== 0) {
+        safeNotif('Queued action 1/2 for ' + (actor.name || 'Enemy') + '. Click again to execute.', 'info');
+        return false;
+      }
+      // This is the 2nd click - will consume an action below via spendUnitAction
     }
     var foe = target || null;
     if (!foe || isTokenDead(foe) || String(foe.faction) === String(actor.faction)) {
@@ -11571,23 +11581,7 @@
       };
     }
 
-    var tokenEnemyBtn = document.getElementById('combatTokenEnemyActionBtn');
-    if (tokenEnemyBtn && !tokenEnemyBtn._bound) {
-      tokenEnemyBtn._bound = true;
-      tokenEnemyBtn.onclick = function () {
-        var tokenActionSel = document.getElementById('combatTokenActionSel');
-        var tokenTargetSel = document.getElementById('combatTokenTargetSel');
-        var actor = byId(store.getState().selectedTokenId);
-        if (!actor || String(actor.faction) !== 'monster') {
-          safeNotif('Select an enemy token to use enemy actions.', 'warn');
-          return;
-        }
-        var actionVal = String(tokenActionSel && tokenActionSel.value || 'enemy_action');
-        var targetId = String(tokenTargetSel && tokenTargetSel.value || '');
-        var target = targetId ? byId(targetId) : null;
-        executeEnemyTokenAction(actor, target, actionVal || 'enemy_action');
-      };
-    }
+    // Enemy Action button removed - use Execute button instead
 
     var lootBodyBtn = document.getElementById('combatLootBodyBtn');
     var generateLootBtn = document.getElementById('combatGenerateLootBtn');

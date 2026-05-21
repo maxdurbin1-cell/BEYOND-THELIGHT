@@ -14160,12 +14160,18 @@
 
     function mountGridInventory() {
       if (document.getElementById('gridInventoryPanel')) return;
-      var root = document.getElementById('combatModeOverlay');
+      var root = document.getElementById('combatModeOverlay') || document.body;
       if (!root) return;
       var panel = document.createElement('div');
       panel.id = 'gridInventoryPanel';
       panel.className = 'grid-inventory-panel';
       panel.style.display = 'none';
+      if (root === document.body) {
+        panel.style.position = 'fixed';
+        panel.style.right = '1rem';
+        panel.style.bottom = '4.2rem';
+        panel.style.zIndex = '5600';
+      }
       panel.innerHTML =
         '<div class="combat-chat-header" style="display:flex;justify-content:space-between;align-items:center;">' +
           '<span>🎒 Inventory</span>' +
@@ -14202,7 +14208,12 @@
     window.openGridInventory = function () {
       var panel = document.getElementById('gridInventoryPanel');
       if (!panel) { mountGridInventory(); panel = document.getElementById('gridInventoryPanel'); }
-      if (panel) { panel.style.display = 'block'; renderGridInventory(); }
+      if (!panel) {
+        safeNotif('Inventory panel is unavailable right now.', 'warn');
+        return;
+      }
+      panel.style.display = 'block';
+      renderGridInventory();
     };
     window.closeGridInventory = function () {
       var panel = document.getElementById('gridInventoryPanel');
@@ -14280,6 +14291,11 @@
       if (!window.S || !Array.isArray(window.S.backpack)) return;
       var raw = window.S.backpack[slotIndex] || '';
       if (!raw.trim()) return;
+      if (typeof window.useBackpackItem === 'function') {
+        window.useBackpackItem(Number(slotIndex || 0));
+        renderCombatBackpackPanel();
+        return;
+      }
       var nameRaw = raw.replace(/\s*x\d+$/i, '').trim();
       var effect = getItemCombatEffect(nameRaw);
       if (!effect) { safeNotif(nameRaw + ' cannot be used directly in combat.', 'warn'); return; }
@@ -14314,6 +14330,11 @@
       renderCombatBackpackPanel();
     }
     window.useCombatBackpackItem = useCombatBackpackItem;
+    window.inspectCombatBackpackItem = function (slotIndex) {
+      if (typeof window.showBackpackItem === 'function') {
+        window.showBackpackItem(Number(slotIndex || 0));
+      }
+    };
 
     function renderCombatBackpackPanel() {
       var panel = document.getElementById('combatBackpackPanel');
@@ -14335,14 +14356,15 @@
         var count = countM ? parseInt(countM[1], 10) : 1;
         var cost = bpSlotCost(slotText);
         var effect = getItemCombatEffect(nameRaw);
-        var useBtn = effect
-          ? '<button class="btn btn-xs" style="flex-shrink:0;font-size:.64rem;padding:.08rem .28rem;background:rgba(46,196,182,.15);border-color:rgba(46,196,182,.4);color:var(--teal);" onclick="window.useCombatBackpackItem(' + idx + ')">Use</button>'
-          : '';
+        var useBtn = '<button class="btn btn-xs" style="flex-shrink:0;font-size:.64rem;padding:.08rem .28rem;background:rgba(46,196,182,.15);border-color:rgba(46,196,182,.4);color:var(--teal);" onclick="window.useCombatBackpackItem(' + idx + ')">Use</button>';
+        var infoBtn = '<button class="btn btn-xs" style="flex-shrink:0;font-size:.64rem;padding:.08rem .28rem;" onclick="window.inspectCombatBackpackItem(' + idx + ')">Info</button>';
+        var effectHint = effect ? ('<div style="font-size:.62rem;color:var(--muted2);margin-top:.04rem;">' + escapeHtml(String(effect.label || 'Usable in combat')) + '</div>') : '';
         var costBadge = '<span style="font-size:.62rem;color:var(--muted2);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:3px;padding:.02rem .18rem;flex-shrink:0;">'
           + cost + (cost === 1 ? ' slot' : ' slots') + '</span>';
         return '<div style="display:flex;align-items:center;gap:.28rem;padding:.16rem .18rem;border-bottom:1px solid rgba(255,255,255,.04);">'
-          + '<span style="flex:1;font-size:.78rem;font-family:Rajdhani,sans-serif;color:#f0f0f0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">' + escapeHtml(nameRaw) + (count > 1 ? '<span style="color:var(--teal);font-size:.7rem;"> ×' + count + '</span>' : '') + '</span>'
+          + '<span style="flex:1;font-size:.78rem;font-family:Rajdhani,sans-serif;color:#f0f0f0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">' + escapeHtml(nameRaw) + (count > 1 ? '<span style="color:var(--teal);font-size:.7rem;"> ×' + count + '</span>' : '') + effectHint + '</span>'
           + costBadge
+          + infoBtn
           + useBtn
           + '</div>';
       }).filter(Boolean).join('');

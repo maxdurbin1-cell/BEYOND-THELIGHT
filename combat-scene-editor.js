@@ -3641,6 +3641,108 @@
     return false;
   }
 
+  // Player-facing: take items out of a map loot cache (by hex key).
+  function takeLootFromMapCache(cacheKey, selectedIndexes) {
+    var state = store.getState();
+    var rules = ensureCombatSceneRulesExtensions(state.sceneRules || {});
+    var cache = rules.mapLootCaches && rules.mapLootCaches[cacheKey] || null;
+    if (!cache || !Array.isArray(cache.items) || !cache.items.length) {
+      safeNotif('Cache is empty.', 'warn');
+      closeLootPopup();
+      return 0;
+    }
+    var items = cache.items.slice();
+    var unique = {};
+    var rawIdxs = Array.isArray(selectedIndexes) ? selectedIndexes : items.map(function (_r, i) { return i; });
+    var idxs = rawIdxs.map(Number).filter(function (i) {
+      return Number.isFinite(i) && i >= 0 && i < items.length && !unique[i] && (unique[i] = true);
+    }).sort(function (a, b) { return a - b; });
+    if (!idxs.length) { safeNotif('Pick at least one item.', 'warn'); return 0; }
+    var taken = idxs.map(function (i) { return items[i]; });
+    taken.forEach(function (item) {
+      if (typeof window.addToBackpack === 'function') { try { window.addToBackpack(item); } catch (_e) {} }
+    });
+    var kept = items.filter(function (_item, i) { return idxs.indexOf(i) < 0; });
+    store.setState(function (inner) {
+      var next = Object.assign({}, inner);
+      var r2 = ensureCombatSceneRulesExtensions(inner.sceneRules || {});
+      r2.mapLootCaches = Object.assign({}, r2.mapLootCaches || {});
+      if (r2.mapLootCaches[cacheKey]) {
+        r2.mapLootCaches[cacheKey] = Object.assign({}, r2.mapLootCaches[cacheKey], { items: kept });
+      }
+      next.sceneRules = r2;
+      persist(next);
+      return next;
+    });
+    addHistory('Looted cache ' + cacheKey + ': ' + taken.join(', ') + '.');
+    safeNotif('Collected ' + taken.length + ' item' + (taken.length === 1 ? '' : 's') + ' from cache.', 'good');
+    if (typeof window.renderBackpackUI === 'function') window.renderBackpackUI();
+    if (typeof window.renderCombatBackpackPanel === 'function') window.renderCombatBackpackPanel();
+    drawBoard();
+    if (kept.length) openPlayerLootCacheAt(
+      Number(state.board ? (cache.q !== undefined ? cache.q : 0) : 0),
+      Number(state.board ? (cache.r !== undefined ? cache.r : 0) : 0)
+    );
+    else closeLootPopup();
+    return taken.length;
+  }
+
+  // Open the shared loot popup to show a map cache's items.
+  function openPlayerLootCacheAt(q, r, anchorX, anchorY) {
+    var state = store.getState();
+    var rules = ensureCombatSceneRulesExtensions(state.sceneRules || {});
+    var key = toKey(q, r);
+    var cache = rules.mapLootCaches && rules.mapLootCaches[key] || null;
+    var items = cache && Array.isArray(cache.items) ? cache.items : [];
+    var card = document.getElementById('combatLootPopupCard');
+    var titleEl = document.getElementById('combatLootPopupTitle');
+    var metaEl = document.getElementById('combatLootPopupMeta');
+    var listEl = document.getElementById('combatLootPopupList');
+    var takeAllBtn = document.getElementById('combatLootTakeAllBtn');
+    var takeSelBtn = document.getElementById('combatLootTakeSelectedBtn');
+    if (!card || !titleEl || !metaEl || !listEl) return;
+    if (!items.length) { safeNotif('This cache is empty.', 'warn'); return; }
+    // Tag the card as a cache popup (vs body-loot popup)
+    card.dataset.tokenId = '';
+    card.dataset.cacheKey = key;
+    card.dataset.cacheQ = String(q || 0);
+    card.dataset.cacheR = String(r || 0);
+    titleEl.textContent = 'Loot Cache \u2014 ' + key;
+    var bpCap = typeof window.getBackpackCapacity === 'function' ? window.getBackpackCapacity() : 6;
+    var bpUsed = 0;
+    if (window.S && Array.isArray(window.S.backpack)) {
+      window.S.backpack.forEach(function (s) { if (s && s.trim()) bpUsed += getItemSlotCost(String(s).replace(/\s*x\d+$/i, '').trim()); });
+    }
+    var bpColor = bpUsed >= bpCap ? '#e05050' : bpUsed >= bpCap - 1 ? '#e3bc5e' : '#57d69b';
+    metaEl.innerHTML = items.length + ' item' + (items.length === 1 ? '' : 's') + ' available'
+      + ' &nbsp;<span style="font-size:.7rem;color:' + bpColor + ';">Backpack: ' + bpUsed + '/' + bpCap + ' slots</span>';
+    listEl.innerHTML = items.map(function (item, idx) {
+      var label = String(item || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      var name = String(item || '').replace(/\s*x\d+$/i, '').trim();
+      var cost = getItemSlotCost(name);
+      var over = (bpUsed + cost) > bpCap;
+      return '<label style="display:flex;align-items:center;gap:.3rem;padding:.12rem .14rem;border:1px solid rgba(255,255,255,.08);border-radius:6px;">'
+        + '<input type="checkbox" data-loot-idx="' + idx + '">'
+        + '<span style="flex:1;font:.8rem Rajdhani,sans-serif;color:' + (over ? '#e09070' : '#f7f7f7') + ';">' + label + '</span>'
+        + '<span style="font-size:.63rem;color:' + (over ? '#e05050' : 'var(--muted2)') + ';background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:3px;padding:.03rem .18rem;">'
+        + cost + (cost === 1 ? ' slot' : ' slots') + '</span>'
+        + '</label>';
+    }).join('');
+    if (takeAllBtn) takeAllBtn.disabled = false;
+    if (takeSelBtn) takeSelBtn.disabled = false;
+    // Position
+    card.style.display = 'block';
+    card.style.position = 'fixed';
+    var wrap = document.getElementById('combatCanvasWrap');
+    var rect = wrap ? wrap.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    var cx = typeof anchorX === 'number' ? anchorX + rect.left : rect.left + rect.width / 2;
+    var cy = typeof anchorY === 'number' ? anchorY + rect.top : rect.top + rect.height / 2;
+    card.style.left = Math.min(Math.max(8, cx + 14), window.innerWidth - 280) + 'px';
+    card.style.top = Math.min(Math.max(8, cy + 14), window.innerHeight - 260) + 'px';
+    card.setAttribute('tabindex', '-1');
+    try { card.focus({ preventScroll: true }); } catch (e) { card.focus(); }
+  }
+
   function configureHazardCheckAt(q, r) {
     if (!isGmController()) {
       safeNotif('Only the GM can configure hazard checks.', 'warn');
@@ -6044,6 +6146,27 @@
       else runHazardCheckDialogForToken(selectedToken, mapItem.q, mapItem.r, getLayerGameplayProfile(store.getState(), mapItem.q, mapItem.r));
     } else if (actionKey === 'manage-cache') {
       openLootCacheModal(mapItem.q, mapItem.r);
+    } else if (actionKey === 'loot-cache') {
+      var cacheQ = Number(q !== undefined ? q : mapItem.q || 0);
+      var cacheR = Number(r !== undefined ? r : mapItem.r || 0);
+      var stForCache = store.getState();
+      var cacheRules = ensureCombatSceneRulesExtensions(stForCache.sceneRules || {});
+      var cacheKey = toKey(cacheQ, cacheR);
+      var cacheData = cacheRules.mapLootCaches && cacheRules.mapLootCaches[cacheKey] || null;
+      var cacheItems = cacheData && Array.isArray(cacheData.items) ? cacheData.items : [];
+      if (!cacheItems.length) { safeNotif('Cache at ' + cacheKey + ' is empty or not yet stocked.', 'warn'); return; }
+      var playerAtCache = (stForCache.tokens || []).find(function (t) { return t && t.isPlayer; }) || null;
+      if (playerAtCache) {
+        var distToCache = hexDistance(
+          { q: Number(playerAtCache.q || 0), r: Number(playerAtCache.r || 0) },
+          { q: cacheQ, r: cacheR }
+        );
+        if (distToCache > 1) {
+          safeNotif('Move within 1 hex of the cache to loot it (currently ' + distToCache + ' hex' + (distToCache === 1 ? '' : 'es') + ' away).', 'warn');
+          return;
+        }
+      }
+      openPlayerLootCacheAt(cacheQ, cacheR);
     }
   }
 
@@ -6065,7 +6188,8 @@
       actions.unshift({ key: 'configure-hazard', label: 'Configure Hazard' });
     }
     if (mapItem.layer === 'objects' && mapItem.value === 'loot-cache') {
-      actions.unshift({ key: 'manage-cache', label: 'Manage Loot Cache' });
+      actions.unshift({ key: 'manage-cache', label: '⚙ Manage Cache (GM)' });
+      actions.unshift({ key: 'loot-cache', label: '📦 Loot Cache' });
     }
     menu.innerHTML = actions.map(function (entry) {
       return '<button class="combat-token-menu-item" data-menu-action="' + entry.key + '">' + entry.label + '</button>';
@@ -6132,6 +6256,9 @@
     if (!card) return;
     card.style.display = 'none';
     card.dataset.tokenId = '';
+    card.dataset.cacheKey = '';
+    card.dataset.cacheQ = '';
+    card.dataset.cacheR = '';
   }
 
   function renderLootPopupForToken(tokenId) {
@@ -8455,8 +8582,13 @@
     if (lootBodyBtn) {
       var selToken = byId(state.selectedTokenId);
       var selDrop = selToken ? getLootDropForToken(state, selToken.id) : null;
-      lootBodyBtn.disabled = !(selToken && isTokenDead(selToken) && selDrop && !selDrop.claimed);
+      var playerTokForLoot = (state.tokens || []).find(function (t) { return t && t.isPlayer; }) || null;
+      var lootProxOk = !selToken || !playerTokForLoot ||
+        hexDistance({ q: Number(playerTokForLoot.q || 0), r: Number(playerTokForLoot.r || 0) }, { q: Number(selToken.q || 0), r: Number(selToken.r || 0) }) <= 1;
+      var lootAvail = !!(selToken && isTokenDead(selToken) && selDrop && !selDrop.claimed);
+      lootBodyBtn.disabled = !(lootAvail && lootProxOk);
       lootBodyBtn.style.opacity = lootBodyBtn.disabled ? '0.45' : '1';
+      lootBodyBtn.title = !lootAvail ? '' : !lootProxOk ? 'Move within 1 hex to loot this body' : 'Loot body';
     }
     var recoverySlotSel = document.getElementById('combatRecoverySlotSel');
     if (recoverySlotSel) {
@@ -11250,6 +11382,12 @@
           safeNotif('Select a defeated token to loot the body.', 'warn');
           return;
         }
+        // Proximity gate: player must be on or adjacent (≤1 hex) to the body
+        var player = (st.tokens || []).find(function (t) { return t && t.isPlayer; }) || null;
+        if (player && hexDistance({ q: Number(player.q || 0), r: Number(player.r || 0) }, { q: Number(token.q || 0), r: Number(token.r || 0) }) > 1) {
+          safeNotif('Move within 1 hex of the body to loot it.', 'warn');
+          return;
+        }
         var drop = getLootDropForToken(st, token.id);
         if (!drop || drop.claimed) {
           safeNotif('No loot available on this body.', 'warn');
@@ -11273,6 +11411,11 @@
       lootTakeAllBtn._bound = true;
       lootTakeAllBtn.onclick = function () {
         var card = document.getElementById('combatLootPopupCard');
+        var cacheKey = String(card && card.dataset.cacheKey || '');
+        if (cacheKey) {
+          takeLootFromMapCache(cacheKey, null);
+          return;
+        }
         var tokenId = String(card && card.dataset.tokenId || '');
         if (!tokenId) {
           safeNotif('Open a body loot card first.', 'warn');
@@ -11287,13 +11430,18 @@
       lootTakeSelectedBtn._bound = true;
       lootTakeSelectedBtn.onclick = function () {
         var card = document.getElementById('combatLootPopupCard');
+        var checks = card ? Array.prototype.slice.call(card.querySelectorAll('input[data-loot-idx]:checked')) : [];
+        var indexes = checks.map(function (node) { return Number(node.getAttribute('data-loot-idx')); });
+        var cacheKey = String(card && card.dataset.cacheKey || '');
+        if (cacheKey) {
+          takeLootFromMapCache(cacheKey, indexes);
+          return;
+        }
         var tokenId = String(card && card.dataset.tokenId || '');
         if (!tokenId) {
           safeNotif('Open a body loot card first.', 'warn');
           return;
         }
-        var checks = card ? Array.prototype.slice.call(card.querySelectorAll('input[data-loot-idx]:checked')) : [];
-        var indexes = checks.map(function (node) { return Number(node.getAttribute('data-loot-idx')); });
         takeLootFromTokenDrop(tokenId, indexes, 'Take Selected');
       };
     }

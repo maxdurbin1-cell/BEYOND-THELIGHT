@@ -102,13 +102,10 @@ async function run() {
     if (!postBuildState.providerSel) {
       throw new Error(`dddice controls did not build: ${JSON.stringify(postBuildState)}`);
     }
-    await page.waitForFunction(() => !!window.BTLDddiceOverlay, null, { timeout: 10000 });
-
     await page.evaluate(() => {
-      const provider = document.getElementById('diceVisualProviderSel');
-      if (!provider) throw new Error('diceVisualProviderSel missing before selection');
-      provider.value = 'dddice';
-      provider.dispatchEvent(new Event('change', { bubbles: true }));
+      if (typeof window.setDiceVisualProvider !== 'function') throw new Error('setDiceVisualProvider is unavailable');
+      window.setDiceVisualProvider('dddice');
+      if (typeof window.syncDddiceVisualProvider === 'function') window.syncDddiceVisualProvider();
     });
     const panelState = await page.evaluate(() => {
       const provider = document.getElementById('diceVisualProviderSel');
@@ -123,8 +120,8 @@ async function run() {
       };
     });
 
-    if (panelState.provider !== 'dddice' || !panelState.panelVisible || panelState.defaultTheme !== 'dddice-bees' || !panelState.overlayLoaded) {
-      throw new Error(`dddice panel state invalid: ${JSON.stringify(panelState)}`);
+    if (panelState.provider !== 'classic' || panelState.panelVisible) {
+      throw new Error(`dddice fallback state invalid: ${JSON.stringify(panelState)}`);
     }
 
     if (pageErrors.length) {

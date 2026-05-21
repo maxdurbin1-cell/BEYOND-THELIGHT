@@ -16,6 +16,15 @@ class BtlDddiceOverlay {
     window.addEventListener('resize', this.handleResize);
   }
 
+  withTimeout(promise, ms, message) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(message || 'Operation timed out.')), ms);
+      })
+    ]);
+  }
+
   normalizeSettings(settings) {
     const merged = Object.assign({}, DEFAULT_SETTINGS, settings || {});
     merged.enabled = !!merged.enabled;
@@ -121,7 +130,7 @@ class BtlDddiceOverlay {
     const key = String(apiKey || '').trim();
     if (!key) return [];
     const api = new ThreeDDiceAPI(key, 'BEYOND: The Light');
-    const response = await api.diceBox.list();
+    const response = await this.withTimeout(api.diceBox.list(), 8000, 'dddice theme request timed out.');
     const themes = response && Array.isArray(response.data) ? response.data : [];
     return themes.map((theme) => ({
       id: String(theme && theme.id || ''),

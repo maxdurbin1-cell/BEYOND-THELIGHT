@@ -8171,6 +8171,49 @@ function openCombatUtilityChooser(){
 }
 
 function executeCombatUtilityAction(kind,payload){
+  function combatLockState(){
+    return (S&&S.combat&&S.combat.enemySkillLocks&&typeof S.combat.enemySkillLocks==='object')?S.combat.enemySkillLocks:{};
+  }
+  function combatRoundNow(){
+    return Math.max(1,Number(S&&S.combat&&S.combat.round||1));
+  }
+  function itemNameForKind(){
+    if(kind==='readied')return String(S&&S.equipment&&S.equipment.readied||'').trim();
+    if(kind==='backpack')return String(Array.isArray(S&&S.backpack)?S.backpack[Math.max(0,Number(payload||0))]||'':'').trim();
+    if(kind==='hack')return String(payload||'').trim();
+    return '';
+  }
+  function nameLooksLikeSpell(name){
+    var txt=String(name||'').toLowerCase();
+    if(!txt)return false;
+    if(/scroll|spell/.test(txt))return true;
+    return Array.isArray(SHOP_DATA&&SHOP_DATA.scrolls)&&SHOP_DATA.scrolls.some(function(entry){
+      return entry&&String(entry.name||'').toLowerCase()===txt;
+    });
+  }
+  function nameLooksLikeAugmentation(name){
+    var txt=String(name||'').toLowerCase();
+    if(!txt)return false;
+    if(/augmentation|aug\b/.test(txt))return true;
+    return Array.isArray(SHOP_DATA&&SHOP_DATA.augmentations)&&SHOP_DATA.augmentations.some(function(entry){
+      return entry&&String(entry.name||'').toLowerCase()===txt;
+    });
+  }
+  var locks=combatLockState();
+  var roundNow=combatRoundNow();
+  var utilityName=itemNameForKind();
+  if(kind==='hack'&&Number(locks.hackUntilRound||0)>=roundNow){
+    showNotif('Enemy effect: hacks are disabled until your next turn.','warn');
+    return;
+  }
+  if(nameLooksLikeSpell(utilityName)&&Number(locks.spellUntilRound||0)>=roundNow){
+    showNotif('Enemy effect: spells are disabled until your next turn.','warn');
+    return;
+  }
+  if(nameLooksLikeAugmentation(utilityName)&&Number(locks.augmentationUntilRound||0)>=roundNow){
+    showNotif('Enemy effect: augmentations are disabled until your next turn.','warn');
+    return;
+  }
   if(kind==='flavor'){
     if(typeof usePersonalFlavorAction==='function')usePersonalFlavorAction();
     return;
@@ -20075,7 +20118,7 @@ function showCodexCat(cat,btn){
       </div>
       <div class="codex-grid">
         ${Object.keys(bestiaryByRegion).map(region=>`<div class="card"><div class="section-title" style="display:flex;align-items:center;gap:.45rem;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,{name:region==='wtw'?'World That Was':'Bestiary Region'},{size:26}):''}<span>${region==='wtw'?'World That Was':region.charAt(0).toUpperCase()+region.slice(1)}</span></div>
-          ${bestiaryByRegion[region].map(entry=>{var stats=getBestiaryDerivedStats(entry);var skills=Array.isArray(entry.skills)?entry.skills:(Array.isArray(entry.abilities)?entry.abilities:(Array.isArray(entry.moves)?entry.moves:[]));return `<div class="hist-entry" style="display:grid;grid-template-columns:auto auto 1fr auto;gap:.55rem;align-items:center;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,entry,{size:42}):''}<div class="hist-num">d${stats.dread}</div><div class="hist-text"><strong>${entry.name}</strong>${entry._customIndex!==undefined?' <span style="font-size:.68rem;color:var(--teal);">GM</span>':''}<br>${entry.desc}<br><span style="color:var(--gold2);">Health ${stats.health} · Death Number ${stats.deathNumber}</span><br><button class="btn btn-xs" style="margin-top:.22rem;" onclick="openBestiaryEntryDetails(${JSON.stringify(region)},${JSON.stringify(entry.name)})">View</button>${skills.length?`<br><button class="btn btn-xs" style="margin-top:.22rem;" onclick="openBestiaryEntryDetails(${JSON.stringify(region)},${JSON.stringify(entry.name)})">Inspect Skills</button><br><span style="color:var(--teal);font-size:.72rem;">Skills: ${skills.slice(0,3).map(function(s){return String(s);}).join(', ')}${skills.length>3?' +more':''}</span>`:'<br><button class="btn btn-xs" style="margin-top:.22rem;" onclick="openBestiaryEntryDetails(${JSON.stringify(region)},${JSON.stringify(entry.name)})">Inspect Skills</button><br><span style="color:var(--muted2);font-size:.72rem;">No listed skills yet. Click Inspect Skills for full details.</span>'}${entry._customIndex!==undefined?`<br><div style="margin-top:.22rem;display:flex;gap:.22rem;"><button class="btn btn-xs" onclick="editCustomBestiaryEntry(${Number(entry._customIndex)})">Edit</button><button class="btn btn-xs" onclick="removeCustomBestiaryEntry(${Number(entry._customIndex)})">Remove</button></div>`:''}</div><div style="font-size:.68rem;color:var(--muted2);align-self:start;padding-top:.15rem;">Entry</div></div>`;}).join('')}
+          ${bestiaryByRegion[region].map(entry=>{var stats=getBestiaryDerivedStats(entry);var skills=(typeof getBestiaryEntrySkillNames==='function')?getBestiaryEntrySkillNames(entry):[];return `<div class="hist-entry" style="display:grid;grid-template-columns:auto auto 1fr auto;gap:.55rem;align-items:center;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,entry,{size:42}):''}<div class="hist-num">d${stats.dread}</div><div class="hist-text"><strong>${entry.name}</strong>${entry._customIndex!==undefined?' <span style="font-size:.68rem;color:var(--teal);">GM</span>':''}<br>${entry.desc}<br><span style="color:var(--gold2);">Health ${stats.health} · Death Number ${stats.deathNumber}</span><br><button class="btn btn-xs" style="margin-top:.22rem;" onclick="openBestiaryEntryDetails(${JSON.stringify(region)},${JSON.stringify(entry.name)})">View</button><br><button class="btn btn-xs" style="margin-top:.22rem;" onclick="openBestiaryEntryDetails(${JSON.stringify(region)},${JSON.stringify(entry.name)})">Inspect Skills</button><br><span style="color:var(--teal);font-size:.72rem;">Skills: ${skills.slice(0,2).join(', ')}</span>${entry._customIndex!==undefined?`<br><div style="margin-top:.22rem;display:flex;gap:.22rem;"><button class="btn btn-xs" onclick="editCustomBestiaryEntry(${Number(entry._customIndex)})">Edit</button><button class="btn btn-xs" onclick="removeCustomBestiaryEntry(${Number(entry._customIndex)})">Remove</button></div>`:''}</div><div style="font-size:.68rem;color:var(--muted2);align-self:start;padding-top:.15rem;">Entry</div></div>`;}).join('')}
         </div>`).join('')}
         <div id="codexBestiaryForgeSlot">${typeof renderCodexBestiaryForgeCard==='function' ? renderCodexBestiaryForgeCard() : '<div class="card"><div class="section-title">Monster Forge</div><div style="font-size:.82rem;color:var(--muted2);">The monster forge is loading.</div></div>'}</div>
       </div>
@@ -20124,9 +20167,21 @@ function openBestiaryEntryDetails(region, name){
     return;
   }
   var stats = getBestiaryDerivedStats(entry);
-  var skills = Array.isArray(entry.skills) ? entry.skills : (Array.isArray(entry.abilities) ? entry.abilities : (Array.isArray(entry.moves) ? entry.moves : []));
+  var skills = (typeof getBestiaryEntrySkillObjects === 'function') ? getBestiaryEntrySkillObjects(entry) : [];
   var skillHtml = skills.length
-    ? '<ul style="margin:.35rem 0 0 1.1rem;line-height:1.55;">' + skills.map(function (skill) { return '<li>' + String(skill) + '</li>'; }).join('') + '</ul>'
+    ? '<div style="display:grid;gap:.32rem;margin-top:.35rem;">' + skills.map(function (skill) {
+      return '<div style="border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.02);padding:.3rem .38rem;">'
+        + '<div style="font-weight:700;color:var(--gold2);">' + String(skill.name || 'Skill') + ' <span style="font-size:.68rem;color:var(--muted2);font-weight:400;">(' + Number(skill.costActions || 1) + ' Action)</span></div>'
+        + '<div style="font-size:.77rem;color:var(--text2);margin-top:.14rem;">' + String(skill.desc || '') + '</div>'
+        + '<div style="font-size:.74rem;color:var(--text2);line-height:1.5;margin-top:.16rem;">'
+          + '<div><strong style="color:var(--gold2);">Save:</strong> ' + String(skill.saveLabel || 'Defend') + '</div>'
+          + '<div><strong style="color:var(--gold2);">Range:</strong> ' + String(skill.rangeLabel || 'Close') + '</div>'
+          + '<div><strong style="color:var(--gold2);">Roll:</strong> ' + String(skill.rollLabel || '') + '</div>'
+          + '<div><strong style="color:var(--red2);">On Fail:</strong> ' + String(skill.onFail || '') + '</div>'
+          + '<div><strong style="color:var(--teal);">On Success:</strong> ' + String(skill.onSuccess || '') + '</div>'
+        + '</div>'
+      + '</div>';
+    }).join('') + '</div>'
     : '<div style="font-size:.8rem;color:var(--muted2);margin-top:.35rem;">No explicit skill list is stored for this entry yet.</div>';
   if (typeof openModal === 'function') {
     openModal(String(entry.name || 'Bestiary Entry'),
@@ -20144,6 +20199,150 @@ function openBestiaryEntryDetails(region, name){
       + '</div>');
   }
 }
+
+function getBestiarySkillSaveLabel(saveKey){
+  var key=String(saveKey||'defend').toLowerCase();
+  var map={body:'Body',mind:'Mind',spirit:'Spirit',defend:'Defend',control:'Control',lead:'Lead',strike:'Strike',shoot:'Shoot'};
+  return map[key]||'Defend';
+}
+
+function formatBestiarySkillRange(ranges){
+  var rows=Array.isArray(ranges)?ranges.slice():['close'];
+  return rows.map(function(r){
+    var txt=String(r||'').trim().toLowerCase();
+    if(!txt)return '';
+    return txt.charAt(0).toUpperCase()+txt.slice(1);
+  }).filter(Boolean).join(' / ')||'Close';
+}
+
+function hashBestiarySkillSeed(input){
+  var txt=String(input||'monster');
+  var h=0;
+  for(var i=0;i<txt.length;i++)h=(h*31+txt.charCodeAt(i))>>>0;
+  return h>>>0;
+}
+
+function buildGeneratedBestiarySkills(entry){
+  var stats=(typeof getBestiaryDerivedStats==='function')?getBestiaryDerivedStats(entry||{}):{dread:6};
+  var dd=Math.max(4,Number(stats&&stats.dread||entry&&entry.dread||6));
+  var seed=hashBestiarySkillSeed((entry&&entry.name||'monster')+'|'+dd+'|'+String(entry&&entry.desc||''));
+  var template=[
+    {name:'Arc Lash',desc:'Crackling current lashes the close lane.',save:'control',range:['close'],effectType:'mental_stress',effectBonus:2,onFail:'Take Mental Stress equal to the difference + 2.',onSuccess:'No mental stress applied.'},
+    {name:'Rad Leak',desc:'Irradiated coolant vents into your lane.',save:'spirit',range:['nearby','far'],effectType:'radiation',onFail:'Gain Radiation equal to the difference.',onSuccess:'No Radiation applied.'},
+    {name:'Lockstep Bind',desc:'A gravitational clamp locks your momentum.',save:'defend',range:['engaged','close'],effectType:'action_down',onFail:'Lose 1 Action.',onSuccess:'No action lost.'},
+    {name:'Hex Mute',desc:'Signal static suppresses vocalized rites.',save:'mind',range:['close','nearby'],effectType:'lock_spell',onFail:'Cannot cast spells until your next turn.',onSuccess:'Spellcasting remains available.'},
+    {name:'Null Loop',desc:'Counter-intrusion code destabilizes your interface.',save:'control',range:['nearby','far'],effectType:'lock_hack',onFail:'Cannot cast a hack until your next turn.',onSuccess:'Hack systems remain available.'},
+    {name:'Servo Jam',desc:'Resonance spikes overload augmentation sockets.',save:'body',range:['close'],effectType:'lock_augmentation',onFail:'Cannot use augmentations until your next turn.',onSuccess:'Augmentations remain online.'},
+    {name:'Dread Brand',desc:'A panic sigil burrows into your stance.',save:'mind',range:['engaged','close'],effectType:'condition_negative',effectCondition:'shaken',onFail:'Gain a negative condition (Weakened, Vulnerable, Shaken, or Distracted).',onSuccess:'No condition applied.'},
+    {name:'Ruin Volley',desc:'Precision burst punishes overextension.',save:'defend',range:['nearby'],effectType:'damage',onFail:'Take Stress damage equal to the failed difference.',onSuccess:'No damage applied.'},
+    {name:'Self-Stitch',desc:'Stolen momentum seals fresh cracks.',save:'defend',range:['engaged'],effectType:'self_heal',onFail:'The creature heals itself for its Dread Die in Health.',onSuccess:'No healing triggered.'},
+    {name:'Leech Arc',desc:'A siphon field drinks from every wound opened.',save:'defend',range:['engaged','close'],effectType:'self_siphon',onFail:'The creature siphon-heals equal to damage dealt.',onSuccess:'No siphon heal triggered.'},
+    {name:'Aegis Rise',desc:'Barrier plating hardens in a luminous shell.',save:'mind',range:['engaged','close'],effectType:'self_protected',onFail:'The creature gains Protected (Dread Die steps up for 1 round).',onSuccess:'No protection gained.'},
+    {name:'War Pulse',desc:'Predatory rhythm calibrates the next strike.',save:'spirit',range:['close','nearby'],effectType:'self_empowered',onFail:'The creature gains Empowered (next attack steps up for 1 round).',onSuccess:'No empowerment gained.'},
+    {name:'Phase Veil',desc:'The form flickers out of visible spectrum.',save:'control',range:['close','nearby'],effectType:'self_invisible',onFail:'The creature becomes invisible for 1 round.',onSuccess:'Visibility remains normal.'},
+    {name:'Absolute Shell',desc:'A kinetic shell rejects incoming force.',save:'spirit',range:['engaged'],effectType:'self_invincible',onFail:'The creature becomes invincible for 1 round.',onSuccess:'No invincibility gained.'}
+  ];
+  var idxA=seed%template.length;
+  var idxB=(seed+7)%template.length;
+  if(idxB===idxA)idxB=(idxA+1)%template.length;
+  var picks=[template[idxA],template[idxB]];
+  return picks.map(function(row){
+    var saveLabel=getBestiarySkillSaveLabel(row.save);
+    return {
+      name:String(row.name||'Skill'),
+      desc:String(row.desc||''),
+      save:String(row.save||'defend'),
+      saveLabel:saveLabel,
+      range:Array.isArray(row.range)?row.range.slice():['close'],
+      rangeLabel:formatBestiarySkillRange(row.range),
+      rollLabel:saveLabel+' vs Dread d'+dd,
+      onFail:String(row.onFail||'Apply effect.'),
+      onSuccess:String(row.onSuccess||'No effect.'),
+      effectType:String(row.effectType||'damage'),
+      effectCondition:String(row.effectCondition||''),
+      effectBonus:Math.max(0,Number(row.effectBonus||0)),
+      damageMode:'margin',
+      onFailStress:0,
+      onFailStressBonus:0,
+      dreadDie:dd,
+      source:'Bestiary',
+      kind:String(row.effectType||'special'),
+      costActions:1
+    };
+  });
+}
+
+function getBestiaryEntrySkillObjects(entry){
+  if(!entry||typeof entry!=='object')return [];
+  var raw=Array.isArray(entry.skills)?entry.skills:(Array.isArray(entry.abilities)?entry.abilities:(Array.isArray(entry.moves)?entry.moves:[]));
+  var rows=[];
+  if(raw.length){
+    rows=raw.map(function(skill){
+      if(skill&&typeof skill==='object'){
+        var saveLabel=getBestiarySkillSaveLabel(skill.save||skill.saveStat||skill.stat||'defend');
+        var ranges=Array.isArray(skill.range)?skill.range:(Array.isArray(skill.ranges)?skill.ranges:[skill.range||'close']);
+        var dd=Math.max(4,Number(skill.dreadDie||skill.dread||entry.dread||6));
+        return {
+          name:String(skill.name||'Skill'),
+          desc:String(skill.desc||skill.description||skill.text||''),
+          save:String(skill.save||skill.saveStat||skill.stat||'defend').toLowerCase(),
+          saveLabel:saveLabel,
+          range:ranges,
+          rangeLabel:formatBestiarySkillRange(ranges),
+          rollLabel:saveLabel+' vs Dread d'+dd,
+          onFail:String(skill.onFail||skill.fail||'Apply effect.'),
+          onSuccess:String(skill.onSuccess||skill.success||'No effect.'),
+          effectType:String(skill.effectType||skill.kind||'damage'),
+          effectCondition:String(skill.effectCondition||skill.onFailCondition||''),
+          effectBonus:Math.max(0,Number(skill.effectBonus||0)),
+          damageMode:String(skill.damageMode||'margin'),
+          onFailStress:Math.max(0,Number(skill.onFailStress||skill.failStress||0)),
+          onFailStressBonus:Math.max(0,Number(skill.onFailStressBonus||skill.failStressBonus||0)),
+          dreadDie:dd,
+          source:String(skill.source||'Bestiary'),
+          kind:String(skill.kind||'special'),
+          costActions:Math.max(1,Number(skill.costActions||1))
+        };
+      }
+      if(typeof skill==='string'){
+        return {
+          name:String(skill),
+          desc:String(skill),
+          save:'defend',
+          saveLabel:'Defend',
+          range:['close'],
+          rangeLabel:'Close',
+          rollLabel:'Defend vs Dread d'+Math.max(4,Number(entry.dread||6)),
+          onFail:'Apply effect.',
+          onSuccess:'No effect.',
+          effectType:'damage',
+          effectCondition:'',
+          effectBonus:0,
+          damageMode:'margin',
+          onFailStress:0,
+          onFailStressBonus:0,
+          dreadDie:Math.max(4,Number(entry.dread||6)),
+          source:'Bestiary',
+          kind:'special',
+          costActions:1
+        };
+      }
+      return null;
+    }).filter(Boolean);
+  }
+  if(!rows.length)rows=buildGeneratedBestiarySkills(entry);
+  if(rows.length<2){
+    var extra=buildGeneratedBestiarySkills(entry);
+    while(rows.length<2&&extra.length)rows.push(extra[rows.length]);
+  }
+  return rows.slice(0,2);
+}
+window.getBestiaryEntrySkillObjects=getBestiaryEntrySkillObjects;
+
+function getBestiaryEntrySkillNames(entry){
+  return getBestiaryEntrySkillObjects(entry).map(function(skill){return String(skill&&skill.name||'Skill');});
+}
+window.getBestiaryEntrySkillNames=getBestiaryEntrySkillNames;
 
 function clearNotifHistory(){
   window.NOTIF_HISTORY=[];

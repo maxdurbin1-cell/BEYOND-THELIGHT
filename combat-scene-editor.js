@@ -2924,6 +2924,23 @@
     return normalized;
   }
 
+  function buildGeneratedEnemySkillsFromActor(actor, profile) {
+    var sourceEntry = profile && typeof profile === 'object'
+      ? profile
+      : {
+          name: String(actor && actor.name || 'Enemy'),
+          dread: Math.max(4, Number(actor && (actor.dread || actor.codexDread) || 6)),
+          desc: String(actor && actor.description || '')
+        };
+    if (typeof window.getBestiaryEntrySkillObjects === 'function') {
+      try {
+        var generated = window.getBestiaryEntrySkillObjects(sourceEntry);
+        if (Array.isArray(generated) && generated.length) return generated.slice(0, 2);
+      } catch (_err) {}
+    }
+    return [];
+  }
+
   function getEnemySkillsForToken(actor) {
     var profile = actor ? getEnemyProfileForToken(actor) : null;
     var rawSkills = [];
@@ -2931,6 +2948,7 @@
     else if (profile && Array.isArray(profile.skills) && profile.skills.length) rawSkills = profile.skills.slice();
     else if (profile && Array.isArray(profile.abilities) && profile.abilities.length) rawSkills = profile.abilities.slice();
     else if (profile && Array.isArray(profile.moves) && profile.moves.length) rawSkills = profile.moves.slice();
+    if (!rawSkills.length) rawSkills = buildGeneratedEnemySkillsFromActor(actor, profile);
     var normalized = rawSkills.map(function (skill, idx) {
       return normalizeEnemySkillRow(skill, idx, actor && actor.name || 'Enemy');
     }).filter(Boolean);
@@ -3884,6 +3902,186 @@
     if (mode === 'margin_plus') return Math.max(1, m + bonus + (base > 0 ? base : 0));
     return Math.max(1, m + bonus);
   }
+
+  function setTokenStatusFlag(tokenId, statusLabel) {
+    var id = String(tokenId || '');
+    var label = String(statusLabel || '').trim().toLowerCase();
+    if (!id || !label) return false;
+    var applied = false;
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      next.tokens = (state.tokens || []).map(function (row) {
+        if (!row || String(row.id) !== id) return row;
+        var statuses = Array.isArray(row.status) ? row.status.slice() : [];
+        if (statuses.indexOf(label) < 0) statuses.push(label);
+        applied = true;
+        return Object.assign({}, row, { status: statuses });
+      });
+      if (!applied) return state;
+      persist(next);
+      return next;
+    });
+    return applied;
+  }
+
+  function healTokenHp(tokenId, amount) {
+    var id = String(tokenId || '');
+    var heal = Math.max(0, Number(amount || 0));
+    if (!id || !heal) return 0;
+    var finalHp = 0;
+    store.setState(function (state) {
+      var next = Object.assign({}, state);
+      var changed = false;
+      next.tokens = (state.tokens || []).map(function (row) {
+        if (!row || String(row.id) !== id) return row;
+        var maxHp = Math.max(1, Number(row.maxHp || row.hp || heal));
+        var hpNow = Math.max(0, Number(row.hp || 0));
+        finalHp = Math.min(maxHp, hpNow + heal);
+        changed = true;
+        return Object.assign({}, row, { hp: finalHp, dead: finalHp <= 0 });
+      });
+      if (!changed) return state;
+      persist(next);
+      return next;
+    });
+    return finalHp;
+  }
+
+  function applyEnemySkillFailEffects(skill, actor, foe, margin, stressDealt) {
+    var row = skill && typeof skill === 'object' ? skill : {};
+    var type = String(row.effectType || row.kind || '').toLowerCase();
+    var notes = [];
+    var extraDamage = 0;
+    var m = Math.max(1, Number(margin || 1));
+    var bonus = Math.max(0, Number(row.effectBonus || row.onFailStressBonus || 0));
+    var currentRound = Math.max(1, Number(window.S && window.S.combat && window.S.combat.round || 1));
+
+    if (type === 'radiation') {
+      var rad = Math.max(1, m + bonus);
+      if (typeof window.changeCounter === 'function') window.changeCounter('radiation', rad);
+      if (window.S) window.S.radiation = Math.max(0, Number(window.S.radiation || 0) + rad);
+      if (typeof window.updateAllStatDisplays === 'function') {
+        try { window.updateAllStatDisplays(); } catch (_radUiErr) {}
+      }
+      notes.push('Radiation +' + rad);
+    } else if (type === 'action_down') {
+      if (window.S && window.S.combat) {
+        window.S.combat.actionsLeft = Math.max(0, Number(window.S.combat.actionsLeft || 0) - 1);
+        notes.push('Wayfarer loses 1 Action');
+      }
+    } else if (type === 'lock_spell' || type === 'lock_hack' || type === 'lock_augmentation') {
+      if (window.S && window.S.combat) {
+        if (!window.S.combat.enemySkillLocks || typeof window.S.combat.enemySkillLocks !== 'object') {
+          window.S.combat.enemySkillLocks = {};
+        }
+        var key = type === 'lock_spell' ? 'spellUntilRound' : (type === 'lock_hack' ? 'hackUntilRound' : 'augmentationUntilRound');
+        window.S.combat.enemySkillLocks[key] = Math.max(Number(window.S.combat.enemySkillLocks[key] || 0), currentRound + 1);
+        notes.push(type === 'lock_spell' ? 'Spellcasting locked until next turn' : (type === 'lock_hack' ? 'Hack casting locked until next turn' : 'Augmentation use locked until next turn'));
+      }
+    } else if (type === 'condition_negative' || type === 'savecondition') {
+      var pool = ['weakened', 'vulnerable', 'shaken', 'distracted'];
+      var cond = String(row.effectCondition || row.onFailCondition || '').trim().toLowerCase();
+      if (pool.indexOf(cond) < 0) cond = pool[Math.max(0, m + bonus) % pool.length];
+      if (foe && foe.isPlayer && window.S) {
+        if (!window.S.conditions || typeof window.S.conditions !== 'object') window.S.conditions = {};
+        window.S.conditions[cond] = true;
+        if (typeof window.updateConditionButtons === 'function') window.updateConditionButtons();
+        if (typeof window.updateAllStatDisplays === 'function') window.updateAllStatDisplays();
+      } else if (foe) {
+        setTokenStatusFlag(foe.id, cond);
+      }
+      notes.push('Condition applied: ' + cond);
+    } else if (type === 'mental_stress' || type === 'directstress') {
+      var ms = Math.max(1, m + bonus);
+      if (foe && foe.isPlayer) {
+        if (typeof window.changeMentalStress === 'function') window.changeMentalStress(ms);
+        else if (window.S) window.S.mentalStress = Math.max(0, Number(window.S.mentalStress || 0) + ms);
+      } else {
+        extraDamage += ms;
+      }
+      notes.push('Mental Stress +' + ms);
+    } else if (type === 'damage' || type === 'healthstrike' || type === 'forcetrauma') {
+      extraDamage += Math.max(1, m + bonus);
+      notes.push('Extra damage +' + Math.max(1, m + bonus));
+    } else if (type === 'self_heal') {
+      var heal = Math.max(1, Number(row.dreadDie || actor && (actor.dread || actor.codexDread) || 6));
+      if (actor) healTokenHp(actor.id, heal);
+      notes.push((actor && actor.name ? actor.name : 'Enemy') + ' heals ' + heal);
+    } else if (type === 'self_siphon') {
+      var siphon = Math.max(1, Number(stressDealt || 0));
+      if (actor) healTokenHp(actor.id, siphon);
+      notes.push((actor && actor.name ? actor.name : 'Enemy') + ' siphon-heals ' + siphon);
+    } else if (type === 'self_protected') {
+      if (actor) setTokenStatusFlag(actor.id, 'protected');
+      notes.push((actor && actor.name ? actor.name : 'Enemy') + ' gains Protected (1 round)');
+    } else if (type === 'self_empowered') {
+      if (actor) setTokenStatusFlag(actor.id, 'empowered');
+      notes.push((actor && actor.name ? actor.name : 'Enemy') + ' gains Empowered (1 round)');
+    } else if (type === 'self_invisible') {
+      if (actor) setTokenStatusFlag(actor.id, 'invisible');
+      notes.push((actor && actor.name ? actor.name : 'Enemy') + ' turns Invisible (1 round)');
+    } else if (type === 'self_invincible') {
+      if (actor) setTokenStatusFlag(actor.id, 'invincible');
+      notes.push((actor && actor.name ? actor.name : 'Enemy') + ' turns Invincible (1 round)');
+    }
+
+    return { extraDamage: Math.max(0, Number(extraDamage || 0)), notes: notes };
+  }
+
+  window.debugApplyEnemySkillEffect = function (effectType, options) {
+    var opts = options && typeof options === 'object' ? options : {};
+    var state = store.getState();
+    var actorId = String(opts.actorId || '');
+    var foeId = String(opts.foeId || '');
+    var actor = actorId ? byId(actorId) : null;
+    var foe = foeId ? byId(foeId) : null;
+    if (!actor) {
+      actor = (state.tokens || []).find(function (row) {
+        return row && String(row.faction || '') === 'monster' && !isTokenDead(row);
+      }) || null;
+    }
+    if (!foe) {
+      foe = (state.tokens || []).find(function (row) {
+        return row && (row.isPlayer || String(row.faction || '') === 'player') && !isTokenDead(row);
+      }) || null;
+    }
+    if (!actor || !foe) {
+      return { ok: false, error: 'Missing actor or foe.' };
+    }
+
+    var skill = normalizeEnemySkillRow({
+      name: String(opts.name || 'Debug Skill'),
+      desc: String(opts.desc || 'Debug effect invocation.'),
+      save: String(opts.save || 'defend'),
+      range: Array.isArray(opts.range) && opts.range.length ? opts.range.slice() : ['engaged'],
+      kind: String(effectType || opts.kind || 'damage'),
+      effectType: String(effectType || opts.kind || 'damage'),
+      effectCondition: String(opts.effectCondition || ''),
+      damageMode: String(opts.damageMode || 'flat'),
+      onFailStress: Math.max(0, Number(opts.onFailStress == null ? 1 : opts.onFailStress)),
+      onFailStressBonus: Math.max(0, Number(opts.onFailStressBonus || 0)),
+      dreadDie: Math.max(4, Number(opts.dreadDie || actor.dread || actor.codexDread || 6)),
+      source: 'Debug',
+      onFail: String(opts.onFail || 'Debug fail effect.'),
+      onSuccess: String(opts.onSuccess || 'Debug success.')
+    }, 0, actor.name || 'Enemy');
+
+    var margin = Math.max(1, Number(opts.margin || 2));
+    var baseStress = resolveEnemySkillStress(skill, margin);
+    var effectOut = applyEnemySkillFailEffects(skill, actor, foe, margin, baseStress);
+    var totalStress = Math.max(0, Number(baseStress || 0)) + Math.max(0, Number(effectOut && effectOut.extraDamage || 0));
+    if (totalStress > 0 && !opts.skipDamage) {
+      applyDamageToToken(foe.id, totalStress, actor.name || 'Enemy');
+    }
+
+    return {
+      ok: true,
+      actorId: String(actor.id || ''),
+      foeId: String(foe.id || ''),
+      totalStress: totalStress,
+      notes: effectOut && Array.isArray(effectOut.notes) ? effectOut.notes.slice() : []
+    };
+  };
 
   function pickMerchantLootItemsForToken(dread) {
     var loot = [];
@@ -9731,6 +9929,15 @@
           stress = resolveEnemySkillStress(selected.skill, margin);
         } else {
           stress = Math.max(1, margin);
+        }
+        if (selected && selected.skill) {
+          var skillEffects = applyEnemySkillFailEffects(selected.skill, actor, foe, margin, stress);
+          if (skillEffects && Number(skillEffects.extraDamage || 0) > 0) {
+            stress += Math.max(0, Number(skillEffects.extraDamage || 0));
+          }
+          if (skillEffects && Array.isArray(skillEffects.notes) && skillEffects.notes.length) {
+            addHistory('Enemy skill effects: ' + skillEffects.notes.join(' · '));
+          }
         }
         if (stress > 0) applyDamageToToken(foe.id, stress, actor.name || 'Enemy');
         if (selected && selected.skill) {

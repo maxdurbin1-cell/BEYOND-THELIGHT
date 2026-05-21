@@ -325,7 +325,18 @@
 
     var allSkills = [];
     allEntries.forEach(function (entry) {
-      if (!entry || !Array.isArray(entry.skills)) return;
+      if (!entry) return;
+      var generatedNames = (typeof window.getBestiaryEntrySkillNames === 'function')
+        ? window.getBestiaryEntrySkillNames(entry)
+        : [];
+      if (Array.isArray(generatedNames) && generatedNames.length) {
+        generatedNames.forEach(function (name) {
+          var txt = String(name || '').trim();
+          if (txt) allSkills.push(txt);
+        });
+        return;
+      }
+      if (!Array.isArray(entry.skills)) return;
       entry.skills.forEach(function (skill) {
         if (!skill) return;
         if (typeof skill === 'string') {

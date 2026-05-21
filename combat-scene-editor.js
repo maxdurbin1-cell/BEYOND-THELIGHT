@@ -9770,6 +9770,29 @@
 
     if (isManualRollModeActive()) {
       if (typeof window.openWtwManualActionDreadPrompt === 'function') {
+        var manualModifierLines = [];
+        if (typeof window.buildManualRollModifierLines === 'function') {
+          try {
+            manualModifierLines = window.buildManualRollModifierLines(saveKey, defendDie, {
+              extraLines: ['Enter exploded totals where needed.', 'Compare resolves this enemy action immediately and applies outcomes automatically.']
+            }) || [];
+          } catch (_manualLineErr) {
+            manualModifierLines = [];
+          }
+        }
+        var advDiceNow = [];
+        var advLabel = 'Advantage total (optional)';
+        var defendFlatLabel = 'Defend additive bonuses (optional)';
+        if (foe && foe.isPlayer && saveKey === 'defend') {
+          var defendAdvCount = parseDefendAdvantageCount();
+          var armorAdvNow = parseArmorDefendAdvDice();
+          for (var i = 0; i < defendAdvCount; i++) advDiceNow.push(defendDie);
+          armorAdvNow.forEach(function (d) { advDiceNow.push(Number(d || 0)); });
+          advDiceNow = advDiceNow.filter(function (d) { return Number(d || 0) > 0; });
+          if (advDiceNow.length) {
+            advLabel = 'Advantage total (highest from ' + advDiceNow.map(function (d) { return 'd' + Number(d || 0); }).join(', ') + ')';
+          }
+        }
         window.openWtwManualActionDreadPrompt({
           title: 'Manual Roll — Enemy Action',
           context: (actor.name || 'Enemy') + ' using ' + actionName + ' on ' + String(foe.name || 'target'),
@@ -9777,12 +9800,17 @@
           statLabel: saveLabel,
           actionDie: defendDie,
           dreadDie: dreadDie,
+          advantageLabel: advLabel,
+          bonus1Label: defendFlatLabel,
+          bonus2Label: 'Other additive bonus (optional)',
+          compareHint: 'Compare uses max(Base, Advantage) + additive bonuses vs Dread. Leave optional fields empty for Base vs Dread.',
+          modifierLines: manualModifierLines,
           onResolve: function (outcome) {
             if (!outcome) return;
             finalizeEnemyAction({
               defendRoll: Number(outcome.actionTotal || 1),
               enemyRoll: Number(outcome.dreadTotal || 1),
-              defendBonus: 0
+              defendBonus: Number(outcome.bonusTotal || 0)
             });
           }
         });

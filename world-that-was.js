@@ -2237,11 +2237,16 @@
     const statLabel = String(cfg.statLabel || statLabel(statKey));
     const actionDie = Math.max(4, Number(cfg.actionDie || ((typeof getEffectiveDie === 'function') ? getEffectiveDie(statKey) : 6) || 6));
     const dreadDie = Math.max(4, Number(cfg.dreadDie || 6));
+    const advantageLabel = String(cfg.advantageLabel || 'Advantage total (optional)');
+    const bonus1Label = String(cfg.bonus1Label || 'Bonus total 1 (optional)');
+    const bonus2Label = String(cfg.bonus2Label || 'Bonus total 2 (optional)');
+    const compareHint = String(cfg.compareHint || 'Compare uses max(Base, Advantage) + Bonus 1 + Bonus 2 vs Dread. Leave optional fields empty to use Base vs Dread.');
     const tmw = Math.max(0, Number((S && S.tmw) || 0));
     const pushDread = stepWtwManualDreadDie(dreadDie);
+    const callerLines = Array.isArray(cfg.modifierLines) ? cfg.modifierLines.filter(Boolean) : [];
     const modifierLines = (typeof window !== 'undefined' && typeof window.buildManualRollModifierLines === 'function')
-      ? (window.buildManualRollModifierLines(statKey, actionDie, { extraLines: ['Enter final totals after applying all listed modifiers.'] }) || [])
-      : [];
+      ? (window.buildManualRollModifierLines(statKey, actionDie, { extraLines: ['Enter final totals after applying all listed modifiers.'].concat(callerLines) }) || [])
+      : callerLines;
     const modifiersHtml = modifierLines.length
       ? '<div style="font-size:.72rem;color:var(--muted2);margin-top:.15rem;line-height:1.5;">' + modifierLines.map(function(p){ return '<div>• ' + p + '</div>'; }).join('') + '</div>'
       : '';
@@ -2258,17 +2263,18 @@
       + "<div style='font-size:.84rem;color:var(--text2);line-height:1.6;'>"
       + "<div style='font-family:Cinzel,serif;font-size:.78rem;letter-spacing:.08em;color:var(--gold2);margin-bottom:.28rem;'>" + context + "</div>"
       + "<div><strong>" + statLabel + " d" + actionDie + "</strong> vs <strong style='color:var(--red2);'>Dread d" + dreadDie + "</strong></div>"
-      + "<div style='font-size:.72rem;color:var(--muted2);margin-top:.12rem;'>Reminder: dice explode on max. Example d6 = 6, roll again and add. Enter exploded totals as needed.</div>"
+      + "<div style='font-size:.72rem;color:var(--muted2);margin-top:.12rem;'>Reminder: Base, Advantage, and Dread dice all explode on max. Example d6 = 6, roll again and add. Enter exploded totals as needed.</div>"
       + "<div style='display:grid;grid-template-columns:1fr 1fr;gap:.32rem;margin-top:.4rem;'>"
       + "<div><div style='font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;'>" + statLabel + " d" + actionDie + " (base total)</div><input type='number' id='wtwManualActionValue' min='1' placeholder='1+' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
       + "<div><div style='font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;'>Dread d" + dreadDie + " (total)</div><input type='number' id='wtwManualDreadValue' min='1' placeholder='1+' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;'></div>"
       + "</div>"
       + "<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:.32rem;margin-top:.3rem;'>"
-      + "<div><div style='font-size:.68rem;color:var(--muted2);margin-bottom:.14rem;'>Advantage total (optional)</div><input type='number' id='wtwManualAdvValue' min='0' placeholder='0+' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.8rem;border-radius:3px;'></div>"
-      + "<div><div style='font-size:.68rem;color:var(--muted2);margin-bottom:.14rem;'>Bonus total 1 (optional)</div><input type='number' id='wtwManualBonus1Value' min='0' placeholder='0+' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.8rem;border-radius:3px;'></div>"
-      + "<div><div style='font-size:.68rem;color:var(--muted2);margin-bottom:.14rem;'>Bonus total 2 (optional)</div><input type='number' id='wtwManualBonus2Value' min='0' placeholder='0+' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.8rem;border-radius:3px;'></div>"
+      + "<div><div style='font-size:.68rem;color:var(--muted2);margin-bottom:.14rem;'>" + advantageLabel + "</div><input type='number' id='wtwManualAdvValue' min='0' placeholder='0+' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.8rem;border-radius:3px;'></div>"
+      + "<div><div style='font-size:.68rem;color:var(--muted2);margin-bottom:.14rem;'>" + bonus1Label + "</div><input type='number' id='wtwManualBonus1Value' min='0' placeholder='0+' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.8rem;border-radius:3px;'></div>"
+      + "<div><div style='font-size:.68rem;color:var(--muted2);margin-bottom:.14rem;'>" + bonus2Label + "</div><input type='number' id='wtwManualBonus2Value' min='0' placeholder='0+' style='width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.3rem .4rem;font-size:.8rem;border-radius:3px;'></div>"
       + "</div>"
-      + "<div id='wtwManualCompareMath' style='margin-top:.24rem;font-size:.72rem;color:var(--muted2);'>Compare uses max(Base, Advantage) + Bonus 1 + Bonus 2 vs Dread. Leave optional fields empty to use Base vs Dread.</div>"
+      + "<div id='wtwManualCompareMath' style='margin-top:.24rem;font-size:.72rem;color:var(--muted2);'>" + compareHint + "</div>"
+      + "<div style='font-size:.7rem;color:var(--muted2);margin-top:.08rem;'>Compare immediately resolves success/failure and auto-applies outcomes (damage, stress, trauma, or conditions) through the active action.</div>"
       + modifiersHtml
       + "<div style='margin-top:.34rem;padding:.28rem .36rem;border:1px solid rgba(232,192,80,.35);background:rgba(232,192,80,.08);'>"
       + "<div style='font-size:.74rem;color:var(--gold2);'><strong>Teamwork:</strong> " + tmw + " TMW</div>"

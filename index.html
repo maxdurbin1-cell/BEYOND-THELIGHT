@@ -862,7 +862,10 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
       </div>
       <div class="form-row"><span class="sub-label">Readied Item</span><div style="display:flex;gap:.3rem;"><input type="text" id="eqReadied" placeholder="Item granting Valor Die bonus" style="flex:1;" onchange="S.equipment.readied=this.value"><button class="bp-info-btn" onclick="showEquippedItem('readied')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('readied')" title="Unequip">✕</button></div></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
-          <span id="backpackSlotsLabel" class="sub-label" style="margin-bottom:0;">Backpack (6 Slots)</span>
+          <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;">
+            <span id="backpackSlotsLabel" class="sub-label" style="margin-bottom:0;">Backpack (6 Slots)</span>
+            <span class="sub-label" style="margin-bottom:0;font-size:.66rem;color:var(--muted2);" title="Quick Slots Q1-Q3: first backpack use each combat round costs no Action.">Q1–Q3 grant one free backpack use per combat round.</span>
+          </div>
           <div style="display:flex;gap:.25rem;align-items:center;">
             <button class="btn btn-sm" onclick="openBackpackBulkSellModal()">Sell Multiple</button>
             <button class="btn btn-sm" onclick="rollBackpack()">⚄ Roll Backpack</button>
@@ -3850,8 +3853,11 @@ function renderBackpackUI(){
   for(var i=0;i<cap;i++){
     var val=escapeHtmlLite(S.backpack[i]||'');
     var slotCost=S.backpack[i]?getBackpackItemSlotCost(S.backpack[i]):0;
+    var isQuick=i<3;
     var badge=slotCost>0?'<span style="font-size:.6rem;color:var(--muted2);padding:0 .15rem;" title="'+slotCost+' slot'+(slotCost===1?'':'s')+'">'+slotCost+'&#9633;</span>':'';
-    html.push('<div class="bp-cell">'+badge+'<input class="bp-input" id="bp'+i+'" placeholder="Slot '+(i+1)+'" value="'+val+'" onchange="setBackpackSlotValue('+i+',this.value)"><button class="bp-info-btn" onclick="showBackpackItem('+i+')" title="Item info">?</button></div>');
+    var quickBadge=isQuick?'<span style="font-size:.57rem;color:#57d69b;padding:0 .2rem;" title="Quick Slot '+(i+1)+': first use each combat round costs no Action">Q'+(i+1)+'</span>':'';
+    var shellStyle=isQuick?' style="border-color:rgba(87,214,155,.45);box-shadow:0 0 0 1px rgba(87,214,155,.2) inset;"':'';
+    html.push('<div class="bp-cell"'+shellStyle+'>'+quickBadge+badge+'<input class="bp-input" id="bp'+i+'" placeholder="'+(isQuick?'Quick ':'Slot ')+(i+1)+'" value="'+val+'" onchange="setBackpackSlotValue('+i+',this.value)"><button class="bp-info-btn" onclick="showBackpackItem('+i+')" title="Item info">?</button></div>');
   }
   host.innerHTML=html.join('');
   updateBackpackCapacityLabel();
@@ -8000,6 +8006,24 @@ function removeTrackedCombatantByMapUnit(unit){
   return false;
 }
 
+function getCombatRoundMarker(){
+  if(!S||!S.combat)return '0|0';
+  return String(Math.max(0,Number(S.combat.round||0)))+'|'+String(Math.max(0,Number(S.combat.enemyBudgetCycle||0)));
+}
+
+function canUseQuickBackpackSlotFree(index){
+  var idx=Math.max(0,Number(index||0));
+  if(idx>2)return false;
+  if(!S||!S.combat||!S.combat.active)return false;
+  var marker=getCombatRoundMarker();
+  return String(S.combat.quickBackpackFreeUseMarker||'')!==marker;
+}
+
+function markQuickBackpackSlotFreeUse(){
+  if(!S||!S.combat)return;
+  S.combat.quickBackpackFreeUseMarker=getCombatRoundMarker();
+}
+
 function openCombatUtilityChooser(){
   var sections=[];
   var readied=String((S&&S.equipment&&S.equipment.readied)||'').trim();
@@ -8008,7 +8032,7 @@ function openCombatUtilityChooser(){
   }
   var backpackItems=Array.isArray(S&&S.backpack)?S.backpack.map(function(item,idx){return {item:String(item||'').trim(),idx:idx};}).filter(function(entry){return !!entry.item;}):[];
   if(backpackItems.length){
-    sections.push('<div style="margin-bottom:.5rem;"><div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">Backpack</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">'+backpackItems.map(function(entry){return '<button class="btn btn-xs" onclick="executeCombatUtilityAction(\'backpack\','+entry.idx+');closeModal()">'+entry.item.replace(/'/g,'&#39;')+'</button>';}).join('')+'</div></div>');
+    sections.push('<div style="margin-bottom:.5rem;"><div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">Backpack</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">'+backpackItems.map(function(entry){var quick=entry.idx<3?' <span style="font-size:.62rem;color:#57d69b;">Q'+(entry.idx+1)+'</span>':'';return '<button class="btn btn-xs" onclick="executeCombatUtilityAction(\'backpack\','+entry.idx+');closeModal()">'+entry.item.replace(/'/g,'&#39;')+quick+'</button>';}).join('')+'</div><div style="font-size:.66rem;color:var(--muted2);margin-top:.22rem;">Quick slots Q1-Q3: first backpack use each combat round costs no Action.</div></div>');
   }
   var hacks=Array.isArray(S&&S.ownedHacks)?S.ownedHacks.filter(Boolean):[];
   if(hacks.length){
@@ -8034,6 +8058,19 @@ function executeCombatUtilityAction(kind,payload){
     if(!S.hackRoller.guess){showNotif('Pick Below / Between / Above in the Hack panel first.','warn');return;}
     if(!consumeCombatAction('Cast Hack'))return;
     if(typeof castHack==='function')castHack();
+    return;
+  }
+  if(kind==='backpack'){
+    var bpIdx=Math.max(0,Number(payload||0));
+    var hasItem=Array.isArray(S&&S.backpack)?String(S.backpack[bpIdx]||'').trim():'';
+    if(!hasItem){showNotif('That backpack slot is empty.','warn');return;}
+    var freeQuick=canUseQuickBackpackSlotFree(bpIdx);
+    if(!freeQuick&& !consumeCombatAction('Use Backpack Item'))return;
+    if(freeQuick){
+      markQuickBackpackSlotFreeUse();
+      showNotif('Quick Slot used (no Action).','good');
+    }
+    if(typeof useBackpackItem==='function')useBackpackItem(bpIdx);
     return;
   }
   if(!consumeCombatAction(kind==='readied'?'Use Readied Item':'Use Backpack Item'))return;

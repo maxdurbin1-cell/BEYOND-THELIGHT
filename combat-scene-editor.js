@@ -4041,6 +4041,67 @@
     });
   }
 
+  function generatePersonalLootForToken(tokenId, options) {
+    var opts = options && typeof options === 'object' ? options : {};
+    var force = !!opts.force;
+    var token = byId(tokenId);
+    if (!token) return false;
+    if (token.isPlayer || String(token.faction || '') === 'player') {
+      safeNotif('Wayfarer tokens use the shared Backpack instead of personal loot rolls.', 'warn');
+      return false;
+    }
+    var existing = Array.isArray(token.inventory) ? token.inventory.filter(Boolean) : [];
+    if (existing.length && !force) {
+      safeNotif(String(token.name || 'Token') + ' already has personal loot. Use reroll if desired.', 'info');
+      return false;
+    }
+    var dread = Math.max(1, Number(token.dread || token.codexDread || 4));
+    var faction = String(token.faction || 'npc').toLowerCase();
+    var generated = seedTokenInventoryItems(faction, dread);
+    if (!Array.isArray(generated) || !generated.length) generated = ['Credits x' + String(50 + Math.floor(Math.random() * 51))];
+    var generatedList = generated.slice();
+
+    store.setState(function (inner) {
+      var next = Object.assign({}, inner);
+      var updatedToken = null;
+      next.tokens = (inner.tokens || []).map(function (row) {
+        if (!row || String(row.id) !== String(tokenId)) return row;
+        updatedToken = Object.assign({}, row, { inventory: generatedList.slice() });
+        return updatedToken;
+      });
+      if (!updatedToken) return inner;
+
+      if (isTokenDead(updatedToken)) {
+        var rules = ensureLootDrops(inner);
+        var key = String(updatedToken.id || '');
+        var currentDrop = rules.lootDrops[key] || null;
+        var currentItems = currentDrop && Array.isArray(currentDrop.items) ? currentDrop.items : [];
+        if (!currentDrop || force || !currentItems.length) {
+          rules.lootDrops[key] = {
+            id: currentDrop && currentDrop.id ? String(currentDrop.id) : uid('loot'),
+            tokenId: key,
+            tokenName: String(updatedToken.name || 'Token'),
+            q: Number(updatedToken.q || 0),
+            r: Number(updatedToken.r || 0),
+            items: generatedList.slice(),
+            claimed: false,
+            droppedAt: Date.now(),
+            reason: 'manual-generate'
+          };
+        }
+        next.sceneRules = rules;
+      }
+      persist(next);
+      return next;
+    });
+
+    addHistory(String(token.name || 'Token') + ' personal loot ' + (force ? 'rerolled' : 'generated') + ': ' + generatedList.join(', ') + '.');
+    safeNotif('Loot ready on ' + String(token.name || 'token') + ': ' + generatedList.join(', '), 'good');
+    updateUiPanels();
+    drawBoard();
+    return true;
+  }
+
   function markTokenAsDead(tokenId, reason) {
     var token = byId(tokenId);
     if (!token) return;
@@ -4875,17 +4936,39 @@
   }
 
   function buildLootShortcuts(token) {
-    if (!token || isTokenDead(token)) return '';
+    if (!token) return '';
     var state = store.getState();
     var loot = getLootDropForToken(state, token.id);
-    if (!loot) return '';
+    var personal = Array.isArray(token.inventory) ? token.inventory.filter(Boolean) : [];
+    var isWayfarer = !!(token.isPlayer || String(token.faction || '') === 'player');
+    if (!loot && !personal.length && isWayfarer) return '';
+    var tokenIdLiteral = '\'' + String(token.id || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\'';
     
     var html = '<div style="margin-top:.28rem;border-top:1px solid rgba(227,188,94,.2);padding-top:.22rem;">';
-    html += '<div style="font-size:.72rem;font-weight:700;color:var(--combat-accent-2);margin-bottom:.12rem;">Loot Available</div>';
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.16rem;">';
-    html += '<button class="btn btn-xs" style="font-size:.68rem;background:#2a5c3d;" onclick="(function(){var card=document.getElementById(\'combatLootPopupCard\');if(card){card.style.display=\'block\';card.style.left=\'50%\';card.style.top=\'50%\';card.style.transform=\'translate(-50%,-50%)\';var buttons=card.querySelectorAll(\'#combatLootTakeAllBtn\');if(buttons.length)buttons[0].click();}})();">Take All</button>';
-    html += '<button class="btn btn-xs" style="font-size:.68rem;" onclick="(function(){var card=document.getElementById(\'combatLootPopupCard\');if(card)card.style.display=(card.style.display===\'none\'?\'block\':\'none\');})();">Inspect</button>';
-    html += '</div></div>';
+    if (!isWayfarer) {
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;margin-bottom:.12rem;">';
+      html += '<div style="font-size:.72rem;font-weight:700;color:var(--combat-accent-2);">Personal Loot</div>';
+      html += '<div style="display:flex;gap:.16rem;">';
+      html += '<button class="btn btn-xs" style="font-size:.64rem;" onclick="window.generateCombatTokenLoot&&window.generateCombatTokenLoot(' + tokenIdLiteral + ',false)">Generate</button>';
+      html += '<button class="btn btn-xs" style="font-size:.64rem;" onclick="window.generateCombatTokenLoot&&window.generateCombatTokenLoot(' + tokenIdLiteral + ',true)">Reroll</button>';
+      html += '</div></div>';
+      if (personal.length) {
+        html += '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.16rem;">';
+        html += personal.slice(0, 3).map(function (name) { return escapeHtml(String(name || '')); }).join(' · ');
+        if (personal.length > 3) html += ' · +' + (personal.length - 3) + ' more';
+        html += '</div>';
+      } else {
+        html += '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.16rem;">No personal loot rolled yet.</div>';
+      }
+    }
+    if (loot) {
+      html += '<div style="font-size:.72rem;font-weight:700;color:var(--combat-accent-2);margin-bottom:.12rem;">Loot Available</div>';
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.16rem;">';
+      html += '<button class="btn btn-xs" style="font-size:.68rem;background:#2a5c3d;" onclick="(function(){var card=document.getElementById(\'combatLootPopupCard\');if(card){card.style.display=\'block\';card.style.left=\'50%\';card.style.top=\'50%\';card.style.transform=\'translate(-50%,-50%)\';var buttons=card.querySelectorAll(\'#combatLootTakeAllBtn\');if(buttons.length)buttons[0].click();}})();">Take All</button>';
+      html += '<button class="btn btn-xs" style="font-size:.68rem;" onclick="(function(){var card=document.getElementById(\'combatLootPopupCard\');if(card)card.style.display=(card.style.display===\'none\'?\'block\':\'none\');})();">Inspect</button>';
+      html += '</div>';
+    }
+    html += '</div>';
     return html;
   }
 
@@ -5736,6 +5819,7 @@
       + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.2rem;">'
       + '<button class="btn btn-xs" id="combatTokenExecuteActionBtn">Execute</button>'
       + '<button class="btn btn-xs" id="combatTokenEnemyActionBtn">Enemy Action</button>'
+      + '<button class="btn btn-xs" id="combatGenerateLootBtn">Generate Loot</button>'
       + '<button class="btn btn-xs" id="combatLootBodyBtn">Loot Body</button>'
       + '</div>'
       + '<div id="combatTokenActionHelp" class="combat-mini" style="margin-top:.2rem;">No combat roll yet.</div>'
@@ -6043,6 +6127,10 @@
       else safeNotif('Inventory is unavailable in this scene.', 'warn');
     } else if (actionKey === 'ping') {
       placeTablePing(token.q, token.r, currentPingIdentity());
+    } else if (actionKey === 'generate-loot') {
+      generatePersonalLootForToken(token.id, { force: false });
+    } else if (actionKey === 'reroll-loot') {
+      generatePersonalLootForToken(token.id, { force: true });
     } else if (actionKey === 'focus-ping') {
       normalizeSelection(token.id, [token.id]);
       placeTablePing(token.q, token.r, 'Focus ' + currentPingIdentity());
@@ -6144,6 +6232,10 @@
     ];
     if (!isWayfarer) {
       actions = actions.filter(function (entry) { return entry.key !== 'open-inventory'; });
+      actions.splice(7, 0,
+        { key: 'generate-loot', label: 'Generate Loot' },
+        { key: 'reroll-loot', label: 'Reroll Loot' }
+      );
     }
     menu.innerHTML = actions.map(function (entry) {
       return '<button class="combat-token-menu-item" data-menu-action="' + entry.key + '">' + entry.label + '</button>';
@@ -8439,6 +8531,7 @@
     var tokenActionSel = document.getElementById('combatTokenActionSel');
     var tokenEnemyBtn = document.getElementById('combatTokenEnemyActionBtn');
     var tokenCoverSel = document.getElementById('combatTargetCoverOverrideSel');
+    var generateLootBtn = document.getElementById('combatGenerateLootBtn');
     var lootBodyBtn = document.getElementById('combatLootBodyBtn');
     var tokenActionHelp = document.getElementById('combatTokenActionHelp');
     if (tokenTargetSel) {
@@ -8537,6 +8630,18 @@
     if (tokenEnemyBtnVis) {
       var actorForEnemyBtn = byId(state.selectedTokenId);
       tokenEnemyBtnVis.style.display = (actorForEnemyBtn && String(actorForEnemyBtn.faction) === 'monster') ? '' : 'none';
+    }
+    if (generateLootBtn) {
+      var selectedLootToken = byId(state.selectedTokenId);
+      var canLootGen = !!(selectedLootToken && !selectedLootToken.isPlayer && String(selectedLootToken.faction || '') !== 'player');
+      var personalLootCount = canLootGen && Array.isArray(selectedLootToken.inventory) ? selectedLootToken.inventory.filter(Boolean).length : 0;
+      generateLootBtn.style.display = '';
+      generateLootBtn.disabled = !canLootGen;
+      generateLootBtn.textContent = personalLootCount > 0 ? 'Reroll Loot' : 'Generate Loot';
+      generateLootBtn.title = !canLootGen
+        ? 'Select an enemy/NPC token first.'
+        : (personalLootCount > 0 ? 'Replace this token\'s personal loot roll.' : 'Generate personal loot for this token.');
+      generateLootBtn.style.opacity = canLootGen ? '1' : '0.45';
     }
     if (tokenActionHelp) {
       var selectedTargetId = String(tokenTargetSel && tokenTargetSel.value || '');
@@ -10568,6 +10673,9 @@
 
     window.openCombatHazardConfigModal = configureHazardCheckAt;
     window.openCombatLootCacheModal = openLootCacheModal;
+    window.generateCombatTokenLoot = function (tokenId, force) {
+      return generatePersonalLootForToken(String(tokenId || ''), { force: !!force });
+    };
     window.moveCombatMapItemByKey = moveMapItemTo;
     window.copySelectedCombatMapItem = copySelectedMapItemToClipboard;
     window.pasteCombatMapItemAt = pasteMapItemFromClipboard;
@@ -11413,6 +11521,20 @@
     }
 
     var lootBodyBtn = document.getElementById('combatLootBodyBtn');
+    var generateLootBtn = document.getElementById('combatGenerateLootBtn');
+    if (generateLootBtn && !generateLootBtn._bound) {
+      generateLootBtn._bound = true;
+      generateLootBtn.onclick = function () {
+        var st = store.getState();
+        var token = byId(st.selectedTokenId);
+        if (!token || token.isPlayer || String(token.faction || '') === 'player') {
+          safeNotif('Select an enemy, ally, or NPC token to generate loot.', 'warn');
+          return;
+        }
+        var hasLoot = Array.isArray(token.inventory) && token.inventory.some(Boolean);
+        generatePersonalLootForToken(token.id, { force: hasLoot });
+      };
+    }
     if (lootBodyBtn && !lootBodyBtn._bound) {
       lootBodyBtn._bound = true;
       lootBodyBtn.onclick = function () {

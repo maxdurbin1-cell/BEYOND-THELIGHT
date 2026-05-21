@@ -4102,6 +4102,21 @@
     return true;
   }
 
+  // Expose helpers immediately so sheet buttons are reliable even if UI-binding order shifts.
+  window.generateCombatTokenLootFromButton = function (btn, force) {
+    var tokenId = btn && typeof btn.getAttribute === 'function'
+      ? String(btn.getAttribute('data-token-id') || '')
+      : '';
+    if (!tokenId) {
+      safeNotif('Could not resolve token for loot generation.', 'warn');
+      return false;
+    }
+    return generatePersonalLootForToken(tokenId, { force: !!force });
+  };
+  window.generateCombatTokenLoot = function (tokenId, force) {
+    return generatePersonalLootForToken(String(tokenId || ''), { force: !!force });
+  };
+
   function markTokenAsDead(tokenId, reason) {
     var token = byId(tokenId);
     if (!token) return;
@@ -8730,7 +8745,7 @@
       var playerTokForLoot = (state.tokens || []).find(function (t) { return t && t.isPlayer; }) || null;
       var lootProxOk = !selToken || !playerTokForLoot ||
         hexDistance({ q: Number(playerTokForLoot.q || 0), r: Number(playerTokForLoot.r || 0) }, { q: Number(selToken.q || 0), r: Number(selToken.r || 0) }) <= 1;
-      var lootAvail = !!(selToken && isTokenDead(selToken) && selDrop && !selDrop.claimed);
+      var lootAvail = !!(selToken && isTokenDead(selToken));
       lootBodyBtn.disabled = !(lootAvail && lootProxOk);
       lootBodyBtn.style.opacity = lootBodyBtn.disabled ? '0.45' : '1';
       lootBodyBtn.title = !lootAvail ? '' : !lootProxOk ? 'Move within 1 hex to loot this body' : 'Loot body';
@@ -10673,19 +10688,23 @@
 
     window.openCombatHazardConfigModal = configureHazardCheckAt;
     window.openCombatLootCacheModal = openLootCacheModal;
-    window.generateCombatTokenLootFromButton = function (btn, force) {
-      var tokenId = btn && typeof btn.getAttribute === 'function'
-        ? String(btn.getAttribute('data-token-id') || '')
-        : '';
-      if (!tokenId) {
-        safeNotif('Could not resolve token for loot generation.', 'warn');
-        return false;
-      }
-      return generatePersonalLootForToken(tokenId, { force: !!force });
-    };
-    window.generateCombatTokenLoot = function (tokenId, force) {
-      return generatePersonalLootForToken(String(tokenId || ''), { force: !!force });
-    };
+    if (typeof window.generateCombatTokenLootFromButton !== 'function') {
+      window.generateCombatTokenLootFromButton = function (btn, force) {
+        var tokenId = btn && typeof btn.getAttribute === 'function'
+          ? String(btn.getAttribute('data-token-id') || '')
+          : '';
+        if (!tokenId) {
+          safeNotif('Could not resolve token for loot generation.', 'warn');
+          return false;
+        }
+        return generatePersonalLootForToken(tokenId, { force: !!force });
+      };
+    }
+    if (typeof window.generateCombatTokenLoot !== 'function') {
+      window.generateCombatTokenLoot = function (tokenId, force) {
+        return generatePersonalLootForToken(String(tokenId || ''), { force: !!force });
+      };
+    }
     window.moveCombatMapItemByKey = moveMapItemTo;
     window.copySelectedCombatMapItem = copySelectedMapItemToClipboard;
     window.pasteCombatMapItemAt = pasteMapItemFromClipboard;
@@ -11561,6 +11580,11 @@
           return;
         }
         var drop = getLootDropForToken(st, token.id);
+        if (!drop || !Array.isArray(drop.items) || !drop.items.length) {
+          ensureLootDropForToken(token, 'loot body action');
+          st = store.getState();
+          drop = getLootDropForToken(st, token.id);
+        }
         if (!drop || drop.claimed) {
           safeNotif('No loot available on this body.', 'warn');
           return;

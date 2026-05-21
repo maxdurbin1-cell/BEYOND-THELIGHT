@@ -8201,6 +8201,24 @@
         : '<option value="">Closest hostile</option>';
       var exists = Array.prototype.slice.call(tokenTargetSel.options || []).some(function (opt) { return String(opt.value || '') === prevTarget; });
       if (exists) tokenTargetSel.value = prevTarget;
+      if (!tokenTargetSel._bound) {
+        tokenTargetSel._bound = true;
+        tokenTargetSel.onchange = function () {
+          var actorNow = byId(store.getState().selectedTokenId);
+          var targetNow = byId(String(tokenTargetSel.value || ''));
+          if (actorNow && targetNow && (actorNow.isPlayer || String(actorNow.faction) === 'player') && typeof window.setCombatSpacing === 'function') {
+            var dist = hexDistance({ q: actorNow.q, r: actorNow.r }, { q: targetNow.q, r: targetNow.r });
+            var spacingLabel = dist <= 1
+              ? 'Engaged (Strike)'
+              : (dist <= 2 ? 'Close (Scrolls)' : (dist <= 4 ? 'Nearby (Shoot)' : 'Far (Out of Range)'));
+            try { window.setCombatSpacing(spacingLabel, false); } catch (_spacingErr) {}
+          }
+          try {
+            if (typeof window.updateWayfarerActionBtn === 'function') window.updateWayfarerActionBtn();
+          } catch (_actionErr) {}
+          updateUiPanels();
+        };
+      }
     }
     if (tokenCoverSel) {
       var targetId = String(tokenTargetSel && tokenTargetSel.value || '');
@@ -8213,9 +8231,27 @@
     if (tokenActionSel) {
       var mirroredSel = document.getElementById('wayfarerActionSel');
       var actor = byId(state.selectedTokenId);
+      var selectedTarget = String(tokenTargetSel && tokenTargetSel.value || '') ? byId(String(tokenTargetSel.value || '')) : null;
       var previous = String(tokenActionSel.value || '');
       if (actor && (actor.isPlayer || String(actor.faction) === 'player') && mirroredSel) {
-        var mirroredOptions = Array.prototype.slice.call(mirroredSel.options || []);
+        if (selectedTarget && typeof window.setCombatSpacing === 'function') {
+          var targetDist = hexDistance({ q: actor.q, r: actor.r }, { q: selectedTarget.q, r: selectedTarget.r });
+          var targetSpacingLabel = targetDist <= 1
+            ? 'Engaged (Strike)'
+            : (targetDist <= 2 ? 'Close (Scrolls)' : (targetDist <= 4 ? 'Nearby (Shoot)' : 'Far (Out of Range)'));
+          try { window.setCombatSpacing(targetSpacingLabel, false); } catch (_spacingSyncErr) {}
+        }
+        try {
+          if (typeof window.updateWayfarerActionBtn === 'function') window.updateWayfarerActionBtn();
+        } catch (_mirrorErr) {}
+        var mirroredOptions = Array.prototype.slice.call(mirroredSel.options || []).filter(function (opt) {
+          if (!opt || !String(opt.value || '')) return false;
+          if (!selectedTarget) return true;
+          var actionValue = String(opt.value || '');
+          var range = hexDistance({ q: actor.q, r: actor.r }, { q: selectedTarget.q, r: selectedTarget.r });
+          return canActionReachTarget(actionValue, range);
+        });
+        if (!mirroredOptions.length) mirroredOptions = Array.prototype.slice.call(mirroredSel.options || []);
         tokenActionSel.innerHTML = mirroredOptions.map(function (opt) {
           var val = String(opt.value || '');
           return '<option value="' + val + '">' + String(opt.textContent || '') + '</option>';
@@ -8235,6 +8271,10 @@
       }
       var stillExists = Array.prototype.slice.call(tokenActionSel.options || []).some(function (opt) { return String(opt.value || '') === previous; });
       if (stillExists) tokenActionSel.value = previous;
+      if (!tokenActionSel._bound) {
+        tokenActionSel._bound = true;
+        tokenActionSel.onchange = function () { updateUiPanels(); };
+      }
     }
     var tokenEnemyBtnVis = document.getElementById('combatTokenEnemyActionBtn');
     if (tokenEnemyBtnVis) {
@@ -13191,6 +13231,11 @@
   (function () {
     var BLADE_STORAGE_KEY = 'btl-content-blade-v1';
     var bladeState = { open: false, activeTab: 'rules' };
+    var BLADE_SHOP_CATEGORIES = [
+      'weapons', 'melee_exp', 'ranged_exp', 'armor', 'armor_exp',
+      'essentials', 'toolkits', 'items', 'scrolls', 'services',
+      'remedies', 'strange', 'tradegoods', 'augmentations', 'os_hacks', 'weapon_mods'
+    ];
 
     var BLADE_TABS = [
       { id: 'rules',    icon: '📖', label: 'Rules' },
@@ -13205,6 +13250,58 @@
     }
     function loadBladeNotes() {
       try { return localStorage.getItem(BLADE_STORAGE_KEY + '-notes') || ''; } catch (e) { return ''; }
+    }
+
+    function getBladeShopData() {
+      try {
+        if (window && window.SHOP_DATA && typeof window.SHOP_DATA === 'object') return window.SHOP_DATA;
+      } catch (_err) {}
+      try {
+        if (typeof SHOP_DATA !== 'undefined' && SHOP_DATA && typeof SHOP_DATA === 'object') return SHOP_DATA;
+      } catch (_err2) {}
+      return null;
+    }
+
+    function getContentBladeItemRows(state) {
+      var rows = [];
+      var seen = Object.create(null);
+
+      function pushRow(entry, fallbackType, sourceLabel) {
+        if (!entry) return;
+        var name = String(entry.name || entry.id || '').trim();
+        if (!name) return;
+        var type = String(entry.type || fallbackType || '').trim();
+        var key = name.toLowerCase() + '|' + type.toLowerCase() + '|' + String(sourceLabel || '').toLowerCase();
+        if (seen[key]) return;
+        seen[key] = true;
+        rows.push({
+          name: name,
+          type: type,
+          effect: String(entry.effect || entry.desc || entry.description || '').trim(),
+          stat: String(entry.stat || '').trim(),
+          cost: Number(entry.cost || 0),
+          source: String(sourceLabel || '').trim()
+        });
+      }
+
+      (state.codexItems || []).forEach(function (entry) {
+        pushRow(entry, entry && entry.type || 'Codex', 'Codex');
+      });
+
+      var shopData = getBladeShopData();
+      if (shopData) {
+        BLADE_SHOP_CATEGORIES.forEach(function (category) {
+          var list = Array.isArray(shopData[category]) ? shopData[category] : [];
+          list.forEach(function (entry) {
+            pushRow(entry, category.replace(/_/g, ' '), 'Merchant');
+          });
+        });
+      }
+
+      rows.sort(function (a, b) {
+        return String(a.name || '').localeCompare(String(b.name || ''));
+      });
+      return rows;
     }
 
     function renderBladeContent(tabId) {
@@ -13244,22 +13341,28 @@
         if (searchInput) searchInput.addEventListener('input', function () { renderRules(this.value); });
 
       } else if (tabId === 'items') {
-        var itemRows = (state.codexItems || []).slice(0, 80);
+        var itemRows = getContentBladeItemRows(state).slice(0, 240);
         body.innerHTML = '<div class="blade-section-title">Item Compendium</div>' +
           '<input class="combat-input" id="bladeItemSearch" placeholder="Search items..." style="margin-bottom:.4rem;">' +
           '<div id="bladeItemList" class="blade-scroll-list"></div>';
         function renderItems(filter) {
           var f = String(filter || '').toLowerCase();
-          var filtered = itemRows.filter(function (it) { return !f || String(it.name || it.id || '').toLowerCase().indexOf(f) >= 0; });
+          var filtered = itemRows.filter(function (it) {
+            var haystack = [it.name, it.type, it.effect, it.stat, it.source].join(' ').toLowerCase();
+            return !f || haystack.indexOf(f) >= 0;
+          });
           var list = document.getElementById('bladeItemList');
           if (!list) return;
           list.innerHTML = filtered.length
             ? filtered.map(function (it) {
               return '<div class="blade-item-row"><span class="blade-item-name">' + escapeHtml(String(it.name || it.id || '—')) + '</span>' +
                 (it.type ? '<span class="blade-item-type">' + escapeHtml(String(it.type)) + '</span>' : '') +
+                (it.stat ? '<span class="blade-item-type" style="margin-left:.2rem;">' + escapeHtml(String(it.stat)) + '</span>' : '') +
+                (it.cost ? '<span class="blade-item-type" style="margin-left:.2rem;color:var(--teal);">' + Number(it.cost) + 'c</span>' : '') +
+                (it.source ? '<span class="blade-item-type" style="margin-left:.2rem;">' + escapeHtml(String(it.source)) + '</span>' : '') +
                 (it.effect ? '<div class="blade-item-effect">' + escapeHtml(String(it.effect)) + '</div>' : '') + '</div>';
             }).join('')
-            : '<div class="blade-empty">No items in codex. Add items via the main codex panel.</div>';
+            : '<div class="blade-empty">No item entries found in codex or merchant catalog.</div>';
         }
         renderItems('');
         var si = document.getElementById('bladeItemSearch');

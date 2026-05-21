@@ -45,6 +45,8 @@
     waitingReconnectSnapshot: false,
     lastAuthoritativeAt: 0,
     syncInFlight: false,
+    syncQueued: false,
+    syncQueuedReason: "",
     lastResyncRequester: "",
     lastResyncRequestAt: 0,
     lastAutoRebroadcastAt: 0,
@@ -1643,7 +1645,11 @@
     if (!state.socket || !state.connected || !state.code) return;
     if (state.applyingSharedState) return;
     if (state.role === "player") return;
-    if (state.syncInFlight) return;
+    if (state.syncInFlight) {
+      state.syncQueued = true;
+      state.syncQueuedReason = String(reason || state.syncQueuedReason || "queued");
+      return;
+    }
     var shared = collectSharedState();
     var hash = JSON.stringify(shared);
     if (!hash || hash === state.lastSharedHash) return;
@@ -1651,6 +1657,14 @@
     if (res && res.ok) {
       state.lastSharedHash = hash;
       state.lastSharedVersion = Math.max(state.lastSharedVersion, Number(res.stateVersion || 0));
+    }
+    if (state.syncQueued) {
+      var queuedReason = state.syncQueuedReason || "queued";
+      state.syncQueued = false;
+      state.syncQueuedReason = "";
+      setTimeout(function () {
+        syncSharedState("queued-" + String(queuedReason));
+      }, 0);
     }
   }
 
@@ -2069,9 +2083,9 @@
         if (state.role === "player") {
           syncPlayerSharedPatch({ campaignCombat: deepCloneJson(combatState) || {} }, "start-campaign-combat-player");
         } else {
-          var syncOut = syncSharedSilent("start-campaign-combat");
-          if (syncOut && typeof syncOut.catch === "function") {
-            syncOut.catch(function () {});
+          var startPatch = syncSharedPatch({ campaignCombat: sharedState.campaignCombat }, "start-campaign-combat");
+          if (startPatch && typeof startPatch.catch === "function") {
+            startPatch.catch(function () {});
           }
         }
         broadcastRollResult(
@@ -2135,8 +2149,14 @@
         }
       }
 
+      var sharedState = getMutableCampaignSharedState();
+      sharedState.campaignCombat = deepCloneJson(combatState) || combatState;
+
       if (state.code && state.connected) {
-        syncSharedState("next-combat-turn");
+        var patchOut = syncSharedPatch({ campaignCombat: sharedState.campaignCombat }, "next-combat-turn");
+        if (patchOut && typeof patchOut.catch === "function") {
+          patchOut.catch(function () {});
+        }
       }
       if (callback) callback({ ok: true });
     } catch (err) {

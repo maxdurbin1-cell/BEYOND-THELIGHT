@@ -542,8 +542,8 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-rules" id="tabnav-rules" data-tab="rules">Rules</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-combat" id="tabnav-combat" data-tab="combat">Combat</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-scenes" id="tabnav-scenes" data-tab="scenes">Scenes</button>
-    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-oracle" id="tabnav-oracle" data-tab="oracle">Oracle</button>
-    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-storyline" id="tabnav-storyline" data-tab="storyline">Storyline</button>
+    <button class="tab-btn ctx-settings" role="tab" aria-selected="false" aria-controls="tab-oracle" id="tabnav-oracle" data-tab="oracle">Oracle</button>
+    <button class="tab-btn ctx-settings" role="tab" aria-selected="false" aria-controls="tab-storyline" id="tabnav-storyline" data-tab="storyline">Storyline</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-factions" id="tabnav-factions" data-tab="factions">Factions</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-trophies" id="tabnav-trophies" data-tab="trophies">Trophies</button>
     <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-missions" id="tabnav-missions" data-tab="missions">Missions</button>
@@ -16250,6 +16250,7 @@ function ensureTravelSceneState(){
   const ts=S.travelScenes;
   if(!ts.byHex||typeof ts.byHex!=='object')ts.byHex={};
   if(!ts.panelHiddenByHex||typeof ts.panelHiddenByHex!=='object')ts.panelHiddenByHex={};
+  if(!ts.panelExpandedByHex||typeof ts.panelExpandedByHex!=='object')ts.panelExpandedByHex={};
   if(!ts.activeSceneByHex||typeof ts.activeSceneByHex!=='object')ts.activeSceneByHex={};
   if(typeof ts.activeSceneId!=='string')ts.activeSceneId='';
   if(typeof ts.seq!=='number'||!isFinite(ts.seq)||ts.seq<1)ts.seq=1;
@@ -16286,8 +16287,27 @@ function setTravelScenePanelHidden(col,row,hidden){
   const key=travelSceneHexKey(col,row);
   if(!ts.panelHiddenByHex||typeof ts.panelHiddenByHex!=='object')ts.panelHiddenByHex={};
   if(hidden)ts.panelHiddenByHex[key]=true;
-  else delete ts.panelHiddenByHex[key];
+  else {
+    delete ts.panelHiddenByHex[key];
+    if(!ts.panelExpandedByHex||typeof ts.panelExpandedByHex!=='object')ts.panelExpandedByHex={};
+    ts.panelExpandedByHex[key]=true;
+  }
   rerenderTravelSceneHex(col,row);
+}
+
+function isTravelScenePanelExpanded(col,row){
+  const ts=ensureTravelSceneState();
+  const key=travelSceneHexKey(col,row);
+  if(!ts.panelExpandedByHex||typeof ts.panelExpandedByHex!=='object')return false;
+  if(typeof ts.panelExpandedByHex[key]!=='boolean')return false;
+  return !!ts.panelExpandedByHex[key];
+}
+
+function setTravelScenePanelExpanded(col,row,expanded){
+  const ts=ensureTravelSceneState();
+  const key=travelSceneHexKey(col,row);
+  if(!ts.panelExpandedByHex||typeof ts.panelExpandedByHex!=='object')ts.panelExpandedByHex={};
+  ts.panelExpandedByHex[key]=!!expanded;
 }
 
 function getTravelScenesForHex(col,row,create){
@@ -16605,6 +16625,7 @@ function buildTravelScenePanelHtml(hex){
     + '</div>';
   }
   const list=getTravelScenesForHex(col,row,false);
+  const expanded=isTravelScenePanelExpanded(col,row);
   const activeId=getTravelSceneActiveIdForHex(col,row);
   const active=list.find(function(scene){ return scene&&String(scene.id||'')===activeId; })||list[0]||null;
   if(active&&activeId!==String(active.id||''))setTravelSceneActiveIdForHex(col,row,String(active.id||''));
@@ -16647,7 +16668,7 @@ function buildTravelScenePanelHtml(hex){
     : '<div style="font-size:.72rem;color:var(--muted2);">No NPC tokens seeded yet.</div>';
 
   const tagLabelHtml = active&&active.tag ? '<span style="font-size:.72rem;color:var(--muted2);margin-left:.5rem;">['+escapeHtmlLite(active.tag)+']</span>' : '';
-  return '<details class="npc-block" style="margin-bottom:.45rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);">'
+  return '<details class="npc-block" '+(expanded?'open ':'')+'ontoggle="setTravelScenePanelExpanded('+col+','+row+',this.open)" style="margin-bottom:.45rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);">'
     + '<summary class="nb-label" style="color:var(--teal);cursor:pointer;list-style:none;">🎬 Travel Scene'+tagLabelHtml+'</summary>'
     + '<div style="margin-top:.28rem;">'
     + '<div style="font-size:.76rem;color:var(--text2);line-height:1.55;margin-bottom:.35rem;">Create or load a scene at this hex, attach an image, seed NPC tokens, then launch directly into Combat Mode.</div>'

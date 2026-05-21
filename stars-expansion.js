@@ -15549,7 +15549,7 @@ function openActivePlanetMap() {
   }
   S.starSystem.activePlanetHexId = h.id;
   ensurePlanetSurfaceState(h);
-  const b = document.querySelector('nav .tab-btn[onclick*="switchTab(\'planet\'"]');
+  const b = document.getElementById('tabnav-planet') || document.querySelector('nav .tab-btn[data-tab="planet"]');
   if (typeof switchTab === 'function' && b) switchTab('planet', b);
 }
 
@@ -15563,10 +15563,10 @@ const YESSOD_WEATHER = [
   { name: 'Black Fog', desc: 'Oil-soaked fog rolls in from the Blackwater Sea, absorbing light and sound. All nav marks vanish.', dd: 8, rough: true, failure: 'Travel stalls. Gain 1d4 Mental Stress following ghost-trails.', check: 'mind' },
   { name: 'Blood Snow', desc: 'Iron-oxide particles freeze into crimson flakes. Eerily beautiful and profoundly disorienting.', dd: 6, rough: true, failure: 'Gain 1 Stress from dread-visions of the fallen.', check: 'spirit' },
   { name: 'Emberwind', desc: 'Superheated gusts fling live cinders from Furnace Canyon vents. Clothing smolders. Lungs ache.', dd: 6, rough: true, failure: 'Take 1 Health damage and -1 on next social roll from coughing fits.', check: 'body' },
-  { name: 'Machine Hail', desc: 'Shrapnel showers from an ancient ordinance loop still cycling overhead. Impacts are irregular but lethal.', dd: 9, rough: true, failure: 'Take 2 Health damage from impacts. Seek cover or lose another Phase.', check: 'body' },
+  { name: 'Machine Hail', desc: 'Shrapnel showers from an ancient ordinance loop still cycling overhead. Impacts are irregular but lethal.', dd: 10, rough: true, failure: 'Take 2 Health damage from impacts. Seek cover or lose another Phase.', check: 'body' },
   { name: 'Bone Dust Storm', desc: 'Atomized ossuary material drifts from the Titan Graveyard. Every breath tastes of ancient dead.', dd: 6, rough: true, failure: 'Suffer -1 on next scouting check from spore-bone haze.', check: 'body' },
   { name: 'Gravity Flux', desc: 'Movement becomes vertical or sideways. Fluids float. The horizon tilts. Nothing stays where it lands.', dd: 10, rough: true, failure: 'Gain 1 Trauma from disorientation. Movement becomes erratic for one Phase.', check: 'mind', special: 'gravity_flux' },
-  { name: 'Eclipse Dark', desc: 'An artificial eclipse blacks out all solar input. Monsters become aggressive and move toward heat.', dd: 9, rough: true, failure: 'Encounter roll forced immediately. Creatures have +2 to their checks.', check: 'lead', special: 'eclipse_dark' },
+  { name: 'Eclipse Dark', desc: 'An artificial eclipse blacks out all solar input. Monsters become aggressive and move toward heat.', dd: 10, rough: true, failure: 'Encounter roll forced immediately. Creatures have +2 to their checks.', check: 'lead', special: 'eclipse_dark' },
   { name: 'Choir Static', desc: 'Divine whisper-frequencies resonate from the deep strata. Madness blooms in unprotected minds.', dd: 10, rough: true, failure: 'Gain 2 Mental Stress. Hear false orders for one Phase.', check: 'spirit', special: 'choir_static' },
   { name: 'Clear Skies (Rare)', desc: 'A moment of impossible calm. The sky above Yessod shows stars that should not exist. Travel is safe.', dd: 0, rough: false, failure: '' },
 ];
@@ -16005,7 +16005,7 @@ function ensureYessodState() {
 }
 
 function syncYessodTabVisibility() {
-  const btn = document.getElementById('tabnav-yessod') || document.querySelector('.tab-btn[onclick*="switchTab(\'yessod\'"]');
+  const btn = document.getElementById('tabnav-yessod') || document.querySelector('.tab-btn[data-tab="yessod"]');
   if (!btn) return;
   ensureStarsState();
   const current = getCurrentStarHex();
@@ -16019,10 +16019,10 @@ function openYessodFromSun() {
   S.starSystem.yessodUnlocked = true;
   syncYessodTabVisibility();
   if (typeof setContext === 'function') {
-    const spaceBtn = document.querySelector('.ctx-btn[onclick*="setContext(\'space\'"]');
+    const spaceBtn = document.querySelector('.ctx-btn[data-ctx="space"]');
     setContext('space', spaceBtn || null);
   }
-  const yessodBtn = document.getElementById('tabnav-yessod') || document.querySelector('.tab-btn[onclick*="switchTab(\'yessod\'"]');
+  const yessodBtn = document.getElementById('tabnav-yessod') || document.querySelector('.tab-btn[data-tab="yessod"]');
   if (typeof switchTab === 'function' && yessodBtn) switchTab('yessod', yessodBtn);
   else renderYessodPanel();
 }
@@ -16112,15 +16112,36 @@ function rollYessodObserveAdjacent() {
   const state = ensureYessodState();
   const cell = yessodGetCell(state, state.selectedCellId);
   if (!cell) return;
-  const signs = pick([
-    'you spot lantern smoke one hex away',
-    'fresh marrow sigils mark a nearby crossing',
-    'predator spoor tracks toward a hidden lane',
-    'an old skyway span is visible through the haze',
-  ]);
-  state.lastEncounter = `Observation success: ${signs}.`;
+  const offsets = (cell.row % 2 === 0)
+    ? [
+      { label: 'N', dr: -1, dc: 0 },
+      { label: 'NE', dr: -1, dc: 1 },
+      { label: 'SE', dr: 0, dc: 1 },
+      { label: 'S', dr: 1, dc: 0 },
+      { label: 'SW', dr: 0, dc: -1 },
+      { label: 'NW', dr: -1, dc: -1 },
+    ]
+    : [
+      { label: 'N', dr: -1, dc: 0 },
+      { label: 'NE', dr: 0, dc: 1 },
+      { label: 'SE', dr: 1, dc: 1 },
+      { label: 'S', dr: 1, dc: 0 },
+      { label: 'SW', dr: 1, dc: -1 },
+      { label: 'NW', dr: 0, dc: -1 },
+    ];
+  const rows = offsets.map((entry) => {
+    const near = yessodGetCell(state, yessodCellId(cell.row + entry.dr, cell.col + entry.dc));
+    if (!near) return `<li style="margin-bottom:.2rem;color:var(--muted2);">${entry.label}: Boundary wall / no route.</li>`;
+    const marker = YESSOD_MARKERS[near.marker] || YESSOD_MARKERS.wilderness;
+    const status = near.explored ? 'explored' : 'unexplored';
+    return `<li style="margin-bottom:.2rem;"><strong>${entry.label}</strong>: ${marker.label} in ${near.reachName || 'Yessod Reach'} (${status}).</li>`;
+  });
+  state.lastEncounter = 'Observation complete: adjacent routes and markers logged.';
   const out = document.getElementById('yessodEncResult');
   if (out) out.innerHTML = `<div class="venture-result"><div class="vr-type">Observation</div>${state.lastEncounter}</div>`;
+  if (typeof openModal === 'function') {
+    openModal('Observe Adjacent', `<div class="hex-info-inner"><ul style="margin:.1rem 0;padding-left:1rem;font-size:.82rem;color:var(--text2);">${rows.join('')}</ul><div style="margin-top:.35rem;"><button class="btn btn-sm" onclick="closeModal()">Close</button></div></div>`);
+  }
 }
 
 function setYessodHexNote(cellId, value) {
@@ -16206,6 +16227,39 @@ function yessodRestAtRuins(cellId) {
   if (typeof changeHealth === 'function') changeHealth(-1);
   showNotif('Sheltered in Ruins. Restored 1 Health.', 'good');
   rollYessodEncounter();
+  renderYessodPanel();
+}
+
+function yessodTakeLongRest(cellId) {
+  const state = ensureYessodState();
+  const cell = yessodGetCell(state, cellId);
+  if (!cell) return;
+  if (typeof clearHealth === 'function') clearHealth();
+  if (typeof changeStress === 'function') changeStress(-4);
+  if (typeof removeTrauma === 'function') removeTrauma(1);
+  else if (typeof addTrauma === 'function') addTrauma(-1);
+  if (typeof advanceDay === 'function') advanceDay(1);
+  rollYessodWeather(state);
+  showNotif('Yessod Long Rest complete: +1 day and full recovery applied.', 'good');
+  renderYessodPanel();
+}
+
+function toggleYessodManualRollMode() {
+  if (!window.settingsSystem || typeof window.settingsSystem.toggleManualRollMode !== 'function') {
+    showNotif('Manual roll controls are unavailable.', 'warn');
+    return;
+  }
+  window.settingsSystem.toggleManualRollMode();
+  renderYessodPanel();
+}
+
+function clearYessodTrial() {
+  const state = ensureYessodState();
+  state.pendingMonster = null;
+  state.lastEncounter = '';
+  const out = document.getElementById('yessodEncResult');
+  if (out) out.innerHTML = '';
+  showNotif('Yessod trial state cleared for this hex.', 'info');
   renderYessodPanel();
 }
 
@@ -16336,8 +16390,31 @@ function yessodRollIronwayEncounter(cellId) {
 }
 
 function yessodShowIronwayGoods() {
-  const goods = ['Processed Bone Fuel (50 Cr)', 'Pre-Sundering Circuit Schematics (80 Cr)', 'Divine Residue Flask (40 Cr)', 'Furnace-Forged Blades (30 Cr)', 'Encrypted Oracle Archive Chip (100 Cr)', 'Machine Parts (20 Cr)'];
-  openModal('Ironway Trade Goods', `<div class="hex-info-inner"><div class="hex-type-tag trade">IRONWAY GOODS</div><ul style="margin:.5rem 0;padding-left:1rem;">${goods.map((g) => `<li style="margin-bottom:.35rem;font-size:.82rem;color:var(--text2);">${g}</li>`).join('')}</ul><button class="btn btn-sm" onclick="closeModal()">Close</button></div>`);
+  const goods = [
+    { label: 'Processed Bone Fuel', cost: 50 },
+    { label: 'Pre-Sundering Circuit Schematics', cost: 80 },
+    { label: 'Divine Residue Flask', cost: 40 },
+    { label: 'Furnace-Forged Blades', cost: 30 },
+    { label: 'Encrypted Oracle Archive Chip', cost: 100 },
+    { label: 'Machine Parts', cost: 20 },
+  ];
+  openModal('Ironway Trade Goods', `<div class="hex-info-inner"><div class="hex-type-tag trade">IRONWAY GOODS</div><div style="display:grid;gap:.28rem;margin-top:.45rem;">${goods.map((g, idx) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;"><span style="font-size:.82rem;color:var(--text2);">${g.label} (${g.cost} Cr)</span><button class="btn btn-xs" onclick="buyYessodIronwayGood(${idx});">Buy</button></div>`).join('')}</div><div style="margin-top:.45rem;"><button class="btn btn-sm" onclick="closeModal()">Close</button></div></div>`);
+}
+
+function buyYessodIronwayGood(index) {
+  const goods = [
+    { label: 'Processed Bone Fuel', cost: 50 },
+    { label: 'Pre-Sundering Circuit Schematics', cost: 80 },
+    { label: 'Divine Residue Flask', cost: 40 },
+    { label: 'Furnace-Forged Blades', cost: 30 },
+    { label: 'Encrypted Oracle Archive Chip', cost: 100 },
+    { label: 'Machine Parts', cost: 20 },
+  ];
+  const item = goods[Number(index)];
+  if (!item) return;
+  if (typeof changeCredits === 'function') changeCredits(-item.cost);
+  if (typeof addItemToBackpack === 'function') addItemToBackpack(item.label);
+  showNotif(`Purchased ${item.label} for ${item.cost} Cr.`, 'good');
 }
 
 function yessodRollWeatherCheck() {
@@ -16383,12 +16460,12 @@ function rollYessodMonsterEncounter(cellId) {
   const strataIdx = Math.max(0, Math.min(5, Number(state.currentStrata || 1) - 1));
   const threat = YESSOD_STRATA_FLAVOR[strataIdx].threat;
   const monsters = [
-    { name: 'Iron-wing Vulture Swarm', desc: 'A shrieking cloud of razor-feathered predators descending from the superstructure.', dread: threat + 2, dd: threat + 3 },
-    { name: 'Rust Leopard', desc: 'A corrosion-camouflaged ambush predator from the Rust Jungle.', dread: threat + 3, dd: threat + 4 },
-    { name: 'Marsh Seraph', desc: 'A deformed divine remnant, half-fused with cathedral stone, still carrying its original weapon.', dread: threat + 4, dd: threat + 5 },
-    { name: 'Titan-Jackal', desc: 'A divine-scale predator that nests in ribcage valleys. Larger than anything should be.', dread: threat + 5, dd: threat + 4 },
-    { name: 'Crystallisation Beetle Colony', desc: 'Thousands of beetles that farm and consume divine remains — and anything that resembles them.', dread: threat + 2, dd: threat + 2 },
-    { name: 'Bone Glacier Shade', desc: 'A frozen echo from the glacier, now mobile, carrying the memories and wounds of its death.', dread: threat + 3, dd: threat + 5 },
+    { name: 'Iron-wing Vulture Swarm', desc: 'A shrieking cloud of razor-feathered predators descending from the superstructure.', dread: snapToValidDreadDie(threat + 2), dd: snapToValidDreadDie(threat + 3) },
+    { name: 'Rust Leopard', desc: 'A corrosion-camouflaged ambush predator from the Rust Jungle.', dread: snapToValidDreadDie(threat + 3), dd: snapToValidDreadDie(threat + 4) },
+    { name: 'Marsh Seraph', desc: 'A deformed divine remnant, half-fused with cathedral stone, still carrying its original weapon.', dread: snapToValidDreadDie(threat + 4), dd: snapToValidDreadDie(threat + 5) },
+    { name: 'Titan-Jackal', desc: 'A divine-scale predator that nests in ribcage valleys. Larger than anything should be.', dread: snapToValidDreadDie(threat + 5), dd: snapToValidDreadDie(threat + 4) },
+    { name: 'Crystallisation Beetle Colony', desc: 'Thousands of beetles that farm and consume divine remains — and anything that resembles them.', dread: snapToValidDreadDie(threat + 2), dd: snapToValidDreadDie(threat + 2) },
+    { name: 'Bone Glacier Shade', desc: 'A frozen echo from the glacier, now mobile, carrying the memories and wounds of its death.', dread: snapToValidDreadDie(threat + 3), dd: snapToValidDreadDie(threat + 5) },
   ];
   const monster = pick(monsters);
   if (!state.pendingMonster) {
@@ -16404,7 +16481,7 @@ function yessodEngageMonster() {
   const state = ensureYessodState();
   const monster = state.pendingMonster;
   if (!monster) return showNotif('No active monster encounter.', 'warn');
-  const dread = monster.dread || 6;
+  const dread = snapToValidDreadDie(monster.dread || 6);
   const count = Math.max(1, Math.min(4, Math.round(dread / 3)));
   const now = Date.now();
   S.enemies = [];
@@ -16419,7 +16496,7 @@ function yessodEngageMonster() {
   state.pendingMonster.combatStarted = true;
   state.pendingMonster.resolving = true;
   showNotif(`Combat started: ${count} × ${monster.name}. Check Combat tab or Quick Panel.`, 'warn');
-  const combatBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('combat'\"]");
+  const combatBtn = document.getElementById('tabnav-combat') || document.querySelector('nav .tab-btn[data-tab="combat"]');
   if (typeof switchTab === 'function' && combatBtn) switchTab('combat', combatBtn);
 }
 
@@ -16458,12 +16535,12 @@ function yessodResolveMonsterCombat(success) {
 // ── YESSOD BOSS TOWERS ────────────────────────────────────────────────────────
 function enterYessodBossTower(towerId) {
   const bossData = towerId === 'mephisto_tower' ? YESSOD_STRATA_FLAVOR[0].boss : YESSOD_STRATA_FLAVOR[5].boss;
-  const dread = towerId === 'mephisto_tower' ? 16 : 18;
+  const dread = towerId === 'mephisto_tower' ? 12 : 20;
   const count = 6;
   const now = Date.now();
   S.enemies = [];
   for (let i = 0; i < count; i += 1) {
-    S.enemies.push({ id: now + i, name: `${bossData.label} Guard ${i + 1}`, dread: Math.round(dread / 2), stress: 0, maxStress: dread, health: dread, conditions: [] });
+    S.enemies.push({ id: now + i, name: `${bossData.label} Guard ${i + 1}`, dread: snapToValidDreadDie(Math.round(dread / 2)), stress: 0, maxStress: dread, health: dread, conditions: [] });
   }
   S.enemies.push({ id: now + count, name: bossData.label, dread, stress: 0, maxStress: dread * 3, health: dread * 3, conditions: [], isPinnacle: true });
   S.combat = S.combat || {};
@@ -16473,11 +16550,42 @@ function enterYessodBossTower(towerId) {
   if (typeof startCombat === 'function') startCombat();
   if (typeof renderEnemies === 'function') renderEnemies();
   showNotif(`Entering ${bossData.name}. ${bossData.label} Raid encounter started. This is a Gate Endgame Mission.`, 'warn');
-  const combatBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('combat'\"]");
+  const combatBtn = document.getElementById('tabnav-combat') || document.querySelector('nav .tab-btn[data-tab="combat"]');
   if (typeof switchTab === 'function' && combatBtn) switchTab('combat', combatBtn);
 }
 
 // ── YESSOD TASKS & MISSIONS ───────────────────────────────────────────────────
+function rollYessodTaskGeneration(cellId) {
+  const state = ensureYessodState();
+  const cell = yessodGetCell(state, cellId);
+  if (!cell) return;
+  const dd = 6;
+  if (isGlobalManualRollMode()) {
+    openGlobalManualActionDreadPrompt({
+      title: 'Manual Roll - Yessod Task Generation',
+      context: 'Generate task at Hex ' + Number(cell.id),
+      statKey: 'valor',
+      statLabel: 'Valor',
+      actionDie: (typeof getEffectiveDie === 'function') ? getEffectiveDie('valor') : 6,
+      dreadDie: dd,
+      onResolve: function (outcome) {
+        if (outcome && outcome.success) createYessodTask(cellId);
+        else {
+          if (typeof changeStress === 'function') changeStress(1);
+          showNotif('Task generation failed (Valor vs DD6).', 'warn');
+        }
+      }
+    });
+    return;
+  }
+  const check = resolveGalaxySkillCheck('valor', null, dd, 'Yessod Task Generation');
+  if (check && check.success) createYessodTask(cellId);
+  else {
+    if (typeof changeStress === 'function') changeStress(1);
+    showNotif('Task generation failed (Valor vs DD6).', 'warn');
+  }
+}
+
 function createYessodTask(cellId) {
   const state = ensureYessodState();
   const cell = yessodGetCell(state, cellId);
@@ -16714,7 +16822,7 @@ function renderYessodHexInfo(cell) {
       <div style="font-size:.77rem;color:var(--text2);margin-top:.2rem;">Sheltering in ruins provides rough rest: restore 1 Health but risk a random encounter (Roll Encounter).</div>
       <div style="display:flex;gap:.28rem;flex-wrap:wrap;margin-top:.32rem;">
         <button class="btn btn-sm" style="border-color:#a09870;color:#a09870;" onclick="yessodRestAtRuins(${cell.id})">🛏 Rest in Ruins (+1 Health, Roll Encounter)</button>
-        <button class="btn btn-sm btn-gold" onclick="yessodExploreRuins(${cell.id})">🏛 Explore Ruins (VD vs DD${strataFlavor.threat + 4})</button>
+        <button class="btn btn-sm btn-gold" onclick="yessodExploreRuins(${cell.id})">🏛 Explore Ruins (Province Style, VD vs DD${strataFlavor.threat + 4})</button>
       </div>
     </div>`;
   }
@@ -16858,8 +16966,10 @@ function renderYessodHexInfo(cell) {
       <button class="btn btn-sm btn-teal" onclick="rollYessodEncounter()">⚄ Roll Encounter</button>
     </div>
     <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
-      <button class="btn btn-sm" onclick="createYessodTask(${cell.id})">⚄ Generate Task</button>
+      <button class="btn btn-sm" onclick="rollYessodTaskGeneration(${cell.id})">⚄ Generate Task (Valor vs DD6)</button>
       <button class="btn btn-sm btn-warn" onclick="rollYessodMonsterEncounter(${cell.id})">🐉 Roll Monster</button>
+      <button class="btn btn-sm" onclick="yessodTakeLongRest(${cell.id})">🌙 Long Rest (+1 Day)</button>
+      <button class="btn btn-sm" onclick="clearYessodTrial()">🧹 Clear Trial</button>
     </div>
     <div id="yessodEncResult">${encounterHtml}</div>
 
@@ -16881,6 +16991,7 @@ function renderYessodPanel() {
   const selected = yessodGetCell(state, state.selectedCellId) || state.cells[0];
   const weather = state.currentWeather || rollYessodWeather(state);
   const strataName = YESSOD_STRATA[Math.max(0, Math.min(YESSOD_STRATA.length - 1, Number(state.currentStrata || 1) - 1))];
+  const manualOn = !!(window.settingsSystem && typeof window.settingsSystem.isManualRollMode === 'function' && window.settingsSystem.isManualRollMode());
   const travelOptions = [
     { value: 'trek', label: 'Trek (on foot)' },
     { value: 'lethe_ferry', label: 'Ferries (River Lethe)' },
@@ -16902,6 +17013,7 @@ function renderYessodPanel() {
       <button class="btn btn-sm" onclick="rollYessodWeatherNow()">Roll Weather</button>
       <button class="btn btn-sm" onclick="shiftYessodStrata(-1)">Strata -</button>
       <button class="btn btn-sm" onclick="shiftYessodStrata(1)">Strata +</button>
+      <button class="btn btn-sm" onclick="toggleYessodManualRollMode()">Manual Roll: ${manualOn ? 'On' : 'Off'}</button>
       <span style="color:var(--muted);font-size:.6rem;margin:0 .3rem;">|</span>
       <label style="font-size:.75rem;color:var(--muted2);">Travel Method
         <select onchange="setYessodTravelMethod(this.value)" style="margin-left:.3rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
@@ -22601,25 +22713,25 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Add Space context button if not present
-  const ctxBar = document.querySelector('.ctx-bar');
-  if (ctxBar && !document.querySelector('.ctx-btn[onclick*="space"]')) {
-    const spaceBtn = document.createElement('button');
-    spaceBtn.className = 'ctx-btn';
-    spaceBtn.innerHTML = '🚀 Space';
-    spaceBtn.setAttribute('onclick', "setContext('space',this)");
-    ctxBar.appendChild(spaceBtn);
-  }
-
-  // Add Oracle nav tab if not present
   const nav = document.querySelector('nav');
-  if (nav && !document.querySelector('.tab-btn[onclick*="oracle"]')) {
-    const oracleBtn = document.createElement('button');
-    oracleBtn.className = 'tab-btn';
-    oracleBtn.innerHTML = '☽ Oracle';
-    oracleBtn.setAttribute('onclick', "switchTab('oracle',this)");
-    nav.appendChild(oracleBtn);
-  }
+
+  const dedupeNodes = function(selector, keyFn) {
+    const seen = new Set();
+    document.querySelectorAll(selector).forEach((node) => {
+      if (!node) return;
+      const key = String(keyFn(node) || '').trim();
+      if (!key) return;
+      if (seen.has(key)) {
+        node.remove();
+        return;
+      }
+      seen.add(key);
+    });
+  };
+  dedupeNodes('.ctx-btn[data-ctx]', function(node) { return node.getAttribute('data-ctx'); });
+  dedupeNodes('nav .tab-btn', function(node) {
+    return node.getAttribute('data-tab') || node.getAttribute('aria-controls') || node.id || node.textContent;
+  });
 
   const tabHost = document.getElementById('tab-naval') ? document.getElementById('tab-naval').parentElement : null;
   if (tabHost && !document.getElementById('tab-planet')) {
@@ -22640,31 +22752,48 @@ document.addEventListener('DOMContentLoaded', function() {
     panel.id = 'tab-yessod';
     tabHost.appendChild(panel);
   }
-  if (nav && !document.querySelector('.tab-btn[onclick*="switchTab(\'planet\'"]')) {
+  if (nav && !document.getElementById('tabnav-planet') && !document.querySelector('.tab-btn[data-tab="planet"]')) {
     const planetBtn = document.createElement('button');
     planetBtn.className = 'tab-btn ctx-space';
+    planetBtn.id = 'tabnav-planet';
     planetBtn.style.display = 'none';
+    planetBtn.setAttribute('data-tab', 'planet');
     planetBtn.textContent = 'Planet Exploration';
     planetBtn.setAttribute('onclick', "switchTab('planet',this)");
     nav.appendChild(planetBtn);
   }
-  if (nav && !document.querySelector('.tab-btn[onclick*="switchTab(\'exocrafts\'"]')) {
+  if (nav && !document.getElementById('tabnav-exocrafts') && !document.querySelector('.tab-btn[data-tab="exocrafts"]')) {
     const exoBtn = document.createElement('button');
     exoBtn.className = 'tab-btn ctx-space';
+    exoBtn.id = 'tabnav-exocrafts';
     exoBtn.style.display = 'none';
+    exoBtn.setAttribute('data-tab', 'exocrafts');
     exoBtn.textContent = 'Exocrafts';
     exoBtn.setAttribute('onclick', "switchTab('exocrafts',this)");
     nav.appendChild(exoBtn);
   }
-  if (nav && !document.querySelector('.tab-btn[onclick*="switchTab(\'yessod\'"]')) {
+  if (nav && !document.getElementById('tabnav-yessod') && !document.querySelector('.tab-btn[data-tab="yessod"]')) {
     const yessodBtn = document.createElement('button');
     yessodBtn.className = 'tab-btn ctx-space';
     yessodBtn.id = 'tabnav-yessod';
     yessodBtn.style.display = 'none';
+    yessodBtn.setAttribute('data-tab', 'yessod');
     yessodBtn.textContent = 'Yessod';
     yessodBtn.setAttribute('onclick', "switchTab('yessod',this)");
     nav.appendChild(yessodBtn);
   }
+
+  const planetTab = document.getElementById('tabnav-planet') || document.querySelector('nav .tab-btn[data-tab="planet"]');
+  const yessodTab = document.getElementById('tabnav-yessod') || document.querySelector('nav .tab-btn[data-tab="yessod"]');
+  const exocraftsTab = document.getElementById('tabnav-exocrafts') || document.querySelector('nav .tab-btn[data-tab="exocrafts"]');
+  if (nav && planetTab && yessodTab && exocraftsTab) {
+    nav.insertBefore(planetTab, yessodTab);
+    if (yessodTab.nextSibling !== exocraftsTab) nav.insertBefore(exocraftsTab, yessodTab.nextSibling);
+  }
+
+  dedupeNodes('nav .tab-btn', function(node) {
+    return node.getAttribute('data-tab') || node.getAttribute('aria-controls') || node.id || node.textContent;
+  });
   syncYessodTabVisibility();
 
   renderStarsCombatZone(1);
@@ -22702,6 +22831,9 @@ window.yessodRestAtDwelling = yessodRestAtDwelling;
 window.yessodRestAtTemple = yessodRestAtTemple;
 window.yessodRideTitanwalker = yessodRideTitanwalker;
 window.yessodRestAtRuins = yessodRestAtRuins;
+window.yessodTakeLongRest = yessodTakeLongRest;
+window.toggleYessodManualRollMode = toggleYessodManualRollMode;
+window.clearYessodTrial = clearYessodTrial;
 window.yessodExploreRuins = yessodExploreRuins;
 window.yessodExploreLostCity = yessodExploreLostCity;
 window.yessodTravelThroughGate = yessodTravelThroughGate;
@@ -22710,12 +22842,14 @@ window.yessodTraverseBarrier = yessodTraverseBarrier;
 window.yessodTraversePeril = yessodTraversePeril;
 window.yessodRollIronwayEncounter = yessodRollIronwayEncounter;
 window.yessodShowIronwayGoods = yessodShowIronwayGoods;
+window.buyYessodIronwayGood = buyYessodIronwayGood;
 window.yessodRollWeatherCheck = yessodRollWeatherCheck;
 window.rollYessodMonsterEncounter = rollYessodMonsterEncounter;
 window.yessodEngageMonster = yessodEngageMonster;
 window.yessodAvoidMonster = yessodAvoidMonster;
 window.yessodResolveMonsterCombat = yessodResolveMonsterCombat;
 window.enterYessodBossTower = enterYessodBossTower;
+window.rollYessodTaskGeneration = rollYessodTaskGeneration;
 window.createYessodTask = createYessodTask;
 window.resolveYessodTask = resolveYessodTask;
 window.resolveYessodMission = resolveYessodMission;

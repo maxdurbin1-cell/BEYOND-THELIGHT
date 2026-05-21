@@ -5693,9 +5693,25 @@
     const panelHost = document.getElementById("tab-map") ? document.getElementById("tab-map").parentElement : null;
     if (!nav || !panelHost) return;
 
-    if (!document.querySelector(".tab-btn[onclick*=\"switchTab('" + STORY_TAB_ID + "'\"]")) {
+    const storylineButtons = Array.from(nav.querySelectorAll('.tab-btn')).filter(function (btn) {
+      if (!btn) return false;
+      if (btn.id === 'tabnav-storyline') return true;
+      if (btn.getAttribute('data-tab') === STORY_TAB_ID) return true;
+      const oc = String(btn.getAttribute('onclick') || '');
+      return oc.indexOf("switchTab('" + STORY_TAB_ID + "'") >= 0;
+    });
+    if (storylineButtons.length > 1) {
+      const keep = document.getElementById('tabnav-storyline') || storylineButtons[0];
+      storylineButtons.forEach(function (btn) {
+        if (btn !== keep && btn.parentElement) btn.parentElement.removeChild(btn);
+      });
+    }
+
+    if (!document.getElementById('tabnav-storyline') && !document.querySelector(".tab-btn[onclick*=\"switchTab('" + STORY_TAB_ID + "'\"]")) {
       const btn = document.createElement("button");
-      btn.className = "tab-btn";
+      btn.className = "tab-btn ctx-traveling";
+      btn.id = 'tabnav-storyline';
+      btn.setAttribute('data-tab', STORY_TAB_ID);
       btn.setAttribute("onclick", "switchTab('" + STORY_TAB_ID + "',this)");
       btn.textContent = "Storyline";
       nav.appendChild(btn);

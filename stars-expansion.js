@@ -8342,7 +8342,8 @@ function ensureNewSunTab() {
     btn.setAttribute('aria-controls', 'tab-newsun');
     btn.setAttribute('onclick', "switchTab('newsun',this)");
     btn.textContent = 'Solo Challenge';
-    nav.insertBefore(btn, document.getElementById('tabnav-storyline'));
+    var factionsBtn = document.getElementById('tabnav-factions');
+    nav.insertBefore(btn, factionsBtn || document.getElementById('tabnav-storyline'));
   }
 
   if (!document.getElementById('tab-newsun')) {

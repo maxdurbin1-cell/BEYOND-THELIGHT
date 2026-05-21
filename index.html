@@ -1833,16 +1833,13 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 
 <script>
 const DICE=[4,6,8,10,12,20];
-const DICE_VISUAL_DEFAULTS={enabled:false,maxVisible:6,mode:'all',cinematicMajor:true,provider:'classic',dddice:{apiKey:'',theme:'dddice-bees'}};
+const DICE_VISUAL_DEFAULTS={enabled:false,maxVisible:6,mode:'all',cinematicMajor:true};
 function loadDiceVisualSettings(){
   try{
     const raw=localStorage.getItem('beyond-light-dice-visuals');
     if(!raw)return Object.assign({},DICE_VISUAL_DEFAULTS);
     const parsed=JSON.parse(raw);
-    const merged=Object.assign({},DICE_VISUAL_DEFAULTS,parsed||{});
-    merged.provider=merged.provider==='dddice'?'dddice':'classic';
-    merged.dddice=Object.assign({},DICE_VISUAL_DEFAULTS.dddice,(parsed&&parsed.dddice)||{});
-    return merged;
+    return Object.assign({},DICE_VISUAL_DEFAULTS,parsed||{});
   }catch(_err){
     return Object.assign({},DICE_VISUAL_DEFAULTS);
   }
@@ -1902,12 +1899,6 @@ window._diceRollContext=null;
 function saveDiceVisualSettings(){
   try{ localStorage.setItem('beyond-light-dice-visuals',JSON.stringify(DICE_VISUAL)); }catch(_err){}
 }
-function getDddiceVisualSettings(){
-  if(!DICE_VISUAL.dddice||typeof DICE_VISUAL.dddice!=='object')DICE_VISUAL.dddice=Object.assign({},DICE_VISUAL_DEFAULTS.dddice);
-  DICE_VISUAL.dddice.apiKey=String(DICE_VISUAL.dddice.apiKey||'');
-  DICE_VISUAL.dddice.theme=String(DICE_VISUAL.dddice.theme||DICE_VISUAL_DEFAULTS.dddice.theme||'dddice-bees').trim()||'dddice-bees';
-  return DICE_VISUAL.dddice;
-}
 function applyDiceVisualMeta(meta){
   const ctx=window._diceRollContext&&typeof window._diceRollContext==='object'?window._diceRollContext:{};
   const own=meta&&typeof meta==='object'?meta:{};
@@ -1949,93 +1940,6 @@ function queueDiceRollVisual(sides,value,meta){
     DICE_VISUAL.enabled=false;
   }
 }
-const _queueClassicDiceRollVisual=queueDiceRollVisual;
-function ensureDddiceVisualControls(){
-  if(document.getElementById('diceVisualProviderSel'))return;
-  const modeSel=document.getElementById('diceVisualModeSel');
-  if(!modeSel||!modeSel.parentElement)return;
-  const host=modeSel.parentElement;
-  const providerWrap=document.createElement('div');
-  providerWrap.className='mt-1';
-  const providerLabel=document.createElement('span');
-  providerLabel.className='label';
-  providerLabel.textContent='Renderer:';
-  providerWrap.appendChild(providerLabel);
-  const providerSel=document.createElement('select');
-  providerSel.id='diceVisualProviderSel';
-  providerSel.className='form-select form-select-sm d-inline-block w-auto mx-1';
-  providerSel.innerHTML='<option value="classic">Classic</option><option value="dddice" disabled>dddice 3D (disabled for stability)</option>';
-  providerSel.addEventListener('change',function(){
-    if(typeof window.setDiceVisualProvider==='function')window.setDiceVisualProvider(providerSel.value);
-  });
-  providerWrap.appendChild(providerSel);
-  host.appendChild(providerWrap);
-  const panel=document.createElement('div');
-  panel.id='dddiceConfigPanel';
-  panel.className='mt-1 p-1 border rounded';
-  panel.style.display='none';
-  panel.style.fontSize='0.9em';
-  panel.innerHTML=''
-    +'<div><b>dddice Settings</b> <span class="text-muted">(stored in this browser)</span></div>'
-    +'<div class="mt-1">'
-      +'<label class="label" for="dddiceApiKeyInp">API key:</label> '
-      +'<input id="dddiceApiKeyInp" type="password" class="form-control form-control-sm d-inline-block w-auto" placeholder="Optional"> '
-      +'<button class="btn btn-xs btn-teal" onclick="window.applyDddiceVisualConfig()">Save</button> '
-      +'<button class="btn btn-xs" onclick="window.clearDddiceVisualApiKey()">Clear</button>'
-    +'</div>'
-    +'<div class="mt-1">'
-      +'<label class="label" for="dddiceThemeSel">Theme:</label> '
-      +'<select id="dddiceThemeSel" class="form-select form-select-sm d-inline-block w-auto">'
-        +'<option value="dddice-bees">dddice-bees</option>'
-      +'</select> '
-      +'<button class="btn btn-xs" onclick="window.refreshDddiceThemeOptions()">Refresh Themes</button> '
-      +'<span id="dddiceThemeStatus" class="text-muted"></span>'
-    +'</div>';
-  host.appendChild(panel);
-}
-function syncDddiceVisualProvider(){
-  ensureDddiceVisualControls();
-  try{
-    const providerSel=document.getElementById('diceVisualProviderSel');
-    const panel=document.getElementById('dddiceConfigPanel');
-    const apiKeyInp=document.getElementById('dddiceApiKeyInp');
-    const themeSel=document.getElementById('dddiceThemeSel');
-    const themeStatus=document.getElementById('dddiceThemeStatus');
-    const dddiceSettings=getDddiceVisualSettings();
-    if(providerSel)providerSel.value='classic';
-    if(panel)panel.style.display='none';
-    if(apiKeyInp&&document.activeElement!==apiKeyInp)apiKeyInp.value=dddiceSettings.apiKey;
-    if(themeSel){
-      if(!Array.from(themeSel.options).some(function(opt){ return opt.value===dddiceSettings.theme; })){
-        const opt=document.createElement('option');
-        opt.value=dddiceSettings.theme;
-        opt.textContent=dddiceSettings.theme;
-        themeSel.appendChild(opt);
-      }
-      themeSel.value=dddiceSettings.theme;
-    }
-    if(themeStatus)themeStatus.textContent='Theme: '+dddiceSettings.theme+(dddiceSettings.apiKey?' · key saved in this browser':' · public/default theme');
-    if(DICE_VISUAL.provider==='dddice'){ DICE_VISUAL.provider='classic'; saveDiceVisualSettings(); }
-  }catch(_err){}
-}
-function queueDiceRollVisual(sides,value,meta){
-  try{
-    if(!DICE_VISUAL.enabled)return;
-    const merged=applyDiceVisualMeta(meta);
-    if(DICE_VISUAL.mode==='major' && !merged.major)return;
-    if(false&&DICE_VISUAL.provider==='dddice'&&window.BTLDddiceOverlay&&typeof window.BTLDddiceOverlay.rollDie==='function'){
-      const dddiceSettings=getDddiceVisualSettings();
-      Promise.resolve(window.BTLDddiceOverlay.configure({enabled:true,apiKey:dddiceSettings.apiKey,theme:dddiceSettings.theme})).then(function(state){
-        if(!state||!state.ready){ _queueClassicDiceRollVisual(sides,value,merged); return; }
-        return window.BTLDddiceOverlay.rollDie({sides:sides,value:value,label:merged.label,meta:merged}).catch(function(){ _queueClassicDiceRollVisual(sides,value,merged); });
-      }).catch(function(){ _queueClassicDiceRollVisual(sides,value,merged); });
-      return;
-    }
-    _queueClassicDiceRollVisual(sides,value,merged);
-  }catch(_err){
-    DICE_VISUAL.enabled=false;
-  }
-}
 function withDiceRollContext(ctx,fn){
   const prev=window._diceRollContext;
   window._diceRollContext=Object.assign({},prev||{},ctx||{});
@@ -2052,79 +1956,10 @@ window.setDiceVisualMode=function(mode){
   saveDiceVisualSettings();
   updateDiceVisualUI();
 };
-window.setDiceVisualProvider=function(provider){
-  DICE_VISUAL.provider='classic';
-  saveDiceVisualSettings();
-  updateDiceVisualUI();
-  if(provider==='dddice'){
-    showNotif('dddice 3D has been disabled for launch stability. Using Classic overlay.','warn');
-    return;
-  }
-  showNotif('Dice visual provider: Classic overlay.','good');
-};
 window.toggleDiceVisualCinematic=function(){
   DICE_VISUAL.cinematicMajor=!DICE_VISUAL.cinematicMajor;
   saveDiceVisualSettings();
   updateDiceVisualUI();
-};
-window.applyDddiceVisualConfig=function(){
-  const apiKeyInp=document.getElementById('dddiceApiKeyInp');
-  const themeSel=document.getElementById('dddiceThemeSel');
-  const dddiceSettings=getDddiceVisualSettings();
-  dddiceSettings.apiKey=apiKeyInp?String(apiKeyInp.value||'').trim():dddiceSettings.apiKey;
-  dddiceSettings.theme=themeSel?String(themeSel.value||dddiceSettings.theme||'dddice-bees').trim():dddiceSettings.theme;
-  if(!dddiceSettings.theme)dddiceSettings.theme='dddice-bees';
-  saveDiceVisualSettings();
-  updateDiceVisualUI();
-  showNotif('dddice settings saved for this browser.','good');
-};
-window.clearDddiceVisualApiKey=function(){
-  const apiKeyInp=document.getElementById('dddiceApiKeyInp');
-  const dddiceSettings=getDddiceVisualSettings();
-  dddiceSettings.apiKey='';
-  if(apiKeyInp)apiKeyInp.value='';
-  saveDiceVisualSettings();
-  updateDiceVisualUI();
-  showNotif('dddice API key cleared from this browser.','warn');
-};
-window.refreshDddiceThemeOptions=function(){
-  const apiKeyInp=document.getElementById('dddiceApiKeyInp');
-  const themeSel=document.getElementById('dddiceThemeSel');
-  const themeStatus=document.getElementById('dddiceThemeStatus');
-  const apiKey=apiKeyInp?String(apiKeyInp.value||'').trim():'';
-  if(!apiKey){
-    if(typeof showNotif==='function')showNotif('Enter a dddice API key first.','warn');
-    return Promise.resolve([]);
-  }
-  if(!window.BTLDddiceOverlay||typeof window.BTLDddiceOverlay.fetchThemes!=='function'){
-    if(typeof showNotif==='function')showNotif('dddice overlay is still loading. Try again in a second.','warn');
-    return Promise.resolve([]);
-  }
-  if(themeStatus)themeStatus.textContent='Loading your dddice themes...';
-  return Promise.resolve(window.BTLDddiceOverlay.fetchThemes(apiKey)).then(function(themes){
-    if(themeSel){
-      const currentTheme=String(themeSel.value||getDddiceVisualSettings().theme||'dddice-bees').trim()||'dddice-bees';
-      themeSel.innerHTML='';
-      const fallbackOpt=document.createElement('option');
-      fallbackOpt.value='dddice-bees';
-      fallbackOpt.textContent='dddice-bees';
-      themeSel.appendChild(fallbackOpt);
-      (Array.isArray(themes)?themes:[]).forEach(function(theme){
-        if(!theme||!theme.id)return;
-        const opt=document.createElement('option');
-        opt.value=String(theme.id);
-        opt.textContent=String(theme.name||theme.id);
-        themeSel.appendChild(opt);
-      });
-      if(Array.from(themeSel.options).some(function(opt){ return opt.value===currentTheme; }))themeSel.value=currentTheme;
-    }
-    if(themeStatus)themeStatus.textContent=(Array.isArray(themes)&&themes.length)?('Loaded '+themes.length+' dddice theme'+(themes.length===1?'':'s')+'.'):'No personal dddice themes found. Using the selected theme id.';
-    return themes;
-  }).catch(function(err){
-    if(themeStatus)themeStatus.textContent='Could not load dddice themes.';
-    if(typeof showNotif==='function')showNotif((err&&err.message)?err.message:'Could not load dddice themes.','warn');
-    return [];
-  });
 };
 function updateDiceVisualUI(){
   const onBtn=document.getElementById('diceVisualEnabledBtn');
@@ -2139,10 +1974,7 @@ function updateDiceVisualUI(){
     cineBtn.textContent='Cinematic Major: '+(DICE_VISUAL.cinematicMajor?'On':'Off');
     cineBtn.className='btn btn-xs '+(DICE_VISUAL.cinematicMajor?'btn-primary':'');
   }
-  syncDddiceVisualProvider();
 }
-window.addEventListener('btl:dddice-ready',function(){
-  syncDddiceVisualProvider();
 });
 function isManualRollModeEnabled(){
   try{
@@ -25793,7 +25625,6 @@ window.addEventListener('DOMContentLoaded', function() {
 <script defer src="./campaign-system.js"></script>
 <script defer src="./combat-scene-editor.js"></script>
 <script defer src="./dice-roller-3d.js"></script>
-<script type="module" src="./dddice-overlay.js"></script>
 
 </body>
 </html>

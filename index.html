@@ -553,7 +553,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-combat" id="tabnav-combat" data-tab="combat">Combat</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-scenes" id="tabnav-scenes" data-tab="scenes">Scenes</button>
     <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-oracle" id="tabnav-oracle" data-tab="oracle">Oracle</button>
-    <button class="tab-btn ctx-settings" role="tab" aria-selected="false" aria-controls="tab-storyline" id="tabnav-storyline" data-tab="storyline">Storyline</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-storyline" id="tabnav-storyline" data-tab="storyline">Storyline</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-factions" id="tabnav-factions" data-tab="factions">Factions</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-trophies" id="tabnav-trophies" data-tab="trophies">Trophies</button>
     <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-missions" id="tabnav-missions" data-tab="missions">Missions</button>
@@ -23973,7 +23973,8 @@ window.addEventListener('DOMContentLoaded', function() {
 
   function buildProvinceDepthsSegmentActions(col,row,idx,segment,floorState){
     if(!segment)return '';
-    if(!segment.discovered)return '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceDepthsSegment('+col+','+row+','+idx+')">⚄ Scout Frontier</button></div>';
+    const dd=floorState&&floorState.die?floorState.die:4;
+    if(!segment.discovered)return '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="openProvinceDepthsActionPrompt('+col+','+row+','+idx+')">⚄ Choose Action Die (DD'+dd+')</button></div>';
     if(segment.cleared)return '<div style="font-size:.72rem;color:var(--green2);margin-top:.25rem;">✓ Cleared</div>';
     if(segment.pendingCombat){
       return '<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
@@ -23983,8 +23984,32 @@ window.addEventListener('DOMContentLoaded', function() {
         +'</div>';
     }
     if(segment.kind==='Puzzle Door')return '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceDepthsSegment('+col+','+row+','+idx+')">🧩 Solve Seal</button></div>';
-    return '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceDepthsSegment('+col+','+row+','+idx+')">⚄ Explore Segment</button></div>';
+    return '<div style="margin-top:.3rem;"><button class="btn btn-xs btn-teal" onclick="openProvinceDepthsActionPrompt('+col+','+row+','+idx+')">⚄ Choose Action Die (DD'+dd+')</button></div>';
   }
+
+  window.openProvinceDepthsActionPrompt = function(col,row,idx){
+    const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='depths'; });
+    if(!hex)return;
+    const state=getProvinceDepthsState(hex);
+    const floorState=getProvinceDepthsFloorState(hex,state.currentFloor);
+    if(!floorState||!Array.isArray(floorState.segments)||!floorState.segments[idx])return;
+    const segment=floorState.segments[idx];
+    if(segment.kind==='Puzzle Door'){
+      resolveProvinceDepthsSegment(col,row,idx);
+      return;
+    }
+    const dd=floorState.die||4;
+    const stats=['lead','control','mind','body','spirit','defend','strike','shoot'];
+    const buttons=stats.map(function(stat){
+      const label=stat.charAt(0).toUpperCase()+stat.slice(1);
+      return '<button class="btn btn-xs btn-teal" onclick="resolveProvinceDepthsSegment('+col+','+row+','+idx+',\''+stat+'\')">'+label+'</button>';
+    }).join('');
+    const html=''
+      +'<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">Choose the Action Die from your Soul Array for this segment check.</div>'
+      +'<div style="font-size:.76rem;color:var(--muted2);margin-top:.18rem;">'+(segment.kind||'Segment')+' check: selected Action Die vs Dread d'+dd+'.</div>'
+      +'<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.34rem;">'+buttons+'</div>';
+    if(typeof openModal==='function')openModal('Depths Check Approach',html);
+  };
 
   function buildProvinceDepthsSegmentDetail(col,row,idx,floorState){
     const segments=Array.isArray(floorState&&floorState.segments)?floorState.segments:[];
@@ -24541,7 +24566,7 @@ window.addEventListener('DOMContentLoaded', function() {
     openProvinceDepthsPopup(col,row);
   };
 
-  window.resolveProvinceDepthsSegment = function(col,row,idx){
+  window.resolveProvinceDepthsSegment = function(col,row,idx,statKey){
     const hex=mapData.find(function(h){ return h.col===col&&h.row===row&&h.type==='depths'; });
     if(!hex)return;
     const state=getProvinceDepthsState(hex);
@@ -24603,7 +24628,10 @@ window.addEventListener('DOMContentLoaded', function() {
       openProvinceDepthsPopup(col,row);
       return;
     }
-    const actionDie=(typeof getEffectiveDie==='function')?getEffectiveDie('valor'):((S.stats&&(S.stats.valor||S.stats.adventure))||4);
+    const allowedStats=['lead','control','mind','body','spirit','defend','strike','shoot'];
+    const requestedKey=String(statKey||'').toLowerCase();
+    const actionKey=allowedStats.indexOf(requestedKey)>=0?requestedKey:'lead';
+    const actionDie=(typeof getEffectiveDie==='function')?getEffectiveDie(actionKey):((S.stats&&S.stats[actionKey])||4);
     const dreadDie=floorState.die||4;
     const a=explodingRoll(actionDie,{type:'action',major:true,label:'Depths '+segment.kind});
     const d=explodingRoll(dreadDie,{type:'dread',major:true,label:'Depths DD'+dreadDie});
@@ -24612,16 +24640,16 @@ window.addEventListener('DOMContentLoaded', function() {
       const reward=rollProvinceDepthsLoot(rewardKind,dreadDie);
       const rewardText=applyProvinceRuinReward(reward);
       if(segment.kind==='Shrine Niche'&&typeof toggleCond==='function'&&!S.conditions.focused){toggleCond('focused');}
-      segment.result='AD'+actionDie+' '+a.total+' vs DD'+dreadDie+' '+d.total+'. ✓ Success — '+rewardText+'.'+advanceProvinceDepthsTask(floorState,segment);
+      segment.result=actionKey.toUpperCase()+' d'+actionDie+' '+a.total+' vs DD'+dreadDie+' '+d.total+'. ✓ Success — '+rewardText+'.'+advanceProvinceDepthsTask(floorState,segment);
       segment.cleared=true;
-      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('body',Math.max(1,a.total-d.total),{actionTotal:a.total,dreadTotal:d.total,context:'Province depths segment: '+segment.kind});
+      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome(actionKey,Math.max(1,a.total-d.total),{actionTotal:a.total,dreadTotal:d.total,context:'Province depths segment: '+segment.kind});
       if(typeof addSuccessRoll==='function')addSuccessRoll();
     }else{
       const diff=Math.max(1,d.total-a.total);
-      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('body',diff,{actionTotal:a.total,dreadTotal:d.total,context:'Province depths segment: '+segment.kind});
+      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome(actionKey,diff,{actionTotal:a.total,dreadTotal:d.total,context:'Province depths segment: '+segment.kind});
       if(typeof changeStress==='function')changeStress(diff);
       if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
-      segment.result='AD'+actionDie+' '+a.total+' vs DD'+dreadDie+' '+d.total+'. ✕ Failure — take '+diff+' Stress.';
+      segment.result=actionKey.toUpperCase()+' d'+actionDie+' '+a.total+' vs DD'+dreadDie+' '+d.total+'. ✕ Failure — take '+diff+' Stress.';
     }
     syncProvinceRuinStateSoon('province-depths-segment');
     openProvinceDepthsPopup(col,row);

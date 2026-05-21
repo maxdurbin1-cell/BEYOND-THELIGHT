@@ -3892,6 +3892,49 @@
     return loot;
   }
 
+  function getMerchantLootNamePool() {
+    var shopData = null;
+    try {
+      if (window && window.SHOP_DATA && typeof window.SHOP_DATA === 'object') shopData = window.SHOP_DATA;
+      else if (typeof SHOP_DATA !== 'undefined' && SHOP_DATA && typeof SHOP_DATA === 'object') shopData = SHOP_DATA;
+    } catch (_err) {
+      shopData = null;
+    }
+    if (!shopData) return [];
+    var seen = {};
+    var pool = [];
+    Object.keys(shopData).forEach(function (cat) {
+      var list = Array.isArray(shopData[cat]) ? shopData[cat] : [];
+      list.forEach(function (entry) {
+        if (!entry) return;
+        var label = String((entry.name || entry) || '').trim();
+        var key = label.toLowerCase();
+        if (!label || seen[key]) return;
+        seen[key] = true;
+        pool.push(label);
+      });
+    });
+    return pool;
+  }
+
+  // Enemy drops are always either 1-2 merchant items or 50-100 credits.
+  function rollEnemyMerchantLoot() {
+    if (Math.random() < 0.45) {
+      return ['Credits x' + String(50 + Math.floor(Math.random() * 51))];
+    }
+    var pool = getMerchantLootNamePool();
+    if (!pool.length) {
+      return ['Credits x' + String(50 + Math.floor(Math.random() * 51))];
+    }
+    var picks = 1 + Math.floor(Math.random() * 2);
+    var loot = [];
+    for (var i = 0; i < picks; i++) {
+      var pick = pool[Math.floor(Math.random() * pool.length)] || '';
+      if (pick) loot.push(pick);
+    }
+    return loot.length ? loot : ['Credits x' + String(50 + Math.floor(Math.random() * 51))];
+  }
+
   // ── TOKEN INVENTORY SEEDING ─────────────────────────────────────────────────
   // Returns how many backpack slots an item occupies based on SHOP_DATA stat field.
   function getItemSlotCost(itemNameRaw) {
@@ -3927,6 +3970,9 @@
   function seedTokenInventoryItems(factionHint, dreadOrTier) {
     var faction = String(factionHint || 'npc').toLowerCase();
     var tier = Math.max(1, Number(dreadOrTier || 4));
+    if (faction === 'monster' || faction === 'enemy') {
+      return rollEnemyMerchantLoot();
+    }
     // 40% chance: credits-only drop
     if (Math.random() < 0.4) {
       var credits = 50 + Math.floor(Math.random() * 51);
@@ -3963,26 +4009,20 @@
       var key = String(token.id || '');
       if (!rules.lootDrops[key]) {
         var dread = Math.max(1, Number(token.dread || token.codexDread || 4));
-        var faction = String(token.faction || 'npc');
+        var faction = String(token.faction || 'npc').toLowerCase();
         var items = [];
-        // Use pre-seeded inventory if available (set at spawn time)
-        if (Array.isArray(token.inventory) && token.inventory.length) {
-          items = token.inventory.slice();
-        } else if (faction === 'monster') {
-          // Monster: credits + merchant items
-          items.push('Credits x' + String(10 * dread));
-          var merchantItems = pickMerchantLootItemsForToken(dread);
-          if (merchantItems.length) {
-            merchantItems.forEach(function (entry) { items.push(entry); });
-          } else {
-            items.push(String(token.name || 'Enemy') + ' Salvage');
-          }
+        var enemyFaction = (faction === 'monster' || faction === 'enemy');
+        if (enemyFaction) {
+          // Enemies should always loot from Merchant-tab pools: 1-2 items or 50-100 credits.
+          if (Array.isArray(token.inventory) && token.inventory.length) items = token.inventory.slice();
+          else items = rollEnemyMerchantLoot();
         } else if (faction === 'ally' || faction === 'npc') {
           // Ally/NPC: seed with 2-3 items or credits
           items = seedTokenInventoryItems(faction, dread);
         } else {
           items.push(String(token.name || 'Wayfarer') + ' Kit');
         }
+        if (!items.length) items = ['Credits x' + String(50 + Math.floor(Math.random() * 51))];
         rules.lootDrops[key] = {
           id: uid('loot'),
           tokenId: key,

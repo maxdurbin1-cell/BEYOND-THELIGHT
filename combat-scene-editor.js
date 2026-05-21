@@ -14211,8 +14211,15 @@
   (function () {
     var BP_PREF_KEY = 'btl-combat-bp-panel-v1';
     var panelOpen = false;
+    var panelTab = 'backpack';
     try { panelOpen = !!(JSON.parse(localStorage.getItem(BP_PREF_KEY) || '{}').open); } catch (_e) {}
-    function savePref() { try { localStorage.setItem(BP_PREF_KEY, JSON.stringify({ open: panelOpen })); } catch (_e) {} }
+    try {
+      var bpPref = JSON.parse(localStorage.getItem(BP_PREF_KEY) || '{}');
+      if (bpPref && (bpPref.tab === 'community' || bpPref.tab === 'backpack')) panelTab = bpPref.tab;
+    } catch (_e2) {}
+    function savePref() {
+      try { localStorage.setItem(BP_PREF_KEY, JSON.stringify({ open: panelOpen, tab: panelTab })); } catch (_e) {}
+    }
 
     function bpSlotCost(slotText) {
       return getItemSlotCost(String(slotText || '').replace(/\s*x\d+$/i, '').trim());
@@ -14307,6 +14314,37 @@
         window.showBackpackItem(Number(slotIndex || 0));
       }
     };
+    window.combatBpSetTab = function (tabKey) {
+      var key = String(tabKey || 'backpack').toLowerCase();
+      panelTab = key === 'community' ? 'community' : 'backpack';
+      savePref();
+      renderCombatBackpackPanel();
+    };
+    window.combatShareBackpackItem = async function (slotIndex) {
+      if (typeof window.shareBackpackItemToCommunity === 'function') {
+        try { await window.shareBackpackItemToCommunity(Number(slotIndex || 0)); } catch (_err) {}
+      } else if (typeof window.moveBackpackToStorage === 'function') {
+        try { await window.moveBackpackToStorage(Number(slotIndex || 0), 'party'); } catch (_err2) {}
+      }
+      renderCombatBackpackPanel();
+    };
+    window.combatClaimCommunityItem = async function (stashIndex) {
+      if (typeof window.claimCommunityBackpackItem === 'function') {
+        try { await window.claimCommunityBackpackItem(Number(stashIndex || 0)); } catch (_err) {}
+      } else if (window.campaignSystem && typeof window.campaignSystem.claimSharedItem === 'function') {
+        try { await window.campaignSystem.claimSharedItem(Number(stashIndex || 0)); } catch (_err2) {}
+      }
+      renderCombatBackpackPanel();
+    };
+    function getCombatCommunityItems() {
+      if (typeof window.getCommunityBackpackItems === 'function') {
+        try { return window.getCommunityBackpackItems(); } catch (_err) {}
+      }
+      var shared = (window.campaignSystem && typeof window.campaignSystem.getSharedState === 'function') ? window.campaignSystem.getSharedState() : null;
+      if (shared && Array.isArray(shared.partyStash)) return shared.partyStash.slice();
+      if (window.S && Array.isArray(window.S.communityBackpack)) return window.S.communityBackpack.slice();
+      return [];
+    }
 
     function renderCombatBackpackPanel() {
       var panel = document.getElementById('combatBackpackPanel');
@@ -14330,6 +14368,7 @@
         var effect = getItemCombatEffect(nameRaw);
         var useBtn = '<button class="btn btn-xs" style="flex-shrink:0;font-size:.64rem;padding:.08rem .28rem;background:rgba(46,196,182,.15);border-color:rgba(46,196,182,.4);color:var(--teal);" onclick="window.useCombatBackpackItem(' + idx + ')">Use</button>';
         var infoBtn = '<button class="btn btn-xs" style="flex-shrink:0;font-size:.64rem;padding:.08rem .28rem;" onclick="window.inspectCombatBackpackItem(' + idx + ')">Info</button>';
+        var shareBtn = '<button class="btn btn-xs" style="flex-shrink:0;font-size:.64rem;padding:.08rem .28rem;" onclick="window.combatShareBackpackItem(' + idx + ')">Share</button>';
         var effectHint = effect ? ('<div style="font-size:.62rem;color:var(--muted2);margin-top:.04rem;">' + escapeHtml(String(effect.label || 'Usable in combat')) + '</div>') : '';
         var costBadge = '<span style="font-size:.62rem;color:var(--muted2);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:3px;padding:.02rem .18rem;flex-shrink:0;">'
           + cost + (cost === 1 ? ' slot' : ' slots') + '</span>';
@@ -14338,16 +14377,42 @@
           + costBadge
           + infoBtn
           + useBtn
+          + shareBtn
           + '</div>';
       }).filter(Boolean).join('');
 
+      var communityItems = getCombatCommunityItems();
+      var communityRows = communityItems.map(function (item, idx) {
+        var label = String(item || '').trim();
+        if (!label) return '';
+        return '<div style="display:flex;align-items:center;gap:.28rem;padding:.16rem .18rem;border-bottom:1px solid rgba(255,255,255,.04);">'
+          + '<span style="flex:1;font-size:.78rem;font-family:Rajdhani,sans-serif;color:#f0f0f0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">' + escapeHtml(label) + '</span>'
+          + '<button class="btn btn-xs btn-teal" style="flex-shrink:0;font-size:.64rem;padding:.08rem .28rem;" onclick="window.combatClaimCommunityItem(' + idx + ')">Take</button>'
+          + '</div>';
+      }).filter(Boolean).join('');
+
+      var tabBtn = function (key, label) {
+        var active = panelTab === key;
+        return '<button class="btn btn-xs' + (active ? ' btn-teal' : '') + '" style="font-size:.63rem;padding:.08rem .32rem;" onclick="window.combatBpSetTab(\'' + key + '\')">' + label + '</button>';
+      };
+
+      var inner = '';
+      if (panelTab === 'community') {
+        inner = communityRows
+          ? '<div style="max-height:172px;overflow-y:auto;">' + communityRows + '</div>'
+          : '<div style="font-size:.74rem;color:var(--muted2);padding:.18rem 0;">Community Backpack is empty.</div>';
+      } else {
+        inner = rows
+          ? '<div style="max-height:172px;overflow-y:auto;">' + rows + '</div>'
+          : '<div style="font-size:.74rem;color:var(--muted2);padding:.18rem 0;">No items. Loot tokens or add via Character Tab.</div>';
+      }
+
       body.innerHTML = '<div style="padding:.3rem .38rem;">'
         + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.28rem;">'
-        + '<span style="font-size:.7rem;font-family:\'Cinzel\',serif;color:var(--combat-accent-2);">Backpack</span>'
+        + '<div style="display:flex;gap:.2rem;align-items:center;">' + tabBtn('backpack', 'Backpack') + tabBtn('community', 'Community') + '</div>'
         + '<span style="font-size:.7rem;color:' + sColor + ';">' + stats.used + '/' + stats.cap + ' slots</span>'
         + '</div>'
-        + (rows ? '<div style="max-height:172px;overflow-y:auto;">' + rows + '</div>'
-          : '<div style="font-size:.74rem;color:var(--muted2);padding:.18rem 0;">No items. Loot tokens or add via Character Tab.</div>')
+        + inner
         + '</div>';
     }
     window.renderCombatBackpackPanel = renderCombatBackpackPanel;

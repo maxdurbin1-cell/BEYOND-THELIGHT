@@ -2848,6 +2848,23 @@
     var defaultSuccess = Number(idx || 0) === 0
       ? 'Resist the effect. No condition applied.'
       : 'Resist the effect. No condition applied.';
+
+    var rawDamageMode = String(row.damageMode || row.onFailDamageMode || '').trim().toLowerCase();
+    var normalizedDamageMode = rawDamageMode === 'flat' || rawDamageMode === 'margin' || rawDamageMode === 'margin_plus'
+      ? rawDamageMode
+      : '';
+    var rawOnFailStress = Number(row.onFailStress == null ? row.failStress : row.onFailStress);
+    var safeOnFailStress = Number.isFinite(rawOnFailStress)
+      ? Math.max(0, Math.floor(rawOnFailStress))
+      : (Number(idx || 0) === 0 ? 0 : 1);
+    var rawStressBonus = Number(row.onFailStressBonus == null ? row.failStressBonus : row.onFailStressBonus);
+    var safeStressBonus = Number.isFinite(rawStressBonus) ? Math.max(0, Math.floor(rawStressBonus)) : 0;
+
+    if (!normalizedDamageMode) {
+      if (safeOnFailStress > 0) normalizedDamageMode = 'flat';
+      else normalizedDamageMode = Number(idx || 0) === 0 ? 'flat' : 'margin';
+    }
+
     var normalized = {
       name: baseName,
       desc: String(row.desc || row.description || row.text || defaultDesc),
@@ -2855,6 +2872,10 @@
       range: asEnemySkillRangeArray(row),
       onFail: String(row.onFail || row.fail || row.failure || defaultFail),
       onSuccess: String(row.onSuccess || row.success || defaultSuccess),
+      onFailCondition: String(row.onFailCondition || row.failCondition || '').trim(),
+      damageMode: normalizedDamageMode,
+      onFailStress: safeOnFailStress,
+      onFailStressBonus: safeStressBonus,
       source: String(row.source || 'Combat Tab'),
       kind: String(row.kind || 'special'),
       dreadDie: Math.max(0, Number(row.dreadDie || row.dread || 0)),
@@ -2867,6 +2888,10 @@
       normalized.save = 'mind';
       normalized.range = ['close'];
       normalized.onFail = 'Apply distracted until end of next enemy turn.';
+      normalized.onFailCondition = 'distracted';
+      normalized.damageMode = 'flat';
+      normalized.onFailStress = 0;
+      normalized.onFailStressBonus = 0;
       normalized.onSuccess = 'Resist the effect. No condition applied.';
       normalized.source = 'Combat Tab';
       normalized.kind = 'range: close';
@@ -2892,6 +2917,9 @@
           save: 'mind',
           range: ['close'],
           onFail: 'Apply distracted until end of next enemy turn.',
+          onFailCondition: 'distracted',
+          damageMode: 'flat',
+          onFailStress: 0,
           onSuccess: 'Resist the effect. No condition applied.',
           source: 'Combat Tab',
           kind: 'range: close'
@@ -2902,6 +2930,8 @@
           save: 'defend',
           range: ['engaged'],
           onFail: 'Take 1 stress.',
+          damageMode: 'flat',
+          onFailStress: 1,
           onSuccess: 'Resist the effect. No condition applied.',
           source: 'Combat Tab',
           kind: 'melee'
@@ -2915,6 +2945,8 @@
         save: 'defend',
         range: ['engaged'],
         onFail: 'Take 1 stress.',
+        damageMode: 'flat',
+        onFailStress: 1,
         onSuccess: 'Resist the effect. No condition applied.',
         source: 'Combat Tab',
         kind: 'melee'
@@ -3669,11 +3701,15 @@
     return String(m[1] || '').trim();
   }
 
-  function parseStressFromText(text, fallback) {
-    var src = String(text || '');
-    var m = src.match(/take\s*(\d+)\s*stress/i) || src.match(/(\d+)\s*stress/i);
-    if (!m) return Math.max(1, Number(fallback || 1));
-    return Math.max(1, Number(m[1] || fallback || 1));
+  function resolveEnemySkillStress(skill, margin) {
+    var row = skill && typeof skill === 'object' ? skill : {};
+    var mode = String(row.damageMode || 'margin').toLowerCase();
+    var base = Math.max(0, Number(row.onFailStress || 0));
+    var bonus = Math.max(0, Number(row.onFailStressBonus || 0));
+    var m = Math.max(1, Number(margin || 1));
+    if (mode === 'flat') return Math.max(0, base + bonus);
+    if (mode === 'margin_plus') return Math.max(1, m + bonus + (base > 0 ? base : 0));
+    return Math.max(1, m + bonus);
   }
 
   function pickMerchantLootItemsForToken(dread) {
@@ -9143,15 +9179,13 @@
       var stress = 0;
       if (hit) {
         if (selected && selected.skill) {
-          var onFail = String(selected.skill.onFail || selected.skill.desc || '');
-          if (/difference\s*\+\s*1/i.test(onFail)) stress = Math.max(1, margin + 1);
-          else stress = Math.max(1, parseStressFromText(onFail, margin));
+          stress = resolveEnemySkillStress(selected.skill, margin);
         } else {
           stress = Math.max(1, margin);
         }
-        applyDamageToToken(foe.id, stress, actor.name || 'Enemy');
+        if (stress > 0) applyDamageToToken(foe.id, stress, actor.name || 'Enemy');
         if (selected && selected.skill) {
-          var cond = extractTimedConditionText(selected.skill.onFail || '');
+          var cond = String(selected.skill.onFailCondition || '').trim() || extractTimedConditionText(selected.skill.onFail || '');
           if (cond) {
             store.setState(function (inner) {
               var next = Object.assign({}, inner);

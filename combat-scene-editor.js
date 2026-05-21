@@ -6149,23 +6149,7 @@
   function runTokenContextAction(actionKey, tokenId, q, r) {
     var token = byId(tokenId);
     if (!token) return;
-    if (actionKey === 'open-inventory') {
-      var openedInventory = false;
-      if (typeof window.openGridInventory === 'function') {
-        try {
-          window.openGridInventory();
-          openedInventory = true;
-        } catch (_gridErr) {}
-      }
-      if (typeof window.switchTab === 'function') {
-        try { window.switchTab('character'); openedInventory = true; } catch (_err) {}
-      }
-      if (typeof window.renderBackpackUI === 'function') {
-        try { window.renderBackpackUI(); openedInventory = true; } catch (_err2) {}
-      }
-      if (openedInventory) safeNotif('Inventory opened.', 'good');
-      else safeNotif('Inventory is unavailable in this scene.', 'warn');
-    } else if (actionKey === 'ping') {
+    if (actionKey === 'ping') {
       placeTablePing(token.q, token.r, currentPingIdentity());
     } else if (actionKey === 'generate-loot') {
       generatePersonalLootForToken(token.id, { force: false });
@@ -6256,7 +6240,6 @@
       { key: 'redo', label: 'Redo' },
       { key: 'sheet', label: 'Character Sheet' },
       { key: 'hold-turn', label: 'Hold Turn' },
-      { key: 'open-inventory', label: 'Open Inventory' },
       { key: 'delay-turn', label: 'Delay Turn' },
       { key: 'add-turn', label: 'Add Turn' },
       { key: 'vision', label: 'Token Vision/Light' },
@@ -6561,26 +6544,18 @@
         awardedCredits += Math.max(0, Number(creditMatch[1] || 0));
         return;
       }
-      var stored = false;
-      if (typeof window.addToInventory === 'function') {
-        try {
-          stored = !!window.addToInventory({
-            name: label,
-            type: 'One-Time',
-            effect: 'Looted from defeated token'
-          });
-        } catch (_invErr) {
-          stored = false;
-        }
-      }
-      if (stored) {
-        movedToInventory += 1;
-        return;
-      }
       if (typeof window.addToBackpack === 'function') {
         try {
-          if (window.addToBackpack(label)) movedToBackpack += 1;
+          if (window.addToBackpack(label)) {
+            movedToBackpack += 1;
+            return;
+          }
         } catch (_bpErr) {}
+      }
+      if (typeof window.addToInventory === 'function') {
+        try {
+          if (window.addToInventory({ name: label, type: 'One-Time', effect: 'Looted from defeated token' })) movedToInventory += 1;
+        } catch (_invErr) {}
       }
     });
     if (awardedCredits > 0) {
@@ -6614,9 +6589,6 @@
     if (movedToInventory > 0) summaryBits.push(movedToInventory + ' to Inventory');
     if (movedToBackpack > 0) summaryBits.push(movedToBackpack + ' to Backpack');
     safeNotif('Collected loot: ' + (summaryBits.length ? summaryBits.join(' · ') : (selectedItems.length + ' item' + (selectedItems.length === 1 ? '' : 's'))), 'good');
-    if (movedToInventory > 0 && typeof window.openGridInventory === 'function') {
-      try { window.openGridInventory(); } catch (_openErr) {}
-    }
     drawBoard();
     updateUiPanels();
     if (kept.length) renderLootPopupForToken(tokenId);

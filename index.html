@@ -869,6 +869,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
           <div style="display:flex;gap:.25rem;align-items:center;">
             <button class="btn btn-sm" onclick="openBackpackBulkSellModal()">Sell Multiple</button>
             <button class="btn btn-sm" onclick="rollBackpack()">⚄ Roll Backpack</button>
+            <button class="btn btn-sm" onclick="openCommunityBackpackModal()">🤝 Community Backpack</button>
           </div>
         </div>
         <div class="backpack-grid" id="backpackGrid">
@@ -3861,6 +3862,98 @@ function renderBackpackUI(){
   }
   host.innerHTML=html.join('');
   updateBackpackCapacityLabel();
+}
+
+function ensureCommunityBackpackState(){
+  if(!S||typeof S!=='object')return;
+  if(!Array.isArray(S.communityBackpack))S.communityBackpack=[];
+}
+
+function getCommunityBackpackItems(){
+  ensureCommunityBackpackState();
+  var shared=(window.campaignSystem&&typeof window.campaignSystem.getSharedState==='function')?window.campaignSystem.getSharedState():null;
+  if(shared&&Array.isArray(shared.partyStash))return shared.partyStash.slice();
+  return S.communityBackpack.slice();
+}
+
+function isCommunityBackpackCampaignLinked(){
+  if(!window.campaignSystem||typeof window.campaignSystem.getState!=='function')return false;
+  var st=window.campaignSystem.getState();
+  return !!(st&&st.code&&st.connected);
+}
+
+async function shareBackpackItemToCommunity(index){
+  ensureBackpackCapacity();
+  ensureCommunityBackpackState();
+  var idx=Math.max(0,Number(index||0));
+  var raw=S.backpack[idx]||'';
+  var slot=parseBackpackStack(raw);
+  if(!slot.name){showNotif('That backpack slot is empty.','warn');return false;}
+  if(isCommunityBackpackCampaignLinked()&&window.campaignSystem&&typeof window.campaignSystem.shareBackpackItem==='function'){
+    await window.campaignSystem.shareBackpackItem(idx);
+    renderBackpackUI();
+    openCommunityBackpackModal();
+    return true;
+  }
+  S.communityBackpack.push(slot.name);
+  if(slot.count>1)S.backpack[idx]=buildBackpackStack(slot.name,slot.count-1);
+  else S.backpack[idx]='';
+  renderBackpackUI();
+  showNotif('Shared to Community Backpack: '+slot.name,'good');
+  openCommunityBackpackModal();
+  return true;
+}
+
+async function claimCommunityBackpackItem(index){
+  ensureBackpackCapacity();
+  ensureCommunityBackpackState();
+  var emptyIdx=S.backpack.indexOf('');
+  if(emptyIdx<0){showNotif('Backpack full. Free a slot first.','warn');return false;}
+  var idx=Math.max(0,Number(index||0));
+  if(isCommunityBackpackCampaignLinked()&&window.campaignSystem&&typeof window.campaignSystem.claimSharedItem==='function'){
+    await window.campaignSystem.claimSharedItem(idx);
+    renderBackpackUI();
+    openCommunityBackpackModal();
+    return true;
+  }
+  var list=S.communityBackpack;
+  var item=String(list[idx]||'').trim();
+  if(!item){showNotif('That community item is no longer available.','warn');return false;}
+  list.splice(idx,1);
+  S.backpack[emptyIdx]=item;
+  renderBackpackUI();
+  showNotif('Claimed from Community Backpack: '+item,'good');
+  openCommunityBackpackModal();
+  return true;
+}
+
+function openCommunityBackpackModal(){
+  ensureBackpackCapacity();
+  ensureCommunityBackpackState();
+  var community=getCommunityBackpackItems();
+  var shareBtns=[];
+  for(var i=0;i<S.backpack.length;i++){
+    var slot=parseBackpackStack(S.backpack[i]);
+    if(!slot.name)continue;
+    shareBtns.push('<button class="btn btn-xs" style="margin:0 .2rem .2rem 0;" onclick="shareBackpackItemToCommunity('+i+')">Share '+escapeHtmlLite(slot.name)+(slot.count>1?(' ×'+slot.count):'')+'</button>');
+  }
+  var claimBtns=community.length
+    ? community.map(function(item,idx){
+        return '<button class="btn btn-xs btn-teal" style="margin:0 .2rem .2rem 0;" onclick="claimCommunityBackpackItem('+idx+')">Take '+escapeHtmlLite(String(item||''))+'</button>';
+      }).join('')
+    : '<span style="font-size:.78rem;color:var(--muted2);">No items in the community pool yet.</span>';
+  var modeNote=isCommunityBackpackCampaignLinked()
+    ? 'Campaign-linked stash: shared with connected players.'
+    : 'Local shared stash: great for pass-and-play or same-screen trading.';
+  var html=''
+    +'<div style="font-size:.86rem;color:var(--text2);line-height:1.6;">'
+    +'<div style="margin-bottom:.45rem;color:var(--muted2);">'+modeNote+'</div>'
+    +'<div style="margin-bottom:.35rem;"><strong style="color:var(--gold2);">Share from your Backpack</strong></div>'
+    +(shareBtns.length?('<div style="margin-bottom:.65rem;">'+shareBtns.join('')+'</div>'):'<div style="margin-bottom:.65rem;font-size:.78rem;color:var(--muted2);">Your backpack is empty.</div>')
+    +'<div style="margin-bottom:.35rem;"><strong style="color:var(--gold2);">Community Pool</strong></div>'
+    +'<div>'+claimBtns+'</div>'
+    +'</div>';
+  openModal('Community Backpack',html);
 }
 function getDateStampKey(){
   if(S&&S.gameDate)return[(S.gameDate.year||1),(S.gameDate.month||1),(S.gameDate.day||1)].join('-');
@@ -12284,21 +12377,7 @@ function addToBackpack(text) {
 function addLootToOpenInventoryOrBackpack(itemName) {
   var label = normalizeLegacyLootAlias(String(itemName || '').trim());
   if (!label) return false;
-  if (typeof window.addToInventory === 'function') {
-    try {
-      var invStored = !!window.addToInventory({
-        name: label,
-        type: 'One-Time',
-        effect: 'Recovered from loot reward'
-      });
-      if (invStored) {
-        if (typeof window.openGridInventory === 'function') {
-          try { window.openGridInventory(); } catch (_openErr) {}
-        }
-        return true;
-      }
-    } catch (_invErr) {}
-  }
+  // Backpack-first economy: all loot lands in backpack for immediate use/equip/trade.
   if (typeof addToBackpack === 'function') return !!addToBackpack(label);
   return false;
 }
@@ -12713,12 +12792,7 @@ function showBackpackItem(index) {
     if (S.caravan && (S.caravan.owned || S.caravan.name)) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'caravan'" + ');closeModal();">📦 Caravan</button>'; }
     if (S.naval && S.naval.ship) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'ship'" + ');closeModal();">⛵ Ship</button>'; }
     if (S.holding && (S.holding.name || S.holding.established)) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'holding'" + ');closeModal();">🏛 Holding</button>'; }
-    if (window.campaignSystem && typeof window.campaignSystem.getState === 'function') {
-      var csStateA = window.campaignSystem.getState();
-      if (csStateA && csStateA.code && csStateA.connected) {
-        storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'party'" + ');closeModal();">🤝 Party Stash</button>';
-      }
-    }
+    storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'party'" + ');closeModal();">🤝 Community Backpack</button>';
     storOpts += '</div></div>';
     btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem('+index+');closeModal();">✕ Remove</button>';
     var solarInfo = (typeof window.getSolarCycleItemDescription === 'function') ? window.getSolarCycleItemDescription(text) : null;
@@ -12761,12 +12835,7 @@ function showBackpackItem(index) {
   if (S.caravan && (S.caravan.owned || S.caravan.name)) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'caravan'" + ');closeModal();">📦 Caravan</button>'; }
   if (S.naval && S.naval.ship) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'ship'" + ');closeModal();">⛵ Ship</button>'; }
   if (S.holding && (S.holding.name || S.holding.established)) { storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'holding'" + ');closeModal();">🏛 Holding</button>'; }
-  if (window.campaignSystem && typeof window.campaignSystem.getState === 'function') {
-    var csStateB = window.campaignSystem.getState();
-    if (csStateB && csStateB.code && csStateB.connected) {
-      storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'party'" + ');closeModal();">🤝 Party Stash</button>';
-    }
-  }
+  storOpts += '<button class="btn btn-xs btn-teal" onclick="moveBackpackToStorage('+index+', ' + "'party'" + ');closeModal();">🤝 Community Backpack</button>';
   storOpts += '</div></div>';
   btnHtml += '<button class="btn btn-sm btn-red" style="margin-top:.6rem;" onclick="removeBackpackItem('+index+');closeModal();">✕ Remove</button>';
   var loreTabHtml = (typeof buildItemLoreTabHtml === 'function') ? buildItemLoreTabHtml(item.name) : '';
@@ -12841,19 +12910,21 @@ async function moveBackpackToStorage(index, storageType) {
     if (bpEl) bpEl.value = '';
     showNotif('Moved to Holding Vault: ' + item, 'good');
   } else if (storageType === 'party') {
-    if (!window.campaignSystem || typeof window.campaignSystem.getState !== 'function') {
-      showNotif('Party Stash is only available in Campaign mode.', 'warn');
-      return;
-    }
-    var campaignState = window.campaignSystem.getState();
-    if (!campaignState || !campaignState.code || !campaignState.connected) {
-      showNotif('Join an active Campaign to use Party Stash.', 'warn');
-      return;
-    }
-    if (window.campaignSystem && typeof window.campaignSystem.shareBackpackItem === 'function') {
+    if (isCommunityBackpackCampaignLinked() && window.campaignSystem && typeof window.campaignSystem.shareBackpackItem === 'function') {
       await window.campaignSystem.shareBackpackItem(index);
       var bpEl = document.getElementById('bp' + index);
       if (bpEl) bpEl.value = S.backpack[index] || '';
+      showNotif('Shared to Community Backpack.', 'good');
+    } else {
+      ensureCommunityBackpackState();
+      var stack = parseBackpackStack(item);
+      if (!stack.name) { showNotif('No item to move!', 'neutral'); return; }
+      S.communityBackpack.push(stack.name);
+      if (stack.count > 1) S.backpack[index] = buildBackpackStack(stack.name, stack.count - 1);
+      else S.backpack[index] = '';
+      var bpEl = document.getElementById('bp' + index);
+      if (bpEl) bpEl.value = S.backpack[index] || '';
+      showNotif('Moved to Community Backpack: ' + stack.name, 'good');
     }
   }
 }

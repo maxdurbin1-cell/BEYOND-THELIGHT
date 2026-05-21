@@ -3790,6 +3790,69 @@
     return loot;
   }
 
+  // ── TOKEN INVENTORY SEEDING ─────────────────────────────────────────────────
+  // Returns how many backpack slots an item occupies based on SHOP_DATA stat field.
+  function getItemSlotCost(itemNameRaw) {
+    var name = String(itemNameRaw || '').replace(/\s*x\d+$/i, '').trim().toLowerCase();
+    if (!name) return 1;
+    var shopData = null;
+    try {
+      shopData = (window && window.SHOP_DATA) || (typeof SHOP_DATA !== 'undefined' ? SHOP_DATA : null);
+    } catch (_e) { shopData = null; }
+    if (!shopData) return 1;
+    var cats = Object.keys(shopData);
+    for (var ci = 0; ci < cats.length; ci++) {
+      var list = Array.isArray(shopData[cats[ci]]) ? shopData[cats[ci]] : [];
+      for (var ii = 0; ii < list.length; ii++) {
+        var entry = list[ii];
+        if (!entry || !entry.name) continue;
+        var eName = String(entry.name || '').toLowerCase();
+        if (eName !== name && eName.indexOf(name) < 0 && name.indexOf(eName) < 0) continue;
+        var statStr = String(entry.stat || '');
+        var m1 = statStr.match(/\b(\d+)\s+slot/i);
+        if (m1) return Math.max(1, parseInt(m1[1], 10));
+        var m2 = statStr.match(/[Ss]ize\s+(\d+)/);
+        if (m2) return Math.max(1, parseInt(m2[1], 10));
+        if (/heavy/i.test(statStr)) return 3;
+        if (/medium/i.test(statStr)) return 2;
+        return 1;
+      }
+    }
+    return 1;
+  }
+
+  // Generates 2–3 loot items or 50–100 Credits for a newly-spawned non-player token.
+  function seedTokenInventoryItems(factionHint, dreadOrTier) {
+    var faction = String(factionHint || 'npc').toLowerCase();
+    var tier = Math.max(1, Number(dreadOrTier || 4));
+    // 40% chance: credits-only drop
+    if (Math.random() < 0.4) {
+      var credits = 50 + Math.floor(Math.random() * 51);
+      return ['Credits x' + credits];
+    }
+    var shopData = null;
+    try {
+      shopData = (window && window.SHOP_DATA) || (typeof SHOP_DATA !== 'undefined' ? SHOP_DATA : null);
+    } catch (_e) { shopData = null; }
+    var pool = [];
+    if (shopData) {
+      var cats = faction === 'monster'
+        ? ['items', 'essentials', 'remedies', 'toolkits']
+        : ['items', 'essentials', 'remedies', 'scrolls', 'toolkits'];
+      cats.forEach(function (cat) {
+        var catList = Array.isArray(shopData[cat]) ? shopData[cat] : [];
+        catList.forEach(function (e) { if (e && e.name) pool.push(e.name); });
+      });
+    }
+    if (!pool.length) pool = ['Healing Salve', 'Rations', 'Rope (50ft)', 'Torch', 'Antitoxin'];
+    var count = 2 + Math.floor(Math.random() * 2); // 2 or 3
+    var items = [];
+    for (var i = 0; i < count; i++) {
+      items.push(pool[Math.floor(Math.random() * pool.length)]);
+    }
+    return items;
+  }
+
   function ensureLootDropForToken(token, reason) {
     if (!token) return;
     store.setState(function (state) {
@@ -3798,8 +3861,13 @@
       var key = String(token.id || '');
       if (!rules.lootDrops[key]) {
         var dread = Math.max(1, Number(token.dread || token.codexDread || 4));
+        var faction = String(token.faction || 'npc');
         var items = [];
-        if (String(token.faction || '') === 'monster') {
+        // Use pre-seeded inventory if available (set at spawn time)
+        if (Array.isArray(token.inventory) && token.inventory.length) {
+          items = token.inventory.slice();
+        } else if (faction === 'monster') {
+          // Monster: credits + merchant items
           items.push('Credits x' + String(10 * dread));
           var merchantItems = pickMerchantLootItemsForToken(dread);
           if (merchantItems.length) {
@@ -3807,6 +3875,9 @@
           } else {
             items.push(String(token.name || 'Enemy') + ' Salvage');
           }
+        } else if (faction === 'ally' || faction === 'npc') {
+          // Ally/NPC: seed with 2-3 items or credits
+          items = seedTokenInventoryItems(faction, dread);
         } else {
           items.push(String(token.name || 'Wayfarer') + ' Kit');
         }
@@ -4876,6 +4947,7 @@
         image: String(profile.image || ''),
         size: Number(profile.size || 1),
         codexRegion: String(profile.region || 'province'),
+        inventory: seedTokenInventoryItems('monster', Math.max(4, Number(profile.dread || 6))),
         enemySkills: (Array.isArray(profile.skills) && profile.skills.length ? profile.skills.slice(0, 2) : (Array.isArray(profile.abilities) && profile.abilities.length ? profile.abilities.slice(0, 2) : (Array.isArray(profile.moves) && profile.moves.length ? profile.moves.slice(0, 2) : [])))
       };
       next.tokens = (state.tokens || []).concat([token]);
@@ -6085,12 +6157,30 @@
       return false;
     }
     title.textContent = String(token.name || 'Body') + ' Loot';
-    meta.textContent = 'Hex ' + toKey(token.q, token.r) + ' \u00b7 ' + items.length + ' item' + (items.length === 1 ? '' : 's') + ' remaining';
+    // Backpack capacity info
+    var bpCap = (typeof window.getBackpackCapacity === 'function') ? window.getBackpackCapacity() : 6;
+    var bpUsed = 0;
+    if (window.S && Array.isArray(window.S.backpack)) {
+      window.S.backpack.forEach(function (slotText) {
+        if (!slotText || !slotText.trim()) return;
+        bpUsed += getItemSlotCost(String(slotText || '').replace(/\s*x\d+$/i, '').trim());
+      });
+    }
+    var bpFull = bpUsed >= bpCap;
+    var bpColor = bpFull ? '#e05050' : bpUsed >= bpCap - 1 ? '#e3bc5e' : '#57d69b';
+    meta.innerHTML = 'Hex ' + toKey(token.q, token.r) + ' &middot; ' + items.length + ' item' + (items.length === 1 ? '' : 's')
+      + ' &nbsp;<span style="font-size:.7rem;color:' + bpColor + ';">Backpack: ' + bpUsed + '/' + bpCap + ' slots</span>';
     listEl.innerHTML = items.map(function (item, idx) {
       var label = formatLootItemLabel(item).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      return '<label style="display:flex;align-items:center;gap:.35rem;padding:.12rem .14rem;border:1px solid rgba(255,255,255,.08);border-radius:6px;">'
-        + '<input type="checkbox" data-loot-idx="' + idx + '">'
-        + '<span style="font:.8rem Rajdhani,sans-serif;color:#f7f7f7;">' + label + '</span>'
+      var itemName = String(item || '').replace(/\s*x\d+$/i, '').trim();
+      var slotCost = getItemSlotCost(itemName);
+      var wouldOverflow = (bpUsed + slotCost) > bpCap;
+      var slotBadge = '<span style="font-size:.63rem;color:' + (wouldOverflow ? '#e05050' : 'var(--muted2)') + ';background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:3px;padding:.03rem .18rem;flex-shrink:0;">'
+        + slotCost + (slotCost === 1 ? ' slot' : ' slots') + '</span>';
+      return '<label style="display:flex;align-items:center;gap:.3rem;padding:.12rem .14rem;border:1px solid rgba(255,255,255,.08);border-radius:6px;">'
+        + '<input type="checkbox" data-loot-idx="' + idx + '"' + (wouldOverflow ? ' title="May overflow backpack capacity"' : '') + '>'
+        + '<span style="flex:1;font:.8rem Rajdhani,sans-serif;color:' + (wouldOverflow ? '#e09070' : '#f7f7f7') + ';">' + label + '</span>'
+        + slotBadge
         + '</label>';
     }).join('');
     takeAllBtn.disabled = !items.length;
@@ -7477,7 +7567,7 @@
           } else if (action === 'spawn-npc') {
             store.setState(function (inner2) {
               var next2 = Object.assign({}, inner2);
-              var n = { id: uid('npc'), name: String(chosen.name || 'NPC'), faction: 'npc', hp: 8, maxHp: 8, status: [], q: baseQ, r: baseR, image: '', size: 1 };
+              var n = { id: uid('npc'), name: String(chosen.name || 'NPC'), faction: 'npc', hp: 8, maxHp: 8, status: [], q: baseQ, r: baseR, image: '', size: 1, inventory: seedTokenInventoryItems('npc', 4) };
               next2.tokens = (inner2.tokens || []).concat([n]);
               next2.selectedTokenId = n.id;
               persist(next2);
@@ -11447,7 +11537,7 @@
           var player = (state.tokens || []).find(function (token) { return token && token.isPlayer; }) || null;
           var spawnQ = player ? Number(player.q || 0) + 2 : 2;
           var spawnR = player ? Number(player.r || 0) : 0;
-          var t = { id: uid('tok'), name: 'Summon', faction: 'npc', hp: 8, maxHp: 8, status: [], q: spawnQ, r: spawnR, image: '', size: 1 };
+          var t = { id: uid('tok'), name: 'Summon', faction: 'npc', hp: 8, maxHp: 8, status: [], q: spawnQ, r: spawnR, image: '', size: 1, inventory: seedTokenInventoryItems('npc', 4) };
           next.tokens = (state.tokens || []).concat([t]);
           next.selectedTokenId = t.id;
           next.initiative = [];
@@ -13717,6 +13807,171 @@
       setTimeout(mountGridInventory, 700);
     } else {
       document.addEventListener('DOMContentLoaded', function () { setTimeout(mountGridInventory, 700); });
+    }
+  })();
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // COMBAT BACKPACK PANEL — Live sync with Character Tab. Use items in combat.
+  // ══════════════════════════════════════════════════════════════════════════════
+  (function () {
+    var BP_PREF_KEY = 'btl-combat-bp-panel-v1';
+    var panelOpen = false;
+    try { panelOpen = !!(JSON.parse(localStorage.getItem(BP_PREF_KEY) || '{}').open); } catch (_e) {}
+    function savePref() { try { localStorage.setItem(BP_PREF_KEY, JSON.stringify({ open: panelOpen })); } catch (_e) {} }
+
+    function bpSlotCost(slotText) {
+      return getItemSlotCost(String(slotText || '').replace(/\s*x\d+$/i, '').trim());
+    }
+
+    function getBpStats() {
+      var items = (window.S && Array.isArray(window.S.backpack)) ? window.S.backpack : [];
+      var used = 0;
+      items.forEach(function (s) { if (s && s.trim()) used += bpSlotCost(s); });
+      var cap = typeof window.getBackpackCapacity === 'function' ? window.getBackpackCapacity() : 6;
+      return { used: used, cap: cap };
+    }
+
+    function getItemCombatEffect(itemName) {
+      var name = String(itemName || '').trim().toLowerCase();
+      var shopData = null;
+      try { shopData = window.SHOP_DATA || null; } catch (_e) {}
+      if (shopData) {
+        var allCats = Object.keys(shopData);
+        for (var ci = 0; ci < allCats.length; ci++) {
+          var list = Array.isArray(shopData[allCats[ci]]) ? shopData[allCats[ci]] : [];
+          for (var ii = 0; ii < list.length; ii++) {
+            var entry = list[ii];
+            if (!entry) continue;
+            var eName = String(entry.name || '').toLowerCase();
+            if (eName !== name && !name.startsWith(eName) && !eName.startsWith(name)) continue;
+            var combined = (String(entry.desc || '') + ' ' + String(entry.stat || '')).toLowerCase();
+            var mStress = combined.match(/restore[sd]?\s+(?:d(\d+)|(\d+))\s+stress/i) ||
+                          combined.match(/clear\s+(\d+)\s+stress/i) ||
+                          combined.match(/d(\d+)\s+stress/i);
+            if (mStress) return { type: 'stress', amount: -(parseInt(mStress[1] || mStress[2] || 2, 10)), label: 'Restores Stress' };
+            if (combined.indexOf('remove weakened') >= 0) return { type: 'condition', condition: 'weakened', label: 'Removes Weakened' };
+            if (combined.indexOf('remove distracted') >= 0) return { type: 'condition', condition: 'distracted', label: 'Removes Distracted' };
+            if (combined.indexOf('remove shaken') >= 0) return { type: 'condition', condition: 'shaken', label: 'Removes Shaken' };
+            if (combined.indexOf('remove vulnerable') >= 0) return { type: 'condition', condition: 'vulnerable', label: 'Removes Vulnerable' };
+            if (combined.indexOf('-1 trauma') >= 0 || combined.indexOf('reduces 1 trauma') >= 0) return { type: 'trauma', amount: -1, label: 'Reduces Trauma' };
+            if (combined.indexOf('reduce trauma') >= 0 || combined.indexOf('trauma') >= 0) return { type: 'trauma', amount: -1, label: 'Reduces Trauma' };
+          }
+        }
+      }
+      // Heuristic fallbacks
+      if (/salve|heal|potion|remedy|stimulant|tonic|broth|oil/.test(name)) return { type: 'stress', amount: -2, label: 'Restores Stress' };
+      if (/depressant/.test(name)) return { type: 'trauma', amount: -1, label: 'Reduces Trauma' };
+      return null;
+    }
+
+    function useCombatBackpackItem(slotIndex) {
+      if (!window.S || !Array.isArray(window.S.backpack)) return;
+      var raw = window.S.backpack[slotIndex] || '';
+      if (!raw.trim()) return;
+      var nameRaw = raw.replace(/\s*x\d+$/i, '').trim();
+      var effect = getItemCombatEffect(nameRaw);
+      if (!effect) { safeNotif(nameRaw + ' cannot be used directly in combat.', 'warn'); return; }
+
+      if (effect.type === 'stress') {
+        var delta = Number(effect.amount || -2);
+        window.S.stress = Math.max(0, (window.S.stress || 0) + delta);
+        if (typeof window.updateAllStatDisplays === 'function') window.updateAllStatDisplays();
+        safeNotif(nameRaw + ' used — ' + (delta < 0 ? 'restored ' + Math.abs(delta) + ' Stress' : 'applied ' + delta + ' Stress') + '.', 'good');
+      } else if (effect.type === 'condition') {
+        if (window.S && window.S.conditions) { window.S.conditions[effect.condition] = false; }
+        if (window.S && window.S.traumaConditions) { window.S.traumaConditions[effect.condition] = false; }
+        if (typeof window.updateConditionButtons === 'function') window.updateConditionButtons();
+        if (typeof window.updateAllStatDisplays === 'function') window.updateAllStatDisplays();
+        safeNotif(nameRaw + ' used — ' + effect.label + '.', 'good');
+      } else if (effect.type === 'trauma') {
+        window.S.trauma = Math.max(0, (window.S.trauma || 0) - 1);
+        if (typeof window.updateAllStatDisplays === 'function') window.updateAllStatDisplays();
+        safeNotif(nameRaw + ' used — ' + effect.label + '.', 'good');
+      }
+
+      // Consume item
+      if (typeof window.consumeBackpackItemByName === 'function') {
+        window.consumeBackpackItemByName(nameRaw);
+      } else {
+        var countM = raw.match(/\s*x(\d+)$/i);
+        var cnt = countM ? parseInt(countM[1], 10) : 1;
+        window.S.backpack[slotIndex] = cnt > 1 ? (nameRaw + ' x' + (cnt - 1)) : '';
+      }
+      addHistory('Used ' + nameRaw + ' (combat): ' + effect.label);
+      if (typeof window.renderBackpackUI === 'function') window.renderBackpackUI();
+      renderCombatBackpackPanel();
+    }
+    window.useCombatBackpackItem = useCombatBackpackItem;
+
+    function renderCombatBackpackPanel() {
+      var panel = document.getElementById('combatBackpackPanel');
+      if (!panel) return;
+      var body = document.getElementById('combatBackpackPanelBody');
+      var toggle = document.getElementById('combatBpToggleIcon');
+      if (toggle) toggle.textContent = panelOpen ? '▼' : '▲';
+      if (!body) return;
+      if (!panelOpen) { body.style.display = 'none'; return; }
+      body.style.display = 'block';
+
+      var stats = getBpStats();
+      var sColor = stats.used > stats.cap ? '#e05050' : stats.used >= stats.cap ? '#e3bc5e' : '#57d69b';
+      var bpSlots = (window.S && Array.isArray(window.S.backpack)) ? window.S.backpack : [];
+      var rows = bpSlots.map(function (slotText, idx) {
+        if (!slotText || !slotText.trim()) return '';
+        var nameRaw = slotText.replace(/\s*x\d+$/i, '').trim();
+        var countM = slotText.match(/\s*x(\d+)$/i);
+        var count = countM ? parseInt(countM[1], 10) : 1;
+        var cost = bpSlotCost(slotText);
+        var effect = getItemCombatEffect(nameRaw);
+        var useBtn = effect
+          ? '<button class="btn btn-xs" style="flex-shrink:0;font-size:.64rem;padding:.08rem .28rem;background:rgba(46,196,182,.15);border-color:rgba(46,196,182,.4);color:var(--teal);" onclick="window.useCombatBackpackItem(' + idx + ')">Use</button>'
+          : '';
+        var costBadge = '<span style="font-size:.62rem;color:var(--muted2);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:3px;padding:.02rem .18rem;flex-shrink:0;">'
+          + cost + (cost === 1 ? ' slot' : ' slots') + '</span>';
+        return '<div style="display:flex;align-items:center;gap:.28rem;padding:.16rem .18rem;border-bottom:1px solid rgba(255,255,255,.04);">'
+          + '<span style="flex:1;font-size:.78rem;font-family:Rajdhani,sans-serif;color:#f0f0f0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">' + escapeHtml(nameRaw) + (count > 1 ? '<span style="color:var(--teal);font-size:.7rem;"> ×' + count + '</span>' : '') + '</span>'
+          + costBadge
+          + useBtn
+          + '</div>';
+      }).filter(Boolean).join('');
+
+      body.innerHTML = '<div style="padding:.3rem .38rem;">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.28rem;">'
+        + '<span style="font-size:.7rem;font-family:\'Cinzel\',serif;color:var(--combat-accent-2);">Backpack</span>'
+        + '<span style="font-size:.7rem;color:' + sColor + ';">' + stats.used + '/' + stats.cap + ' slots</span>'
+        + '</div>'
+        + (rows ? '<div style="max-height:172px;overflow-y:auto;">' + rows + '</div>'
+          : '<div style="font-size:.74rem;color:var(--muted2);padding:.18rem 0;">No items. Loot tokens or add via Character Tab.</div>')
+        + '</div>';
+    }
+    window.renderCombatBackpackPanel = renderCombatBackpackPanel;
+
+    function mountCombatBackpackPanel() {
+      if (document.getElementById('combatBackpackPanel')) { renderCombatBackpackPanel(); return; }
+      var root = document.getElementById('combatModeOverlay');
+      if (!root) return;
+      var panel = document.createElement('div');
+      panel.id = 'combatBackpackPanel';
+      panel.style.cssText = 'position:absolute;bottom:3.2rem;right:.6rem;z-index:12;min-width:224px;max-width:280px;background:rgba(4,7,16,.97);border:1px solid rgba(201,162,39,.3);border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,.5);backdrop-filter:blur(6px);overflow:hidden;';
+      panel.innerHTML = '<div id="combatBpHeader" style="display:flex;align-items:center;justify-content:space-between;padding:.28rem .45rem;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.07);background:rgba(201,162,39,.06);user-select:none;">'
+        + '<span style="font-size:.72rem;font-family:\'Cinzel\',serif;letter-spacing:.05em;color:var(--combat-accent-2);">&#127920; Backpack</span>'
+        + '<span id="combatBpToggleIcon" style="font-size:.62rem;color:var(--muted2);">' + (panelOpen ? '▼' : '▲') + '</span>'
+        + '</div>'
+        + '<div id="combatBackpackPanelBody" style="display:' + (panelOpen ? 'block' : 'none') + ';"></div>';
+      root.appendChild(panel);
+      document.getElementById('combatBpHeader').addEventListener('click', function () {
+        panelOpen = !panelOpen;
+        savePref();
+        renderCombatBackpackPanel();
+      });
+      renderCombatBackpackPanel();
+    }
+
+    store.subscribe(function () { mountCombatBackpackPanel(); });
+    if (document.readyState !== 'loading') {
+      setTimeout(mountCombatBackpackPanel, 950);
+    } else {
+      document.addEventListener('DOMContentLoaded', function () { setTimeout(mountCombatBackpackPanel, 950); });
     }
   })();
 

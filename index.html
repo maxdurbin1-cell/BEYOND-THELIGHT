@@ -3792,9 +3792,41 @@ function getBackpackCapacity(){
   if(String(S.flavor||'').toLowerCase().indexOf('mule')>=0)cap+=Math.max(1,body*2);
   return cap;
 }
+function getBackpackItemSlotCost(itemNameRaw){
+  var name=String(itemNameRaw||'').replace(/\s*x\d+$/i,'').trim().toLowerCase();
+  if(!name)return 1;
+  if(typeof SHOP_DATA==='undefined'||!SHOP_DATA)return 1;
+  var cats=Object.keys(SHOP_DATA);
+  for(var ci=0;ci<cats.length;ci++){
+    var list=Array.isArray(SHOP_DATA[cats[ci]])?SHOP_DATA[cats[ci]]:[];
+    for(var ii=0;ii<list.length;ii++){
+      var entry=list[ii];
+      if(!entry||!entry.name)continue;
+      var eName=String(entry.name||'').toLowerCase();
+      if(eName!==name&&eName.indexOf(name)<0&&name.indexOf(eName)<0)continue;
+      var s=String(entry.stat||'');
+      var m1=s.match(/\b(\d+)\s+slot/i);if(m1)return Math.max(1,parseInt(m1[1],10));
+      var m2=s.match(/[Ss]ize\s+(\d+)/);if(m2)return Math.max(1,parseInt(m2[1],10));
+      if(/heavy/i.test(s))return 3;
+      if(/medium/i.test(s))return 2;
+      return 1;
+    }
+  }
+  return 1;
+}
+function getUsedBackpackSlots(){
+  if(!Array.isArray(S.backpack))return 0;
+  var used=0;
+  S.backpack.forEach(function(s){if(s&&s.trim())used+=getBackpackItemSlotCost(s);});
+  return used;
+}
 function updateBackpackCapacityLabel(){
   var label=document.getElementById('backpackSlotsLabel');
-  if(label)label.textContent='Backpack ('+getBackpackCapacity()+' Slots)';
+  if(!label)return;
+  var cap=getBackpackCapacity();
+  var used=getUsedBackpackSlots();
+  var color=used>cap?'#e05050':used>=cap?'#e3bc5e':'';
+  label.innerHTML='Backpack ('+(color?'<span style="color:'+color+'">'+used+'/'+cap+'</span>':cap)+' Slots)';
 }
 function ensureBackpackCapacity(){
   var cap=getBackpackCapacity();
@@ -3807,6 +3839,7 @@ function setBackpackSlotValue(index,value){
   var idx=Math.max(0,Number(index||0));
   if(idx>=S.backpack.length)return;
   S.backpack[idx]=String(value||'');
+  updateBackpackCapacityLabel();
 }
 function renderBackpackUI(){
   ensureBackpackCapacity();
@@ -3816,7 +3849,9 @@ function renderBackpackUI(){
   var html=[];
   for(var i=0;i<cap;i++){
     var val=escapeHtmlLite(S.backpack[i]||'');
-    html.push('<div class="bp-cell"><input class="bp-input" id="bp'+i+'" placeholder="Slot '+(i+1)+'" value="'+val+'" onchange="setBackpackSlotValue('+i+',this.value)"><button class="bp-info-btn" onclick="showBackpackItem('+i+')" title="Item info">?</button></div>');
+    var slotCost=S.backpack[i]?getBackpackItemSlotCost(S.backpack[i]):0;
+    var badge=slotCost>0?'<span style="font-size:.6rem;color:var(--muted2);padding:0 .15rem;" title="'+slotCost+' slot'+(slotCost===1?'':'s')+'">'+slotCost+'&#9633;</span>':'';
+    html.push('<div class="bp-cell">'+badge+'<input class="bp-input" id="bp'+i+'" placeholder="Slot '+(i+1)+'" value="'+val+'" onchange="setBackpackSlotValue('+i+',this.value)"><button class="bp-info-btn" onclick="showBackpackItem('+i+')" title="Item info">?</button></div>');
   }
   host.innerHTML=html.join('');
   updateBackpackCapacityLabel();

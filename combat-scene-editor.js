@@ -4097,6 +4097,9 @@
 
     addHistory(String(token.name || 'Token') + ' personal loot ' + (force ? 'rerolled' : 'generated') + ': ' + generatedList.join(', ') + '.');
     safeNotif('Loot ready on ' + String(token.name || 'token') + ': ' + generatedList.join(', '), 'good');
+    if (typeof window.refreshCombatSheetModalForToken === 'function') {
+      try { window.refreshCombatSheetModalForToken(String(tokenId || '')); } catch (_e) {}
+    }
     updateUiPanels();
     drawBoard();
     return true;
@@ -5103,7 +5106,7 @@
       return buildCombatSheetCard(card, token, sectionKey);
     }).join('');
     return ''
-      + '<div id="combatSheetModalPanel" class="combat-rules-panel combat-sheet-panel">'
+      + '<div id="combatSheetModalPanel" class="combat-rules-panel combat-sheet-panel" data-token-id="' + escapeHtml(String(token && token.id || '')) + '">'
       + '<div class="combat-rules-toolbar">'
       + '<div>'
       + '<div class="combat-rules-kicker">Character Sheet</div>'
@@ -5155,6 +5158,28 @@
       safeNotif('Token Sheet: ' + String(token.name || 'Token'), 'info');
     }
   }
+
+  window.refreshCombatSheetModalForToken = function (tokenId) {
+    var panel = document.getElementById('combatSheetModalPanel');
+    var modalContent = document.getElementById('modalContent');
+    if (!panel || !modalContent) return false;
+    var activeTokenId = String(panel.getAttribute('data-token-id') || '');
+    if (!activeTokenId || String(tokenId || '') !== activeTokenId) return false;
+    var token = byId(activeTokenId);
+    if (!token) return false;
+    var priorQuery = '';
+    var priorInput = document.getElementById('combatSheetSearch');
+    if (priorInput) priorQuery = String(priorInput.value || '');
+    modalContent.innerHTML = buildCombatSheetModalHtml(token);
+    window.filterCombatSheetModal(priorQuery);
+    refreshCombatSheetWayfarerWidgets();
+    var nextInput = document.getElementById('combatSheetSearch');
+    if (nextInput) {
+      nextInput.value = priorQuery;
+      try { nextInput.focus({ preventScroll: true }); } catch (_err) { nextInput.focus(); }
+    }
+    return true;
+  };
 
   function canActionReachTarget(actionValue, range) {
     var v = String(actionValue || '').toLowerCase();
@@ -6526,11 +6551,47 @@
       return 0;
     }
     var selectedItems = indexes.map(function (idx) { return items[idx]; });
+    var movedToInventory = 0;
+    var movedToBackpack = 0;
+    var awardedCredits = 0;
     selectedItems.forEach(function (item) {
+      var label = String(item || '').trim();
+      var creditMatch = label.match(/^credits\s*x?\s*(\d+)$/i);
+      if (creditMatch) {
+        awardedCredits += Math.max(0, Number(creditMatch[1] || 0));
+        return;
+      }
+      var stored = false;
+      if (typeof window.addToInventory === 'function') {
+        try {
+          stored = !!window.addToInventory({
+            name: label,
+            type: 'One-Time',
+            effect: 'Looted from defeated token'
+          });
+        } catch (_invErr) {
+          stored = false;
+        }
+      }
+      if (stored) {
+        movedToInventory += 1;
+        return;
+      }
       if (typeof window.addToBackpack === 'function') {
-        try { window.addToBackpack(item); } catch (_err) {}
+        try {
+          if (window.addToBackpack(label)) movedToBackpack += 1;
+        } catch (_bpErr) {}
       }
     });
+    if (awardedCredits > 0) {
+      if (window.S) window.S.credits = Math.max(0, Number(window.S.credits || 0) + awardedCredits);
+      if (typeof window.updateCreditsUI === 'function') {
+        try { window.updateCreditsUI(); } catch (_creditErr) {}
+      }
+      if (typeof window.updateAllStatDisplays === 'function') {
+        try { window.updateAllStatDisplays(); } catch (_statsErr) {}
+      }
+    }
     var kept = items.filter(function (_item, idx) { return indexes.indexOf(idx) < 0; });
     store.setState(function (inner) {
       var next = Object.assign({}, inner);
@@ -6548,7 +6609,14 @@
     });
     var pulledLabels = selectedItems.map(formatLootItemLabel);
     addHistory((sourceLabel || 'Loot') + ': ' + String(token.name || 'body') + ' -> ' + pulledLabels.join(', ') + '.');
-    safeNotif('Collected ' + selectedItems.length + ' loot item' + (selectedItems.length === 1 ? '' : 's') + '.', 'good');
+    var summaryBits = [];
+    if (awardedCredits > 0) summaryBits.push('+' + awardedCredits + ' Credits');
+    if (movedToInventory > 0) summaryBits.push(movedToInventory + ' to Inventory');
+    if (movedToBackpack > 0) summaryBits.push(movedToBackpack + ' to Backpack');
+    safeNotif('Collected loot: ' + (summaryBits.length ? summaryBits.join(' · ') : (selectedItems.length + ' item' + (selectedItems.length === 1 ? '' : 's'))), 'good');
+    if (movedToInventory > 0 && typeof window.openGridInventory === 'function') {
+      try { window.openGridInventory(); } catch (_openErr) {}
+    }
     drawBoard();
     updateUiPanels();
     if (kept.length) renderLootPopupForToken(tokenId);

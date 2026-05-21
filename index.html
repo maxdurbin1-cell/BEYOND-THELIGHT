@@ -12281,6 +12281,28 @@ function addToBackpack(text) {
   return false;
 }
 
+function addLootToOpenInventoryOrBackpack(itemName) {
+  var label = normalizeLegacyLootAlias(String(itemName || '').trim());
+  if (!label) return false;
+  if (typeof window.addToInventory === 'function') {
+    try {
+      var invStored = !!window.addToInventory({
+        name: label,
+        type: 'One-Time',
+        effect: 'Recovered from loot reward'
+      });
+      if (invStored) {
+        if (typeof window.openGridInventory === 'function') {
+          try { window.openGridInventory(); } catch (_openErr) {}
+        }
+        return true;
+      }
+    } catch (_invErr) {}
+  }
+  if (typeof addToBackpack === 'function') return !!addToBackpack(label);
+  return false;
+}
+
 // Find a shop item by display name (matches exactly or by prefix before " (")
 function findShopItem(nameText) {
   if (!nameText) return null;
@@ -13298,6 +13320,17 @@ function useBackpackItem(index) {
   var cat = found.cat;
   var customDef = item && item.__customCodexData ? item.__customCodexData : null;
 
+  if (cat === 'weapons' || cat === 'melee_exp' || cat === 'ranged_exp') {
+    var targetSlot = !String(S.equipment && S.equipment.weapon1 || '').trim() ? 'weapon1'
+      : (!String(S.equipment && S.equipment.weapon2 || '').trim() ? 'weapon2' : 'weapon1');
+    equipBackpackItem(index, targetSlot);
+    return;
+  }
+  if (cat === 'armor' || cat === 'armor_exp' || cat === 'space_armor') {
+    equipBackpackItem(index, 'armor');
+    return;
+  }
+
   if(customDef && handleCustomCodexItemUse(index, customDef)) return;
 
   // Helper: decrement use count, remove if exhausted; returns false if no uses remain
@@ -13666,7 +13699,7 @@ function resolveDataCacheReward(){
   var line='';
 
   function storeItemOrCredits(name,fallbackCredits){
-    var stored=(typeof addToBackpack==='function')?addToBackpack(name):false;
+    var stored=(typeof addLootToOpenInventoryOrBackpack==='function')?addLootToOpenInventoryOrBackpack(name):false;
     if(stored){
       summary='Recovered item: '+name+'.';
       return true;

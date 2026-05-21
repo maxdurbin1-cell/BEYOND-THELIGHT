@@ -168,11 +168,19 @@ select option{background:#0f1020;}
 .counter-val{font-family:'Rajdhani',sans-serif;font-size:1.4rem;font-weight:700;min-width:2.2rem;text-align:center;line-height:1;}
 .gold-val{color:var(--gold);}.teal-val{color:var(--teal);}.red-val{color:var(--red);}.grey-val{color:var(--muted3);}
 .renown-badge{display:inline-block;font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:var(--gold);border:1px solid rgba(201,162,39,.4);padding:.16rem .52rem;text-transform:uppercase;background:rgba(201,162,39,.04);}
-.char-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.9rem;}
+.char-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.9rem;align-items:start;}
 .guided-build-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.28rem;}
 @media(max-width:1100px){.char-grid{grid-template-columns:1fr 1fr;}}@media(max-width:680px){.char-grid{grid-template-columns:1fr;}}
 @media(max-width:680px){.guided-build-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important;}}
+.equipment-card .form-row > div{min-width:0;}
+.equipment-card .form-row input{min-width:0;}
+body.text-size-large .char-grid{grid-template-columns:1fr 1fr;}
+@media(max-width:1280px){body.text-size-large .char-grid{grid-template-columns:1fr;}}
+body.text-size-large .card{min-width:0;}
+body.text-size-large .hist-text{overflow-wrap:anywhere;word-break:break-word;}
+body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr 1fr;}
+@media(max-width:900px){body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr;}}
 .backpack-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.25rem;}
 .bp-cell{display:flex;gap:.1rem;align-items:stretch;}
 .bp-cell .bp-input{flex:1;min-width:0;}
@@ -542,7 +550,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-rules" id="tabnav-rules" data-tab="rules">Rules</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-combat" id="tabnav-combat" data-tab="combat">Combat</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-scenes" id="tabnav-scenes" data-tab="scenes">Scenes</button>
-    <button class="tab-btn ctx-settings" role="tab" aria-selected="false" aria-controls="tab-oracle" id="tabnav-oracle" data-tab="oracle">Oracle</button>
+    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-oracle" id="tabnav-oracle" data-tab="oracle">Oracle</button>
     <button class="tab-btn ctx-settings" role="tab" aria-selected="false" aria-controls="tab-storyline" id="tabnav-storyline" data-tab="storyline">Storyline</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-factions" id="tabnav-factions" data-tab="factions">Factions</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-trophies" id="tabnav-trophies" data-tab="trophies">Trophies</button>
@@ -851,7 +859,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
         <div id="hackRollResult" style="margin-top:.5rem;"></div>
       </div>
     </div>
-    <div class="card">
+    <div class="card equipment-card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;">
         <div class="section-title" style="margin:0;">Equipment</div>
       </div>
@@ -866,7 +874,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
             <span id="backpackSlotsLabel" class="sub-label" style="margin-bottom:0;">Backpack (6 Slots)</span>
             <span class="sub-label" style="margin-bottom:0;font-size:.66rem;color:var(--muted2);" title="Quick Slots Q1-Q3: first backpack use each combat round costs no Action.">Q1–Q3 grant one free backpack use per combat round.</span>
           </div>
-          <div style="display:flex;gap:.25rem;align-items:center;">
+          <div style="display:flex;gap:.25rem;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
             <button class="btn btn-sm" onclick="openBackpackBulkSellModal()">Sell Multiple</button>
             <button class="btn btn-sm" onclick="rollBackpack()">⚄ Roll Backpack</button>
             <button class="btn btn-sm" onclick="openCommunityBackpackModal()">🤝 Community Backpack</button>
@@ -20118,7 +20126,7 @@ function showCodexCat(cat,btn){
       </div>
       <div class="codex-grid">
         ${Object.keys(bestiaryByRegion).map(region=>`<div class="card"><div class="section-title" style="display:flex;align-items:center;gap:.45rem;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,{name:region==='wtw'?'World That Was':'Bestiary Region'},{size:26}):''}<span>${region==='wtw'?'World That Was':region.charAt(0).toUpperCase()+region.slice(1)}</span></div>
-          ${bestiaryByRegion[region].map(entry=>{var stats=getBestiaryDerivedStats(entry);var skills=(typeof getBestiaryEntrySkillNames==='function')?getBestiaryEntrySkillNames(entry):[];return `<div class="hist-entry" style="display:grid;grid-template-columns:auto auto 1fr auto;gap:.55rem;align-items:center;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,entry,{size:42}):''}<div class="hist-num">d${stats.dread}</div><div class="hist-text"><strong>${entry.name}</strong>${entry._customIndex!==undefined?' <span style="font-size:.68rem;color:var(--teal);">GM</span>':''}<br>${entry.desc}<br><span style="color:var(--gold2);">Health ${stats.health} · Death Number ${stats.deathNumber}</span><br><button class="btn btn-xs" style="margin-top:.22rem;" onclick="openBestiaryEntryDetails(${JSON.stringify(region)},${JSON.stringify(entry.name)})">View</button><br><button class="btn btn-xs" style="margin-top:.22rem;" onclick="openBestiaryEntryDetails(${JSON.stringify(region)},${JSON.stringify(entry.name)})">Inspect Skills</button><br><span style="color:var(--teal);font-size:.72rem;">Skills: ${skills.slice(0,2).join(', ')}</span>${entry._customIndex!==undefined?`<br><div style="margin-top:.22rem;display:flex;gap:.22rem;"><button class="btn btn-xs" onclick="editCustomBestiaryEntry(${Number(entry._customIndex)})">Edit</button><button class="btn btn-xs" onclick="removeCustomBestiaryEntry(${Number(entry._customIndex)})">Remove</button></div>`:''}</div><div style="font-size:.68rem;color:var(--muted2);align-self:start;padding-top:.15rem;">Entry</div></div>`;}).join('')}
+          ${bestiaryByRegion[region].map(entry=>{var stats=getBestiaryDerivedStats(entry);var skills=(typeof getBestiaryEntrySkillNames==='function')?getBestiaryEntrySkillNames(entry):[];return `<div class="hist-entry" style="display:grid;grid-template-columns:auto auto 1fr auto;gap:.55rem;align-items:center;">${window.SharedIconSystem&&typeof window.SharedIconSystem.getBestiaryEntryIconHtml==='function'?window.SharedIconSystem.getBestiaryEntryIconHtml(region,entry,{size:42}):''}<div class="hist-num">d${stats.dread}</div><div class="hist-text"><strong>${entry.name}</strong>${entry._customIndex!==undefined?' <span style="font-size:.68rem;color:var(--teal);">GM</span>':''}<br>${entry.desc}<br><span style="color:var(--gold2);">Health ${stats.health} · Death Number ${stats.deathNumber}</span><div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.24rem;"><button class="btn btn-xs" onclick='openBestiaryEntryDetails(${JSON.stringify(region)},${JSON.stringify(entry.name)})'>View</button><button class="btn btn-xs" onclick='openBestiaryEntryDetails(${JSON.stringify(region)},${JSON.stringify(entry.name)})'>Inspect Skills</button></div><span style="color:var(--teal);font-size:.72rem;display:block;margin-top:.2rem;">Skills: ${skills.slice(0,2).join(', ')}</span>${entry._customIndex!==undefined?`<div style="margin-top:.22rem;display:flex;gap:.22rem;"><button class="btn btn-xs" onclick="editCustomBestiaryEntry(${Number(entry._customIndex)})">Edit</button><button class="btn btn-xs" onclick="removeCustomBestiaryEntry(${Number(entry._customIndex)})">Remove</button></div>`:''}</div><div style="font-size:.68rem;color:var(--muted2);align-self:start;padding-top:.15rem;">Entry</div></div>`;}).join('')}
         </div>`).join('')}
         <div id="codexBestiaryForgeSlot">${typeof renderCodexBestiaryForgeCard==='function' ? renderCodexBestiaryForgeCard() : '<div class="card"><div class="section-title">Monster Forge</div><div style="font-size:.82rem;color:var(--muted2);">The monster forge is loading.</div></div>'}</div>
       </div>

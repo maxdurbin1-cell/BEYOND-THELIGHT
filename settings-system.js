@@ -435,7 +435,7 @@ window.playCustomMusicFromSettings = function() {
     },
 
     applyTextSize() {
-      const sizes = { small: '14px', medium: '17px', large: '20px' };
+      const sizes = { small: '14px', medium: '17px', large: '18px' };
       document.documentElement.style.fontSize = sizes[this.textSize] || '17px';
       ['text-size-small', 'text-size-medium', 'text-size-large'].forEach(cls => document.body.classList.remove(cls));
       document.body.classList.add('text-size-' + (this.textSize || 'medium'));

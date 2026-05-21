@@ -4942,15 +4942,15 @@
     var personal = Array.isArray(token.inventory) ? token.inventory.filter(Boolean) : [];
     var isWayfarer = !!(token.isPlayer || String(token.faction || '') === 'player');
     if (!loot && !personal.length && isWayfarer) return '';
-    var tokenIdLiteral = '\'' + String(token.id || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\'';
+    var tokenIdAttr = escapeHtml(String(token.id || ''));
     
     var html = '<div style="margin-top:.28rem;border-top:1px solid rgba(227,188,94,.2);padding-top:.22rem;">';
     if (!isWayfarer) {
       html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;margin-bottom:.12rem;">';
       html += '<div style="font-size:.72rem;font-weight:700;color:var(--combat-accent-2);">Personal Loot</div>';
       html += '<div style="display:flex;gap:.16rem;">';
-      html += '<button class="btn btn-xs" style="font-size:.64rem;" onclick="window.generateCombatTokenLoot&&window.generateCombatTokenLoot(' + tokenIdLiteral + ',false)">Generate</button>';
-      html += '<button class="btn btn-xs" style="font-size:.64rem;" onclick="window.generateCombatTokenLoot&&window.generateCombatTokenLoot(' + tokenIdLiteral + ',true)">Reroll</button>';
+      html += '<button class="btn btn-xs" style="font-size:.64rem;" data-token-id="' + tokenIdAttr + '" onclick="window.generateCombatTokenLootFromButton&&window.generateCombatTokenLootFromButton(this,false)">Generate</button>';
+      html += '<button class="btn btn-xs" style="font-size:.64rem;" data-token-id="' + tokenIdAttr + '" onclick="window.generateCombatTokenLootFromButton&&window.generateCombatTokenLootFromButton(this,true)">Reroll</button>';
       html += '</div></div>';
       if (personal.length) {
         html += '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.16rem;">';
@@ -10673,6 +10673,16 @@
 
     window.openCombatHazardConfigModal = configureHazardCheckAt;
     window.openCombatLootCacheModal = openLootCacheModal;
+    window.generateCombatTokenLootFromButton = function (btn, force) {
+      var tokenId = btn && typeof btn.getAttribute === 'function'
+        ? String(btn.getAttribute('data-token-id') || '')
+        : '';
+      if (!tokenId) {
+        safeNotif('Could not resolve token for loot generation.', 'warn');
+        return false;
+      }
+      return generatePersonalLootForToken(tokenId, { force: !!force });
+    };
     window.generateCombatTokenLoot = function (tokenId, force) {
       return generatePersonalLootForToken(String(tokenId || ''), { force: !!force });
     };

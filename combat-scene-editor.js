@@ -2031,6 +2031,12 @@
       row.locked = !!row.locked;
       row.layer = String(row.layer || 'token');
       row.zIndex = Number.isFinite(Number(row.zIndex)) ? Number(row.zIndex) : idx;
+      if (Array.isArray(row.enemySkills) && row.enemySkills.length) {
+        // Migration pass for older saves that predate normalized enemy skill schema fields.
+        row.enemySkills = row.enemySkills.map(function (skill, skillIdx) {
+          return normalizeEnemySkillRow(skill, skillIdx, row.name || 'Enemy');
+        }).filter(Boolean);
+      }
       return row;
     });
     next.tokenRoundEffects = Array.isArray(next.tokenRoundEffects) ? next.tokenRoundEffects : [];
@@ -3316,14 +3322,41 @@
 
   function syncLegacyEnemyStressToTokens(targetTokenId) {
     if (!window.S || !Array.isArray(window.S.enemies)) return false;
+
+    function enemyNameCanonicalKey(name) {
+      return String(name || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s*\(.*?\)\s*$/, '')
+        .replace(/\s+#?\d+\s*$/, '')
+        .trim();
+    }
+
+    function enemyNameOrdinal(name) {
+      var m = String(name || '').trim().match(/(?:#|\s)(\d+)\s*$/);
+      if (!m) return 0;
+      return Math.max(0, Number(m[1] || 0));
+    }
+
     var enemyMap = {};
     var enemyNameMap = {};
+    var enemyCanonicalMap = {};
     window.S.enemies.forEach(function (enemy) {
       if (!enemy) return;
       var id = Number(enemy.id || 0);
       if (id > 0) enemyMap[id] = enemy;
       var nameKey = String(enemy.name || '').trim().toLowerCase();
       if (!enemy.ally && nameKey && !enemyNameMap[nameKey]) enemyNameMap[nameKey] = enemy;
+      var canonicalKey = enemyNameCanonicalKey(enemy.name || '');
+      if (!enemy.ally && canonicalKey) {
+        if (!Array.isArray(enemyCanonicalMap[canonicalKey])) enemyCanonicalMap[canonicalKey] = [];
+        enemyCanonicalMap[canonicalKey].push(enemy);
+      }
+    });
+    Object.keys(enemyCanonicalMap).forEach(function (key) {
+      enemyCanonicalMap[key].sort(function (a, b) {
+        return Number(a && a.id || 0) - Number(b && b.id || 0);
+      });
     });
     var changed = false;
     store.setState(function (state) {
@@ -3337,6 +3370,18 @@
           var rowNameKey = String(row.name || '').trim().toLowerCase();
           legacy = rowNameKey ? (enemyNameMap[rowNameKey] || null) : null;
         }
+        if (!legacy) {
+          var canonicalName = enemyNameCanonicalKey(row.name || '');
+          var canonicalPool = canonicalName ? enemyCanonicalMap[canonicalName] : null;
+          if (canonicalPool && canonicalPool.length) {
+            if (canonicalPool.length === 1) {
+              legacy = canonicalPool[0];
+            } else {
+              var ordinal = enemyNameOrdinal(row.name || '');
+              if (ordinal > 0) legacy = canonicalPool[Math.max(0, Math.min(canonicalPool.length - 1, ordinal - 1))] || null;
+            }
+          }
+        }
         if (!legacy) return row;
         var nextHp = 0;
         var nextMax = Math.max(1, Number(row.maxHp || row.hp || 1));
@@ -3344,12 +3389,14 @@
         nextMax = Math.max(1, Number(legacy.maxStress || nextMax));
         nextHp = Math.max(0, nextMax - Math.max(0, Number(legacy.stress || 0)));
         nextDead = nextHp <= 0;
-        if (Number(row.hp || 0) === nextHp && Number(row.maxHp || 0) === nextMax && !!row.dead === nextDead) return row;
+        var nextSourceEnemyId = Number(row.sourceEnemyId || 0) || Number(legacy.id || 0);
+        if (Number(row.hp || 0) === nextHp && Number(row.maxHp || 0) === nextMax && !!row.dead === nextDead && Number(row.sourceEnemyId || 0) === nextSourceEnemyId) return row;
         changed = true;
         return Object.assign({}, row, {
           hp: nextHp,
           maxHp: nextMax,
           dead: nextDead,
+          sourceEnemyId: nextSourceEnemyId,
           dread: legacy ? Math.max(4, Number(legacy.dread || row.dread || 6)) : row.dread,
           deathNumber: legacy ? Math.max(1, Number(legacy.deathNumber || row.deathNumber || row.dread || 6)) : row.deathNumber
         });
@@ -7742,6 +7789,9 @@
               tags: ['roll', 'quick'],
               message: 'Quick roll ' + key.toUpperCase() + ': ' + totalFormula + ' = ' + total
             });
+            if (typeof window.combatChatPostSystem === 'function') {
+              try { window.combatChatPostSystem('Wayfarer quick roll ' + key.toUpperCase() + ': ' + totalFormula + ' = ' + total); } catch (_chatErr) {}
+            }
             safeNotif('Quick ' + key + ': ' + total, 'good');
           };
 
@@ -7775,6 +7825,9 @@
                   tags: ['roll', 'quick'],
                   message: 'Quick roll ' + key.toUpperCase() + ': ' + totalFormula + ' = ' + total
                 });
+                if (typeof window.combatChatPostSystem === 'function') {
+                  try { window.combatChatPostSystem('Wayfarer quick roll ' + key.toUpperCase() + ': ' + totalFormula + ' = ' + total); } catch (_chatErr) {}
+                }
                 safeNotif('Quick ' + key + ': ' + total, 'good');
               });
             } catch (_err) {

@@ -259,10 +259,24 @@ Enter the game.
   function hasExistingProgress() {
     const state = (typeof window !== 'undefined') ? (window.S || {}) : {};
     const hasCharacter = !!String((state && state.name) || '').trim();
-    const hasSea = !!(state && state.lastSea && Array.isArray(state.lastSea.map) && state.lastSea.map.length);
-    const hasStars = !!(state && state.starSystem && Array.isArray(state.starSystem.hexes) && state.starSystem.hexes.length);
-    const hasWorld = !!(state && state.worldThatWas && Array.isArray(state.worldThatWas.hexes) && state.worldThatWas.hexes.length);
-    return hasCharacter || hasSea || hasStars || hasWorld;
+    const hasBackstory = !!(
+      state && state.backstory && (
+        String(state.backstory.origin || '').trim() ||
+        String(state.backstory.notes || '').trim() ||
+        String(state.backstory.hometown || '').trim()
+      )
+    );
+    const hasPlayHistory = !!(
+      state && (
+        Number(state.successRolls || 0) > 0 ||
+        Number(state.renown || 0) > 0 ||
+        Number(state.pathTokens || 0) > 0
+      )
+    );
+
+    // Map/star/world structures can be generated at boot, so they are not a
+    // reliable indicator that the player has an existing run.
+    return hasCharacter || hasBackstory || hasPlayHistory;
   }
 
   function shouldAutoSkipIntro() {

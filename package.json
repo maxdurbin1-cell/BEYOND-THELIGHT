@@ -33,6 +33,8 @@
     "smoke:open-world": "node smoke-tests/open-world.smoke.mjs",
     "smoke:manual-exploded-rolls": "node smoke-tests/manual-exploded-rolls.smoke.mjs",
     "smoke:affix-normalization": "node smoke-tests/affix-normalization.smoke.mjs",
+    "smoke:save-regression": "node smoke-tests/save-regression.smoke.mjs",
+    "smoke:context-tabs": "node smoke-tests/context-tab-visibility.smoke.mjs",
     "smoke:authority-travel": "node smoke-tests/campaign-authority-travel.smoke.mjs",
     "smoke:portrait-preview": "node smoke-tests/portrait-upload-preview.smoke.mjs",
     "smoke:reconnect": "node smoke-tests/reconnect-churn.smoke.mjs",

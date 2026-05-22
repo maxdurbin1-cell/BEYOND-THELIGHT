@@ -430,10 +430,6 @@ function getEffectiveDie(key) {
 function updateDieDisplay(key) {
   const el = document.getElementById("die-" + key);
   if (!el) {
-    const handler = CONTEXT_QUICK_ACTION_HANDLERS[actionId];
-    if (typeof handler === 'function') {
-      return handler();
-    }
     return false;
   }
   const value = key === "valor" ? (S.stats.valor || 4) : getEffectiveDie(key);

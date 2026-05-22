@@ -17914,23 +17914,25 @@ function attemptEncounterThievery(source,col,row){
   const playerTotal=rolls.reduce((sum,r)=>sum+r.total,0);
   const dreadRoll=explodingRoll(12);
   const success=playerTotal>=dreadRoll.total;
+  const failBy=Math.max(1,dreadRoll.total-playerTotal);
+  const controlLabel='Control d'+controlDie+(rollDice.length>1?' + Hood d6':'');
   if(success){
     if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,playerTotal-dreadRoll.total),{actionTotal:playerTotal,dreadTotal:dreadRoll.total,context:'Encounter thievery: '+source});
     if(typeof addSuccessRoll==='function')addSuccessRoll();
     if(reward.kind==='credits'){
       S.credits=(S.credits||0)+reward.amount;
       if(typeof updateCreditsUI==='function')updateCreditsUI();
-      showNotif('Thievery success: '+reward.amount+'₵ from '+reward.label,'good');
+      showNotif('Thievery success ('+controlLabel+' vs DD12): '+reward.amount+'₵ from '+reward.label,'good');
       appendQuickPanelNote('[Thievery] Stole '+reward.amount+'₵ from '+reward.label+' ('+rolls.map(r=>r.total).join('+')+' vs '+dreadRoll.total+')');
     }else{
       const stored=(typeof addToBackpack==='function')?addToBackpack(reward.label):false;
-      showNotif('Thievery success: '+reward.label+(stored?' (backpack)':''),'good');
+      showNotif('Thievery success ('+controlLabel+' vs DD12): '+reward.label+(stored?' (backpack)':''),'good');
       appendQuickPanelNote('[Thievery] Stole '+reward.label+' ('+rolls.map(r=>r.total).join('+')+' vs '+dreadRoll.total+')');
     }
   }else{
-    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',Math.max(1,dreadRoll.total-playerTotal),{actionTotal:playerTotal,dreadTotal:dreadRoll.total,context:'Encounter thievery: '+source});
-    showNotif('Thievery failed! Caught! ('+rolls.map(r=>r.total).join('+')+' vs '+dreadRoll.total+')','warn');
-    if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
+    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',failBy,{actionTotal:playerTotal,dreadTotal:dreadRoll.total,context:'Encounter thievery: '+source});
+    showNotif('Thievery failed ('+controlLabel+' vs DD12). Caught! ('+rolls.map(r=>r.total).join('+')+' vs '+dreadRoll.total+')','warn');
+    if(typeof addTMWOnFail==='function')addTMWOnFail('thievery-failure',{failedBy:failBy,actionDie:controlDie,dreadDie:12,actionLabel:'Control Die'});
     appendQuickPanelNote('[Thievery] Caught while stealing from '+source+'. +1 TMW');
   }
 }
@@ -17994,20 +17996,22 @@ function attemptThievery(targetName){
   const playerTotal=rolls.reduce((sum,r)=>sum+r.total,0);
   const dreadRoll=explodingRoll(12);
   const success=playerTotal>=dreadRoll.total;
+  const failBy=Math.max(1,dreadRoll.total-playerTotal);
+  const controlLabel='Control d'+controlDie+(rollDice.length>1?' + Hood d6':'');
   if(success){
     if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,playerTotal-dreadRoll.total),{actionTotal:playerTotal,dreadTotal:dreadRoll.total,context:'Direct thievery: '+targetName});
     if(typeof addSuccessRoll==='function')addSuccessRoll();
     if(typeof addToBackpack==='function'){
       const stored=addToBackpack(targetName);
-      showNotif(`Successfully stole: ${targetName}${stored?' (backpack)':' (no space)'}`, 'good');
+      showNotif(`Thievery success (${controlLabel} vs DD12): ${targetName}${stored?' (backpack)':' (no space)'}`, 'good');
     }else{
-      showNotif(`Successfully stole: ${targetName}`, 'good');
+      showNotif(`Thievery success (${controlLabel} vs DD12): ${targetName}`, 'good');
     }
     appendQuickPanelNote(`[Thievery] Stole ${targetName} (${rolls.map(r=>r.total).join('+')} vs ${dreadRoll.total})`);
   }else{
-    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',Math.max(1,dreadRoll.total-playerTotal),{actionTotal:playerTotal,dreadTotal:dreadRoll.total,context:'Direct thievery: '+targetName});
-    showNotif(`Thievery failed! Caught! (${rolls.map(r=>r.total).join('+')} vs ${dreadRoll.total})`, 'warn');
-    if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
+    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',failBy,{actionTotal:playerTotal,dreadTotal:dreadRoll.total,context:'Direct thievery: '+targetName});
+    showNotif(`Thievery failed (${controlLabel} vs DD12). Caught! (${rolls.map(r=>r.total).join('+')} vs ${dreadRoll.total})`, 'warn');
+    if(typeof addTMWOnFail==='function')addTMWOnFail('thievery-failure',{failedBy:failBy,actionDie:controlDie,dreadDie:12,actionLabel:'Control Die'});
     appendQuickPanelNote(`[Thievery] Caught attempting to steal ${targetName}. +1 TMW`);
   }
 }

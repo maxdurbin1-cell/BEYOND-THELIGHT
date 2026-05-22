@@ -1291,6 +1291,62 @@
   }
 }
 
+body.phone-layout-mode .combat-mode-overlay .combat-topbar {
+  left: 0.35rem;
+  right: 0.35rem;
+  top: 0.35rem;
+  padding: 0.34rem 0.38rem;
+}
+
+body.phone-layout-mode .combat-mode-overlay .combat-topbar .btn {
+  min-height: 34px;
+}
+
+body.phone-layout-mode .combat-mode-overlay .combat-floating-panel {
+  width: calc(100vw - 0.7rem) !important;
+  max-width: calc(100vw - 0.7rem) !important;
+  left: 0.35rem !important;
+  right: 0.35rem !important;
+}
+
+body.phone-layout-mode .combat-mode-overlay .combat-panel-body {
+  max-height: 32vh;
+}
+
+body.phone-layout-mode .combat-mode-overlay .combat-bottom-actions {
+  left: 0.35rem !important;
+  right: 0.35rem !important;
+  width: calc(100vw - 0.7rem) !important;
+  max-width: calc(100vw - 0.7rem) !important;
+  bottom: 0.35rem;
+}
+
+body.phone-layout-mode .combat-mode-overlay .combat-icon-rail {
+  left: 0.35rem !important;
+  right: 0.35rem !important;
+  width: auto;
+  display: flex;
+  gap: 0.28rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.24rem;
+  bottom: calc(var(--actions-panel-h, 300px) + 0.55rem) !important;
+  top: auto !important;
+}
+
+body.phone-layout-mode .combat-mode-overlay .combat-icon-rail .combat-icon-btn {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+}
+
+body.phone-layout-mode .combat-mode-overlay .combat-left-tools,
+body.phone-layout-mode .combat-mode-overlay .combat-right-rail,
+body.phone-layout-mode .combat-mode-overlay .combat-asset-dock {
+  bottom: calc(var(--actions-panel-h, 300px) + 3.25rem) !important;
+}
+
 @keyframes combat-cond-pulse {
   0%   { opacity: 0.55; transform: scale(1); }
   50%  { opacity: 0.95; transform: scale(1.04); }

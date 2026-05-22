@@ -6338,8 +6338,10 @@
       ? explodingRoll(6, { type: 'dread', major: true, label: 'Observe Adjacent DD6' })
       : { total: Math.floor(Math.random() * 6) + 1 };
     var success = Number(action.total || 0) >= Number(dread.total || 0);
+    var isPhoneLayout = !!(typeof document !== 'undefined' && document.body && document.body.classList && document.body.classList.contains('phone-layout-mode'));
+    var rollGridCols = isPhoneLayout ? '1fr' : '1fr 1fr';
 
-    var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;">'
+    var html = '<div style="display:grid;grid-template-columns:' + rollGridCols + ';gap:.5rem;margin-bottom:.4rem;">'
       + '<div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">Lead d' + Number(leadDie || 6) + '</div><div style="font-size:1.6rem;color:var(--teal);font-family:Rajdhani,sans-serif;font-weight:700;">' + Number(action.total || 0) + '</div></div>'
       + '<div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">DD6</div><div style="font-size:1.6rem;color:var(--red2);font-family:Rajdhani,sans-serif;font-weight:700;">' + Number(dread.total || 0) + '</div></div>'
       + '</div>';
@@ -8668,45 +8670,47 @@
 
   function getHoldingBankRiskDetails(risk) {
     if (risk === 'medium') {
-      return '15-20% risk · Moderate · Consistent growth can gain 20-50 Credits, but can also lose 10 Credits.';
+      return 'Medium variance (about -15% to +16% per in-game day). Good upside, real downside.';
     }
     if (risk === 'high') {
-      return '50-55% risk · Aggressive · Can swing +/− about half the deposit each day.';
+      return 'High variance (about -35% to +40% per in-game day). High reward, high loss.';
     }
-    return '0-2% risk · Minimal · Passive income with 20 Credits per in-game day, no management needed.';
+    return 'Low variance (about -3% to +3% per in-game day). Slow, steady treasury drift.';
+  }
+
+  function sampleHoldingBankPct(risk) {
+    var rollPct = function (minPct, maxPct) {
+      return minPct + (Math.random() * (maxPct - minPct));
+    };
+    if (risk === 'medium') {
+      return Math.random() < 0.35 ? rollPct(-0.15, -0.08) : rollPct(0.06, 0.16);
+    }
+    if (risk === 'high') {
+      return Math.random() < 0.5 ? rollPct(-0.35, -0.2) : rollPct(0.18, 0.4);
+    }
+    return Math.random() < 0.08 ? rollPct(-0.03, -0.01) : rollPct(0.01, 0.03);
   }
 
   function tickHoldingBankInvestments(days) {
     var bank = getHoldingBankState();
     var stepCount = Math.max(1, Number(days || 1));
-    if (Number(bank.invested || 0) <= 0 && Number(bank.accrued || 0) <= 0) { return false; }
+    if (Number(bank.accrued || 0) > 0) {
+      bank.invested = Number(bank.invested || 0) + Number(bank.accrued || 0);
+      bank.history.unshift('Treasury sync: moved ' + Number(bank.accrued || 0) + ' accrued credits into active investment.');
+      bank.accrued = 0;
+    }
+    if (Number(bank.invested || 0) <= 0) { return false; }
     for (var i = 0; i < stepCount; i++) {
       var risk = String(bank.risk || 'low');
-      var note = '';
-      if (risk === 'medium') {
-        if (Math.random() < 0.2) {
-          bank.invested = Math.max(0, Number(bank.invested || 0) - 10);
-          note = 'Medium Risk drift: -10 Credits.';
-        } else {
-          var gain = 20 + (Math.floor(Math.random() * 4) * 10);
-          bank.invested = Number(bank.invested || 0) + gain;
-          note = 'Medium Risk growth: +' + gain + ' Credits.';
-        }
-      } else if (risk === 'high') {
-        var base = Math.max(0, Number(bank.invested || 0));
-        if (base > 0 && Math.random() < 0.55) {
-          var highGain = Math.max(1, Math.round(base * (0.50 + (Math.random() * 0.05))));
-          bank.invested = base + highGain;
-          note = 'High Risk surge: +' + highGain + ' Credits.';
-        } else {
-          var highLoss = Math.max(1, Math.round(base * (0.50 + (Math.random() * 0.05))));
-          bank.invested = Math.max(0, base - highLoss);
-          note = 'High Risk loss: -' + highLoss + ' Credits.';
-        }
-      } else {
-        bank.accrued = Number(bank.accrued || 0) + 20;
-        note = 'Low Risk care payment: +20 Credits.';
-      }
+      var base = Math.max(0, Number(bank.invested || 0));
+      if (base <= 0) break;
+      var pct = sampleHoldingBankPct(risk);
+      var delta = Math.round(base * pct);
+      if (!delta) delta = pct >= 0 ? 1 : -1;
+      var next = Math.max(0, base + delta);
+      bank.invested = next;
+      var pctText = (pct >= 0 ? '+' : '') + (pct * 100).toFixed(1) + '%';
+      var note = getHoldingBankRiskText(risk) + ' daily settlement: ' + (delta >= 0 ? '+' : '') + delta + ' Credits (' + pctText + ') · ' + base + '→' + next + '₵.';
       bank.history.unshift(note);
     }
     bank.history = bank.history.slice(0, 8);
@@ -8725,6 +8729,7 @@
       + '</div>'
       + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.2rem;">Risk: <strong style="color:var(--gold2);">' + getHoldingBankRiskText(bank.risk) + '</strong></div>'
       + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.45;">' + getHoldingBankRiskDetails(bank.risk) + '</div>'
+        + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.18rem;line-height:1.45;">Passive ticks occur when in-game time advances (for example: Inn Loop day advance, normal day progression).</div>'
       + '<div style="font-size:.68rem;color:var(--text2);margin-top:.25rem;">Latest: ' + String(note || 'No active treasury position.') + '</div>';
   }
 
@@ -8732,7 +8737,7 @@
     ensureNewFeatureState();
     var bank = getHoldingBankState();
     var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
-      + '<div style="margin-bottom:.3rem;">Deposit credits into the Holdings Treasury, then pick how carefully the bank should manage them.</div>'
+      + '<div style="margin-bottom:.3rem;">Deposit any amount of credits into the Holdings Treasury, then choose a risk tier. The treasury passively rolls daily swings on your deposited amount.</div>'
       + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.35rem;margin-bottom:.35rem;">'
       + '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);"><div style="font-size:.66rem;color:var(--muted2);">Invested</div><div style="font-size:.92rem;color:var(--gold2);">' + Number(bank.invested || 0) + '₵</div></div>'
       + '<div style="border:1px solid var(--border2);padding:.35rem .4rem;background:rgba(255,255,255,.02);"><div style="font-size:.66rem;color:var(--muted2);">Accrued</div><div style="font-size:.92rem;color:var(--teal);">' + Number(bank.accrued || 0) + '₵</div></div>'
@@ -8740,9 +8745,10 @@
       + '</div>'
       + '<div style="margin-bottom:.25rem;font-size:.72rem;color:var(--muted2);">Current care tier: <strong style="color:var(--gold2);">' + getHoldingBankRiskText(bank.risk) + '</strong></div>'
       + '<div style="margin-bottom:.25rem;font-size:.7rem;color:var(--muted2);">' + getHoldingBankRiskDetails(bank.risk) + '</div>'
+      + '<div style="margin-bottom:.25rem;font-size:.7rem;color:var(--muted2);">Each in-game day applies one treasury roll to your invested credits. Bigger deposits produce bigger swings (positive or negative).</div>'
       + '<div style="margin-bottom:.35rem;display:flex;gap:.3rem;align-items:center;flex-wrap:wrap;">'
       + '<input id="holdingBankAmount" class="bp-input" type="number" min="1" step="1" value="100" placeholder="Amount to deposit" style="max-width:180px;">'
-      + '<span style="font-size:.7rem;color:var(--muted2);">Choose a risk tier to commit the deposit.</span>'
+      + '<span style="font-size:.7rem;color:var(--muted2);">Choose risk to commit this deposit.</span>'
       + '</div>'
       + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.35rem;">'
       + '<button class="btn btn-sm btn-teal" onclick="commitHoldingBankInvestmentFromModal(\'low\');">Low Risk</button>'
@@ -9478,7 +9484,7 @@
       return '<div style="font-size:.66rem;color:var(--muted2);">• ' + String(s.title || 'Local chain') + ' — Stage ' + Number(s.stage || 1) + '/3</div>';
     }).join('');
     var actionButton = active && !active.explored
-      ? '<button type="button" class="btn btn-xs btn-primary" onclick="resolveHoldingSettlementHexNode(\'' + String(active.id) + '\')">Scout District (DD' + Number(active.dd || 6) + ')</button>'
+      ? '<button type="button" class="btn btn-xs btn-primary" onclick="resolveHoldingSettlementHexNode(\'' + String(active.id) + '\')">Scout District (Lead vs DD' + Number(active.dd || 6) + ')</button>'
       : '<span style="font-size:.68rem;color:var(--green2);">Scouted this visit.</span>';
     var districtButtons = '';
     if (active) {
@@ -9488,9 +9494,9 @@
       if (services.merchant) districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingMerchantDistrict(\'' + String(active.id) + '\')">Merchants</button>';
       if (active.kind === 'inn') districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'rest\')">Rest</button>';
       if (active.kind === 'lord') districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'audience\')">Audience</button>';
-      if (services.inn) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'inn_service\')">Inn Loop</button>';
-      if (services.bar) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'bar\')">Bar Loop</button>';
-      if (services.banking) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'banking\')">Banking</button>';
+      if (services.inn) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'inn_service\')">Inn Loop (10₵ · no roll)</button>';
+      if (services.bar) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'bar\')">Bar Loop (+1 TMW · no roll)</button>';
+      if (services.banking) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'banking\')">Banking (Deposit + passive risk)</button>';
       if (services.legal) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'legal\')">Legal Desk</button>';
       if (services.hospital) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'hospital\')">Hospital</button>';
       districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingSettlementSewerRoute(\'' + String(active.id) + '\')">Sewer Route</button>';
@@ -9500,6 +9506,15 @@
       + '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.04);padding:.3rem .34rem;">'
       + '<div style="font-size:.74rem;color:var(--gold2);letter-spacing:.05em;text-transform:uppercase;"><strong>Holding Overview</strong></div>'
       + '<div style="margin-top:.08rem;font-size:.73rem;color:var(--text2);"><strong style="color:var(--gold2);">District Hexcrawl</strong> · Visit #' + Number(crawl.visitCount || 1) + ' · ' + String(crawl.timeOfDay || 'morning').toUpperCase() + '</div>'
+      + '<div style="margin-top:.12rem;padding:.24rem .28rem;border:1px solid rgba(126,215,255,.24);background:rgba(126,215,255,.06);">'
+      + '<div style="font-size:.62rem;color:var(--teal);letter-spacing:.08em;text-transform:uppercase;">How This Hexcrawl Works</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);line-height:1.5;margin-top:.08rem;">'
+      + '• Scout District uses <strong style="color:var(--gold2);">Lead Die vs District DD</strong>.<br>'
+      + '• Inn Loop, Bar Loop, and Banking are <strong style="color:var(--gold2);">service loops</strong> (no action-die roll) and apply fixed effects.<br>'
+      + '• Banking lets you deposit any credits amount and passively gain or lose value as time advances.<br>'
+      + '• Results are written in <strong style="color:var(--gold2);">District Details</strong> and <strong style="color:var(--gold2);">Recent District Activity</strong> so they remain visible even when notifications are behind this modal.'
+      + '</div>'
+      + '</div>'
       + '<details style="margin-top:.1rem;">'
       + '<summary style="cursor:pointer;font-size:.66rem;color:var(--muted2);">Settlement Metadata</summary>'
       + '<div style="margin-top:.08rem;font-size:.68rem;color:var(--muted2);">Type: ' + String(crawl.holdingType || 'Settlement') + ' · Terrain: ' + String((S.holding && S.holding.terrain) || 'Glades') + ' · Weather: ' + String((S.currentSeason || 'spring').toUpperCase()) + '</div>'
@@ -9680,7 +9695,7 @@
         advanceHoldingOneDay();
         crawl.stats.health = Math.min(10, Number((crawl.stats && crawl.stats.health) || 0) + 1);
         crawl.stats.fear = Math.max(0, Number((crawl.stats && crawl.stats.fear) || 0) - 1);
-        msg = 'Inn Loop complete: Long Rest applied for 10₵ and +1 day advanced.';
+        msg = 'Inn Loop complete (no roll): Long Rest applied for 10₵ and +1 day advanced.';
       }
     } else if (action === 'bar') {
       if (typeof changeCounter === 'function') changeCounter('tmw', 1);
@@ -9688,13 +9703,13 @@
       crawl.gamblingActiveNodeId = String(node.id || '');
       crawl.activeNodeId = String(node.id || crawl.activeNodeId || '');
       var rumorLine = String(node.rumor || (crawl.ambient && crawl.ambient.rumor) || 'No clear rumor tonight.');
-      msg = 'Bar loop complete: +1 Teamwork. Rumor: ' + rumorLine + ' Gambling table opened.';
+      msg = 'Bar Loop complete (no roll): +1 Teamwork. Rumor: ' + rumorLine + ' Gambling table opened.';
     } else if (action === 'banking') {
       crawl.stats.wealth = Math.min(10, Number((crawl.stats && crawl.stats.wealth) || 0) + 1);
       if (typeof openHoldingBankingModal === 'function') {
         openHoldingBankingModal();
       }
-      msg = 'Banking loop opened the treasury management prompt.';
+      msg = 'Banking loop opened (no roll): deposit credits to passive risk management.';
     } else if (action === 'legal') {
       var legalCost = 20;
       if (Number(S.credits || 0) < legalCost) {

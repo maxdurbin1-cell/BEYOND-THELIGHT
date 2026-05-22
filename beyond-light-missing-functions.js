@@ -917,11 +917,13 @@ function normalizeFailedRollContext(reason, opts) {
   if ((!cfg.dreadDie && !cfg.dread) && inferred) dreadDie = Math.max(4, Number(inferred.dreadDie || dreadDie));
   var actionDie = Math.max(4, Number(cfg.actionDie || cfg.statDie || cfg.die || 6));
   if ((!cfg.actionDie && !cfg.statDie && !cfg.die) && inferred) actionDie = Math.max(4, Number(inferred.actionDie || actionDie));
+  var actionLabel = String(cfg.actionLabel || cfg.statLabel || 'Action Die');
   return {
     reason: String(reason || 'failed-roll'),
     failedBy: failedBy,
     dreadDie: dreadDie,
     actionDie: actionDie,
+    actionLabel: actionLabel,
     at: Date.now()
   };
 }
@@ -961,6 +963,7 @@ function openFailedRollFollowup(reason) {
   var why = String(reason || 'failed roll').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   var baseDread = Math.max(4, Number(ctx.dreadDie || 6));
   var actionDie = Math.max(4, Number(ctx.actionDie || 6));
+  var actionLabel = String(ctx.actionLabel || 'Action Die');
   var html = ''
     + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
     + 'Failed roll detected (' + why + '). You can spend Teamwork directly on this failed roll:'
@@ -971,7 +974,7 @@ function openFailedRollFollowup(reason) {
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-top:.45rem;">'
     + '<label style="font-size:.74rem;color:var(--muted2);">Failed By<input id="failRecoveryGap" type="number" min="1" max="20" value="' + needed + '" style="width:100%;"></label>'
     + '<label style="font-size:.74rem;color:var(--muted2);">Spend Teamwork<input id="failRecoverySpend" type="number" min="1" max="' + tmw + '" value="' + Math.min(tmw, needed) + '" style="width:100%;"></label>'
-    + '<label style="font-size:.74rem;color:var(--muted2);">Action Die<input id="failRecoveryActionDie" type="number" min="4" max="20" step="2" value="' + actionDie + '" style="width:100%;"></label>'
+    + '<label style="font-size:.74rem;color:var(--muted2);">' + actionLabel + '<input id="failRecoveryActionDie" type="number" min="4" max="20" step="2" value="' + actionDie + '" style="width:100%;"></label>'
     + '<label style="font-size:.74rem;color:var(--muted2);">Current Dread Die<input id="failRecoveryDreadDie" type="number" min="4" max="20" step="2" value="' + baseDread + '" style="width:100%;"></label>'
     + '</div>'
     + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.6rem;">'
@@ -1024,6 +1027,7 @@ window.applyFailedRollRecovery = function(mode) {
   var spend = Math.max(1, parseInt(spendEl && spendEl.value, 10) || failedBy);
   var actionDie = Math.max(4, parseInt(actionEl && actionEl.value, 10) || Number((_failedRollContext && _failedRollContext.actionDie) || 6));
   var dreadDie = Math.max(4, parseInt(dreadEl && dreadEl.value, 10) || Number((_failedRollContext && _failedRollContext.dreadDie) || 6));
+  var actionLabel = String((_failedRollContext && _failedRollContext.actionLabel) || 'Action Die');
 
   if (mode === 'convert') {
     if ((S.tmw || 0) < spend) {
@@ -1059,7 +1063,7 @@ window.applyFailedRollRecovery = function(mode) {
     }
     changeCounter('tmw', -2);
     var nextDread = (typeof stepUp === 'function') ? stepUp(dreadDie) : Math.min(20, dreadDie === 4 ? 6 : dreadDie === 6 ? 8 : dreadDie === 8 ? 10 : dreadDie === 10 ? 12 : 20);
-    var actionRoll = explodingRoll(actionDie, { type: 'action', major: true, label: 'Push Luck Action' });
+    var actionRoll = explodingRoll(actionDie, { type: 'action', major: true, label: 'Push Luck ' + actionLabel });
     var dreadRoll = explodingRoll(nextDread, { type: 'dread', major: true, label: 'Push Luck Dread' });
     var success = actionRoll.total >= dreadRoll.total;
     var html = ''
@@ -1067,7 +1071,7 @@ window.applyFailedRollRecovery = function(mode) {
       + 'Push Your Luck reroll resolved.<br>Dread stepped up: <strong style="color:var(--red2);">d' + dreadDie + ' → d' + nextDread + '</strong>'
       + '</div>'
       + '<div style="display:flex;gap:.8rem;align-items:center;margin-top:.45rem;">'
-      + '<div><div style="font-size:.68rem;color:var(--muted2);">Action</div><div style="font-size:1.35rem;color:var(--teal);font-family:Rajdhani,sans-serif;font-weight:700;">' + actionRoll.total + '</div></div>'
+      + '<div><div style="font-size:.68rem;color:var(--muted2);">' + actionLabel + '</div><div style="font-size:1.35rem;color:var(--teal);font-family:Rajdhani,sans-serif;font-weight:700;">' + actionRoll.total + '</div></div>'
       + '<div style="font-size:.9rem;color:var(--muted2);">vs</div>'
       + '<div><div style="font-size:.68rem;color:var(--muted2);">Dread</div><div style="font-size:1.35rem;color:var(--red2);font-family:Rajdhani,sans-serif;font-weight:700;">' + dreadRoll.total + '</div></div>'
       + '</div>'

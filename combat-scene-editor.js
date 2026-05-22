@@ -2912,7 +2912,7 @@
         ringOuter: 3,
         rounds: 2,
         stress: 1,
-        stressBonus: 1,
+        stressBonus: 0,
         actionDown: false
       },
       far: {
@@ -2921,7 +2921,7 @@
         ringOuter: 5,
         rounds: 3,
         stress: 1,
-        stressBonus: 1,
+        stressBonus: 0,
         actionDown: false
       }
     };
@@ -2941,14 +2941,12 @@
 
     var band = inferEnemySkillRangeBand(src, text);
     var bandDefaults = getEnemyAoeBandDefaults(band);
-    var roundsRaw = Math.max(0, Number(src.aoeRounds || src.durationRounds || src.zoneRounds || 0));
-    var rounds = roundsRaw > 0 ? roundsRaw : Number(bandDefaults.rounds || 2);
+    var rounds = Number(bandDefaults.rounds || 2);
     var lineHint = /line|beam|sweep|breath/.test(text) || type.indexOf('line') >= 0;
     var ringHint = /ring|aura|nearby|close|engaged|far/.test(text) || type.indexOf('ring') >= 0;
 
     if (lineHint && !ringHint) {
-      var lenMatch = text.match(/(\d+)\s*hex/);
-      var length = Math.max(2, Math.min(8, Number(src.aoeLength || (lenMatch && lenMatch[1]) || bandDefaults.lineLength || 4)));
+      var length = Math.max(2, Math.min(8, Number(bandDefaults.lineLength || 4)));
       return {
         shape: 'line',
         band: bandDefaults.band,
@@ -2959,8 +2957,8 @@
       };
     }
 
-    var inner = Math.max(0, Number(src.aoeInnerRadius == null ? bandDefaults.ringInner : src.aoeInnerRadius));
-    var outer = Math.max(inner + 1, Number(src.aoeOuterRadius == null ? bandDefaults.ringOuter : src.aoeOuterRadius));
+    var inner = Math.max(0, Number(bandDefaults.ringInner || 0));
+    var outer = Math.max(inner + 1, Number(bandDefaults.ringOuter || (inner + 1)));
     return {
       shape: 'ring',
       band: bandDefaults.band,
@@ -2991,12 +2989,10 @@
       ? rawDamageMode
       : '';
     var rawOnFailStress = Number(row.onFailStress == null ? row.failStress : row.onFailStress);
-    var hasExplicitOnFailStress = Number.isFinite(rawOnFailStress);
     var safeOnFailStress = Number.isFinite(rawOnFailStress)
       ? Math.max(0, Math.floor(rawOnFailStress))
       : (Number(idx || 0) === 0 ? 0 : 1);
     var rawStressBonus = Number(row.onFailStressBonus == null ? row.failStressBonus : row.onFailStressBonus);
-    var hasExplicitStressBonus = Number.isFinite(rawStressBonus);
     var safeStressBonus = Number.isFinite(rawStressBonus) ? Math.max(0, Math.floor(rawStressBonus)) : 0;
 
     if (!normalizedDamageMode) {
@@ -3025,8 +3021,9 @@
 
     if (normalized.aoeTemplate) {
       var aoeBandDefaults = getEnemyAoeBandDefaults(normalized.aoeTemplate.band || inferEnemySkillRangeBand(row, normalized.desc));
-      if (!hasExplicitOnFailStress) normalized.onFailStress = Math.max(0, Number(aoeBandDefaults.stress || normalized.onFailStress || 0));
-      if (!hasExplicitStressBonus) normalized.onFailStressBonus = Math.max(0, Number(aoeBandDefaults.stressBonus || 0));
+      normalized.damageMode = 'flat';
+      normalized.onFailStress = Math.max(0, Number(aoeBandDefaults.stress || 0));
+      normalized.onFailStressBonus = Math.max(0, Number(aoeBandDefaults.stressBonus || 0));
       if (!hasAoeActionDownEffect(normalized) && aoeBandDefaults.actionDown) {
         normalized.onFail = String(normalized.onFail || '').trim() + (String(normalized.onFail || '').trim() ? ' ' : '') + 'Lose 1 Action.';
       }

@@ -2916,9 +2916,9 @@
         actionDown: false
       },
       far: {
-        lineLength: 5,
+        lineLength: 6,
         ringInner: 3,
-        ringOuter: 4,
+        ringOuter: 5,
         rounds: 3,
         stress: 1,
         stressBonus: 1,
@@ -3113,7 +3113,7 @@
     if (normalized.length < 2) {
       normalized.push(normalizeEnemySkillRow({
         name: 'Linefire Sweep',
-        desc: 'A burning line tears through five hexes at Nearby/Far range.',
+        desc: 'A burning line tears through six hexes at Nearby/Far range.',
         save: 'body',
         range: ['nearby', 'far'],
         onFail: 'Take 1 stress.',
@@ -3123,7 +3123,7 @@
         source: 'Combat Tab',
         kind: 'aoe_line',
         effectType: 'aoe_line',
-        aoeLength: 5,
+        aoeLength: 6,
         aoeRounds: 3
       }, 1, actor && actor.name || 'Enemy'));
     }

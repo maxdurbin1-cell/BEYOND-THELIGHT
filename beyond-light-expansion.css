@@ -23,12 +23,14 @@
 .sea-note{font-size:.78rem;color:var(--muted3);line-height:1.55;}
 .sea-control-bar{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-bottom:.4rem;}
 
-.planet-layout{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:.85rem;min-height:calc(100vh - 170px);}
+.planet-layout{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:.85rem;min-height:calc(100dvh - 170px);}
 @media(max-width:960px){.planet-layout{grid-template-columns:1fr;min-height:auto;}}
-.planet-scroll{overflow:auto;background:var(--card);border:1px solid var(--border);position:relative;padding:.7rem;}
-.planet-info{background:var(--card);border:1px solid var(--border);overflow-y:auto;}
+.planet-scroll{overflow:auto;background:var(--card);border:1px solid var(--border);position:relative;padding:.7rem;height:100%;min-height:0;}
+.planet-info{background:var(--card);border:1px solid var(--border);overflow-y:auto;height:100%;min-height:0;}
 .planet-svg-wrap{overflow:auto;background:rgba(5,8,18,.72);border:1px solid var(--border);padding:.45rem;}
 .planet-svg{max-width:none;display:block;background:linear-gradient(180deg,rgba(5,8,18,.95),rgba(7,10,20,.72));}
+#tab-yessod .yessod-scroll{padding:.45rem;background:rgba(5,8,18,.72);}
+#tab-yessod #yessodMapSvg{display:block;background:linear-gradient(180deg,rgba(5,8,18,.95),rgba(7,10,20,.72));}
 .planet-gridline{fill:rgba(0,0,0,0);stroke:rgba(180,196,226,.12);stroke-width:.8;pointer-events:none;}
 .planet-route-line{stroke:rgba(214,176,70,.45);stroke-width:1.3;stroke-dasharray:4 2;pointer-events:none;}
 .planet-hex polygon{transition:opacity .12s ease,transform .12s ease;}

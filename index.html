@@ -560,7 +560,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-codex" id="tabnav-codex" data-tab="codex">Codex</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-rules" id="tabnav-rules" data-tab="rules">Rules</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-combat" id="tabnav-combat" data-tab="combat">Combat</button>
-    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-scenes" id="tabnav-scenes" data-tab="scenes">Scenes</button>
+    <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-scenes" id="tabnav-scenes" data-tab="scenes">VTT</button>
     <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" role="tab" aria-selected="false" aria-controls="tab-oracle" id="tabnav-oracle" data-tab="oracle">Oracle</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-storyline" id="tabnav-storyline" data-tab="storyline">Storyline</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-factions" id="tabnav-factions" data-tab="factions">Factions</button>
@@ -1833,7 +1833,12 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 
 <script>
 const DICE=[4,6,8,10,12,20];
-const DICE_VISUAL_DEFAULTS={enabled:false,maxVisible:6,mode:'all',cinematicMajor:true};
+const DICE_VISUAL_DEFAULTS={
+  enabled:false,
+  maxVisible:6,
+  mode:'all',
+  cinematicMajor:true
+};
 function loadDiceVisualSettings(){
   try{
     const raw=localStorage.getItem('beyond-light-dice-visuals');
@@ -1975,7 +1980,6 @@ function updateDiceVisualUI(){
     cineBtn.className='btn btn-xs '+(DICE_VISUAL.cinematicMajor?'btn-primary':'');
   }
 }
-});
 function isManualRollModeEnabled(){
   try{
     return !!(window.settingsSystem&&typeof window.settingsSystem.isManualRollMode==='function'&&window.settingsSystem.isManualRollMode());
@@ -14628,7 +14632,7 @@ function ensureMapClickMode(){
 function ensureMapFogState(){
   if(!S||typeof S!=='object')return {};
   if(!S.mapFog||typeof S.mapFog!=='object')S.mapFog={};
-  ['province','sea','galaxy','planet'].forEach(function(region){
+  ['province','sea','galaxy','planet','yessod','wtw'].forEach(function(region){
     if(!S.mapFog[region]||typeof S.mapFog[region]!=='object')S.mapFog[region]={};
     const cfg=S.mapFog[region];
     cfg.enabled=!!cfg.enabled;
@@ -14690,11 +14694,14 @@ function toggleMapFogForRegion(region){
   if(typeof renderLastSeaInfo==='function')renderLastSeaInfo();
   if(typeof renderStarSystemMap==='function')renderStarSystemMap();
   if(typeof updateStarSystemReadouts==='function')updateStarSystemReadouts();
+  if(typeof renderPlanetExplorationPanel==='function')renderPlanetExplorationPanel();
+  if(typeof renderYessodPanel==='function')renderYessodPanel();
+  if(typeof renderWorldThatWas==='function')renderWorldThatWas();
   return cfg.enabled;
 }
 function setCampaignFogPlayerVision(currentOnly){
   const val=!!currentOnly;
-  ['province','sea','galaxy','planet'].forEach(function(region){
+  ['province','sea','galaxy','planet','yessod','wtw'].forEach(function(region){
     const cfg=getMapFogConfig(region);
     cfg.playerCurrentOnlyInCampaign=val;
   });

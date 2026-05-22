@@ -12018,6 +12018,28 @@ const PLANET_SURFACE_FEATURES = [
 ];
 const PLANET_SURFACE_ROWS = 12;
 const PLANET_SURFACE_COLS = 12;
+const PLANET_SURFACE_HEX = 34;
+const SHARED_SURFACE_HEX_FRAME = Object.freeze({
+  xStepRatio: 1.74,
+  yStepRatio: 1.5,
+  baseX: 52,
+  baseY: 50,
+});
+
+function getSharedSurfaceHexFrame(rows, cols, size) {
+  const xStep = size * SHARED_SURFACE_HEX_FRAME.xStepRatio;
+  const yStep = size * SHARED_SURFACE_HEX_FRAME.yStepRatio;
+  const baseX = SHARED_SURFACE_HEX_FRAME.baseX;
+  const baseY = SHARED_SURFACE_HEX_FRAME.baseY;
+  return {
+    xStep,
+    yStep,
+    baseX,
+    baseY,
+    width: Math.ceil(baseX * 2 + ((cols - 1) * xStep) + (xStep * 0.5) + size),
+    height: Math.ceil(baseY * 2 + ((rows - 1) * yStep) + size),
+  };
+}
 
 const PLANET_SURFACE_WEATHER = {
   spring: [
@@ -13600,17 +13622,18 @@ function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
   const mapFx = (typeof window.getMapVisualSettings === 'function')
     ? window.getMapVisualSettings()
     : { hex3d: false, overlay: 'none' };
-  const size = 28;
+  const size = PLANET_SURFACE_HEX;
   const rows = PLANET_SURFACE_ROWS;
   const cols = PLANET_SURFACE_COLS;
-  const width = cols * size * 1.55 + size * 2.4;
-  const height = rows * Math.sqrt(3) * size * 0.75 + size * 2.2;
+  const frame = getSharedSurfaceHexFrame(rows, cols, size);
+  const width = frame.width;
+  const height = frame.height;
 
   const posById = {};
   state.cells.forEach((cell) => {
     posById[cell.id] = {
-      x: cell.col * size * 1.55 + (cell.row % 2 === 1 ? size * 0.78 : 0) + size + 6,
-      y: cell.row * Math.sqrt(3) * size * 0.75 + size * 0.9 + 6,
+      x: frame.baseX + (cell.col * frame.xStep) + ((cell.row % 2) * (frame.xStep * 0.5)),
+      y: frame.baseY + (cell.row * frame.yStep),
     };
   });
 
@@ -13791,7 +13814,7 @@ function renderPlanetSurfaceSvg(state, selected, missionMarkersByCell) {
     ? '<defs>' + Object.keys(patternDefs).map((id) => patternDefs[id]).join('') + '</defs>'
     : '';
 
-  return `<div class="planet-svg-wrap"><svg class="planet-svg" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${defsSvg}${gridSvg}${routeLinesSvg}${cellsSvg}</svg></div>`;
+  return `<div class="planet-svg-wrap"><svg class="planet-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">${defsSvg}${gridSvg}${routeLinesSvg}${cellsSvg}</svg></div>`;
 }
 
 function getPlanetHexTypeLabel(cell) {
@@ -15505,6 +15528,7 @@ function createPlanetSurfaceState(hex) {
     currentWeather: rollPlanetSurfaceWeather(profile),
     landedCellId: landingCell ? landingCell.id : 1,
     selectedCellId: landingCell ? landingCell.id : 1,
+    clickMode: 'travel',
     cells,
     tasks: [],
     wayfarers: [],
@@ -15525,9 +15549,6 @@ function ensurePlanetSurfaceState(hex) {
   const key = String(hex.id);
   if (!S.starSystem.planetExplorationByHex[key]) {
     S.starSystem.planetExplorationByHex[key] = createPlanetSurfaceState(hex);
-    if (typeof window.getMapFogConfig === 'function') {
-      window.getMapFogConfig('planet').enabled = true;
-    }
     if (typeof window.revealMapFogHex === 'function') {
       const seeded = S.starSystem.planetExplorationByHex[key];
       const landedId = seeded && seeded.landedCellId != null ? Number(seeded.landedCellId) : null;
@@ -15542,6 +15563,47 @@ function ensurePlanetSurfaceState(hex) {
 function getPlanetFogCellKey(state, cellId) {
   if (!state || cellId == null) return '';
   return String(state.hexId) + ':' + String(cellId);
+}
+
+function ensurePlanetClickMode(state) {
+  const mode = String((state && state.clickMode) || 'travel');
+  if (!state) return 'travel';
+  if (['travel', 'inspect', 'fog'].indexOf(mode) < 0) {
+    state.clickMode = 'travel';
+  }
+  return state.clickMode;
+}
+
+function updatePlanetClickModeUI(state) {
+  const btn = document.getElementById('planetMapClickModeBtn');
+  if (!btn || !state) return;
+  const mode = ensurePlanetClickMode(state);
+  const label = mode === 'travel' ? 'Travel' : (mode === 'inspect' ? 'Inspect' : 'Fog');
+  btn.textContent = 'Map Mode: ' + label;
+  if (mode === 'travel' || mode === 'fog') btn.classList.add('btn-teal');
+  else btn.classList.remove('btn-teal');
+}
+
+function togglePlanetClickMode() {
+  const hex = getActivePlanetHex();
+  const state = ensurePlanetSurfaceState(hex);
+  if (!state) return;
+  const order = ['travel', 'inspect', 'fog'];
+  const cur = ensurePlanetClickMode(state);
+  const idx = order.indexOf(cur);
+  state.clickMode = order[(idx + 1) % order.length];
+  if (typeof window.getMapFogConfig === 'function') {
+    window.getMapFogConfig('planet').enabled = state.clickMode === 'fog';
+  }
+  renderPlanetExplorationPanel();
+  if (typeof showNotif === 'function') {
+    showNotif(
+      state.clickMode === 'travel'
+        ? 'Planet clicks now travel and resolve exploration checks.'
+        : (state.clickMode === 'inspect' ? 'Planet clicks now inspect only.' : 'Planet clicks now reveal fog.'),
+      'good'
+    );
+  }
 }
 
 function openActivePlanetMap() {
@@ -15900,6 +15962,7 @@ function createYessodState() {
     cols: YESSOD_COLS,
     cells,
     selectedCellId: yessodCellId(5, 5),
+    clickMode: 'travel',
     travelMethod: 'trek',
     currentStrata: 1,
     currentWeather: null,
@@ -16069,11 +16132,64 @@ function shiftYessodStrata(delta) {
   renderYessodPanel();
 }
 
+function ensureYessodClickMode(state) {
+  const mode = String((state && state.clickMode) || 'travel');
+  if (!state) return 'travel';
+  if (['travel', 'inspect', 'fog'].indexOf(mode) < 0) {
+    state.clickMode = 'travel';
+  }
+  return state.clickMode;
+}
+
+function updateYessodClickModeUI(state) {
+  const btn = document.getElementById('yessodMapClickModeBtn');
+  if (!btn || !state) return;
+  const mode = ensureYessodClickMode(state);
+  const label = mode === 'travel' ? 'Travel' : (mode === 'inspect' ? 'Inspect' : 'Fog');
+  btn.textContent = 'Map Mode: ' + label;
+  if (mode === 'travel' || mode === 'fog') btn.classList.add('btn-teal');
+  else btn.classList.remove('btn-teal');
+}
+
+function toggleYessodClickMode() {
+  const state = ensureYessodState();
+  const order = ['travel', 'inspect', 'fog'];
+  const cur = ensureYessodClickMode(state);
+  const idx = order.indexOf(cur);
+  state.clickMode = order[(idx + 1) % order.length];
+  if (typeof window.getMapFogConfig === 'function') {
+    window.getMapFogConfig('yessod').enabled = state.clickMode === 'fog';
+  }
+  renderYessodPanel();
+  showNotif(
+    state.clickMode === 'travel'
+      ? 'Yessod clicks now travel and apply traversal costs.'
+      : (state.clickMode === 'inspect' ? 'Yessod clicks now inspect only.' : 'Yessod clicks now reveal fog.'),
+    'good'
+  );
+}
+
 function selectYessodCell(cellId) {
   const state = ensureYessodState();
   const toCell = yessodGetCell(state, cellId);
   const fromCell = yessodGetCell(state, state.selectedCellId);
   if (!toCell) return;
+
+  const clickMode = ensureYessodClickMode(state);
+  if (clickMode === 'fog') {
+    state.selectedCellId = toCell.id;
+    if (typeof window.revealMapFogHex === 'function') {
+      window.revealMapFogHex('yessod', 'y:' + String(toCell.id));
+    }
+    renderYessodPanel();
+    showNotif('Yessod fog revealed at hex ' + String(toCell.id) + '.', 'good');
+    return;
+  }
+  if (clickMode === 'inspect') {
+    state.selectedCellId = toCell.id;
+    renderYessodPanel();
+    return;
+  }
 
   if (fromCell && fromCell.id !== toCell.id) {
     if (state.travelMethod === 'titanpaths' && !(fromCell.titanpath && toCell.titanpath)) {
@@ -16090,6 +16206,9 @@ function selectYessodCell(cellId) {
 
   toCell.explored = true;
   state.selectedCellId = toCell.id;
+  if (typeof window.revealMapFogHex === 'function') {
+    window.revealMapFogHex('yessod', 'y:' + String(toCell.id));
+  }
   renderYessodPanel();
 }
 
@@ -16675,21 +16794,27 @@ function renderYessodMap() {
   const state = ensureYessodState();
   const svg = document.getElementById('yessodMapSvg');
   if (!svg) return;
-  const width = 760;
-  const height = 660;
+  const size = 34;
+  const frame = getSharedSurfaceHexFrame(YESSOD_ROWS, YESSOD_COLS, size);
+  const xStep = frame.xStep;
+  const yStep = frame.yStep;
+  const baseX = frame.baseX;
+  const baseY = frame.baseY;
+  const width = frame.width;
+  const height = frame.height;
   svg.setAttribute('width', String(width));
   svg.setAttribute('height', String(height));
-  const size = 29;
-  const xStep = size * 1.74;
-  const yStep = size * 1.5;
-  const baseX = 45;
-  const baseY = 42;
+  svg.setAttribute('viewBox', '0 0 ' + String(width) + ' ' + String(height));
+  const selectedFogKey = 'y:' + String(state.selectedCellId || '');
   const hexes = state.cells.map((cell) => {
     const x = baseX + (cell.col * xStep) + ((cell.row % 2) * (xStep * 0.5));
     const y = baseY + (cell.row * yStep);
     const pts = hexPointsSVG(x, y, size - 1.2);
     const marker = YESSOD_MARKERS[cell.marker] || YESSOD_MARKERS.wilderness;
     const border = cell.id === state.selectedCellId ? '#ffffff' : '#2f4156';
+    const fogHidden = (typeof window.isMapFogHexVisible === 'function')
+      ? !window.isMapFogHexVisible('yessod', 'y:' + String(cell.id), selectedFogKey)
+      : false;
     const noteDot = cell.note
       ? `<circle cx="${x + (size * .56)}" cy="${y - (size * .54)}" r="4" fill="var(--teal)" pointer-events="none"></circle>`
       : '';
@@ -16699,6 +16824,7 @@ function renderYessodMap() {
       ${cell.titanpath ? `<circle cx="${x + 10}" cy="${y - 10}" r="3" fill="#d78be7" pointer-events="none"></circle>` : ''}
       ${noteDot}
       <text x="${x}" y="${y + 4}" text-anchor="middle" font-size="10" fill="#101625" pointer-events="none">${marker.glyph || ''}</text>
+      ${fogHidden ? `<polygon points="${pts}" fill="rgba(6,10,16,.84)" stroke="rgba(110,124,148,.35)" stroke-width="1" pointer-events="none"></polygon><text x="${x}" y="${y + 4}" text-anchor="middle" font-family="Rajdhani,sans-serif" font-size="12" fill="rgba(201,214,240,.65)" pointer-events="none">?</text>` : ''}
     </g>`;
   }).join('');
   svg.innerHTML = hexes;
@@ -17016,6 +17142,7 @@ function renderYessodPanel() {
       <button class="btn btn-sm" onclick="rollYessodWeatherNow()">Roll Weather</button>
       <button class="btn btn-sm" onclick="shiftYessodStrata(-1)">Strata -</button>
       <button class="btn btn-sm" onclick="shiftYessodStrata(1)">Strata +</button>
+      <button class="btn btn-sm btn-teal" id="yessodMapClickModeBtn" onclick="toggleYessodClickMode()">Map Mode: Travel</button>
       <button class="btn btn-sm" onclick="toggleYessodManualRollMode()">Manual Roll: ${manualOn ? 'On' : 'Off'}</button>
       <span style="color:var(--muted);font-size:.6rem;margin:0 .3rem;">|</span>
       <label style="font-size:.75rem;color:var(--muted2);">Travel Method
@@ -17046,14 +17173,25 @@ function renderYessodPanel() {
       <div class="leg-item"><div class="leg-dot" style="background:#3f88c5;"></div>Task</div>
       <div class="leg-item"><div class="leg-dot" style="background:#c04040;"></div>Mission</div>
     </div>
-    <div class="map-layout">
-      <div class="map-scroll">
-        <svg id="yessodMapSvg" width="760" height="660" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="planet-layout yessod-layout">
+      <div class="planet-scroll yessod-scroll">
+        <svg id="yessodMapSvg" width="820" height="700" viewBox="0 0 820 700" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>
-      <div class="hex-info" id="yessodHexInfo"></div>
+      <div class="planet-info yessod-info hex-info" id="yessodHexInfo"></div>
     </div>`;
 
+  ensureYessodClickMode(state);
+  if (typeof window.getMapFogConfig === 'function') {
+    window.getMapFogConfig('yessod').enabled = state.clickMode === 'fog';
+  }
+  if (typeof window.revealMapFogHex === 'function' && state.selectedCellId != null) {
+    window.revealMapFogHex('yessod', 'y:' + String(state.selectedCellId));
+  }
+  updateYessodClickModeUI(state);
+
   renderYessodMap();
+  const yessodScroll = host.querySelector('.yessod-scroll');
+  if (yessodScroll) yessodScroll.scrollTo(0, 0);
   renderYessodHexInfo(selected);
 }
 
@@ -17152,6 +17290,21 @@ function explorePlanetCell(cellId) {
   if (!state) return;
   const cell = state.cells.find((c) => c.id === Number(cellId));
   if (!cell) return;
+  const clickMode = ensurePlanetClickMode(state);
+  if (clickMode === 'fog') {
+    state.selectedCellId = cell.id;
+    if (typeof window.revealMapFogHex === 'function') {
+      window.revealMapFogHex('planet', getPlanetFogCellKey(state, cell.id));
+    }
+    renderPlanetExplorationPanel();
+    showNotif('Planet fog revealed at cell ' + String(cell.id) + '.', 'good');
+    return;
+  }
+  if (clickMode === 'inspect') {
+    state.selectedCellId = cell.id;
+    renderPlanetExplorationPanel();
+    return;
+  }
   registerPlanetSurfaceTravel(state);
   state.selectedCellId = cell.id;
   if (typeof window.revealMapFogHex === 'function') {
@@ -17345,8 +17498,9 @@ function renderPlanetExplorationPanel() {
   }
   const state = ensurePlanetSurfaceState(planetHex);
   if (!state) return;
+  ensurePlanetClickMode(state);
   if (typeof window.getMapFogConfig === 'function') {
-    window.getMapFogConfig('planet').enabled = true;
+    window.getMapFogConfig('planet').enabled = state.clickMode === 'fog';
   }
   if (window.factionSystem && typeof window.factionSystem.syncBaseMarkers === 'function') window.factionSystem.syncBaseMarkers();
   if (!state.currentWeather) state.currentWeather = rollPlanetSurfaceWeather(state.profile);
@@ -17420,6 +17574,7 @@ function renderPlanetExplorationPanel() {
     </div>
     <div class="sea-control-bar">
       <button class="btn btn-sm btn-teal" onclick="cyclePlanetTraversalMode()">Traversal: ${state.traversalMode === 'exocraft' ? 'Exocraft' : 'On Foot'}</button>
+      <button class="btn btn-sm btn-teal" id="planetMapClickModeBtn" onclick="togglePlanetClickMode()">Map Mode: Travel</button>
       <span style="color:var(--muted);font-size:.6rem;margin:0 .25rem;">|</span>
       <span id="planetTimeDisplay" style="font-family:'Rajdhani',sans-serif;font-size:.8rem;color:var(--gold2);">${typeof getGameDatePhaseText === 'function' ? getGameDatePhaseText() : 'Month 1, Day 1, Year 1 — Morning'}</span>
       <span style="color:var(--muted);font-size:.6rem;margin:0 .25rem;">|</span>
@@ -17565,6 +17720,7 @@ function renderPlanetExplorationPanel() {
     </div>
   </div>`;
   const planetSvg = target.querySelector('.planet-svg');
+  updatePlanetClickModeUI(state);
   if (planetSvg && typeof window.applyMapOverlayStyle === 'function') {
     window.applyMapOverlayStyle(planetSvg, 'planet');
   }
@@ -22818,9 +22974,11 @@ window.rollOracleOpenEnded = rollOracleOpenEnded;
 window.rollPlanetExploration = rollPlanetExploration;
 window.renderPlanetExplorationPanel = renderPlanetExplorationPanel;
 window.openActivePlanetMap = openActivePlanetMap;
+window.togglePlanetClickMode = togglePlanetClickMode;
 window.renderYessodPanel = renderYessodPanel;
 window.openYessodFromSun = openYessodFromSun;
 window.selectYessodCell = selectYessodCell;
+window.toggleYessodClickMode = toggleYessodClickMode;
 window.setYessodTravelMethod = setYessodTravelMethod;
 window.shiftYessodStrata = shiftYessodStrata;
 window.rollYessodWeatherNow = rollYessodWeatherNow;

@@ -1100,6 +1100,8 @@
     } else {
       w.minimalMapMode = !!w.minimalMapMode;
     }
+    w.clickMode = String(w.clickMode || "travel").toLowerCase();
+    if (["travel", "inspect", "fog"].indexOf(w.clickMode) < 0) w.clickMode = "travel";
     w.storyObjectiveHexId = w.storyObjectiveHexId || null;
     w.ui = w.ui || {};
     w.ui.openAccordions = w.ui.openAccordions || {
@@ -1652,6 +1654,8 @@
     if (!svg || !w) return;
     const minimal = !!w.minimalMapMode;
     const hasWorldSelection = !!w.selectedHexId;
+    const clickMode = getWorldMapClickMode();
+    const selectedFogKey = w.selectedHexId ? String(w.selectedHexId) : "";
     const mapFx = (typeof window.getMapVisualSettings === "function")
       ? window.getMapVisualSettings()
       : { hex3d: false, overlay: "none" };
@@ -1714,6 +1718,9 @@
       const marker = w.markers[hex.id];
       const isTrackedThreadHex = trackedWtwHexId && String(hex.id) === trackedWtwHexId;
       const r = WTW_HEX - 1;
+      const fogHidden = (typeof window.isMapFogHexVisible === "function")
+        ? !window.isMapFogHexVisible("wtw", String(hex.id), selectedFogKey)
+        : false;
 
       const isSelected = w.selectedHexId === hex.id;
       const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
@@ -1914,7 +1921,40 @@
         g.appendChild(bsIcon);
       }
 
+      if (fogHidden) {
+        const fog = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+        fog.setAttribute("points", hexPoints(p.x, p.y));
+        fog.setAttribute("fill", "rgba(6,10,16,.84)");
+        fog.setAttribute("stroke", "rgba(108,124,148,.35)");
+        fog.setAttribute("stroke-width", "1");
+        fog.setAttribute("pointer-events", "none");
+        g.appendChild(fog);
+
+        const q = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        q.setAttribute("x", String(p.x));
+        q.setAttribute("y", String(p.y + 4));
+        q.setAttribute("text-anchor", "middle");
+        q.setAttribute("font-family", "Rajdhani,sans-serif");
+        q.setAttribute("font-size", "12");
+        q.setAttribute("fill", "rgba(201,214,240,.65)");
+        q.setAttribute("pointer-events", "none");
+        q.textContent = "?";
+        g.appendChild(q);
+      }
+
       g.addEventListener("click", function () {
+        if (clickMode === "fog") {
+          w.selectedHexId = hex.id;
+          if (typeof window.revealMapFogHex === "function") window.revealMapFogHex("wtw", String(hex.id));
+          renderWorldThatWas();
+          if (typeof showNotif === "function") showNotif("World fog revealed at " + String(hex.zone || hex.id) + ".", "good");
+          return;
+        }
+        if (clickMode === "inspect") {
+          w.selectedHexId = hex.id;
+          renderWorldThatWas();
+          return;
+        }
         const currentHex = w.selectedHexId ? hexById(w.selectedHexId) : null;
         const crossingIntoBarrier = !!(hex && hex.hazard && hex.hazard.type === "barrier" && (!currentHex || currentHex.id !== hex.id));
         if (crossingIntoBarrier) {
@@ -1953,6 +1993,45 @@
     renderWorldThatWas();
     if (typeof showNotif === "function") {
       showNotif("World map mode: " + (w.minimalMapMode ? "Minimal" : "Detailed") + ".", "good");
+    }
+  }
+
+  function getWorldMapClickMode() {
+    const w = ensureWorldState();
+    if (!w) return "travel";
+    const mode = String(w.clickMode || "travel").toLowerCase();
+    w.clickMode = ["travel", "inspect", "fog"].indexOf(mode) >= 0 ? mode : "travel";
+    return w.clickMode;
+  }
+
+  function updateWorldMapClickModeUI() {
+    const btn = document.getElementById("wtwMapClickModeBtn");
+    const mode = getWorldMapClickMode();
+    if (!btn) return;
+    const label = mode === "travel" ? "Travel" : (mode === "inspect" ? "Inspect" : "Fog");
+    btn.textContent = "Map Mode: " + label;
+    if (mode === "travel" || mode === "fog") btn.classList.add("btn-teal");
+    else btn.classList.remove("btn-teal");
+  }
+
+  function toggleWorldMapClickMode() {
+    const w = ensureWorldState();
+    if (!w) return;
+    const order = ["travel", "inspect", "fog"];
+    const current = getWorldMapClickMode();
+    const idx = order.indexOf(current);
+    w.clickMode = order[(idx + 1) % order.length];
+    if (typeof window.getMapFogConfig === "function") {
+      window.getMapFogConfig("wtw").enabled = w.clickMode === "fog";
+    }
+    renderWorldThatWas();
+    if (typeof showNotif === "function") {
+      showNotif(
+        w.clickMode === "travel"
+          ? "World map clicks now travel and trigger encounters."
+          : (w.clickMode === "inspect" ? "World map clicks now inspect only." : "World map clicks now reveal fog."),
+        "good"
+      );
     }
   }
 
@@ -4048,6 +4127,7 @@
     const padsEl = document.getElementById("wtwLandingControls");
     const activityEl = document.getElementById("wtwActivity");
     const mapModeBtn = document.getElementById("wtwMapModeBtn");
+    const mapClickModeBtn = document.getElementById("wtwMapClickModeBtn");
     const timeEl = document.getElementById("wtwTimeDisplay");
     if (tickEl) tickEl.textContent = "Cycle " + (w.tick || 0);
     if (zoneEl) zoneEl.textContent = w.currentZone || "Unknown";
@@ -4055,7 +4135,14 @@
     if (padsEl) padsEl.innerHTML = renderLandingPadControls();
     if (activityEl) activityEl.textContent = String(w.activityClicks || 0) + "/10";
     if (mapModeBtn) mapModeBtn.textContent = w.minimalMapMode ? "Map: Minimal" : "Map: Detailed";
+    if (mapClickModeBtn) updateWorldMapClickModeUI();
     if (timeEl) timeEl.textContent = getWorldDateTimeText();
+    if (typeof window.getMapFogConfig === "function") {
+      window.getMapFogConfig("wtw").enabled = getWorldMapClickMode() === "fog";
+    }
+    if (typeof window.revealMapFogHex === "function" && w.selectedHexId) {
+      window.revealMapFogHex("wtw", String(w.selectedHexId));
+    }
     renderWorldThatWasMap();
     renderWorldThatWasInfo();
     renderPowerReadout();
@@ -4077,6 +4164,7 @@
       + "<button class='btn btn-sm' onclick='advanceWorldThatWas()'>Advance Cycle</button>"
       + "<button class='btn btn-sm btn-teal' onclick='wtwSyncMarkers()'>Refresh Markers</button>"
       + "<button class='btn btn-sm' id='wtwMapModeBtn' onclick='toggleWorldMapMode()'>Map: Detailed</button>"
+      + "<button class='btn btn-sm btn-teal' id='wtwMapClickModeBtn' onclick='toggleWorldMapClickMode()'>Map Mode: Travel</button>"
       + "<button class='btn btn-sm' onclick='returnWorldToProvince()'>Return to Province</button>"
       + "<button class='btn btn-sm' onclick='returnWorldToLastSea()'>Return to Last Sea</button>"
       + "<button class='btn btn-sm' onclick='returnWorldToGalaxy()'>Return to Galaxy</button>"
@@ -4198,6 +4286,7 @@
   window.returnWorldToProvince = returnToProvince;
   window.returnWorldToLastSea = returnToLastSea;
   window.toggleWorldMapMode = toggleWorldMapMode;
+  window.toggleWorldMapClickMode = toggleWorldMapClickMode;
   window.openWorldThatWasFromGalaxy = openWorldThatWasFromGalaxy;
 
   window.wtwBuyService = spendService;

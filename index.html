@@ -1465,7 +1465,20 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
       <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:.65rem;">
         <div>
           <div class="sub-label" style="margin-bottom:.35rem;">Action Die</div>
-          <div class="die-options" id="actionDiceOpts">
+          <select id="actionStatSel" onchange="selectStatDie(this.value)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.28rem .45rem;font-size:.85rem;border-radius:4px;width:100%;margin-bottom:.35rem;">
+            <option value="">— Choose Stat —</option>
+            <option value="body">Body</option>
+            <option value="strike">Strike</option>
+            <option value="shoot">Shoot</option>
+            <option value="mind">Mind</option>
+            <option value="spirit">Spirit</option>
+            <option value="defend">Defend</option>
+            <option value="control">Control</option>
+            <option value="lead">Lead</option>
+            <option value="adventure">Adventure</option>
+            <option value="custom">— Custom Die —</option>
+          </select>
+          <div class="die-options" id="actionDiceOpts" style="display:none;">
             <div class="d-opt sel" onclick="selectDie('action',4)" data-v="4">d4</div>
             <div class="d-opt" onclick="selectDie('action',6)" data-v="6">d6</div>
             <div class="d-opt" onclick="selectDie('action',8)" data-v="8">d8</div>
@@ -1473,6 +1486,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
             <div class="d-opt" onclick="selectDie('action',12)" data-v="12">d12</div>
             <div class="d-opt" onclick="selectDie('action',20)" data-v="20">d20</div>
           </div>
+          <div id="actionDieLabel" style="font-size:.78rem;color:var(--teal);margin-top:.2rem;min-height:1.1em;"></div>
         </div>
         <div>
           <div class="sub-label" style="margin-bottom:.35rem;">Dread Die</div>
@@ -1538,6 +1552,11 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
       <div class="res-outcome" id="resOutcome">—</div>
       <div style="font-size:.85rem;color:var(--red);margin-top:.25rem;" id="resStress"></div>
       <div style="margin-top:.5rem;font-size:.8rem;color:var(--muted);" id="resNote"></div>
+      <div id="rollOutcomePanel" style="display:none;margin-top:.65rem;border-top:1px solid rgba(255,255,255,.08);padding-top:.55rem;">
+        <div style="font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:var(--gold2);text-transform:uppercase;margin-bottom:.4rem;">Apply Outcome As</div>
+        <div id="rollOutcomeButtons" style="display:flex;gap:.35rem;flex-wrap:wrap;"></div>
+        <div id="rollOutcomeApplied" style="font-size:.78rem;color:var(--teal);margin-top:.35rem;min-height:1em;"></div>
+      </div>
     </div>
     <div class="card" style="margin-top:.85rem;">
       <div class="section-title">⚙ Roll Modifiers</div>

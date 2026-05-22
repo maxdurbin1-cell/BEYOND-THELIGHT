@@ -314,6 +314,12 @@ function switchTab(tabId, btn) {
     }
   }
 
+  if (tabId === "dice") {
+    if (typeof refreshActionStatDropdown === "function") {
+      refreshActionStatDropdown();
+    }
+  }
+
   syncTabAccessibility();
 
 }
@@ -3364,6 +3370,50 @@ function selectDie(kind, value) {
   syncManualCheckPanel();
 }
 
+// Stat names displayed in the Action Die dropdown
+var STAT_DIE_LABELS = {
+  body: 'Body', strike: 'Strike', shoot: 'Shoot', mind: 'Mind',
+  spirit: 'Spirit', defend: 'Defend', control: 'Control', lead: 'Lead', adventure: 'Adventure'
+};
+
+function selectStatDie(statKey) {
+  var optsEl = document.getElementById('actionDiceOpts');
+  var labelEl = document.getElementById('actionDieLabel');
+  if (statKey === 'custom') {
+    if (optsEl) optsEl.style.display = '';
+    if (labelEl) labelEl.textContent = 'Choose a die below';
+    return;
+  }
+  if (!statKey) {
+    if (optsEl) optsEl.style.display = 'none';
+    if (labelEl) labelEl.textContent = '';
+    return;
+  }
+  var dieSize = (S && S.stats && S.stats[statKey]) ? Number(S.stats[statKey]) : 4;
+  selectDie('action', dieSize);
+  if (optsEl) optsEl.style.display = 'none';
+  var statLabel = STAT_DIE_LABELS[statKey] || statKey;
+  if (labelEl) labelEl.textContent = statLabel + ' \u2192 d' + dieSize;
+}
+
+function refreshActionStatDropdown() {
+  var sel = document.getElementById('actionStatSel');
+  if (!sel || !S || !S.stats) return;
+  Array.from(sel.options).forEach(function(opt) {
+    var key = opt.value;
+    if (STAT_DIE_LABELS[key]) {
+      opt.text = STAT_DIE_LABELS[key] + ' (d' + (S.stats[key] || 4) + ')';
+    }
+  });
+}
+
+// Keep dropdown stat labels fresh whenever stats change
+if (typeof document !== 'undefined') {
+  document.addEventListener('DOMContentLoaded', function() {
+    refreshActionStatDropdown();
+  });
+}
+
 function renderCheckResult(actionDie, dreadDie, actionRoll, dreadRoll, success) {
   const dice = document.getElementById("resDice");
   const outcome = document.getElementById("resOutcome");
@@ -3383,8 +3433,7 @@ function renderCheckResult(actionDie, dreadDie, actionRoll, dreadRoll, success) 
     outcome.className = "res-outcome " + (success ? (actionRoll.exploded ? "crit" : "success") : "fail");
   }
   if (stress) {
-    const delta = Math.max(1, dreadRoll.total - actionRoll.total);
-    stress.textContent = success ? "" : "Failure cost: +" + delta + " Stress";
+    stress.textContent = '';
   }
   if (note) {
     const extra = [];
@@ -3396,6 +3445,8 @@ function renderCheckResult(actionDie, dreadDie, actionRoll, dreadRoll, success) 
     }
     note.textContent = extra.join(" ");
   }
+  var delta = success ? Math.max(1, actionRoll.total - dreadRoll.total) : Math.max(1, dreadRoll.total - actionRoll.total);
+  showRollOutcomePanel(success, !!actionRoll.exploded, delta);
 }
 
 function rollCheck() {
@@ -3419,7 +3470,6 @@ function rollCheck() {
       });
     }
     addTMWOnFail();
-    changeHealth(Math.max(1, dreadRoll.total - actionRoll.total));
   } else {
     if (typeof showDccSuccessOutcome === 'function') {
       showDccSuccessOutcome('spell', Math.max(1, actionRoll.total - dreadRoll.total), {
@@ -3451,6 +3501,89 @@ window.compareManualCheckValues = compareManualCheckValues;
 window.resolveManualCheckOverride = resolveManualCheckOverride;
 window.syncManualCheckPanel = syncManualCheckPanel;
 syncManualCheckPanel();
+
+// ── OUTCOME DISTRIBUTION PANEL ─────────────────────────────────────────────
+
+// Called by renderCheckResult after every roll.
+// success=true/false, isCrit=true if action die exploded, delta=margin of result.
+function showRollOutcomePanel(success, isCrit, delta) {
+  var panel = document.getElementById('rollOutcomePanel');
+  var btns = document.getElementById('rollOutcomeButtons');
+  var applied = document.getElementById('rollOutcomeApplied');
+  if (!panel || !btns) return;
+  if (applied) applied.textContent = '';
+
+  var buttons = [];
+  if (success) {
+    buttons.push({ label: '+ Path Token', cls: 'btn btn-sm btn-teal', action: 'pathToken', delta: 1 });
+    buttons.push({ label: 'No effect', cls: 'btn btn-sm', action: 'none', delta: 0 });
+  } else {
+    buttons.push({ label: 'Damage (+' + delta + ' Stress)', cls: 'btn btn-sm btn-red', action: 'stress', delta: delta });
+    buttons.push({ label: 'Mental Stress (+' + delta + ')', cls: 'btn btn-sm btn-red', action: 'mentalStress', delta: delta });
+    buttons.push({ label: 'Radiation (+' + delta + ')', cls: 'btn btn-sm', action: 'radiation', delta: delta, style: 'color:var(--gold2);border-color:var(--gold2);' });
+    if (isCrit) {
+      buttons.push({ label: 'Injury (Crit)', cls: 'btn btn-sm btn-red', action: 'injury', delta: 1 });
+    }
+    buttons.push({ label: '+ Teamwork Pt', cls: 'btn btn-sm btn-teal', action: 'tmw', delta: 1 });
+  }
+
+  btns.innerHTML = buttons.map(function(b) {
+    var extra = b.style ? ' style="' + b.style + '"' : '';
+    return '<button class="' + b.cls + '"' + extra + ' onclick="applyRollOutcome(\'' + b.action + '\',' + b.delta + ')">' + b.label + '</button>';
+  }).join('');
+  panel.style.display = '';
+}
+
+function applyRollOutcome(action, delta) {
+  var applied = document.getElementById('rollOutcomeApplied');
+  var msg = '';
+  delta = Number(delta) || 0;
+  switch (action) {
+    case 'stress':
+      changeHealth(delta);
+      msg = '+' + delta + ' Stress applied.';
+      break;
+    case 'mentalStress':
+      if (typeof changeMentalStress === 'function') changeMentalStress(delta);
+      else { S.mentalStress = Math.max(0, (S.mentalStress || 0) + delta); }
+      msg = '+' + delta + ' Mental Stress applied.';
+      break;
+    case 'radiation':
+      if (typeof changeRads === 'function') changeRads(delta);
+      else { S.rads = Math.max(0, (S.rads || 0) + delta); }
+      msg = '+' + delta + ' Radiation applied.';
+      break;
+    case 'injury':
+      if (!S.injuries) S.injuries = [];
+      S.injuries.push({ type: 'crit', round: (S.combat && S.combat.round) || 0 });
+      if (typeof saveCharacter === 'function') saveCharacter();
+      msg = 'Injury recorded (Crit).';
+      break;
+    case 'pathToken':
+      if (typeof changeCounter === 'function') changeCounter('pathTokens', 1);
+      else S.pathTokens = (S.pathTokens || 0) + 1;
+      msg = '+1 Path Token applied.';
+      break;
+    case 'tmw':
+      if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+      else S.tmw = (S.tmw || 0) + 1;
+      msg = '+1 Teamwork Point applied.';
+      break;
+    case 'none':
+    default:
+      msg = 'No effect applied.';
+      break;
+  }
+  if (applied) applied.textContent = msg;
+  // Hide outcome buttons after applying
+  var btns = document.getElementById('rollOutcomeButtons');
+  if (btns) btns.innerHTML = '';
+}
+
+window.selectStatDie = selectStatDie;
+window.refreshActionStatDropdown = refreshActionStatDropdown;
+window.showRollOutcomePanel = showRollOutcomePanel;
+window.applyRollOutcome = applyRollOutcome;
 
 function rollWilderness() {
   const die = 6;

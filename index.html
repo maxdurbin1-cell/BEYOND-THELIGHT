@@ -308,7 +308,7 @@ body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr 1f
 #tab-endgame [style*="font-size:.69"],
 #tab-endgame [style*="font-size:.7"],
 #tab-endgame [style*="font-size:.72"]{font-size:.82rem!important;line-height:1.56!important;}
-.notif-stack{position:fixed;bottom:1.2rem;left:1.2rem;z-index:1200;display:flex;flex-direction:column-reverse;gap:.35rem;pointer-events:none;max-width:360px;}
+.notif-stack{position:fixed;bottom:1.2rem;left:1.2rem;z-index:5400;display:flex;flex-direction:column-reverse;gap:.35rem;pointer-events:none;max-width:360px;}
 .notif{background:var(--card2);border:1px solid var(--gold);color:var(--text);padding:.65rem 1rem;font-size:.90rem;max-width:360px;line-height:1.55;opacity:0;transform:translateX(-120%);transition:transform .24s ease,opacity .24s ease;box-shadow:0 10px 24px rgba(0,0,0,.35);}
 .notif.show{transform:translateX(0);opacity:1;}.notif.warn{border-color:var(--red);}.notif.good{border-color:var(--green);}
 .dice-roll-layer{position:fixed;right:1.2rem;top:4rem;z-index:1300;display:flex;flex-direction:column;gap:.35rem;pointer-events:none;max-width:240px;}
@@ -20615,7 +20615,7 @@ function showNotif(msg,type=''){
   setTimeout(function(){
     n.classList.remove('show');
     setTimeout(function(){if(n&&n.parentNode)n.parentNode.removeChild(n);},260);
-  },3200);
+  },3000);
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────

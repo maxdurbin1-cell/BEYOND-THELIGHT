@@ -2928,6 +2928,27 @@
     return Object.assign({}, table[key] || table.close, { band: key });
   }
 
+  function buildEnemyAoeRulesTableHtml() {
+    var bands = ['engaged', 'close', 'nearby', 'far'];
+    var rows = bands.map(function (band) {
+      var rule = getEnemyAoeBandDefaults(band);
+      var title = String(rule.band || band);
+      var bandLabel = title.charAt(0).toUpperCase() + title.slice(1);
+      return '<tr>'
+        + '<td>' + bandLabel + '</td>'
+        + '<td>' + Number(rule.lineLength || 0) + '</td>'
+        + '<td>' + Number(rule.ringInner || 0) + '-' + Number(rule.ringOuter || 0) + '</td>'
+        + '<td>' + Number(rule.rounds || 0) + '</td>'
+        + '<td>' + Number(rule.stress || 0) + '</td>'
+        + '<td>' + (rule.actionDown ? 'Yes (-1)' : 'No') + '</td>'
+        + '</tr>';
+    }).join('');
+    return ''
+      + '<table class="combat-rule-table"><thead><tr><th>Band</th><th>Line</th><th>Ring</th><th>Rounds</th><th>Stress</th><th>Action Loss</th></tr></thead><tbody>'
+      + rows
+      + '</tbody></table>';
+  }
+
   function inferEnemySkillAoeTemplate(row, normalizedName, normalizedDesc) {
     var src = row && typeof row === 'object' ? row : {};
     if (src.aoeTemplate && typeof src.aoeTemplate === 'object') {
@@ -6451,6 +6472,11 @@
       + '<button class="btn btn-xs" id="combatApplyRoundEffectBtn">Apply Condition</button>'
       + '</div>'
       + '<div id="combatTokenRoundEffectsList" class="combat-feed" style="margin-top:.24rem;"></div>'
+      + '<div class="combat-action-block" style="margin-top:.24rem;">'
+      + '<div class="combat-label">AoE Rules</div>'
+      + '<div id="combatAoeRulesMeta" class="combat-mini">Enemy AoE pacing by distance band.</div>'
+      + '<div id="combatAoeRulesTable" style="margin-top:.22rem;"></div>'
+      + '</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.24rem;align-items:end;margin-top:.28rem;">'
       + '<div><div class="combat-label">Weather</div><select class="combat-select" id="combatWeatherSelect"><option value="none">none</option><option value="rain">rain</option><option value="storm">storm</option><option value="fog">fog</option><option value="ash">ash</option></select></div>'
       + '<div><div class="combat-label">Intensity</div><input class="combat-input" id="combatWeatherIntensity" type="number" min="0" max="5"></div>'
@@ -9425,6 +9451,15 @@
         + '<tr><td>Improvise Tool</td><td>1</td><td>Single-use +2 on item/flavor prompt.</td></tr>'
         + '<tr><td>Patch Cover</td><td>1</td><td>Repair one local cover segment.</td></tr>'
         + '</tbody></table>';
+    }
+
+    var aoeRulesMeta = document.getElementById('combatAoeRulesMeta');
+    if (aoeRulesMeta) {
+      aoeRulesMeta.textContent = 'Hard-locked values: Enter/Stay saves apply per active AoE zone.';
+    }
+    var aoeRulesTable = document.getElementById('combatAoeRulesTable');
+    if (aoeRulesTable) {
+      aoeRulesTable.innerHTML = buildEnemyAoeRulesTableHtml();
     }
 
     var mirror = document.getElementById('combatLegacyResultMirror');

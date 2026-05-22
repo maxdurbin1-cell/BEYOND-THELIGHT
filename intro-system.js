@@ -293,7 +293,7 @@ Enter the game.
 
   function shouldAutoSkipIntro() {
     if (shouldForceShowIntro()) return false;
-    return hasSeenIntro() || hasExistingProgress();
+    return hasSeenIntro();
   }
 
   let currentScreenIndex = 0;

@@ -2861,6 +2861,73 @@
     }).filter(Boolean);
   }
 
+  function normalizeEnemyRangeBandText(raw) {
+    var txt = String(raw || '').trim().toLowerCase();
+    if (txt === 'engaged') return 'engaged';
+    if (txt === 'close') return 'close';
+    if (txt === 'nearby') return 'nearby';
+    if (txt === 'far') return 'far';
+    return '';
+  }
+
+  function inferEnemySkillRangeBand(row, text) {
+    var bands = asEnemySkillRangeArray(row).map(normalizeEnemyRangeBandText).filter(Boolean);
+    if (bands.indexOf('far') >= 0) return 'far';
+    if (bands.indexOf('nearby') >= 0) return 'nearby';
+    if (bands.indexOf('close') >= 0) return 'close';
+    if (bands.indexOf('engaged') >= 0) return 'engaged';
+
+    var lower = String(text || '').toLowerCase();
+    if (/\bfar\b|long range|distant/.test(lower)) return 'far';
+    if (/\bnearby\b/.test(lower)) return 'nearby';
+    if (/\bclose\b|mid range/.test(lower)) return 'close';
+    if (/\bengaged\b|adjacent|melee/.test(lower)) return 'engaged';
+    return 'close';
+  }
+
+  function getEnemyAoeBandDefaults(band) {
+    var key = normalizeEnemyRangeBandText(band) || 'close';
+    var table = {
+      engaged: {
+        lineLength: 2,
+        ringInner: 0,
+        ringOuter: 1,
+        rounds: 1,
+        stress: 2,
+        stressBonus: 0,
+        actionDown: true
+      },
+      close: {
+        lineLength: 3,
+        ringInner: 1,
+        ringOuter: 2,
+        rounds: 2,
+        stress: 2,
+        stressBonus: 0,
+        actionDown: true
+      },
+      nearby: {
+        lineLength: 4,
+        ringInner: 2,
+        ringOuter: 3,
+        rounds: 2,
+        stress: 1,
+        stressBonus: 1,
+        actionDown: false
+      },
+      far: {
+        lineLength: 5,
+        ringInner: 3,
+        ringOuter: 4,
+        rounds: 3,
+        stress: 1,
+        stressBonus: 1,
+        actionDown: false
+      }
+    };
+    return Object.assign({}, table[key] || table.close, { band: key });
+  }
+
   function inferEnemySkillAoeTemplate(row, normalizedName, normalizedDesc) {
     var src = row && typeof row === 'object' ? row : {};
     if (src.aoeTemplate && typeof src.aoeTemplate === 'object') {
@@ -2872,16 +2939,19 @@
     var flagged = type.indexOf('aoe') >= 0 || text.indexOf('aoe') >= 0 || text.indexOf('area of effect') >= 0 || text.indexOf('ring of fire') >= 0 || text.indexOf('line of fire') >= 0;
     if (!flagged) return null;
 
+    var band = inferEnemySkillRangeBand(src, text);
+    var bandDefaults = getEnemyAoeBandDefaults(band);
     var roundsRaw = Math.max(0, Number(src.aoeRounds || src.durationRounds || src.zoneRounds || 0));
-    var rounds = roundsRaw > 0 ? roundsRaw : 2;
+    var rounds = roundsRaw > 0 ? roundsRaw : Number(bandDefaults.rounds || 2);
     var lineHint = /line|beam|sweep|breath/.test(text) || type.indexOf('line') >= 0;
-    var ringHint = /ring|aura|nearby|close/.test(text) || type.indexOf('ring') >= 0;
+    var ringHint = /ring|aura|nearby|close|engaged|far/.test(text) || type.indexOf('ring') >= 0;
 
     if (lineHint && !ringHint) {
       var lenMatch = text.match(/(\d+)\s*hex/);
-      var length = Math.max(2, Math.min(8, Number(src.aoeLength || (lenMatch && lenMatch[1]) || 4)));
+      var length = Math.max(2, Math.min(8, Number(src.aoeLength || (lenMatch && lenMatch[1]) || bandDefaults.lineLength || 4)));
       return {
         shape: 'line',
+        band: bandDefaults.band,
         length: length,
         rounds: rounds,
         tickOnEnter: true,
@@ -2889,12 +2959,11 @@
       };
     }
 
-    var ringNear = /nearby/.test(text);
-    var ringClose = /close/.test(text);
-    var inner = Math.max(0, Number(src.aoeInnerRadius == null ? (ringNear ? 2 : (ringClose ? 1 : 1)) : src.aoeInnerRadius));
-    var outer = Math.max(inner + 1, Number(src.aoeOuterRadius == null ? (ringNear ? 3 : (ringClose ? 2 : 2)) : src.aoeOuterRadius));
+    var inner = Math.max(0, Number(src.aoeInnerRadius == null ? bandDefaults.ringInner : src.aoeInnerRadius));
+    var outer = Math.max(inner + 1, Number(src.aoeOuterRadius == null ? bandDefaults.ringOuter : src.aoeOuterRadius));
     return {
       shape: 'ring',
+      band: bandDefaults.band,
       innerRadius: Math.min(6, inner),
       outerRadius: Math.min(7, outer),
       rounds: rounds,
@@ -2922,10 +2991,12 @@
       ? rawDamageMode
       : '';
     var rawOnFailStress = Number(row.onFailStress == null ? row.failStress : row.onFailStress);
+    var hasExplicitOnFailStress = Number.isFinite(rawOnFailStress);
     var safeOnFailStress = Number.isFinite(rawOnFailStress)
       ? Math.max(0, Math.floor(rawOnFailStress))
       : (Number(idx || 0) === 0 ? 0 : 1);
     var rawStressBonus = Number(row.onFailStressBonus == null ? row.failStressBonus : row.onFailStressBonus);
+    var hasExplicitStressBonus = Number.isFinite(rawStressBonus);
     var safeStressBonus = Number.isFinite(rawStressBonus) ? Math.max(0, Math.floor(rawStressBonus)) : 0;
 
     if (!normalizedDamageMode) {
@@ -2951,6 +3022,15 @@
       dreadDie: Math.max(0, Number(row.dreadDie || row.dread || 0)),
       costActions: 1
     };
+
+    if (normalized.aoeTemplate) {
+      var aoeBandDefaults = getEnemyAoeBandDefaults(normalized.aoeTemplate.band || inferEnemySkillRangeBand(row, normalized.desc));
+      if (!hasExplicitOnFailStress) normalized.onFailStress = Math.max(0, Number(aoeBandDefaults.stress || normalized.onFailStress || 0));
+      if (!hasExplicitStressBonus) normalized.onFailStressBonus = Math.max(0, Number(aoeBandDefaults.stressBonus || 0));
+      if (!hasAoeActionDownEffect(normalized) && aoeBandDefaults.actionDown) {
+        normalized.onFail = String(normalized.onFail || '').trim() + (String(normalized.onFail || '').trim() ? ' ' : '') + 'Lose 1 Action.';
+      }
+    }
 
     if (lowerActor.indexOf('bandit') >= 0 && Number(idx || 0) === 0) {
       normalized.name = 'Shock Snare';
@@ -3014,18 +3094,18 @@
         }, 0, actor && actor.name || 'Enemy'),
         normalizeEnemySkillRow({
           name: 'Ring of Cinders',
-          desc: 'Ignites a nearby ring of fire around the target. Entering or ending your round in it forces a Body save.',
+          desc: 'Ignites a close ring of fire around the target. Entering or ending your round in it forces a Body save.',
           save: 'body',
-          range: ['close', 'nearby'],
+          range: ['engaged', 'close'],
           onFail: 'Take 1 stress and lose 1 Action.',
           damageMode: 'flat',
-          onFailStress: 1,
+          onFailStress: 2,
           onSuccess: 'Resist the flames. No effect.',
           source: 'Combat Tab',
           kind: 'aoe_ring',
           effectType: 'aoe_ring',
-          aoeInnerRadius: 2,
-          aoeOuterRadius: 3,
+          aoeInnerRadius: 1,
+          aoeOuterRadius: 2,
           aoeRounds: 2
         }, 1, actor && actor.name || 'Enemy')
       ];
@@ -3033,9 +3113,9 @@
     if (normalized.length < 2) {
       normalized.push(normalizeEnemySkillRow({
         name: 'Linefire Sweep',
-        desc: 'A burning line tears through four hexes in front of the enemy.',
+        desc: 'A burning line tears through five hexes at Nearby/Far range.',
         save: 'body',
-        range: ['close', 'nearby'],
+        range: ['nearby', 'far'],
         onFail: 'Take 1 stress.',
         damageMode: 'flat',
         onFailStress: 1,
@@ -3043,8 +3123,8 @@
         source: 'Combat Tab',
         kind: 'aoe_line',
         effectType: 'aoe_line',
-        aoeLength: 4,
-        aoeRounds: 2
+        aoeLength: 5,
+        aoeRounds: 3
       }, 1, actor && actor.name || 'Enemy'));
     }
     return normalized.slice(0, 2);

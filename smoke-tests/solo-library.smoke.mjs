@@ -147,7 +147,7 @@ async function runAssertions(page) {
       hasJoinCopy,
       libraryModalTitle: modalTitle,
       soloModalTitle: soloTitle,
-      hasObjectiveText: /Current Website Objective/i.test(soloContent),
+      hasObjectiveText: /Current Solo Goal/i.test(soloContent),
       soloState
     };
   });

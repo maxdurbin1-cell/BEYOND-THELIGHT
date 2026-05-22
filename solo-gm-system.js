@@ -48,41 +48,80 @@
   var OBJECTIVE_POOL = [
     {
       id: 'select-wilderness',
-      title: 'Go to Province and stand on a Wilderness hex',
-      hint: 'Use Map tab. Select any Wilderness tile to scout absurd clues.',
+      title: 'Vow: Scout the untamed frontier before the trail goes cold',
+      hint: 'Travel into the Province wilderness and read the land for signs, omens, or pursuit.',
       tab: 'map'
     },
     {
       id: 'trade-encounter',
-      title: 'Roll one Trade Route encounter',
-      hint: 'Select a Trade Route hex in Province and roll Trade Encounter.',
+      title: 'Debt: Settle a road-debt on the trade route before interest turns violent',
+      hint: 'Work the Province trade lanes and face the next encounter tied to what you owe.',
       tab: 'map'
     },
     {
       id: 'open-combat-tab',
-      title: 'Visit Combat tab and stare menacingly at initiative',
-      hint: 'No fighting required. Presence alone changes the timeline.',
+      title: 'Deadline: Ready yourself for the next clash before the enemy strikes first',
+      hint: 'Review the combat state, plan your order, and prepare for violence before it finds you.',
       tab: 'combat'
     },
     {
       id: 'open-library-hex',
-      title: 'Find the Infinite Library hex and enter it',
-      hint: 'Use Map tab. Look for the library hex icon and join its area.',
+      title: 'Mystery: Reach the Infinite Library and pull one answer from the stacks',
+      hint: 'Find the Library in the Province and enter it to chase the lead haunting your current arc.',
       tab: 'map'
     },
     {
       id: 'visit-faction-tab',
-      title: 'Visit Factions and collect one dramatic rumor',
-      hint: 'Open Faction tab to let politics become your side quest.',
+      title: 'Leverage: Court a faction and learn which alliance could save or ruin you',
+      hint: 'Step into faction politics and pull one usable rumor, threat, or promise from the power web.',
       tab: 'factions'
     },
     {
       id: 'visit-galaxy-tab',
-      title: 'Visit Galaxy and verify the stars still exist',
-      hint: 'Open Galaxy tab. This counts even if space is rude today.',
+      title: 'Destination: Fix your course by finding the next star that can change your fate',
+      hint: 'Open the Galaxy, identify your next horizon, and decide where the road pulls you next.',
       tab: 'galaxy'
     }
   ];
+
+  var SOLO_ORACLE_YES_NO = [
+    { roll: 1, result: 'No, and...', detail: 'The answer is no, and the situation worsens immediately.' },
+    { roll: 2, result: 'No', detail: 'The answer is no.' },
+    { roll: 3, result: 'No, but...', detail: 'The answer is no, but a sliver of leverage remains.' },
+    { roll: 4, result: 'Yes, but...', detail: 'The answer is yes, but the price becomes visible.' },
+    { roll: 5, result: 'Yes', detail: 'The answer is yes.' },
+    { roll: 6, result: 'Yes, and...', detail: 'The answer is yes, and momentum swings in your favor.' }
+  ];
+
+  var SOLO_ORACLE_TWISTS = [
+    'An ally arrives with divided loyalties.',
+    'The threat moves sooner than expected.',
+    'The cost doubles, but so does the reward.',
+    'A witness saw more than they admitted.',
+    'The route is real, but watched.',
+    'What looked like a trap is actually a plea for help.'
+  ];
+
+  var SOLO_ORACLE_PRESSURE = [
+    'Advance the local danger clock. Someone hostile acts next.',
+    'Your deadline shortens. Resolve this before the next travel beat.',
+    'Supplies thin out. Treat the next risk as hungrier and meaner.',
+    'The world notices you. Add heat to your next social or travel scene.',
+    'A rival closes distance. Expect confrontation soon.',
+    'The pressure eases for a moment. You have one clean opening.'
+  ];
+
+  var SOLO_ORACLE_CONSEQUENCES = [
+    'Take 1 Stress or accept a visible setback in the fiction.',
+    'Lose time, credits, or position before the next scene begins.',
+    'Someone remembers what you did. Mark a relationship as strained.',
+    'You gain what you wanted, but a different route closes behind you.',
+    'A faction, rival, or witness gains leverage over you.',
+    'You escape the worst of it, but the world changes somewhere else.'
+  ];
+
+  var SOLO_ORACLE_PROMPT_VERBS = ['Protect', 'Reveal', 'Endure', 'Track', 'Broker', 'Escape'];
+  var SOLO_ORACLE_PROMPT_SUBJECTS = ['a vow', 'a debt', 'a witness', 'a route', 'a relic', 'a rival'];
 
   function rollDie(max) {
     if (typeof roll === 'function') return roll(max);
@@ -98,6 +137,15 @@
   function pick(arr) {
     if (!Array.isArray(arr) || !arr.length) return null;
     return arr[Math.floor(Math.random() * arr.length)] || arr[0];
+  }
+
+  function escapeHtml(text) {
+    return String(text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function isTabActive(tabId) {
@@ -121,6 +169,12 @@
         objectiveCompleted: false,
         lastLine: '',
         lastResolution: '',
+        oracle: {
+          lastQuestion: '',
+          lastKind: '',
+          lastResult: null,
+          history: []
+        },
         tabVisits: {},
         websiteCounters: {
           tradeRolls: 0,
@@ -130,6 +184,10 @@
       };
     }
     var st = S.soloGM;
+    if (!st.oracle || typeof st.oracle !== 'object') {
+      st.oracle = { lastQuestion: '', lastKind: '', lastResult: null, history: [] };
+    }
+    if (!Array.isArray(st.oracle.history)) st.oracle.history = [];
     if (!st.tabVisits || typeof st.tabVisits !== 'object') st.tabVisits = {};
     if (!st.websiteCounters || typeof st.websiteCounters !== 'object') {
       st.websiteCounters = { tradeRolls: 0, libraryDelves: 0, taskGenerations: 0 };
@@ -217,6 +275,154 @@
     st.beatIndex = 0;
   }
 
+  function buildSoloOraclePrompt(question) {
+    var verbRoll = rollDie(6);
+    var subjectRoll = rollDie(6);
+    var verb = SOLO_ORACLE_PROMPT_VERBS[Math.max(0, verbRoll - 1)] || SOLO_ORACLE_PROMPT_VERBS[0];
+    var subject = SOLO_ORACLE_PROMPT_SUBJECTS[Math.max(0, subjectRoll - 1)] || SOLO_ORACLE_PROMPT_SUBJECTS[0];
+    return {
+      label: 'Prompt',
+      roll: 'd6=' + verbRoll + ', d6=' + subjectRoll,
+      result: verb + ' ' + subject,
+      detail: question ? ('Interpret it against: ' + question) : 'Interpret it against your current scene or goal.',
+      accent: 'var(--gold2)'
+    };
+  }
+
+  function buildSoloOracleYesNo(question) {
+    var rollVal = rollDie(6);
+    var entry = SOLO_ORACLE_YES_NO[Math.max(0, rollVal - 1)] || SOLO_ORACLE_YES_NO[0];
+    return {
+      label: 'Yes / No',
+      roll: 'd6=' + rollVal,
+      result: entry.result,
+      detail: (question ? ('Question: ' + question + '. ') : '') + entry.detail,
+      accent: rollVal >= 4 ? 'var(--green2)' : rollVal === 3 ? 'var(--gold2)' : 'var(--red2)'
+    };
+  }
+
+  function buildSoloOracleTwist(question) {
+    var rollVal = rollDie(6);
+    var twist = SOLO_ORACLE_TWISTS[Math.max(0, rollVal - 1)] || SOLO_ORACLE_TWISTS[0];
+    return {
+      label: 'Twist',
+      roll: 'd6=' + rollVal,
+      result: twist,
+      detail: question ? ('Apply this twist to: ' + question) : 'Apply this twist to the current lead, room, or relationship.',
+      accent: 'var(--teal)'
+    };
+  }
+
+  function buildSoloOraclePressure(question) {
+    var rollVal = rollDie(6);
+    var pressure = SOLO_ORACLE_PRESSURE[Math.max(0, rollVal - 1)] || SOLO_ORACLE_PRESSURE[0];
+    return {
+      label: 'Pressure',
+      roll: 'd6=' + rollVal,
+      result: pressure,
+      detail: question ? ('Pressure focus: ' + question) : 'Let this tell you what escalates next.',
+      accent: 'var(--red2)'
+    };
+  }
+
+  function buildSoloOracleConsequence(question) {
+    var rollVal = rollDie(6);
+    var consequence = SOLO_ORACLE_CONSEQUENCES[Math.max(0, rollVal - 1)] || SOLO_ORACLE_CONSEQUENCES[0];
+    return {
+      label: 'Consequence',
+      roll: 'd6=' + rollVal,
+      result: consequence,
+      detail: question ? ('Apply this after asking: ' + question) : 'Use this as the fallout for a miss, cost, or ugly success.',
+      accent: 'var(--purple, #8060c0)'
+    };
+  }
+
+  function buildSoloOracleResult(kind, question) {
+    var key = String(kind || '').toLowerCase();
+    if (key === 'yesno') return buildSoloOracleYesNo(question);
+    if (key === 'twist') return buildSoloOracleTwist(question);
+    if (key === 'prompt') return buildSoloOraclePrompt(question);
+    if (key === 'pressure') return buildSoloOraclePressure(question);
+    return buildSoloOracleConsequence(question);
+  }
+
+  function renderSoloOraclePanel() {
+    var st = ensureSoloGMState();
+    if (!st || typeof openModal !== 'function') return false;
+    var oracle = st.oracle || {};
+    var last = oracle.lastResult || null;
+    var history = Array.isArray(oracle.history) ? oracle.history : [];
+    var resultHtml = last
+      ? '<div style="border:1px solid var(--border2);padding:.5rem .58rem;background:rgba(255,255,255,.03);margin-bottom:.4rem;">'
+        + '<div style="display:flex;justify-content:space-between;gap:.35rem;align-items:flex-start;">'
+        + '<strong style="color:' + escapeHtml(last.accent || 'var(--gold2)') + ';">' + escapeHtml(last.label || 'Oracle') + '</strong>'
+        + '<span style="font-size:.7rem;color:var(--muted2);">' + escapeHtml(last.roll || '') + '</span>'
+        + '</div>'
+        + '<div style="font-size:.88rem;color:var(--text);margin:.15rem 0;">' + escapeHtml(last.result || '') + '</div>'
+        + '<div style="font-size:.76rem;color:var(--text2);line-height:1.55;">' + escapeHtml(last.detail || '') + '</div>'
+        + '</div>'
+      : '<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.4rem;">Ask a question, then draw a yes/no, twist, prompt, pressure, or consequence result.</div>';
+    var historyHtml = history.length
+      ? '<div style="margin-top:.32rem;border-top:1px solid var(--border2);padding-top:.32rem;">'
+        + '<div style="font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin-bottom:.18rem;">Recent Oracle Pulls</div>'
+        + history.slice(0, 6).map(function (entry) {
+          return '<div style="font-size:.74rem;color:var(--text2);margin-top:.14rem;line-height:1.5;">'
+            + '<strong style="color:var(--gold2);">' + escapeHtml(entry.label || 'Oracle') + ':</strong> '
+            + escapeHtml(entry.result || '')
+            + (entry.question ? (' <span style="color:var(--muted2);">[' + escapeHtml(entry.question) + ']</span>') : '')
+            + '</div>';
+        }).join('')
+        + '</div>'
+      : '';
+    var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.6;">'
+      + '<div style="margin-bottom:.28rem;">Use this oracle as your default solo procedure: ask a question, reveal pressure, then take the consequence seriously.</div>'
+      + '<div style="margin-bottom:.34rem;"><input id="soloOracleQuestion" class="input" value="' + escapeHtml(oracle.lastQuestion || '') + '" placeholder="Question, scene focus, or current lead..." style="width:100%;" /></div>'
+      + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.34rem;">'
+      + '<button class="btn btn-xs btn-teal" onclick="soloGMRunOracle(\'yesno\')">Yes / No</button>'
+      + '<button class="btn btn-xs" onclick="soloGMRunOracle(\'twist\')">Twist</button>'
+      + '<button class="btn btn-xs btn-primary" onclick="soloGMRunOracle(\'prompt\')">Prompt</button>'
+      + '<button class="btn btn-xs" onclick="soloGMRunOracle(\'pressure\')">Pressure</button>'
+      + '<button class="btn btn-xs btn-red" onclick="soloGMRunOracle(\'consequence\')">Consequence</button>'
+      + '</div>'
+      + resultHtml
+      + historyHtml
+      + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.35rem;">'
+      + '<button class="btn btn-xs" onclick="soloGMClearOracle()">Clear Oracle</button>'
+      + (window.goBackModal ? '<button class="btn btn-xs btn-primary" onclick="goBackModal()">Back</button>' : '')
+      + '</div>'
+      + '</div>';
+    openModal('Solo Oracle', html);
+    return true;
+  }
+
+  function soloGMRunOracle(kind) {
+    var st = ensureSoloGMState();
+    if (!st) return false;
+    var input = document.getElementById('soloOracleQuestion');
+    var question = input && typeof input.value === 'string' ? input.value.trim() : String((st.oracle && st.oracle.lastQuestion) || '');
+    var result = buildSoloOracleResult(kind, question);
+    st.oracle.lastQuestion = question;
+    st.oracle.lastKind = String(kind || '');
+    st.oracle.lastResult = result;
+    st.oracle.history = [{
+      label: result.label,
+      result: result.result,
+      question: question,
+      at: Date.now()
+    }].concat(Array.isArray(st.oracle.history) ? st.oracle.history : []).slice(0, 8);
+    return renderSoloOraclePanel();
+  }
+
+  function soloGMClearOracle() {
+    var st = ensureSoloGMState();
+    if (!st) return false;
+    st.oracle.lastQuestion = '';
+    st.oracle.lastKind = '';
+    st.oracle.lastResult = null;
+    st.oracle.history = [];
+    return renderSoloOraclePanel();
+  }
+
   function applyFailureConsequence(statKey) {
     if (typeof S === 'undefined' || !S) return;
     var prevHealth = Number(S.health || 0);
@@ -289,14 +495,15 @@
     var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
       + '<div style="font-size:.9rem;color:var(--gold2);margin-bottom:.12rem;"><strong>Solo-GM: Weird Mode · ' + arc.title + '</strong></div>'
       + '<div style="margin-bottom:.14rem;">' + beat + '</div>'
-      + '<div style="font-size:.69rem;color:var(--muted2);margin-bottom:.14rem;">Loop: Narrate -> Choose -> Roll every 2-3 beats -> Resolve -> Website objective -> World update</div>'
+      + '<div style="font-size:.69rem;color:var(--muted2);margin-bottom:.14rem;">Loop: Narrate -> Choose -> Roll every 2-3 beats -> Resolve -> Solo goal -> World update</div>'
       + '<div style="padding:.32rem .42rem;border:1px solid var(--border2);background:rgba(255,255,255,.03);margin-bottom:.12rem;">'
-      + '<div style="font-size:.72rem;color:var(--teal);"><strong>Current Website Objective:</strong> ' + objective.title + ' (' + objectiveStatus + ')</div>'
+      + '<div style="font-size:.72rem;color:var(--teal);"><strong>Current Solo Goal:</strong> ' + objective.title + ' (' + objectiveStatus + ')</div>'
       + '<div style="font-size:.69rem;color:var(--muted2);margin-top:.08rem;">' + objective.hint + '</div>'
       + '</div>'
       + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-bottom:.14rem;">'
       + '<button class="btn btn-xs btn-teal" onclick="soloGMNudgeObjective()">Point Me There</button>'
       + '<button class="btn btn-xs" onclick="soloGMCheckObjective()">Check Objective</button>'
+      + '<button class="btn btn-xs btn-primary" onclick="openSoloOraclePanel()">Open Oracle</button>'
       + '</div>'
       + '<div style="margin-bottom:.14rem;display:flex;gap:.24rem;flex-wrap:wrap;">' + choiceHtml + '</div>'
       + '<div style="margin-bottom:.12rem;">'
@@ -512,6 +719,9 @@
   }
 
   window.openSoloGMConsole = openSoloGMConsole;
+  window.openSoloOraclePanel = renderSoloOraclePanel;
+  window.soloGMRunOracle = soloGMRunOracle;
+  window.soloGMClearOracle = soloGMClearOracle;
   window.soloGMChoose = soloGMChoose;
   window.soloGMSpeak = soloGMSpeak;
   window.soloGMAdvanceArc = soloGMAdvanceArc;

@@ -445,6 +445,15 @@
     if (!S.factionNarrative.completedContracts || !Array.isArray(S.factionNarrative.completedContracts)) {
       S.factionNarrative.completedContracts = [];
     }
+    if (!S.factionNarrative.choiceHistory || !Array.isArray(S.factionNarrative.choiceHistory)) {
+      S.factionNarrative.choiceHistory = [];
+    }
+    if (!S.factionNarrative.currentAdaptiveChoices || !Array.isArray(S.factionNarrative.currentAdaptiveChoices)) {
+      S.factionNarrative.currentAdaptiveChoices = [];
+    }
+    if (typeof S.factionNarrative.adaptiveRefreshToken !== "string") {
+      S.factionNarrative.adaptiveRefreshToken = "";
+    }
     if (!S.factionNarrative.endingResult || typeof S.factionNarrative.endingResult !== "object") {
       S.factionNarrative.endingResult = { key: "", title: "", vibe: "" };
     }
@@ -1157,23 +1166,367 @@
     }
   ];
 
+  const ADAPTIVE_CHOICE_LIBRARY = {
+    heroic: [
+      {
+        templateId: "heroic_refugee_corridor",
+        title: function (ctx) { return "Open a safe corridor for " + ctx.pressuredName + " civilians"; },
+        prompt: function (ctx) { return "A frightened convoy is trapped between " + ctx.favoredName + " patrol doctrine and " + ctx.pressuredName + " desperation. You can force a humane exit, but someone powerful will call it treason."; },
+        preview: function (ctx) { return "Save lives, gain trust with " + ctx.pressuredName + ", and strain ties with " + ctx.favoredName + "."; },
+        detail: function (ctx) { return "You create a humanitarian corridor in defiance of a harder line. Survivors will remember who chose mercy over discipline."; },
+        renown: function (ctx) { const out = {}; out[ctx.pressured] = 1; out[ctx.favored] = -1; return out; },
+        pathPoints: { heroic: 1 },
+        resources: { tmw: 1 },
+        deltas: { stability: 1, witness: 1, factionHeat: -1 },
+        tags: ["faction-pressure", "relief-route", "npc-relationship"]
+      },
+      {
+        templateId: "heroic_truth_ledger",
+        title: function (ctx) { return "Expose the ledger that is bleeding " + ctx.secondaryName; },
+        prompt: function (ctx) { return "Someone inside " + ctx.favoredName + " is engineering shortages and blaming " + ctx.secondaryName + ". Publishing the truth will ruin a useful alliance but stop a quiet atrocity."; },
+        preview: function (ctx) { return "Protect the vulnerable, trade comfort for honesty, and shift the blame map."; },
+        detail: function (ctx) { return "You release proof that the crisis was manufactured. The lie collapses, but the faction profiting from it marks you as a liability."; },
+        renown: function (ctx) { const out = {}; out[ctx.secondary] = 1; out[ctx.favored] = -1; return out; },
+        pathPoints: { heroic: 1 },
+        resources: { renown: 1 },
+        deltas: { stability: 1, rumor: 1, witness: 1 },
+        tags: ["faction-pressure", "truth-revealed", "discovered-route"]
+      },
+      {
+        templateId: "heroic_broker_truce",
+        title: function (ctx) { return "Broker a truce between " + ctx.favoredName + " and " + ctx.pressuredName; },
+        prompt: function (ctx) { return "Both factions are exhausted enough to listen for one hour. If you spend that hour well, the war cools. If you fail, both sides will blame you for the next dead."; },
+        preview: function () { return "Reduce heat, earn fragile goodwill, and tilt your ending toward reconciliation."; },
+        detail: function (ctx) { return "You force open negotiation where both sides wanted another skirmish. The ceasefire is imperfect, but it buys the region a future."; },
+        renown: function (ctx) { const out = {}; out[ctx.favored] = 1; out[ctx.pressured] = 1; return out; },
+        pathPoints: { heroic: 1 },
+        resources: { tmw: 1 },
+        deltas: { stability: 1, factionHeat: -1, witness: 1 },
+        tags: ["faction-pressure", "opened-negotiations", "npc-relationship"]
+      }
+    ],
+    tyrant: [
+      {
+        templateId: "tyrant_route_seizure",
+        title: function (ctx) { return "Seize the route before " + ctx.pressuredName + " can flee"; },
+        prompt: function (ctx) { return "The road belongs to whoever is cruel enough to close it first. Lock it down, tax every crossing, and make " + ctx.pressuredName + " crawl back to your chosen patron."; },
+        preview: function (ctx) { return "Gain leverage and coin fast, but raise heat and harden the region against you."; },
+        detail: function (ctx) { return "You turn survival into a toll road. Order arrives quickly, but it reeks of fear and forced obedience."; },
+        renown: function (ctx) { const out = {}; out[ctx.favored] = 1; out[ctx.pressured] = -1; return out; },
+        pathPoints: { tyrant: 1 },
+        resources: { credits: 75 },
+        deltas: { stability: -1, factionHeat: 1, scarcity: 1 },
+        tags: ["faction-pressure", "closed-border", "dangerous-road", "patrol-deployed"]
+      },
+      {
+        templateId: "tyrant_public_purge",
+        title: function (ctx) { return "Stage a public purge to break " + ctx.secondaryName + " resistance"; },
+        prompt: function (ctx) { return "A visible punishment will end sabotage for a season. It will also prove that you believe fear is more reliable than trust."; },
+        preview: function (ctx) { return "Boost the hardliners, fracture civic trust, and move the world toward a harsher ending."; },
+        detail: function (ctx) { return "You make an example of dissent. The sabotage slows, but the story of what you did spreads faster than the victory."; },
+        renown: function (ctx) { const out = {}; out[ctx.favored] = 1; out[ctx.secondary] = -1; return out; },
+        pathPoints: { tyrant: 1 },
+        resources: { renown: 1 },
+        deltas: { stability: -1, rumor: 1, factionHeat: 1 },
+        tags: ["faction-pressure", "active-crisis", "fear-doctrine", "border-closed"]
+      },
+      {
+        templateId: "tyrant_monopoly_strike",
+        title: function (ctx) { return "Crush the market and hand " + ctx.favoredName + " the monopoly"; },
+        prompt: function (ctx) { return "One decisive strike against caravans, brokers, and smugglers would end the current bidding war. It would also make one faction rich enough to dictate the next season of history."; },
+        preview: function (ctx) { return "Take immediate profit, strengthen your favorite power bloc, and deepen scarcity."; },
+        detail: function (ctx) { return "You collapse the competition and crown a winner. Prices rise, options die, and the streets learn who controls the flow."; },
+        renown: function (ctx) { const out = {}; out[ctx.favored] = 2; out[ctx.pressured] = -1; return out; },
+        pathPoints: { tyrant: 1 },
+        resources: { credits: 100 },
+        deltas: { stability: -1, scarcity: 1, witness: -1 },
+        tags: ["faction-pressure", "monopoly", "closed-port", "dangerous-road"]
+      }
+    ],
+    martyr: [
+      {
+        templateId: "martyr_take_blame",
+        title: function (ctx) { return "Take the blame so " + ctx.pressuredName + " can disappear"; },
+        prompt: function (ctx) { return "You can redirect the purge toward yourself. The hunted will escape, but you will wear the debt, the warrant, and the story."; },
+        preview: function (ctx) { return "Protect the desperate, accept personal cost, and deepen the martyr path."; },
+        detail: function (ctx) { return "You step into the line of fire so others can leave it. The region changes because someone decided the price would be personal."; },
+        renown: function (ctx) { const out = {}; out[ctx.pressured] = 1; return out; },
+        pathPoints: { martyr: 1 },
+        resources: { stress: 1, tmw: 1 },
+        deltas: { stability: 1, witness: 1, factionHeat: -1 },
+        tags: ["faction-pressure", "sacrifice", "npc-relationship", "threat-cleared"]
+      },
+      {
+        templateId: "martyr_hold_line",
+        title: function (ctx) { return "Hold the line while " + ctx.secondaryName + " evacuates"; },
+        prompt: function (ctx) { return "There is only enough time for one thing: escape or resistance. Stay behind, buy the minutes, and let the survivors decide what your name means later."; },
+        preview: function (ctx) { return "Take stress now, buy future goodwill, and hand the next scene to those you saved."; },
+        detail: function (ctx) { return "You become the delaying action. The position is lost, but the people are not."; },
+        renown: function (ctx) { const out = {}; out[ctx.secondary] = 1; out[ctx.favored] = -1; return out; },
+        pathPoints: { martyr: 1 },
+        resources: { stress: 2 },
+        deltas: { stability: 1, witness: 1, rumor: 1 },
+        tags: ["faction-pressure", "sacrifice", "discovered-route", "active-crisis"]
+      },
+      {
+        templateId: "martyr_carry_relic",
+        title: function (ctx) { return "Carry the cursed proof out of " + ctx.favoredName + " territory"; },
+        prompt: function (ctx) { return "The evidence that could unmake a faction is too dangerous for anyone else to bear. Take it yourself and live with what it does to you on the road."; },
+        preview: function (ctx) { return "Advance the truth, lose comfort, and make your body the cost of revelation."; },
+        detail: function (ctx) { return "You leave with the truth and the wound it causes. The revelation survives because you chose to carry it personally."; },
+        renown: function (ctx) { const out = {}; out[ctx.pressured] = 1; out[ctx.favored] = -1; return out; },
+        pathPoints: { martyr: 1 },
+        resources: { stress: 1, renown: 1 },
+        deltas: { witness: 1, rumor: 1, factionHeat: -1 },
+        tags: ["faction-pressure", "sacrifice", "truth-revealed", "npc-relationship"]
+      }
+    ]
+  };
+
   // ============================================================================
   // DYNAMIC CHOICE GENERATION — Every Decision Feels Unique
   // ============================================================================
 
+  function getAdaptiveChoiceVariant(pathKey, historyLength) {
+    const pool = ADAPTIVE_CHOICE_LIBRARY[pathKey] || [];
+    if (!pool.length) return null;
+    return pool[Math.abs(Number(historyLength || 0)) % pool.length] || pool[0];
+  }
+
+  function getPathwayAlignmentKey(pathPoints) {
+    const points = pathPoints || {};
+    const ordered = [
+      { key: "heroic", value: Number(points.heroic || 0) },
+      { key: "tyrant", value: Number(points.tyrant || 0) },
+      { key: "martyr", value: Number(points.martyr || 0) }
+    ].sort((a, b) => b.value - a.value);
+    return (ordered[0] && ordered[0].value > 0) ? ordered[0].key : "contested";
+  }
+
+  function buildAdaptiveChoiceContext() {
+    ensureFactionState();
+    const factionReputation = Object.assign({}, S.factionRenown || {});
+    const pathPoints = Object.assign({}, (S.factionNarrative && S.factionNarrative.pathPoints) || {});
+    const choiceHistory = Array.isArray(S.factionNarrative.choiceHistory) ? S.factionNarrative.choiceHistory.slice(-12) : [];
+    const ordered = Object.keys(FACTIONS).sort((a, b) => Number(factionReputation[b] || 0) - Number(factionReputation[a] || 0));
+    const favored = ordered[0] || "corporations";
+    const pressured = ordered[ordered.length - 1] || favored;
+    let secondary = getRivalFaction(favored) || pressured;
+    if (!secondary || secondary === favored) secondary = pressured;
+    if (!secondary || secondary === favored) secondary = ordered[1] || favored;
+    return {
+      factionReputation,
+      pathwayAlignment: pathPoints,
+      dominantPath: getPathwayAlignmentKey(pathPoints),
+      choiceHistory,
+      favored,
+      favoredName: (FACTIONS[favored] && FACTIONS[favored].name) || toTitle(favored),
+      pressured,
+      pressuredName: (FACTIONS[pressured] && FACTIONS[pressured].name) || toTitle(pressured),
+      secondary,
+      secondaryName: (FACTIONS[secondary] && FACTIONS[secondary].name) || toTitle(secondary)
+    };
+  }
+
+  function buildAdaptiveRefreshToken(currentContext) {
+    const ctx = currentContext || {};
+    const points = ctx.pathwayAlignment || {};
+    const rep = ctx.factionReputation || {};
+    return [
+      ctx.dominantPath || "contested",
+      ctx.favored || "",
+      ctx.pressured || "",
+      ctx.secondary || "",
+      Number(points.heroic || 0),
+      Number(points.tyrant || 0),
+      Number(points.martyr || 0),
+      Number(rep[ctx.favored] || 0),
+      Number(rep[ctx.pressured] || 0),
+      Array.isArray(ctx.choiceHistory) ? ctx.choiceHistory.length : 0
+    ].join("|");
+  }
+
   function generateAdaptiveChoices(currentContext) {
     // Player's choices ALWAYS matter and lead to new situations
     // This system ensures no two playthroughs are identical
-    const factionStates = currentContext.factionReputation;
-    const moralAlignment = currentContext.pathwayAlignment;
-    const pastChoices = currentContext.choiceHistory;
+    const ctx = currentContext || buildAdaptiveChoiceContext();
+    const factionStates = ctx.factionReputation || {};
+    const moralAlignment = ctx.pathwayAlignment || {};
+    const pastChoices = Array.isArray(ctx.choiceHistory) ? ctx.choiceHistory : [];
 
     const choices = [];
 
     // Every choice has 3+ options aligned to different philosophies
     // Every choice has unseen consequences that ripple through the world
 
+    ["heroic", "tyrant", "martyr"].forEach((pathKey, idx) => {
+      const variant = getAdaptiveChoiceVariant(pathKey, pastChoices.length + idx);
+      if (!variant) return;
+      const targetContext = Object.assign({}, ctx, {
+        favored: idx === 1 ? ctx.favored : (idx === 2 ? ctx.secondary : ctx.pressured),
+        favoredName: idx === 1 ? ctx.favoredName : (idx === 2 ? ctx.secondaryName : ctx.pressuredName),
+        pressured: idx === 0 ? ctx.pressured : (idx === 2 ? ctx.favored : ctx.pressured),
+        pressuredName: idx === 0 ? ctx.pressuredName : (idx === 2 ? ctx.favoredName : ctx.pressuredName),
+        secondary: idx === 2 ? ctx.pressured : ctx.secondary,
+        secondaryName: idx === 2 ? ctx.pressuredName : ctx.secondaryName
+      });
+      const renown = typeof variant.renown === "function" ? variant.renown(targetContext) : Object.assign({}, variant.renown || {});
+      const detail = typeof variant.detail === "function" ? variant.detail(targetContext) : String(variant.detail || "");
+      choices.push({
+        id: variant.templateId + ":" + targetContext.favored + ":" + targetContext.pressured + ":" + pastChoices.length,
+        templateId: variant.templateId,
+        pathway: pathKey,
+        title: typeof variant.title === "function" ? variant.title(targetContext) : String(variant.title || "Faction choice"),
+        prompt: typeof variant.prompt === "function" ? variant.prompt(targetContext) : String(variant.prompt || ""),
+        preview: typeof variant.preview === "function" ? variant.preview(targetContext) : String(variant.preview || ""),
+        detail,
+        primaryFaction: targetContext.favored,
+        secondaryFaction: targetContext.pressured,
+        renown,
+        pathPoints: Object.assign({}, variant.pathPoints || {}),
+        resources: Object.assign({}, variant.resources || {}),
+        world: {
+          severity: pathKey === "tyrant" ? "high" : "medium",
+          deltas: Object.assign({}, variant.deltas || {}),
+          tags: [pathKey].concat(Array.isArray(variant.tags) ? variant.tags : [])
+        },
+        context: {
+          favoredScore: Number(factionStates[targetContext.favored] || 0),
+          pressuredScore: Number(factionStates[targetContext.pressured] || 0),
+          dominantPath: getPathwayAlignmentKey(moralAlignment)
+        }
+      });
+    });
+
     return choices;
+  }
+
+  function ensureAdaptiveChoices(force) {
+    ensureFactionState();
+    const ctx = buildAdaptiveChoiceContext();
+    const token = buildAdaptiveRefreshToken(ctx);
+    if (force || !Array.isArray(S.factionNarrative.currentAdaptiveChoices) || !S.factionNarrative.currentAdaptiveChoices.length || S.factionNarrative.adaptiveRefreshToken !== token) {
+      S.factionNarrative.currentAdaptiveChoices = generateAdaptiveChoices(ctx);
+      S.factionNarrative.adaptiveRefreshToken = token;
+    }
+    return S.factionNarrative.currentAdaptiveChoices || [];
+  }
+
+  function renderAdaptiveChoicesHtml() {
+    const choices = ensureAdaptiveChoices(false);
+    const dominant = getPathwayAlignmentKey((S.factionNarrative && S.factionNarrative.pathPoints) || {});
+    const dominantText = dominant === "contested" ? "No doctrine dominates yet." : (toTitle(dominant) + " pressure currently leads your trajectory.");
+    const cards = choices.map((choice) => {
+      const color = choice.pathway === "heroic" ? "var(--teal)" : choice.pathway === "tyrant" ? "var(--red2)" : "var(--gold2)";
+      return "<div class='card' style='padding:.6rem;border-left:3px solid " + color + ";'>"
+        + "<div style='display:flex;justify-content:space-between;gap:.4rem;align-items:flex-start;margin-bottom:.22rem;'>"
+        + "<strong style='color:var(--text);'>" + choice.title + "</strong>"
+        + "<span style='font-size:.68rem;color:" + color + ";text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;'>" + toTitle(choice.pathway) + "</span>"
+        + "</div>"
+        + "<div style='font-size:.78rem;color:var(--text2);line-height:1.6;margin-bottom:.2rem;'>" + choice.prompt + "</div>"
+        + "<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.28rem;'><strong>Likely Fallout:</strong> " + choice.preview + "</div>"
+        + "<div style='display:flex;gap:.25rem;flex-wrap:wrap;'>"
+        + "<button class='btn btn-xs btn-primary' onclick=\"factionSystem.resolveAdaptiveChoice('" + choice.id + "')\">Take This Side</button>"
+        + "</div>"
+        + "</div>";
+    }).join("");
+
+    return "<div class='faction-dynamics'>"
+      + "<h2>ADAPTIVE PRESSURE CHOICES</h2>"
+      + "<p>These crossroads respond to your Renown, pathway drift, and recent faction decisions. Resolve one to let the world answer back.</p>"
+      + "<div style='font-size:.78rem;color:var(--muted2);margin-bottom:.45rem;'>" + dominantText + "</div>"
+      + "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.45rem;'>" + cards + "</div>"
+      + "<div style='margin-top:.45rem;display:flex;gap:.35rem;flex-wrap:wrap;'><button class='btn btn-xs' onclick='factionSystem.refreshAdaptiveChoices()'>Draw New Crossroads</button></div>"
+      + "</div>";
+  }
+
+  function resolveAdaptiveChoice(choiceId) {
+    ensureFactionState();
+    const choices = ensureAdaptiveChoices(false);
+    const choice = choices.find((entry) => String(entry.id) === String(choiceId));
+    if (!choice) {
+      if (typeof showNotif === "function") showNotif("That pressure choice expired. Draw a fresh set.", "warn");
+      return;
+    }
+
+    Object.keys(choice.renown || {}).forEach((factionId) => {
+      safeFactionRenownDelta(factionId, Number(choice.renown[factionId] || 0));
+    });
+
+    const points = S.factionNarrative.pathPoints || { heroic: 0, tyrant: 0, martyr: 0 };
+    Object.keys(choice.pathPoints || {}).forEach((key) => {
+      points[key] = Number(points[key] || 0) + Number(choice.pathPoints[key] || 0);
+    });
+
+    const resources = choice.resources || {};
+    if (Number(resources.credits || 0)) {
+      if (typeof changeCredits === "function") changeCredits(Number(resources.credits || 0));
+      else S.credits = Math.max(0, Number(S.credits || 0) + Number(resources.credits || 0));
+    }
+    if (Number(resources.renown || 0)) {
+      if (typeof changeCounter === "function") {
+        try { changeCounter("renown", Number(resources.renown || 0)); } catch (_err) {}
+      } else {
+        S.renown = Math.max(0, Number(S.renown || 0) + Number(resources.renown || 0));
+      }
+    }
+    if (Number(resources.tmw || 0)) {
+      if (typeof changeCounter === "function") {
+        try { changeCounter("tmw", Number(resources.tmw || 0)); } catch (_err) {}
+      }
+    }
+    if (Number(resources.stress || 0)) {
+      if (typeof changeStress === "function") changeStress(Number(resources.stress || 0));
+      else S.stress = Math.max(0, Number(S.stress || 0) + Number(resources.stress || 0));
+    }
+
+    S.factionNarrative.choiceHistory.push({
+      id: choice.id,
+      templateId: choice.templateId,
+      title: choice.title,
+      pathway: choice.pathway,
+      primaryFaction: choice.primaryFaction,
+      secondaryFaction: choice.secondaryFaction,
+      at: Date.now()
+    });
+    if (S.factionNarrative.choiceHistory.length > 24) {
+      S.factionNarrative.choiceHistory = S.factionNarrative.choiceHistory.slice(-24);
+    }
+
+    const ending = computeFactionEndingFromPoints();
+    const finaleBefore = Object.assign({}, S.factionNarrative.finale || {});
+    const finaleAfter = syncFinaleProgress();
+    S.factionNarrative.endingResult = ending;
+
+    const base = S.factionBases && S.factionBases[choice.primaryFaction] ? S.factionBases[choice.primaryFaction] : null;
+    recordFactionConsequence({
+      system: "faction",
+      factionId: choice.primaryFaction,
+      title: choice.title,
+      detail: choice.detail,
+      region: String((base && base.regionType) || "province").toLowerCase(),
+      locationKey: factionLocationKeyFromBase(base, null),
+      severity: String((choice.world && choice.world.severity) || "medium"),
+      deltas: Object.assign({}, (choice.world && choice.world.deltas) || {}),
+      tags: Array.isArray(choice.world && choice.world.tags) ? choice.world.tags.slice() : ["faction-pressure"]
+    });
+
+    S.factionNarrative.currentAdaptiveChoices = [];
+    S.factionNarrative.adaptiveRefreshToken = "";
+
+    if (typeof showNotif === "function") {
+      showNotif("Faction pressure resolved: " + choice.title, "good");
+      if (ending && ending.key && ending.key !== "contested") showNotif("Ending trajectory: " + ending.title, "good");
+      if (!finaleBefore.unlocked && finaleAfter.unlocked) showNotif("Final outcome unlocked in Endings.", "good");
+    }
+
+    setupFactionTab();
+    renderEndingsPanel();
+  }
+
+  function refreshAdaptiveChoices() {
+    ensureAdaptiveChoices(true);
+    setupFactionTab();
   }
 
   // ============================================================================
@@ -1293,6 +1646,8 @@
     html += `
           </div>
         </div>
+
+        ${renderAdaptiveChoicesHtml()}
 
         <div class="faction-dynamics">
           <h2>FACTION DYNAMICS</h2>
@@ -2319,6 +2674,8 @@
     renderEndingsPanel,
     revealFinalEnding,
     openEndingsTab,
+    refreshAdaptiveChoices,
+    resolveAdaptiveChoice,
     expandFaction,
     acceptFactionMission: acceptFactionMissionFromTab,
     visitBase: visitFactionBase,

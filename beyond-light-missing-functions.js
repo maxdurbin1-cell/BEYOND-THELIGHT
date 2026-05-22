@@ -3373,7 +3373,7 @@ function selectDie(kind, value) {
 // Stat names displayed in the Action Die dropdown
 var STAT_DIE_LABELS = {
   body: 'Body', strike: 'Strike', shoot: 'Shoot', mind: 'Mind',
-  spirit: 'Spirit', defend: 'Defend', control: 'Control', lead: 'Lead', adventure: 'Adventure'
+  spirit: 'Spirit', defend: 'Defend', control: 'Control', lead: 'Lead', adventure: 'Valor'
 };
 
 function selectStatDie(statKey) {

@@ -246,14 +246,6 @@ Enter the game.
     html += `</div>`;
     introContainer.innerHTML = html;
     showScreen("welcome");
-
-    // Failsafe: never let intro lock core gameplay if onboarding UI stalls.
-    setTimeout(function () {
-      if (!introInteraction) {
-        const host = document.getElementById(INTRO_ID);
-        if (host && host.style.display !== 'none') hideIntroOverlay();
-      }
-    }, 1500);
   }
 
   function markIntroSeen() {

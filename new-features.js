@@ -9488,30 +9488,34 @@
       : '<span style="font-size:.68rem;color:var(--green2);">Scouted this visit.</span>';
     var districtButtons = '';
     var districtRollBreakdown = [];
+    var isPhoneLayout = !!(typeof document !== 'undefined' && document.body && document.body.classList && document.body.classList.contains('phone-layout-mode'));
+    function addRollBreakdown(fullText, compactText) {
+      districtRollBreakdown.push(isPhoneLayout ? String(compactText || fullText) : String(fullText || compactText || ''));
+    }
     if (active) {
       var services = active.services || {};
       if (services.missionBoard) districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingDistrictMissionPickup(\'' + String(active.id) + '\')">Mission Board</button>';
-      if (services.missionBoard) districtRollBreakdown.push('Mission Board: mixed mission check (varies by mission card)');
+      if (services.missionBoard) addRollBreakdown('Mission Board: mixed mission check (varies by mission card)', 'Mission Board: mixed check (varies)');
       if (services.localWork) districtButtons += '<button type="button" class="btn btn-xs btn-teal" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_task\')">Local Shift</button>';
-      if (services.localWork) districtRollBreakdown.push('Local Shift: (Body vs Dread d6) Roll to earn 100 Credits and advance 1 day.');
+      if (services.localWork) addRollBreakdown('Local Shift: (Body vs Dread d6) Roll to earn 100 Credits and advance 1 day.', 'Local Shift: Body vs DD6, +100₵, +1 day');
       if (services.merchant) districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingMerchantDistrict(\'' + String(active.id) + '\')">Merchants</button>';
-      if (services.merchant) districtRollBreakdown.push('Merchants: no roll (open trade inventory and buy/sell)');
+      if (services.merchant) addRollBreakdown('Merchants: no roll (open trade inventory and buy/sell)', 'Merchants: no roll, buy/sell');
       if (active.kind === 'inn') districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'rest\')">Rest</button>';
-      if (active.kind === 'inn') districtRollBreakdown.push('Rest: no roll (Protected + ease Mental Stress)');
+      if (active.kind === 'inn') addRollBreakdown('Rest: no roll (Protected + ease Mental Stress)', 'Rest: no roll, Protected + stress ease');
       if (active.kind === 'lord') districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'audience\')">Audience</button>';
-      if (active.kind === 'lord') districtRollBreakdown.push('Audience: no roll (+1 Renown and mission posting)');
+      if (active.kind === 'lord') addRollBreakdown('Audience: no roll (+1 Renown and mission posting)', 'Audience: no roll, +1 Renown + mission');
       if (services.inn) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'inn_service\')">Inn Loop (10₵ · no roll)</button>';
-      if (services.inn) districtRollBreakdown.push('Inn Loop: no roll (10₵, full recovery + clear conditions, advance 1 day)');
+      if (services.inn) addRollBreakdown('Inn Loop: no roll (10₵, full recovery + clear conditions, advance 1 day)', 'Inn Loop: no roll, 10₵, full recover, +1 day');
       if (services.bar) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'bar\')">Bar Loop (+1 TMW · no roll)</button>';
-      if (services.bar) districtRollBreakdown.push('Bar Loop: no roll (+1 Teamwork, rumor pull, opens gambling table)');
+      if (services.bar) addRollBreakdown('Bar Loop: no roll (+1 Teamwork, rumor pull, opens gambling table)', 'Bar Loop: no roll, +1 TMW, rumor + gambling');
       if (services.banking) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'banking\')">Banking (Deposit + passive risk)</button>';
-      if (services.banking) districtRollBreakdown.push('Banking: no action roll (deposit credits, passive risk roll each in-game day)');
+      if (services.banking) addRollBreakdown('Banking: no action roll (deposit credits, passive risk roll each in-game day)', 'Banking: no roll, deposit + daily passive risk');
       if (services.legal) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'legal\')">Legal Desk</button>';
-      if (services.legal) districtRollBreakdown.push('Legal Desk: no roll (20₵, floor renown tracks at 0 and harden security)');
+      if (services.legal) addRollBreakdown('Legal Desk: no roll (20₵, floor renown tracks at 0 and harden security)', 'Legal: no roll, 20₵, reset renown floor + security');
       if (services.hospital) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'hospital\')">Hospital</button>';
-      if (services.hospital) districtRollBreakdown.push('Hospital: no roll (50₵, clear trauma/radiation/injuries/scars/stress)');
+      if (services.hospital) addRollBreakdown('Hospital: no roll (50₵, clear trauma/radiation/injuries/scars/stress)', 'Hospital: no roll, 50₵, clear major conditions');
       districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingSettlementSewerRoute(\'' + String(active.id) + '\')">Sewer Route</button>';
-      districtRollBreakdown.push('Sewer Route: route event check (varies by route/event)');
+      addRollBreakdown('Sewer Route: route event check (varies by route/event)', 'Sewer Route: route check (varies)');
     }
 
     var html = '<div style="font-size:.77rem;color:var(--text2);line-height:1.46;display:grid;gap:.24rem;">'

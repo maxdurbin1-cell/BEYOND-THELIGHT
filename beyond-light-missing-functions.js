@@ -1723,8 +1723,22 @@ function computeSaveChecksum(text) {
   return hash.toString(16);
 }
 
+function serializeSoloStateSafe(stateObj) {
+  const seen = new WeakSet();
+  return JSON.stringify(stateObj || {}, function(_key, value) {
+    if (typeof value === "function" || typeof value === "symbol") return undefined;
+    if (typeof value === "bigint") return Number(value);
+    if (value && typeof value === "object") {
+      if (seen.has(value)) return undefined;
+      seen.add(value);
+    }
+    return value;
+  });
+}
+
 function makeSoloSaveEnvelope(stateObj) {
-  const data = JSON.parse(JSON.stringify(stateObj || S || {}));
+  const serialized = serializeSoloStateSafe(stateObj || S || {});
+  const data = JSON.parse(serialized);
   const payload = JSON.stringify(data);
   return {
     schema: SOLO_SAVE_SCHEMA_VERSION,

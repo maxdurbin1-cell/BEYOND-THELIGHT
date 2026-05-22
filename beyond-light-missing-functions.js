@@ -1474,6 +1474,15 @@ function rollAllStats() {
   updateAllStatDisplays();
 }
 
+function safeCharacterStep(label, fn) {
+  if (typeof fn !== 'function') return;
+  try {
+    fn();
+  } catch (err) {
+    console.warn('Character generation step failed:', label, err);
+  }
+}
+
 function resetRunProgressState() {
   S.injuries = [];
   S.mentalStress = 0;
@@ -1550,22 +1559,20 @@ function generateCharacter() {
   S.tmw = 0;
   S.successRolls = 0;
   S.traumaConditions = { weakened: false, distracted: false, shaken: false, vulnerable: false };
-  clearAllConditions();
-  syncCharacterFields();
-  if (typeof updateCharacterAgeProgressUI === 'function') {
-    updateCharacterAgeProgressUI();
-  }
-  updateAllStatDisplays();
-  updateCreditsUI();
-  updateRenown();
-  updateTrauma();
-  if (typeof updateHealthUI === 'function') updateHealthUI();
-  if (typeof updateInjuriesUI === 'function') updateInjuriesUI();
-  if (typeof updateScarUI === 'function') updateScarUI();
-  updateTMWPool();
-  changeCounter("pathTokens", 0);
-  changeCounter("successRolls", 0);
-  showNotif("Wayfarer generated", "good");
+  safeCharacterStep('clear all conditions', clearAllConditions);
+  safeCharacterStep('sync character fields', syncCharacterFields);
+  safeCharacterStep('update character age progress', updateCharacterAgeProgressUI);
+  safeCharacterStep('update all stat displays', updateAllStatDisplays);
+  safeCharacterStep('update credits', updateCreditsUI);
+  safeCharacterStep('update renown', updateRenown);
+  safeCharacterStep('update trauma', updateTrauma);
+  safeCharacterStep('update health', updateHealthUI);
+  safeCharacterStep('update injuries', updateInjuriesUI);
+  safeCharacterStep('update scar', updateScarUI);
+  safeCharacterStep('update TMW pool', updateTMWPool);
+  safeCharacterStep('reset path tokens', function() { changeCounter('pathTokens', 0); });
+  safeCharacterStep('reset success rolls', function() { changeCounter('successRolls', 0); });
+  safeCharacterStep('show generation notification', function() { showNotif('Wayfarer generated', 'good'); });
   // Trigger origin mission after all character state is initialized
   if (typeof createOriginMissionFromReason === 'function') {
     try {
@@ -1660,16 +1667,16 @@ function runCharacterBuildStep(stepId) {
   }
 
   S.characterBuildGuide.steps = steps;
-  syncCharacterFields();
-  if (typeof updateCharacterAgeProgressUI === 'function') updateCharacterAgeProgressUI();
-  if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
-  if (typeof updateCreditsUI === 'function') updateCreditsUI();
-  if (typeof updateRenown === 'function') updateRenown();
-  if (typeof updateTrauma === 'function') updateTrauma();
-  if (typeof updateHealthUI === 'function') updateHealthUI();
-  if (typeof updateInjuriesUI === 'function') updateInjuriesUI();
-  if (typeof updateScarUI === 'function') updateScarUI();
-  if (typeof updateTMWPool === 'function') updateTMWPool();
+  safeCharacterStep('sync character fields', syncCharacterFields);
+  safeCharacterStep('update character age progress', updateCharacterAgeProgressUI);
+  safeCharacterStep('update all stat displays', updateAllStatDisplays);
+  safeCharacterStep('update credits', updateCreditsUI);
+  safeCharacterStep('update renown', updateRenown);
+  safeCharacterStep('update trauma', updateTrauma);
+  safeCharacterStep('update health', updateHealthUI);
+  safeCharacterStep('update injuries', updateInjuriesUI);
+  safeCharacterStep('update scar', updateScarUI);
+  safeCharacterStep('update TMW pool', updateTMWPool);
 }
 
 function clearCharacter(options) {

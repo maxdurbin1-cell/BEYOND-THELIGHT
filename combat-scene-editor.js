@@ -306,6 +306,7 @@
     next.mapLootCaches = Object.assign({}, next.mapLootCaches || {});
     next.hazardChecks = Object.assign({}, next.hazardChecks || {});
     next.mapItemMeta = Object.assign({}, next.mapItemMeta || {});
+    next.aoeZones = Array.isArray(next.aoeZones) ? next.aoeZones.slice() : [];
     next.assetFolders = normalizeCombatAssetFolders(next.assetFolders || {});
     return next;
   }
@@ -2860,6 +2861,48 @@
     }).filter(Boolean);
   }
 
+  function inferEnemySkillAoeTemplate(row, normalizedName, normalizedDesc) {
+    var src = row && typeof row === 'object' ? row : {};
+    if (src.aoeTemplate && typeof src.aoeTemplate === 'object') {
+      return Object.assign({}, src.aoeTemplate);
+    }
+
+    var type = String(src.effectType || src.kind || '').toLowerCase();
+    var text = (String(normalizedName || '') + ' ' + String(normalizedDesc || '') + ' ' + String(src.onFail || '') + ' ' + String(src.kind || '')).toLowerCase();
+    var flagged = type.indexOf('aoe') >= 0 || text.indexOf('aoe') >= 0 || text.indexOf('area of effect') >= 0 || text.indexOf('ring of fire') >= 0 || text.indexOf('line of fire') >= 0;
+    if (!flagged) return null;
+
+    var roundsRaw = Math.max(0, Number(src.aoeRounds || src.durationRounds || src.zoneRounds || 0));
+    var rounds = roundsRaw > 0 ? roundsRaw : 2;
+    var lineHint = /line|beam|sweep|breath/.test(text) || type.indexOf('line') >= 0;
+    var ringHint = /ring|aura|nearby|close/.test(text) || type.indexOf('ring') >= 0;
+
+    if (lineHint && !ringHint) {
+      var lenMatch = text.match(/(\d+)\s*hex/);
+      var length = Math.max(2, Math.min(8, Number(src.aoeLength || (lenMatch && lenMatch[1]) || 4)));
+      return {
+        shape: 'line',
+        length: length,
+        rounds: rounds,
+        tickOnEnter: true,
+        tickOnRoundStart: true
+      };
+    }
+
+    var ringNear = /nearby/.test(text);
+    var ringClose = /close/.test(text);
+    var inner = Math.max(0, Number(src.aoeInnerRadius == null ? (ringNear ? 2 : (ringClose ? 1 : 1)) : src.aoeInnerRadius));
+    var outer = Math.max(inner + 1, Number(src.aoeOuterRadius == null ? (ringNear ? 3 : (ringClose ? 2 : 2)) : src.aoeOuterRadius));
+    return {
+      shape: 'ring',
+      innerRadius: Math.min(6, inner),
+      outerRadius: Math.min(7, outer),
+      rounds: rounds,
+      tickOnEnter: true,
+      tickOnRoundStart: true
+    };
+  }
+
   function normalizeEnemySkillRow(skill, idx, actorName) {
     var row = skill && typeof skill === 'object' ? skill : { name: String(skill || '') };
     var lowerActor = String(actorName || '').toLowerCase();
@@ -2903,6 +2946,8 @@
       onFailStressBonus: safeStressBonus,
       source: String(row.source || 'Combat Tab'),
       kind: String(row.kind || 'special'),
+      effectType: String(row.effectType || row.kind || '').toLowerCase(),
+      aoeTemplate: inferEnemySkillAoeTemplate(row, baseName, String(row.desc || row.description || row.text || defaultDesc)),
       dreadDie: Math.max(0, Number(row.dreadDie || row.dread || 0)),
       costActions: 1
     };
@@ -2968,31 +3013,38 @@
           kind: 'range: close'
         }, 0, actor && actor.name || 'Enemy'),
         normalizeEnemySkillRow({
-          name: 'Rending Strike',
-          desc: 'A focused strike aimed at weak points.',
-          save: 'defend',
-          range: ['engaged'],
-          onFail: 'Take 1 stress.',
+          name: 'Ring of Cinders',
+          desc: 'Ignites a nearby ring of fire around the target. Entering or ending your round in it forces a Body save.',
+          save: 'body',
+          range: ['close', 'nearby'],
+          onFail: 'Take 1 stress and lose 1 Action.',
           damageMode: 'flat',
           onFailStress: 1,
-          onSuccess: 'Resist the effect. No condition applied.',
+          onSuccess: 'Resist the flames. No effect.',
           source: 'Combat Tab',
-          kind: 'melee'
+          kind: 'aoe_ring',
+          effectType: 'aoe_ring',
+          aoeInnerRadius: 2,
+          aoeOuterRadius: 3,
+          aoeRounds: 2
         }, 1, actor && actor.name || 'Enemy')
       ];
     }
     if (normalized.length < 2) {
       normalized.push(normalizeEnemySkillRow({
-        name: 'Rending Strike',
-        desc: 'A focused strike aimed at weak points.',
-        save: 'defend',
-        range: ['engaged'],
+        name: 'Linefire Sweep',
+        desc: 'A burning line tears through four hexes in front of the enemy.',
+        save: 'body',
+        range: ['close', 'nearby'],
         onFail: 'Take 1 stress.',
         damageMode: 'flat',
         onFailStress: 1,
-        onSuccess: 'Resist the effect. No condition applied.',
+        onSuccess: 'Resist the flame line. No effect.',
         source: 'Combat Tab',
-        kind: 'melee'
+        kind: 'aoe_line',
+        effectType: 'aoe_line',
+        aoeLength: 4,
+        aoeRounds: 2
       }, 1, actor && actor.name || 'Enemy'));
     }
     return normalized.slice(0, 2);
@@ -3947,6 +3999,200 @@
     return finalHp;
   }
 
+  function isWayfarerSideToken(token) {
+    return !!(token && !isTokenDead(token) && (token.isPlayer || String(token.faction || '') === 'player'));
+  }
+
+  function buildAoeZoneLineHexes(state, actor, center, length) {
+    var out = [];
+    var start = { q: Number(actor && actor.q || 0), r: Number(actor && actor.r || 0) };
+    var target = { q: Number(center && center.q || 0), r: Number(center && center.r || 0) };
+    var line = axialLine(start, target);
+    var nextHex = line.length > 1 ? line[1] : target;
+    var dq = Number(nextHex && nextHex.q || target.q) - Number(start.q || 0);
+    var dr = Number(nextHex && nextHex.r || target.r) - Number(start.r || 0);
+    if (!dq && !dr) {
+      dq = 1;
+      dr = 0;
+    }
+    for (var i = 1; i <= Math.max(1, Number(length || 4)); i++) {
+      var q = Number(start.q || 0) + dq * i;
+      var r = Number(start.r || 0) + dr * i;
+      if (Math.abs(q) > Number(state && state.board && state.board.cols || 22)) continue;
+      if (Math.abs(r) > Number(state && state.board && state.board.rows || 16)) continue;
+      out.push({ q: q, r: r });
+    }
+    return out;
+  }
+
+  function buildAoeZoneRingHexes(state, center, innerRadius, outerRadius) {
+    var out = [];
+    var c = { q: Number(center && center.q || 0), r: Number(center && center.r || 0) };
+    var minR = Math.max(0, Number(innerRadius || 0));
+    var maxR = Math.max(minR, Number(outerRadius || minR));
+    for (var q = c.q - maxR; q <= c.q + maxR; q++) {
+      for (var r = c.r - maxR; r <= c.r + maxR; r++) {
+        if (Math.abs(q) > Number(state && state.board && state.board.cols || 22)) continue;
+        if (Math.abs(r) > Number(state && state.board && state.board.rows || 16)) continue;
+        var dist = hexDistance(c, { q: q, r: r });
+        if (dist < minR || dist > maxR) continue;
+        out.push({ q: q, r: r });
+      }
+    }
+    return out;
+  }
+
+  function hasAoeActionDownEffect(skill) {
+    var row = skill && typeof skill === 'object' ? skill : {};
+    var type = String(row.effectType || row.kind || '').toLowerCase();
+    if (type === 'action_down') return true;
+    var text = (String(row.onFail || '') + ' ' + String(row.desc || '') + ' ' + String(row.name || '')).toLowerCase();
+    return /-1\s*action|lose\s+1\s+action/.test(text);
+  }
+
+  function createEnemySkillAoeZone(skill, actor, foe, margin, stressDealt) {
+    var row = skill && typeof skill === 'object' ? skill : {};
+    var tpl = row.aoeTemplate && typeof row.aoeTemplate === 'object' ? row.aoeTemplate : null;
+    if (!tpl || !actor || !foe) return null;
+
+    var state = store.getState();
+    var shape = String(tpl.shape || '').toLowerCase();
+    var center = { q: Number(foe.q || 0), r: Number(foe.r || 0) };
+    var hexes = [];
+    if (shape === 'line') {
+      hexes = buildAoeZoneLineHexes(state, actor, center, Math.max(1, Number(tpl.length || 4)));
+    } else if (shape === 'ring') {
+      hexes = buildAoeZoneRingHexes(state, center, Number(tpl.innerRadius || 1), Number(tpl.outerRadius || 2));
+    }
+    if (!hexes.length) return null;
+
+    var label = String(row.name || 'Enemy AoE') + ' Zone';
+    var cond = String(row.onFailCondition || '').trim().toLowerCase();
+    var zone = {
+      id: uid('aoe'),
+      label: label,
+      shape: shape,
+      sourceTokenId: String(actor.id || ''),
+      sourceName: String(actor.name || 'Enemy'),
+      centerQ: Number(center.q || 0),
+      centerR: Number(center.r || 0),
+      hexKeys: hexes.map(function (hex) { return toKey(hex.q, hex.r); }),
+      save: String(getEnemySkillSaveKey(row) || 'defend').toLowerCase(),
+      dreadDie: Math.max(4, Number(getEnemySkillDreadDie(row, actor.dread || actor.codexDread || 6))),
+      tickStress: Math.max(0, Number(stressDealt || 0)),
+      tickActionDown: hasAoeActionDownEffect(row),
+      tickCondition: cond,
+      roundsLeft: Math.max(1, Number(tpl.rounds || 2)),
+      tickOnEnter: tpl.tickOnEnter !== false,
+      tickOnRoundStart: tpl.tickOnRoundStart !== false,
+      color: shape === 'line' ? 'rgba(255,124,86,0.28)' : 'rgba(255,159,92,0.24)',
+      border: shape === 'line' ? 'rgba(255,132,96,0.9)' : 'rgba(255,190,122,0.86)'
+    };
+
+    store.setState(function (inner) {
+      var next = Object.assign({}, inner);
+      var rules = ensureCombatSceneRulesExtensions(inner.sceneRules || {});
+      var zones = Array.isArray(rules.aoeZones) ? rules.aoeZones.slice() : [];
+      zones.push(zone);
+      rules.aoeZones = zones.slice(-24);
+      next.sceneRules = rules;
+      persist(next);
+      return next;
+    });
+
+    addHistory(zone.label + ' created (' + zone.roundsLeft + ' rounds). Enter or stay requires a ' + String(getEnemySkillSaveLabel(row) || 'Defend') + ' save.');
+    return zone;
+  }
+
+  function resolveEnemyAoeZoneSave(zone, token, triggerLabel) {
+    if (!zone || !token || isTokenDead(token)) return { failed: false, damage: 0 };
+    var targetDie = Math.max(4, Number(getTargetSaveDieForSkill(token, { save: zone.save }) || 6));
+    var dreadDie = Math.max(4, Number(zone.dreadDie || 6));
+    var saveRoll = rollCombatDieTotal(targetDie, 'action', String(token.name || 'Target') + ' ' + String(zone.save || 'defend') + ' save d' + targetDie);
+    var dreadRoll = rollCombatDieTotal(dreadDie, 'dread', String(zone.sourceName || 'Enemy') + ' AoE Dread d' + dreadDie);
+    var failed = Number(dreadRoll || 0) > Number(saveRoll || 0);
+    var damage = 0;
+
+    if (failed) {
+      damage = Math.max(0, Number(zone.tickStress || 0));
+      if (damage > 0) {
+        applyDamageToToken(token.id, damage, String(zone.label || 'AoE'));
+      }
+      if (zone.tickActionDown && token.isPlayer && window.S && window.S.combat) {
+        window.S.combat.actionsLeft = Math.max(0, Number(window.S.combat.actionsLeft || 0) - 1);
+        if (typeof window.updateCombatUI === 'function') {
+          try { window.updateCombatUI(); } catch (_aoeUiErr) {}
+        }
+      }
+      if (zone.tickCondition) {
+        if (token.isPlayer && window.S) {
+          if (!window.S.conditions || typeof window.S.conditions !== 'object') window.S.conditions = {};
+          window.S.conditions[String(zone.tickCondition)] = true;
+          if (typeof window.updateConditionButtons === 'function') {
+            try { window.updateConditionButtons(); } catch (_aoeCondErr) {}
+          }
+        } else {
+          setTokenStatusFlag(token.id, zone.tickCondition);
+        }
+      }
+    }
+
+    addHistory(String(zone.label || 'AoE') + ' ' + String(triggerLabel || 'tick') + ': ' + String(token.name || 'Target')
+      + ' rolled ' + Number(saveRoll || 0) + ' vs Dread ' + Number(dreadRoll || 0)
+      + (failed ? (' and failed' + (damage > 0 ? (' (' + damage + ' damage)') : '')) : ' and resisted') + '.');
+
+    return { failed: failed, damage: damage };
+  }
+
+  function triggerEnemyAoeEnterEffects(token, fromQ, fromR, toQ, toR) {
+    if (!isWayfarerSideToken(token)) return;
+    var state = store.getState();
+    var rules = ensureCombatSceneRulesExtensions(state.sceneRules || {});
+    var zones = Array.isArray(rules.aoeZones) ? rules.aoeZones.slice() : [];
+    if (!zones.length) return;
+    var fromKey = toKey(fromQ, fromR);
+    var toKeyNow = toKey(toQ, toR);
+    zones.forEach(function (zone) {
+      if (!zone || !zone.tickOnEnter || Number(zone.roundsLeft || 0) <= 0) return;
+      var keys = Array.isArray(zone.hexKeys) ? zone.hexKeys : [];
+      var entered = keys.indexOf(toKeyNow) >= 0 && keys.indexOf(fromKey) < 0;
+      if (!entered) return;
+      resolveEnemyAoeZoneSave(zone, token, 'enter');
+    });
+  }
+
+  function processEnemyAoeRoundHazards() {
+    var state = store.getState();
+    var rules = ensureCombatSceneRulesExtensions(state.sceneRules || {});
+    var zones = Array.isArray(rules.aoeZones) ? rules.aoeZones.slice() : [];
+    if (!zones.length) return;
+
+    var targets = (state.tokens || []).filter(function (row) { return isWayfarerSideToken(row); });
+    zones.forEach(function (zone) {
+      if (!zone || !zone.tickOnRoundStart || Number(zone.roundsLeft || 0) <= 0) return;
+      var keys = Array.isArray(zone.hexKeys) ? zone.hexKeys : [];
+      targets.forEach(function (token) {
+        if (!token || isTokenDead(token)) return;
+        if (keys.indexOf(toKey(token.q, token.r)) < 0) return;
+        resolveEnemyAoeZoneSave(zone, token, 'stay');
+      });
+    });
+
+    store.setState(function (inner) {
+      var next = Object.assign({}, inner);
+      var nextRules = ensureCombatSceneRulesExtensions(inner.sceneRules || {});
+      nextRules.aoeZones = (Array.isArray(nextRules.aoeZones) ? nextRules.aoeZones : []).map(function (zone) {
+        if (!zone) return null;
+        var copy = Object.assign({}, zone);
+        copy.roundsLeft = Math.max(0, Number(copy.roundsLeft || 0) - 1);
+        return copy;
+      }).filter(function (zone) { return zone && Number(zone.roundsLeft || 0) > 0; });
+      next.sceneRules = nextRules;
+      persist(next);
+      return next;
+    });
+  }
+
   function applyEnemySkillFailEffects(skill, actor, foe, margin, stressDealt) {
     var row = skill && typeof skill === 'object' ? skill : {};
     var type = String(row.effectType || row.kind || '').toLowerCase();
@@ -4023,6 +4269,18 @@
     } else if (type === 'self_invincible') {
       if (actor) setTokenStatusFlag(actor.id, 'invincible');
       notes.push((actor && actor.name ? actor.name : 'Enemy') + ' turns Invincible (1 round)');
+    }
+
+    var zone = createEnemySkillAoeZone(row, actor, foe, m, Math.max(0, Number(stressDealt || 0)));
+    if (zone) {
+      notes.push('Created AoE zone: ' + String(zone.label || 'Zone') + ' (' + Number(zone.roundsLeft || 0) + ' rounds)');
+      var stateNow = store.getState();
+      var zoneKeys = Array.isArray(zone.hexKeys) ? zone.hexKeys : [];
+      (stateNow.tokens || []).forEach(function (token) {
+        if (!isWayfarerSideToken(token)) return;
+        if (zoneKeys.indexOf(toKey(token.q, token.r)) < 0) return;
+        resolveEnemyAoeZoneSave(zone, token, 'initial');
+      });
     }
 
     return { extraDamage: Math.max(0, Number(extraDamage || 0)), notes: notes };
@@ -4545,6 +4803,7 @@
     if (typeof window.updateCombatUI === 'function') {
       try { window.updateCombatUI(); } catch (_err) {}
     }
+    processEnemyAoeRoundHazards();
     syncWayfarerTokenHealthFromSheet();
     drawBoard();
     updateUiPanels();
@@ -5497,6 +5756,8 @@
       return;
     }
     if (isTokenDead(actor)) return;
+    var fromQ = Number(actor.q || 0);
+    var fromR = Number(actor.r || 0);
     var distance = hexDistance({ q: Number(actor.q || 0), r: Number(actor.r || 0) }, { q: Number(q), r: Number(r) });
     if (distance <= 0) return;
     var activeMovement = !!(state.playMode && isSceneActive());
@@ -5528,6 +5789,7 @@
     var token = byId(tokenId);
     if (token) {
       addHistory(String(token.name || 'Token') + ' moved to ' + toKey(q, r) + ' (cost ' + movementCost + ' action' + (movementCost === 1 ? '' : 's') + ').');
+      triggerEnemyAoeEnterEffects(token, fromQ, fromR, Number(q), Number(r));
       if (Number(destinationProfile.hazardDamage || 0) > 0 || hasObstacleCheck) {
         var hz = Math.max(1, Number(destinationProfile.hazardDamage || 0) || (hasObstacleCheck ? 1 : 0));
         runHazardCheckDialogForToken(token, q, r, destinationProfile, { failDamage: hz });
@@ -6963,6 +7225,19 @@
     var dangerStroke = alphaColorFromHex(String(theme.danger || '#d05353'), 0.55);
     var fogMask = alphaColorFromHex(String(theme.fog || '#020307'), 0.74);
     var fogVision = getFogVisionMap(state);
+    var rules = ensureCombatSceneRulesExtensions(state && state.sceneRules || {});
+    var zoneLookup = {};
+    (Array.isArray(rules.aoeZones) ? rules.aoeZones : []).forEach(function (zone) {
+      if (!zone || Number(zone.roundsLeft || 0) <= 0) return;
+      var fill = String(zone.color || 'rgba(255,159,92,0.24)');
+      var border = String(zone.border || 'rgba(255,190,122,0.86)');
+      (Array.isArray(zone.hexKeys) ? zone.hexKeys : []).forEach(function (key) {
+        if (!key) return;
+        if (!zoneLookup[key]) {
+          zoneLookup[key] = { fill: fill, border: border, rounds: Number(zone.roundsLeft || 0) };
+        }
+      });
+    });
     bubbleHotspots = [];
     for (var r = -board.rows; r <= board.rows; r++) {
       for (var q = -board.cols; q <= board.cols; q++) {
@@ -7040,6 +7315,17 @@
           drawHex(ctx, p.x, p.y, size - 3.4);
           ctx.lineWidth = 2.2;
           ctx.strokeStyle = highlightColor;
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        if (zoneLookup[key]) {
+          ctx.save();
+          drawHex(ctx, p.x, p.y, size - 4.2);
+          ctx.fillStyle = String(zoneLookup[key].fill || 'rgba(255,159,92,0.24)');
+          ctx.fill();
+          ctx.strokeStyle = String(zoneLookup[key].border || 'rgba(255,190,122,0.86)');
+          ctx.lineWidth = 1.2;
           ctx.stroke();
           ctx.restore();
         }

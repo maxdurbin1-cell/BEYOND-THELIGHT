@@ -9487,19 +9487,31 @@
       ? '<button type="button" class="btn btn-xs btn-primary" onclick="resolveHoldingSettlementHexNode(\'' + String(active.id) + '\')">Scout District (Lead vs DD' + Number(active.dd || 6) + ')</button>'
       : '<span style="font-size:.68rem;color:var(--green2);">Scouted this visit.</span>';
     var districtButtons = '';
+    var districtRollBreakdown = [];
     if (active) {
       var services = active.services || {};
       if (services.missionBoard) districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingDistrictMissionPickup(\'' + String(active.id) + '\')">Mission Board</button>';
+      if (services.missionBoard) districtRollBreakdown.push('Mission Board: mixed mission check (varies)');
       if (services.localWork) districtButtons += '<button type="button" class="btn btn-xs btn-teal" onclick="runHoldingDistrictFlavorAction(\'' + String(active.id) + '\',\'downtime_task\')">Local Shift</button>';
+      if (services.localWork) districtRollBreakdown.push('Local Shift: Action Die choice vs event DD');
       if (services.merchant) districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingMerchantDistrict(\'' + String(active.id) + '\')">Merchants</button>';
+      if (services.merchant) districtRollBreakdown.push('Merchants: no roll (trade/economy UI)');
       if (active.kind === 'inn') districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'rest\')">Rest</button>';
+      if (active.kind === 'inn') districtRollBreakdown.push('Rest: no roll');
       if (active.kind === 'lord') districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'audience\')">Audience</button>';
+      if (active.kind === 'lord') districtRollBreakdown.push('Audience: no roll');
       if (services.inn) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'inn_service\')">Inn Loop (10₵ · no roll)</button>';
+      if (services.inn) districtRollBreakdown.push('Inn Loop: no roll (10₵, long-rest/day advance)');
       if (services.bar) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'bar\')">Bar Loop (+1 TMW · no roll)</button>';
+      if (services.bar) districtRollBreakdown.push('Bar Loop: no roll (+1 Teamwork)');
       if (services.banking) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'banking\')">Banking (Deposit + passive risk)</button>';
+      if (services.banking) districtRollBreakdown.push('Banking: no action roll (passive treasury risk roll per day)');
       if (services.legal) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'legal\')">Legal Desk</button>';
+      if (services.legal) districtRollBreakdown.push('Legal Desk: no roll (20₵ service)');
       if (services.hospital) districtButtons += '<button type="button" class="btn btn-xs" onclick="runHoldingDistrictAction(\'' + String(active.id) + '\',\'hospital\')">Hospital</button>';
+      if (services.hospital) districtRollBreakdown.push('Hospital: no roll (50₵ treatment)');
       districtButtons += '<button type="button" class="btn btn-xs" onclick="openHoldingSettlementSewerRoute(\'' + String(active.id) + '\')">Sewer Route</button>';
+      districtRollBreakdown.push('Sewer Route: route event check (varies)');
     }
 
     var html = '<div style="font-size:.77rem;color:var(--text2);line-height:1.46;display:grid;gap:.24rem;">'
@@ -9552,6 +9564,7 @@
         + '<div style="margin-top:.12rem;font-size:.64rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Core Action</div>'
         + '<div style="margin-top:.06rem;display:flex;gap:.14rem;flex-wrap:wrap;">' + actionButton + '</div>'
         + (districtButtons ? '<div style="margin-top:.08rem;font-size:.64rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">District Services</div>' : '')
+        + (districtRollBreakdown.length ? '<div style="margin-top:.05rem;font-size:.66rem;color:var(--gold2);line-height:1.45;"><strong>Roll Breakdown:</strong> ' + districtRollBreakdown.join(' · ') + '</div>' : '')
         + '<div style="margin-top:.06rem;display:flex;gap:.14rem;flex-wrap:wrap;">' + districtButtons + '</div>'
         + '<div style="margin-top:.08rem;font-size:.64rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Local Flavor</div>'
         + '<div style="margin-top:.06rem;display:flex;gap:.14rem;flex-wrap:wrap;">'

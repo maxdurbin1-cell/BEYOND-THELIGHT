@@ -218,51 +218,6 @@ body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr 1f
 .global-quick-access .qa-label,.context-quick-actions .qa-label{flex:0 0 auto;}
 .global-quick-access .btn,.context-quick-actions .btn{flex:0 0 auto;white-space:nowrap;font-size:.7rem;padding:.24rem .5rem;min-height:1.9rem;}
 .mystery-card{background:var(--surface);border-left:2px solid var(--gold);padding:.55rem .70rem;font-size:.88rem;line-height:1.7;font-style:italic;color:var(--text);}
-.combat-hud-shell{display:grid;gap:.75rem;}
-.combat-hud-hero{position:relative;overflow:hidden;border:1px solid rgba(201,162,39,.28);border-radius:18px;padding:1rem;background:linear-gradient(160deg,rgba(10,13,22,.96) 0%,rgba(13,16,29,.96) 100%);box-shadow:0 18px 40px rgba(0,0,0,.24);display:grid;gap:.8rem;}
-.combat-hud-hero::before{content:'';position:absolute;inset:auto -10% -40% auto;width:22rem;height:22rem;background:radial-gradient(circle,rgba(201,162,39,.12) 0%,transparent 64%);pointer-events:none;}
-.combat-hud-hero > *{position:relative;z-index:1;}
-.combat-scene-kicker{font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted2);margin-bottom:.18rem;}
-.combat-scene-note{font-size:.85rem;line-height:1.55;color:var(--text2);max-width:58rem;}
-.combat-hud-actions{display:flex;gap:.42rem;flex-wrap:wrap;align-items:center;}
-.combat-hud-hero .btn{box-shadow:0 8px 18px rgba(0,0,0,.12);}
-.combat-hud-hero .btn-primary{box-shadow:0 0 0 1px rgba(201,162,39,.12) inset,0 8px 18px rgba(201,162,39,.08);}
-.combat-hero-status{padding:.55rem .7rem;border:1px solid rgba(255,255,255,.05);border-radius:14px;background:rgba(255,255,255,.02);display:grid;gap:.35rem;}
-.combat-hero-status .label{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2);}
-.combat-hero-status .value{font-family:'Rajdhani',sans-serif;font-size:.98rem;line-height:1.45;color:var(--gold2);font-weight:700;}
-.combat-status-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.45rem;}
-.combat-status-chip{padding:.56rem .68rem;border:1px solid rgba(255,255,255,.06);border-radius:12px;background:rgba(255,255,255,.02);min-width:0;}
-.combat-status-chip .label{display:block;font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2);margin-bottom:.18rem;}
-.combat-status-chip .value{font-family:'Rajdhani',sans-serif;font-size:.95rem;line-height:1.35;color:var(--text);font-weight:700;}
-.combat-status-chip .value strong{color:var(--gold2);}
-.combat-status-chip .value .teal-val{color:var(--teal2);}
-.combat-main-grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(320px,.92fr);gap:.75rem;align-items:start;}
-.combat-player-card{display:grid;gap:.55rem;}
-.combat-advanced-details{padding:0;overflow:hidden;}
-.combat-advanced-details > summary{list-style:none;cursor:pointer;padding:.88rem .95rem;font-family:'Cinzel',serif;font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold2);border-bottom:1px solid rgba(255,255,255,.04);display:flex;align-items:center;justify-content:space-between;gap:.5rem;}
-.combat-advanced-details > summary::-webkit-details-marker{display:none;}
-.combat-advanced-details > summary::after{content:'Advanced';font-family:'Rajdhani',sans-serif;font-size:.68rem;letter-spacing:.12em;color:var(--muted2);text-transform:uppercase;}
-.combat-advanced-body{padding:.85rem .95rem;display:grid;gap:.65rem;}
-.combat-advanced-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.55rem;}
-.combat-advanced-grid .sub-label{margin-bottom:.18rem;}
-@media(max-width:1100px){.combat-main-grid{grid-template-columns:1fr;}.combat-status-strip{grid-template-columns:repeat(2,minmax(0,1fr));}}
-@media(max-width:720px){.combat-status-strip{grid-template-columns:1fr;}.combat-advanced-grid{grid-template-columns:1fr;}.combat-hud-hero{padding:.85rem;}}
-.map-hud-shell{display:grid;gap:.7rem;margin-bottom:.75rem;}
-.map-hud-hero{position:relative;overflow:hidden;border:1px solid rgba(201,162,39,.28);border-radius:18px;padding:.95rem 1rem;background:linear-gradient(160deg,rgba(10,13,22,.95) 0%,rgba(12,15,28,.95) 100%);box-shadow:0 18px 40px rgba(0,0,0,.22);display:grid;gap:.75rem;}
-.map-hud-hero::before{content:'';position:absolute;inset:auto auto -34% -8%;width:18rem;height:18rem;background:radial-gradient(circle,rgba(46,196,182,.12) 0%,transparent 66%);pointer-events:none;}
-.map-hud-hero > *{position:relative;z-index:1;}
-.map-scene-kicker{font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted2);margin-bottom:.18rem;}
-.map-hud-note{font-size:.85rem;line-height:1.55;color:var(--text2);max-width:60rem;}
-.map-hud-actions{display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;}
-.map-hud-actions .btn{box-shadow:0 8px 18px rgba(0,0,0,.12);}
-.map-status-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.45rem;}
-.map-status-chip{padding:.56rem .68rem;border:1px solid rgba(255,255,255,.06);border-radius:12px;background:rgba(255,255,255,.02);min-width:0;display:grid;gap:.2rem;}
-.map-status-chip .label{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted2);}
-.map-status-chip .value{font-family:'Rajdhani',sans-serif;font-size:.9rem;line-height:1.35;color:var(--text);font-weight:700;}
-.map-status-chip .value strong{color:var(--gold2);}
-.map-status-chip .value .btn{font-size:.68rem;min-height:1.75rem;padding:.18rem .42rem;}
-@media(max-width:1100px){.map-status-strip{grid-template-columns:repeat(2,minmax(0,1fr));}}
-@media(max-width:720px){.map-hud-hero{padding:.82rem;}.map-status-strip{grid-template-columns:1fr;}}
 .notif-stack{left:.5rem;right:.5rem;max-width:none;}
 .notif{max-width:none;}
 .dice-roll-layer{left:.5rem;right:.5rem;top:auto;bottom:4rem;max-width:none;}
@@ -271,193 +226,164 @@ body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr 1f
 .modal{padding:.75rem;max-height:92vh;}
 #modalContent [style*="min-width"]{min-width:0!important;}
 #modalContent [style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr!important;}
-  <div class="combat-hud-shell">
-    <div class="combat-hud-hero">
-      <div>
-        <div class="section-title" style="margin-bottom:.45rem;">Combat Scene</div>
-        <div class="combat-scene-kicker">Current Scene</div>
-        <div id="combatStatus" style="font-family:'Rajdhani',sans-serif;font-size:.98rem;color:var(--gold2);line-height:1.45;font-weight:700;"></div>
-        <div class="combat-scene-note">One primary action should start the scene. Secondary actions stay close. Advanced controls are available when the table needs them, but they do not compete with the narrative view.</div>
-      </div>
-      <div class="combat-hero-status">
-        <span class="label">Initiative / Scene Ledger</span>
-        <div id="campaignInitiativePanel"></div>
-      </div>
-      <div class="combat-hud-actions">
-        <button class="btn btn-primary" onclick="startCombat()">▶ Start Scene</button>
-        <button class="btn btn-teal" onclick="if(window.openCombatSceneEditorFromExpedition){openCombatSceneEditorFromExpedition();}else if(window.openCombatSceneEditor){openCombatSceneEditor();}">Enter Combat Mode</button>
-        <button class="btn" onclick="nextRound()">Next Round</button>
-        <button class="btn btn-red btn-sm" onclick="endCombat()">End Scene</button>
-      </div>
-      <!-- Auto-rolls fired when combat starts -->
-      <div id="combatOpenerPanel" style="display:none;background:rgba(201,64,64,.06);border:1px solid rgba(201,64,64,.3);border-radius:10px;padding:.5rem .6rem;">
-        <div style="font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.1em;color:var(--red2);text-transform:uppercase;margin-bottom:.3rem;">⚡ Scene Opener</div>
-        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.25rem .6rem;" id="combatOpenerRows"></div>
-        <div style="margin-top:.35rem;display:flex;gap:.3rem;flex-wrap:wrap;">
-          <button class="btn btn-xs" onclick="rollCombatOpener()">↺ Re-roll All</button>
-          <button class="btn btn-xs btn-red" onclick="document.getElementById('combatOpenerPanel').style.display='none'">✕ Dismiss</button>
-        </div>
-      </div>
-      <div class="combat-status-strip">
-        <div class="combat-status-chip">
-          <span class="label">Enemy Dread</span>
-          <div class="value">Enemy Dread: <span id="enemyDreadDisplay" class="teal-val" style="font-weight:700;">d8</span></div>
-        </div>
-        <div class="combat-status-chip">
-          <span class="label">Actions Left</span>
-          <div class="value"><span class="counter-val gold-val" id="actionsLeft" style="font-size:1.55rem;min-width:1.8rem;">3</span> actions remaining</div>
-        </div>
-        <div class="combat-status-chip">
-          <span class="label">Enemy Pool</span>
-          <div class="value"><span class="counter-val red-val" id="enemyActionsLeftMain" style="font-size:1.55rem;min-width:1.8rem;">0</span> / <span id="enemyActionsMaxMain" style="color:var(--muted2);">0</span></div>
-        </div>
-      </div>
-    </div>
+#modalContent table{display:block;width:100%;overflow-x:auto;}
+.map-legend{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.6rem;}
+.leg-item{display:flex;align-items:center;gap:.28rem;font-size:.76rem;color:var(--text2);}
+.leg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.map-controls{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-bottom:.4rem;}
+.age-btn{background:transparent;border:1px solid var(--border);color:var(--muted);font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.1em;padding:.3rem .68rem;cursor:pointer;text-transform:uppercase;transition:all .15s;}
+.age-btn.on{color:var(--teal);border-color:var(--teal);background:rgba(46,196,182,.06);}
+.season-btn{background:transparent;border:1px solid var(--border);color:var(--muted);font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;padding:.28rem .6rem;cursor:pointer;text-transform:uppercase;transition:all .15s;}
+.season-btn.on{color:var(--gold2);border-color:var(--gold2);background:rgba(232,192,80,.06);}
+.svg-hex{cursor:pointer;transition:opacity .16s ease,filter .16s ease;}.svg-hex:hover polygon{stroke-width:2!important;}.svg-hex.sel polygon{stroke:#e8c050!important;stroke-width:2.5!important;}.svg-hex.sel{filter:brightness(1.12);}.svg-hex.dim{opacity:.56;filter:saturate(.62) brightness(.78);}
+.shop-cats{display:flex;gap:.2rem;margin-bottom:.85rem;flex-wrap:wrap;}
+.scat{background:transparent;border:1px solid var(--border);color:var(--muted2);font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.1em;padding:.34rem .7rem;cursor:pointer;text-transform:uppercase;transition:all .15s;}
+.scat:hover{color:var(--gold);border-color:rgba(201,162,39,.4);}.scat.on{color:var(--gold);border-color:var(--gold);background:rgba(201,162,39,.06);}
+.shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.6rem;}
+.shop-card{background:var(--card);border:1px solid var(--border);padding:.7rem;display:flex;flex-direction:column;gap:.3rem;transition:border-color .15s;}
+.shop-card:hover{border-color:rgba(201,162,39,.25);}
+.shop-rule-box{background:rgba(201,162,39,.05);border:1px solid rgba(201,162,39,.25);padding:.6rem .85rem;margin-bottom:.6rem;font-size:.78rem;color:var(--text2);line-height:1.6;}
+.shop-rule-box strong{color:var(--gold2);}
+.shop-rule-box .srb-title{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:.45rem;display:block;}
+.shop-rule-box ul{margin:.3rem 0 0 1.1rem;padding:0;}
+.shop-rule-box li{margin-bottom:.15rem;}
+.s-name{font-family:'Cinzel',serif;font-size:.75rem;color:var(--gold2);}.s-stat{font-size:.72rem;color:var(--teal);font-family:'Rajdhani',sans-serif;font-weight:600;}.s-desc{font-size:.78rem;color:var(--muted3);flex:1;line-height:1.5;}
+.s-foot{display:flex;justify-content:space-between;align-items:center;margin-top:.2rem;padding-top:.3rem;border-top:1px solid var(--border);}
+.s-cost{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.9rem;color:var(--gold);}
+.dice-center{max-width:600px;margin:0 auto;}
+.die-options{display:flex;gap:.45rem;flex-wrap:wrap;margin-bottom:.6rem;}
+.d-opt{width:3rem;height:3rem;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px solid var(--border2);cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:700;color:var(--muted);transition:all .15s;border-radius:3px;}
+.d-opt:hover{border-color:var(--teal);color:var(--teal);}.d-opt.sel{border-color:var(--teal);color:var(--teal);background:rgba(46,196,182,.1);}.d-opt.dread-sel{border-color:var(--red);color:var(--red);background:rgba(201,64,64,.1);}
+.roll-result-box{background:var(--card);border:1px solid var(--border);padding:1.1rem;text-align:center;}
+.res-dice{display:flex;align-items:center;justify-content:center;gap:2rem;margin:.8rem 0;}
+.res-die{display:flex;flex-direction:column;align-items:center;gap:.2rem;}
+.res-val{font-family:'Rajdhani',sans-serif;font-size:3rem;font-weight:700;line-height:1;}
+.res-lbl{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;}
+.res-outcome{font-family:'Cinzel',serif;font-size:1.1rem;font-weight:600;letter-spacing:.14em;margin-top:.5rem;}
+.res-outcome.success{color:var(--green2);}.res-outcome.fail{color:var(--red2);}.res-outcome.crit{color:var(--gold3);}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:5200;display:flex;align-items:center;justify-content:center;padding:1rem;opacity:0;pointer-events:none;transition:opacity .2s;}
+.overlay.open{opacity:1;pointer-events:all;}
+.modal{background:var(--card);border:1px solid var(--border2);max-width:760px;width:100%;padding:1.1rem;max-height:88vh;overflow-y:auto;line-height:1.62;}
+.modal-header{font-family:'Cinzel',serif;font-size:1rem;letter-spacing:.11em;color:var(--gold2);margin-bottom:.92rem;padding-bottom:.62rem;border-bottom:1px solid var(--border);font-weight:700;}
+#modalContent{font-size:.97rem;color:var(--text);line-height:1.66;}
+#modalContent [style*="color:var(--muted2)"]{color:var(--text2)!important;}
+#modalContent [style*="font-size:.6"],
+#modalContent [style*="font-size:.62"],
+#modalContent [style*="font-size:.63"],
+#modalContent [style*="font-size:.64"],
+#modalContent [style*="font-size:.65"],
+#modalContent [style*="font-size:.66"],
+#modalContent [style*="font-size:.67"],
+#modalContent [style*="font-size:.68"],
+#modalContent [style*="font-size:.69"],
+#modalContent [style*="font-size:.7"],
+#modalContent [style*="font-size:.72"]{font-size:.82rem!important;line-height:1.55!important;}
 
-    <div class="combat-main-grid">
-      <div class="card combat-player-card">
-        <div class="section-title">Player Actions</div>
-        <div style="margin-bottom:.6rem;">
-          <span class="sub-label">⚔ Wayfarer Action</span>
-          <div style="font-size:.65rem;color:var(--muted2);margin:.15rem 0 .35rem;">Choose an action — only actions valid for your current zone and resources are shown.</div>
-          <div style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;margin-bottom:.3rem;">
-            <label for="combatFocusEnemySel" style="font-size:.68rem;color:var(--muted2);">Focus Enemy:</label>
-            <select id="combatFocusEnemySel" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .35rem;font-size:.78rem;border-radius:3px;min-width:11rem;" data-combat-change="focus-enemy">
-              <option value="">Closest Hostile</option>
-            </select>
-          </div>
-          <div style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;margin-bottom:.3rem;">
-            <select id="wayfarerActionSel" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.22rem .4rem;font-size:.8rem;border-radius:3px;flex:1;min-width:9rem;" data-combat-change="wayfarer-action">
-              <option value="">— Choose Action —</option>
-              <option value="standard_strike">Standard Attack (Strike) — 1 Action</option>
-              <option value="standard_shoot">Standard Attack (Shoot) — 1 Action</option>
-              <option value="heavy_strike">Heavy Attack (Strike) — 2 Actions · +Valor Die</option>
-              <option value="heavy_shoot">Heavy Attack (Shoot) — 2 Actions · +Valor Die</option>
-              <option value="fast_strike">Fast Attack (Strike) — Free · -Valor Die</option>
-              <option value="fast_shoot">Fast Attack (Shoot) — Free · -Valor Die</option>
-              <option value="stance_agg">Stance: Aggressive — 1 Action (+1 Strike/Shoot, −1 Defend)</option>
-              <option value="stance_def">Stance: Defensive — 1 Action (+1 Defend, −1 Strike/Shoot)</option>
-              <option value="switch">Switch Weapon — 1 Action</option>
-              <option value="use_item">Use Item / Hack / Spell / Flavor — 1 Action</option>
-              <option value="stand_help">Help Ally — 1 Action (they gain Step Up Adv Die)</option>
-              <option value="move_out">Move Outward (Engaged→Close→Nearby→Far) — 1 Action</option>
-              <option value="move_in">Move Inward (Far→Nearby→Close→Engaged) — 1 Action</option>
-              <option value="surprise">Surprise (Control vs Dread) — +2 first round attacks</option>
-              <option value="cover_partial">Take Partial Cover — 1 Action (+1 Defend)</option>
-              <option value="cover_full">Take Full Cover — 1 Action (immune to ranged)</option>
-              <option value="teamwork_event">⚑ Teamwork Event — Spend 5 TMW for unique effect</option>
-            </select>
-            <button id="wayfarerActionBtn" class="btn btn-primary" data-combat-click="execute-wayfarer" style="white-space:nowrap;">⚄ Execute</button>
-          </div>
-          <div id="wayfarerActionInfo" style="font-size:.68rem;color:var(--muted2);margin-bottom:.25rem;"></div>
-          <div id="wayfarerActionResult" style="margin-top:.3rem;font-size:.85rem;"></div>
-        </div>
-        <div style="margin-bottom:.6rem;"><span class="sub-label">Direct Roll (Strike / Shoot)</span>
-          <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.25rem;">
-            <button class="btn btn-primary" data-combat-click="roll-strike">⚄ Roll Strike</button>
-            <button class="btn btn-primary" data-combat-click="roll-shoot">⚄ Roll Shoot</button>
-          </div>
-          <div id="attackResult" style="margin-top:.35rem;font-size:.85rem;"></div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.45rem;margin-bottom:.6rem;">
-          <div><span class="sub-label">Defend</span><br>
-            <button class="btn btn-teal" data-combat-click="roll-defend">⚄ Roll Defend</button>
-            <div id="defendResult" style="margin-top:.35rem;font-size:.85rem;"></div>
-          </div>
-          <div><span class="sub-label">Trauma Check</span><br>
-            <button class="btn btn-sm" data-combat-click="roll-trauma">⚄ Trauma Check</button>
-            <div id="traumaResult" style="margin-top:.3rem;font-size:.85rem;"></div>
-          </div>
-          <div><span class="sub-label">Escape</span><br>
-            <button class="btn btn-sm" data-combat-click="attempt-flee">🏃 Flee</button>
-            <div id="fleeResult" style="margin-top:.3rem;font-size:.85rem;"></div>
-          </div>
-        </div>
-      </div>
-
-      <details class="card combat-advanced-details">
-        <summary>Advanced Tactical Controls</summary>
-        <div class="combat-advanced-body">
-          <div style="background:rgba(46,196,182,.06);border:1px solid var(--border2);border-radius:10px;padding:.55rem .6rem;">
-            <div style="font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;margin-bottom:.3rem;">⚙ Roll Modifiers</div>
-            <div style="display:flex;gap:.3rem;flex-wrap:wrap;align-items:center;">
-              <select id="rollModDieSel-combat" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.15rem .3rem;font-size:.78rem;border-radius:3px;">
-                <option value="0">— Adv Die —</option>
-                <option value="4">d4</option><option value="6">d6</option><option value="8">d8</option>
-                <option value="10">d10</option><option value="12">d12</option><option value="20">d20</option>
-              </select>
-              <button class="btn btn-xs btn-teal" data-combat-click="rollmod-add-adv">+ Adv</button>
-              <input type="number" id="rollModFlatInp-combat" value="0" min="-20" max="20" style="width:3rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.15rem .3rem;font-size:.78rem;border-radius:3px;" placeholder="Flat">
-              <button class="btn btn-xs" data-combat-click="rollmod-set-flat">Set Flat</button>
-              <button class="btn btn-xs btn-red" data-combat-click="rollmod-clear">✕ Clear</button>
-            </div>
-            <div id="rollModDisplay-combat" style="font-size:.72rem;color:var(--muted2);margin-top:.25rem;">None active</div>
-          </div>
-          <div class="combat-advanced-grid">
-            <div>
-              <span class="sub-label">Spacing / Zone</span>
-              <select id="spacingSelect" onchange="setCombatSpacing(this.value,true)">
-                <option>Engaged (Strike)</option><option>Close (Scrolls)</option><option>Nearby (Shoot)</option><option>Far (Out of Range)</option>
-              </select>
-              <div style="font-size:.62rem;color:var(--muted2);margin-top:.18rem;">Derived from focused enemy distance.</div>
-            </div>
-            <div>
-              <span class="sub-label">Actions Remaining</span>
-              <div class="counter-row">
-                <button class="step-btn" onclick="S.combat.actionsLeft=Math.max(0,S.combat.actionsLeft-1);updateCombatUI()">−</button>
-                <span class="counter-val gold-val" id="actionsLeft" style="font-size:1.6rem;">3</span>
-                <button class="step-btn" onclick="S.combat.actionsLeft++;updateCombatUI()">+</button>
-              </div>
-              <div style="font-size:.68rem;color:var(--muted2);margin-top:.15rem;line-height:1.45;" id="maxActionsHint"></div>
-            </div>
-            <div>
-              <span class="sub-label" title="Decrements when: ☠ Enemy Action button is clicked (enemy spends 1 action), or ⚄ Roll Defend is clicked (defending triggers an enemy response). Resets at start of each new combat cycle once all enemy actions are spent." style="cursor:help;border-bottom:1px dotted var(--muted2);">Enemy Actions Left ⓘ</span>
-              <div class="counter-row" style="padding-top:.3rem;">
-                <span class="counter-val red-val" id="enemyActionsLeftMain" style="font-size:1.6rem;">0</span>
-                <span style="font-size:.86rem;color:var(--muted2);">/</span>
-                <span class="counter-val" id="enemyActionsMaxMain" style="font-size:1.1rem;color:var(--muted2);min-width:1.6rem;">0</span>
-              </div>
-              <div style="font-size:.68rem;color:var(--muted2);margin-top:.15rem;">☠ Enemy Action or ⚄ Defend → ticks down.</div>
-            </div>
-          </div>
-          <div style="margin-bottom:.1rem;">
-            <span class="sub-label">Scene Opener</span>
-            <div id="combatOpenerPanel" style="display:none;background:rgba(201,64,64,.06);border:1px solid rgba(201,64,64,.3);border-radius:10px;padding:.5rem .6rem;">
-              <div style="font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.1em;color:var(--red2);text-transform:uppercase;margin-bottom:.3rem;">Triggered when combat begins</div>
-              <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.25rem .6rem;" id="combatOpenerRows"></div>
-              <div style="margin-top:.35rem;display:flex;gap:.3rem;flex-wrap:wrap;">
-                <button class="btn btn-xs" onclick="rollCombatOpener()">↺ Re-roll All</button>
-                <button class="btn btn-xs btn-red" onclick="document.getElementById('combatOpenerPanel').style.display='none'">✕ Dismiss</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </details>
-    </div>
-
-    <div class="card" style="grid-column:1/-1;">
-      <div class="section-title">Enemy Tracker</div>
-      <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.6rem;">
-        <button class="btn btn-sm btn-primary" data-combat-click="add-enemy">+ Add Enemy</button>
-        <button class="btn btn-sm btn-red" data-combat-click="clear-enemies">Clear All</button>
-        <select id="enemyFactionStandingSel" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.15rem .3rem;font-size:.75rem;border-radius:3px;">
-          <option value="">Random Faction Standing</option>
-          <option value="Military Orders">Military Orders</option>
-          <option value="Religious Entities">Religious Entities</option>
-          <option value="Political Groups">Political Groups</option>
-          <option value="Corporations">Corporations</option>
-          <option value="Rebel Faction">Rebel Faction</option>
-          <option value="The Underworld">The Underworld</option>
-        </select>
-      </div>
-      <div id="enemyList"></div>
-    </div>
-    <div class="card" style="grid-column:1/-1;">
-      <div class="section-title">Skirmish — Army Battle</div>
-      <div style="font-size:.76rem;color:var(--muted2);margin-bottom:.45rem;">Shared Round: <span id="skirmishRound" style="color:var(--gold2);font-weight:700;">1</span> · Each side has 2 actions, then both reset together.</div>
-      <div id="skirmishTracker"></div>
-    </div>
-  </div>
+/* Endgame readability pass */
+#tab-raidtree,
+#tab-endgame{font-size:.96rem;line-height:1.62;}
+#tab-raidtree .section-title,
+#tab-endgame .section-title{font-size:.9rem;letter-spacing:.14em;}
+#tab-raidtree [style*="color:var(--muted2)"],
+#tab-endgame [style*="color:var(--muted2)"]{color:var(--text2)!important;}
+#tab-raidtree [style*="font-size:.6"],
+#tab-raidtree [style*="font-size:.62"],
+#tab-raidtree [style*="font-size:.63"],
+#tab-raidtree [style*="font-size:.64"],
+#tab-raidtree [style*="font-size:.65"],
+#tab-raidtree [style*="font-size:.66"],
+#tab-raidtree [style*="font-size:.67"],
+#tab-raidtree [style*="font-size:.68"],
+#tab-raidtree [style*="font-size:.69"],
+#tab-raidtree [style*="font-size:.7"],
+#tab-raidtree [style*="font-size:.72"],
+#tab-endgame [style*="font-size:.6"],
+#tab-endgame [style*="font-size:.62"],
+#tab-endgame [style*="font-size:.63"],
+#tab-endgame [style*="font-size:.64"],
+#tab-endgame [style*="font-size:.65"],
+#tab-endgame [style*="font-size:.66"],
+#tab-endgame [style*="font-size:.67"],
+#tab-endgame [style*="font-size:.68"],
+#tab-endgame [style*="font-size:.69"],
+#tab-endgame [style*="font-size:.7"],
+#tab-endgame [style*="font-size:.72"]{font-size:.82rem!important;line-height:1.56!important;}
+.notif-stack{position:fixed;bottom:1.2rem;left:1.2rem;z-index:5400;display:flex;flex-direction:column-reverse;gap:.35rem;pointer-events:none;max-width:360px;}
+.notif{background:var(--card2);border:1px solid var(--gold);color:var(--text);padding:.65rem 1rem;font-size:.90rem;max-width:360px;line-height:1.55;opacity:0;transform:translateX(-120%);transition:transform .24s ease,opacity .24s ease;box-shadow:0 10px 24px rgba(0,0,0,.35);}
+.notif.show{transform:translateX(0);opacity:1;}.notif.warn{border-color:var(--red);}.notif.good{border-color:var(--green);}
+.dice-roll-layer{position:fixed;right:1.2rem;top:4rem;z-index:1300;display:flex;flex-direction:column;gap:.35rem;pointer-events:none;max-width:240px;}
+.dice-roll-cinematic-layer{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:1350;}
+.dice-roll-pop{background:rgba(11,12,26,.94);border:1px solid rgba(201,162,39,.45);padding:.35rem .5rem;border-radius:4px;box-shadow:0 8px 24px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:space-between;gap:.6rem;min-width:150px;transform:translateX(18px) scale(.92);opacity:0;animation:dice-pop-in .18s ease forwards,dice-pop-out .24s ease forwards 1.18s;}
+.dice-roll-pop.exploded{border-color:rgba(224,80,80,.6);}
+.dice-roll-pop.action{border-color:rgba(46,196,182,.65);}
+.dice-roll-pop.action .dr-die{border-color:rgba(46,196,182,.75);background:rgba(46,196,182,.14);color:var(--teal2);}
+.dice-roll-pop.action .dr-value{color:var(--teal2);}
+.dice-roll-pop.dread{border-color:rgba(224,80,80,.72);}
+.dice-roll-pop.dread .dr-die{border-color:rgba(224,80,80,.78);background:rgba(224,80,80,.14);color:#ff9384;}
+.dice-roll-pop.dread .dr-value{color:#ff8a72;}
+.dice-roll-pop .dr-left{display:flex;align-items:center;gap:.4rem;min-width:0;}
+.dice-roll-pop .dr-die{width:1.25rem;height:1.25rem;border:1px solid rgba(46,196,182,.55);background:rgba(46,196,182,.08);color:var(--teal2);font-family:'Rajdhani',sans-serif;font-size:.7rem;font-weight:700;display:flex;align-items:center;justify-content:center;transform:rotate(45deg);border-radius:2px;flex-shrink:0;}
+.dice-roll-pop .dr-die span{transform:rotate(-45deg);}
+.dice-roll-pop .dr-label{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.11em;color:var(--muted2);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dice-roll-pop .dr-value{font-family:'Rajdhani',sans-serif;font-size:1.05rem;font-weight:700;color:var(--gold2);line-height:1;}
+.dice-roll-pop.exploded .dr-value{color:var(--red2);}
+.dice-roll-pop.tumble3d{transform-style:preserve-3d;perspective:900px;animation:dice-tumble-in .56s cubic-bezier(.16,.84,.24,1) forwards,dice-tumble-out .28s ease forwards 1.18s;}
+.dice-roll-pop.tumble3d .dr-die{transform:rotate3d(1,1,.2,0deg);animation:dice-face-spin .72s cubic-bezier(.2,.75,.2,1) forwards;will-change:transform;backface-visibility:hidden;}
+.dice-roll-pop.tumble3d .dr-value{animation:dice-value-pop .28s ease-out .36s both;}
+.dice-roll-cine{min-width:220px;max-width:420px;padding:.85rem 1rem;border-radius:8px;border:1px solid rgba(201,162,39,.7);background:rgba(6,7,14,.95);box-shadow:0 26px 60px rgba(0,0,0,.55),0 0 0 1px rgba(201,162,39,.22) inset;display:flex;align-items:center;justify-content:space-between;gap:1rem;opacity:0;transform:translateY(20px) scale(.94);animation:dice-cine-in .2s ease forwards,dice-cine-out .24s ease forwards 1.26s;}
+.dice-roll-cine .dr-die{width:2.1rem;height:2.1rem;font-size:.98rem;}
+.dice-roll-cine .dr-label{font-size:.68rem;letter-spacing:.14em;}
+.dice-roll-cine .dr-value{font-size:2.1rem;}
+.dice-roll-cine.tumble3d .dr-die{animation:dice-face-spin-cine .82s cubic-bezier(.2,.75,.2,1) forwards;}
+.dice-roll-cine.action{border-color:rgba(46,196,182,.78);}
+.dice-roll-cine.dread{border-color:rgba(224,80,80,.82);}
+@keyframes dice-cine-in{from{opacity:0;transform:translateY(20px) scale(.94);}to{opacity:1;transform:translateY(0) scale(1);}}
+@keyframes dice-cine-out{from{opacity:1;transform:translateY(0) scale(1);}to{opacity:0;transform:translateY(20px) scale(.96);}}
+@keyframes dice-pop-in{from{opacity:0;transform:translateX(18px) scale(.92);}to{opacity:1;transform:translateX(0) scale(1);}}
+@keyframes dice-pop-out{from{opacity:1;transform:translateX(0) scale(1);}to{opacity:0;transform:translateX(22px) scale(.96);}}
+@keyframes dice-tumble-in{from{opacity:0;transform:translateX(24px) scale(.86) rotateX(var(--dr-card-rx,-30deg)) rotateY(var(--dr-card-ry,20deg));}to{opacity:1;transform:translateX(0) scale(1) rotateX(0deg) rotateY(0deg);}}
+@keyframes dice-tumble-out{from{opacity:1;transform:translateX(0) scale(1);}to{opacity:0;transform:translateX(20px) scale(.95) rotateX(-8deg) rotateY(12deg);}}
+@keyframes dice-face-spin{from{transform:rotate3d(1,1,.2,var(--dr-spin,1080deg));}to{transform:rotate3d(1,1,.2,45deg);}}
+@keyframes dice-face-spin-cine{from{transform:rotate3d(1,1,.2,var(--dr-spin-cine,1260deg));}to{transform:rotate3d(1,1,.2,45deg);}}
+@keyframes dice-value-pop{from{opacity:0;transform:translateY(4px) scale(.9);}to{opacity:1;transform:translateY(0) scale(1);}}
+@keyframes heroPanelIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+@keyframes heroItemIn{from{opacity:0;transform:translateY(9px);}to{opacity:1;transform:translateY(0);}}
+@media(max-width:820px){.dice-roll-layer{right:.5rem;top:3.7rem;max-width:200px;}.dice-roll-pop{min-width:130px;}}
+.enemy-card{background:var(--surface);border:1px solid var(--border2);padding:.6rem;display:flex;align-items:center;gap:.6rem;margin-bottom:.3rem;}
+.e-pip{width:.8rem;height:.8rem;border:1px solid var(--border2);cursor:pointer;transition:all .1s;}
+.e-pip.filled{background:var(--red);border-color:var(--red2);}
+.tmw-pool{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.3rem;}
+.tmw-pip{width:.9rem;height:.9rem;border:1px solid var(--teal);background:rgba(46,196,182,.15);border-radius:50%;cursor:pointer;}
+.codex-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;}
+@media(max-width:900px){.codex-grid{grid-template-columns:1fr;}}
+.codex-cats{display:flex;gap:.2rem;margin-bottom:.85rem;flex-wrap:wrap;}
+.wild-panel{background:var(--surface);border:1px solid var(--border2);padding:.55rem;margin-bottom:.3rem;}
+.wild-panel .wp-label{font-family:'Cinzel',serif;font-size:.71rem;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;margin-bottom:.22rem;}
+.wild-panel .wp-text{font-size:.92rem;color:var(--text2);line-height:1.62;}
+.venture-result{background:var(--card);border-left:3px solid var(--gold2);padding:.5rem .7rem;margin-top:.3rem;}
+.venture-result .vr-type{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.12em;color:var(--gold2);text-transform:uppercase;margin-bottom:.2rem;}
+.wayfarer-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:.55rem;align-items:stretch;}
+.wayfarer-card{background:var(--surface);border:1px solid var(--border2);padding:.68rem;margin-bottom:0;min-height:100%;overflow:hidden;}
+.wayfarer-card .wf-top{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.55rem;align-items:center;}
+.wayfarer-card .wf-meta{min-width:0;}
+.wf-name{font-family:'Cinzel',serif;font-size:.78rem;color:var(--gold2);}.wf-bg{font-size:.7rem;color:var(--teal);}
+.wf-story{font-size:.83rem;color:var(--muted3);line-height:1.5;margin-top:.2rem;font-style:italic;}
+.wf-drive{font-size:.68rem;color:var(--green);font-family:'Cinzel',serif;letter-spacing:.06em;margin-top:.2rem;}
+@media(max-width:760px){.wayfarer-grid{grid-template-columns:1fr;}}
+.trade-block{background:var(--surface);border:1px solid var(--border2);padding:.65rem;margin-bottom:.4rem;}
+.trade-block .tb-label{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.25rem;}
+.hist-entry{display:grid;grid-template-columns:2rem 1fr;gap:.4rem;padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,.03);}
+.hist-num{font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--gold);font-size:.9rem;}
+.hist-text{font-size:.85rem;color:var(--text2);line-height:1.5;}
+.ruin-room{background:var(--surface);border:1px solid var(--border2);padding:.5rem;margin-bottom:.3rem;}
+.ruin-room-title{font-family:'Cinzel',serif;font-size:.65rem;color:var(--gold2);letter-spacing:.08em;margin-bottom:.2rem;}
+.gate-block{background:var(--surface);border:1px solid rgba(46,196,182,.3);padding:.5rem .65rem;margin-bottom:.3rem;}
+.gate-block .gb-label{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;margin-bottom:.15rem;}
+.gate-block .gb-text{font-size:.83rem;color:var(--text2);line-height:1.5;}
+.lc-block{background:var(--surface);border:1px solid rgba(224,128,192,.3);padding:.5rem .65rem;margin-bottom:.3rem;}
+.lc-block .lb-label{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:#e080c0;text-transform:uppercase;margin-bottom:.15rem;}
+.lc-block .lb-text{font-size:.83rem;color:var(--text2);line-height:1.5;}
+.peril-block{background:rgba(201,64,64,.04);border:1px solid rgba(201,64,64,.2);padding:.5rem .65rem;margin-bottom:.3rem;}
 .barrier-block{background:rgba(122,120,152,.04);border:1px solid rgba(122,120,152,.25);padding:.5rem .65rem;margin-bottom:.3rem;}
 .mood-block{background:rgba(201,162,39,.04);border:1px solid rgba(201,162,39,.2);padding:.5rem .65rem;margin-bottom:.3rem;}
 .mood-block .mb-label{font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.15rem;}
@@ -465,11 +391,8 @@ body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr 1f
 .weather-block.clear{background:rgba(46,196,182,.04);border-color:rgba(46,196,182,.3);}
 .weather-block.rough{background:rgba(201,64,64,.08);border-color:var(--red);}
 .weather-label{font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.15rem;}
-.char-top{display:flex;align-items:flex-end;justify-content:space-between;gap:.7rem;flex-wrap:wrap;margin-bottom:.85rem;padding:.85rem 1rem;border:1px solid rgba(46,196,182,.24);border-radius:14px;background:linear-gradient(160deg,rgba(10,13,22,.94),rgba(13,16,29,.94));box-shadow:0 16px 36px rgba(0,0,0,.2);}
-.char-top-copy{display:grid;gap:.18rem;min-width:0;}
+.char-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:.85rem;flex-wrap:wrap;gap:.5rem;}
 .char-top-title{font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.14em;color:var(--muted2);text-transform:uppercase;}
-.char-top-note{font-size:.8rem;line-height:1.45;color:var(--muted2);max-width:58rem;}
-.char-top-actions{display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;}
 .solo-unsaved .char-top-title::after{content:' • UNSAVED';color:var(--warn);letter-spacing:.08em;margin-left:.35rem;}
 .homepage-hero{position:relative;overflow:hidden;background:linear-gradient(130deg,rgba(201,162,39,.16) 0%,rgba(16,20,42,.92) 38%,rgba(10,14,30,.96) 100%);border:1px solid rgba(201,162,39,.34);padding:1.15rem 1.15rem 1rem;margin-bottom:.8rem;border-radius:14px;}
 .homepage-hero::before{content:'';position:absolute;right:-3rem;top:-4rem;width:14rem;height:14rem;background:radial-gradient(circle,rgba(46,196,182,.22) 0%,rgba(46,196,182,0) 70%);pointer-events:none;}
@@ -745,11 +668,8 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     </div>
   </section>
   <div class="char-top">
-    <div class="char-top-copy">
-      <div class="char-top-title">Wayfarer Sheet</div>
-      <div class="char-top-note">Manage the active run from one clean dock: build the character, save progress, and jump back into play without hunting through the sheet.</div>
-    </div>
-    <div class="char-top-actions">
+    <div class="char-top-title">Wayfarer Sheet</div>
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
       <button class="btn" onclick="showSoloGuidance()">Guide</button>
       <button class="btn btn-primary" onclick="generateCharacter()">⚄ Generate Wayfarer</button>
       <button class="btn btn-teal" onclick="startGuidedCharacterBuild()">Guided Build</button>
@@ -1123,38 +1043,6 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 
 <!-- PROVINCE TAB -->
 <div class="tab-panel" id="tab-map">
-  <div class="map-hud-shell">
-    <div class="map-hud-hero">
-      <div>
-        <div class="section-title" style="margin-bottom:.45rem;">Province Map</div>
-        <div class="map-scene-kicker">Current Region</div>
-        <div class="map-hud-note">Set the age and season, generate the province, then choose a hex and travel mode. The map should feel like a scene table with a clear center, not a wall of toggles.</div>
-      </div>
-      <div class="map-hud-actions">
-        <button class="btn btn-primary" onclick="generateMap()">⚄ Generate Province</button>
-        <button class="btn" onclick="clearMap()">✕ Clear</button>
-        <button class="btn btn-sm" id="nightModeToggleBtn" onclick="toggleNightMode()">Night Mode: Off</button>
-      </div>
-      <div class="map-status-strip">
-        <div class="map-status-chip">
-          <span class="label">Time</span>
-          <div class="value" id="mapTimeDisplay">Month 1, Day 1, Year 1 — Morning</div>
-        </div>
-        <div class="map-status-chip">
-          <span class="label">Province</span>
-          <div class="value" id="currentProvinceIndicator"></div>
-        </div>
-        <div class="map-status-chip">
-          <span class="label">Hex</span>
-          <div class="value" id="hexCoords"></div>
-        </div>
-        <div class="map-status-chip">
-          <span class="label">Travel Mode</span>
-          <div class="value"><button class="btn btn-sm btn-teal" id="mapClickModeBtn" onclick="toggleMapClickMode()">Map Mode: Travel</button></div>
-        </div>
-      </div>
-    </div>
-  </div>
   <div class="map-controls">
     <div class="age-btn on" id="age-green" onclick="setAge('green',this)">Green Age</div>
     <div class="age-btn" id="age-golden" onclick="setAge('golden',this)">Golden Age</div>
@@ -1164,13 +1052,19 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <div class="season-btn" id="season-harvest" onclick="setSeason('harvest',this)">Harvest</div>
     <div class="season-btn" id="season-winter" onclick="setSeason('winter',this)">Winter</div>
     <span style="color:var(--muted);font-size:.6rem;margin:0 .3rem;">|</span>
-    <button class="btn btn-sm btn-teal" id="campaignFogVisionBtn" onclick="toggleCampaignFogPlayerVision()">Campaign Player Vision: Path</button>
+    <button class="btn btn-primary" onclick="generateMap()">⚄ Generate Province</button>
+    <button class="btn" onclick="clearMap()">✕ Clear</button>
+    <button class="btn btn-sm" id="nightModeToggleBtn" onclick="toggleNightMode()">Night Mode: Off</button>
+    <button class="btn btn-sm btn-teal" id="mapClickModeBtn" onclick="toggleMapClickMode()">Map Mode: Travel</button>
+    <button class="btn btn-sm" id="campaignFogVisionBtn" onclick="toggleCampaignFogPlayerVision()">Campaign Player Vision: Path</button>
     <button class="btn btn-sm btn-teal" id="longRestPhaseBtn" style="display:none;" onclick="takeLongRestAtCamp()">Take a Long Rest</button>
     <select id="mapHexStyleSel" onchange="setMapHexStyle(this.value)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
       <option value="classic">Hex Style: Classic</option>
     </select>
     <button class="btn btn-sm" id="mapAtlasBtn" style="display:none;" onclick="if(typeof switchTab==='function'){var b=document.getElementById('tabnav-theos');switchTab('theos',b||null);}">Atlas</button>
-    <span style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--gold2);margin-left:.4rem;">Use the hero strip above for the at-a-glance readout.</span>
+    <span id="mapTimeDisplay" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--gold2);margin-left:.4rem;">Month 1, Day 1, Year 1 — Morning</span>
+    <span id="currentProvinceIndicator" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--teal);margin-left:.4rem;"></span>
+    <span id="hexCoords" style="font-family:'Rajdhani',sans-serif;font-size:.78rem;color:var(--muted2);margin-left:.4rem;"></span>
   </div>
   <div class="map-legend">
     <div class="leg-item"><div class="leg-dot" style="background:#8b3030;border:1px solid #e8c050;"></div>Seat</div>

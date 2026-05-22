@@ -2782,19 +2782,36 @@ function maybePromptSoloGuidance() {
     const dismissed = localStorage.getItem("beyond-light-solo-guide-dismissed") === "1";
     const hasAnySave = !!(localStorage.getItem(SOLO_SAVE_KEY) || localStorage.getItem(SOLO_SAVE_BACKUP_KEY));
     if (dismissed || hasAnySave || metaRaw) return;
-    if (typeof openModal === "function") {
-      openModal("Welcome, Solo Wayfarer", ''
-        + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
-        + '<div style="margin-bottom:.4rem;">Need a quick launch path? Start with Character, then Province, Missions, and Storyline.</div>'
-        + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;">'
-        + '<button class="btn btn-sm" onclick="localStorage.setItem(\'beyond-light-solo-guide-dismissed\',\'1\'); closeModal();">Dismiss</button>'
-        + '<button class="btn btn-sm btn-teal" onclick="localStorage.setItem(\'beyond-light-solo-guide-dismissed\',\'1\'); closeModal(); showSoloGuidance();">Open Solo Guide</button>'
-        + '</div>'
-        + '</div>', null, { preventScroll: true, focusTrap: true });
+    localStorage.setItem("beyond-light-solo-guide-dismissed", "1");
+    if (typeof showNotif === "function") {
+      showNotif('Solo quickstart: Character -> Province -> Missions -> Storyline. Open Solo Guide from Solo tools anytime.', 'info');
     }
   } catch (_err) {
     // Ignore first-run guidance failures.
   }
+}
+
+function clearBlockingSoloWelcomeModal() {
+  try {
+    const overlay = document.getElementById('rollModal');
+    const title = document.getElementById('modalTitle');
+    if (!overlay || !title) return;
+    if (overlay.classList.contains('open') && String(title.textContent || '').trim() === 'Welcome, Solo Wayfarer') {
+      if (typeof closeModal === 'function') closeModal();
+    }
+  } catch (_err) {
+    // Non-fatal startup guard.
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function () {
+    setTimeout(clearBlockingSoloWelcomeModal, 1200);
+    setTimeout(clearBlockingSoloWelcomeModal, 2600);
+  });
+} else {
+  setTimeout(clearBlockingSoloWelcomeModal, 1200);
+  setTimeout(clearBlockingSoloWelcomeModal, 2600);
 }
 
 function getHeaderHeartbeatStatus() {

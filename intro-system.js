@@ -2,6 +2,8 @@
 // Presents an immersive introduction before entering the main game
 (function () {
   const INTRO_ID = "intro";
+  const INTRO_SEEN_KEY = "btl_intro_seen";
+  let introInteraction = false;
 
   const INTRO_CONTENT = {
     screens: [
@@ -205,6 +207,11 @@ Enter the game.
     const introContainer = document.getElementById(INTRO_ID);
     if (!introContainer) return;
 
+    if (shouldAutoSkipIntro()) {
+      hideIntroOverlay();
+      return;
+    }
+
     let html = `<div class="intro-wrapper">`;
 
     INTRO_CONTENT.screens.forEach((screen, index) => {
@@ -239,6 +246,35 @@ Enter the game.
     html += `</div>`;
     introContainer.innerHTML = html;
     showScreen("welcome");
+
+    // Failsafe: never let intro lock core gameplay if onboarding UI stalls.
+    setTimeout(function () {
+      if (!introInteraction) {
+        const host = document.getElementById(INTRO_ID);
+        if (host && host.style.display !== 'none') hideIntroOverlay();
+      }
+    }, 1500);
+  }
+
+  function markIntroSeen() {
+    try { localStorage.setItem(INTRO_SEEN_KEY, "1"); } catch (_err) {}
+  }
+
+  function hasSeenIntro() {
+    try { return localStorage.getItem(INTRO_SEEN_KEY) === "1"; } catch (_err) { return false; }
+  }
+
+  function hasExistingProgress() {
+    const state = (typeof window !== 'undefined') ? (window.S || {}) : {};
+    const hasCharacter = !!String((state && state.name) || '').trim();
+    const hasSea = !!(state && state.lastSea && Array.isArray(state.lastSea.map) && state.lastSea.map.length);
+    const hasStars = !!(state && state.starSystem && Array.isArray(state.starSystem.hexes) && state.starSystem.hexes.length);
+    const hasWorld = !!(state && state.worldThatWas && Array.isArray(state.worldThatWas.hexes) && state.worldThatWas.hexes.length);
+    return hasCharacter || hasSea || hasStars || hasWorld;
+  }
+
+  function shouldAutoSkipIntro() {
+    return hasSeenIntro() || hasExistingProgress();
   }
 
   let currentScreenIndex = 0;
@@ -253,6 +289,7 @@ Enter the game.
   }
 
   function nextScreen() {
+    introInteraction = true;
     if (currentScreenIndex < INTRO_CONTENT.screens.length - 1) {
       currentScreenIndex++;
       showScreen(INTRO_CONTENT.screens[currentScreenIndex].id);
@@ -260,6 +297,7 @@ Enter the game.
   }
 
   function prevScreen() {
+    introInteraction = true;
     if (currentScreenIndex > 0) {
       currentScreenIndex--;
       showScreen(INTRO_CONTENT.screens[currentScreenIndex].id);
@@ -267,6 +305,7 @@ Enter the game.
   }
 
   function startGame() {
+    markIntroSeen();
     hideIntroOverlay();
     if (isSoloModeEnabled()) {
       promptSoloEntryMode();
@@ -365,6 +404,7 @@ Enter the game.
   }
 
   function skipIntro() {
+    markIntroSeen();
     if (typeof showNotif === 'function') {
       showNotif('Skipping intro...', 'good');
     }

@@ -214,9 +214,9 @@ body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr 1f
 .hex-type-tag.wilderness{color:var(--teal);border-color:var(--teal);}.hex-type-tag.holding{color:var(--red2);border-color:var(--red2);}.hex-type-tag.seat{color:var(--gold);border-color:var(--gold);}.hex-type-tag.dwelling{color:#a0c040;border-color:#a0c040;}.hex-type-tag.temple{color:#b060d0;border-color:#b060d0;}.hex-type-tag.monument{color:var(--muted3);border-color:var(--muted3);}.hex-type-tag.peril{color:var(--red2);border-color:var(--red2);}.hex-type-tag.ruins{color:#a09870;border-color:#a09870;}.hex-type-tag.event{color:var(--gold2);border-color:var(--gold2);}.hex-type-tag.gate{color:var(--teal);border-color:var(--teal);}.hex-type-tag.lostcity{color:#e080c0;border-color:#e080c0;}.hex-type-tag.barrier{color:var(--muted2);border-color:var(--muted2);}.hex-type-tag.trade{color:#f0a840;border-color:#f0a840;}
 .hex-name{font-family:'Cinzel',serif;font-size:.88rem;color:var(--gold2);margin-bottom:.28rem;font-weight:700;}
 .hex-desc{font-size:.88rem;color:var(--text);line-height:1.7;}
-.global-quick-access,.context-quick-actions{position:static;top:auto;padding:.3rem .5rem;gap:.25rem;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;}
-.global-quick-access .qa-label,.context-quick-actions .qa-label{flex:0 0 auto;}
-.global-quick-access .btn,.context-quick-actions .btn{flex:0 0 auto;white-space:nowrap;font-size:.7rem;padding:.24rem .5rem;min-height:1.9rem;}
+@media (max-width:900px){.global-quick-access,.context-quick-actions{padding:.3rem .5rem;gap:.25rem;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin;}}
+@media (max-width:900px){.global-quick-access .qa-label,.context-quick-actions .qa-label{flex:0 0 auto;}}
+@media (max-width:900px){.global-quick-access .btn,.context-quick-actions .btn{flex:0 0 auto;white-space:nowrap;font-size:.7rem;padding:.24rem .5rem;min-height:1.9rem;}}
 .mystery-card{background:var(--surface);border-left:2px solid var(--gold);padding:.55rem .70rem;font-size:.88rem;line-height:1.7;font-style:italic;color:var(--text);}
 .notif-stack{left:.5rem;right:.5rem;max-width:none;}
 .notif{max-width:none;}

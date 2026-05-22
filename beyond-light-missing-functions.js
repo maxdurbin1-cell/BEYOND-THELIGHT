@@ -41,7 +41,11 @@ function getTabLabelFromButton(btn, tabId) {
 
 function getNavTabButton(tabId) {
   if (!tabId) return null;
-  return document.querySelector("nav .tab-btn[onclick*=\"switchTab('" + tabId + "'\"]");
+  return document.querySelector(
+    "nav .tab-btn[data-tab='" + String(tabId).replace(/'/g, "\\'") + "']," +
+    "nav .tab-btn#tabnav-" + String(tabId).replace(/[^a-z0-9_-]/gi, '') + "," +
+    "nav .tab-btn[onclick*=\"switchTab('" + String(tabId).replace(/'/g, "\\'") + "'\"]"
+  );
 }
 
 function getPreferredContextForTabButton(btn) {
@@ -82,7 +86,12 @@ function renderGlobalQuickAccess() {
   if (!root) return;
   const header = document.querySelector('header');
   const headerHeight = header ? Math.ceil(header.getBoundingClientRect().height || 0) : 0;
+  root.style.display = 'flex';
+  root.style.position = 'sticky';
   root.style.top = headerHeight ? (headerHeight + 'px') : '';
+  root.style.flexWrap = 'wrap';
+  root.style.overflowX = 'auto';
+  root.style.webkitOverflowScrolling = 'touch';
   if (document.documentElement) {
     document.documentElement.style.setProperty('--quick-access-top', (headerHeight || 0) + 'px');
   }
@@ -169,8 +178,17 @@ function runContextQuickAction(actionId) {
 function renderContextQuickActions(tabId) {
   const root = document.getElementById('contextQuickActions');
   if (!root) return;
-  root.style.display = 'none';
-  root.innerHTML = '';
+  const activeTab = String(tabId || '').trim();
+  const actions = activeTab ? (CONTEXT_QUICK_ACTIONS[activeTab] || []) : [];
+  if (!actions.length) {
+    root.style.display = 'none';
+    root.innerHTML = '';
+    return;
+  }
+  root.style.display = 'flex';
+  root.innerHTML = '<span class="qa-label">Context</span>' + actions.map(function(action) {
+    return '<button class="btn btn-sm" onclick="runContextQuickAction(\'' + String(action.id || '').replace(/'/g, "&#39;") + '\')">' + String(action.label || action.id || 'Action') + '</button>';
+  }).join('');
 }
 
 window.runContextQuickAction = runContextQuickAction;
@@ -412,7 +430,11 @@ function getEffectiveDie(key) {
 function updateDieDisplay(key) {
   const el = document.getElementById("die-" + key);
   if (!el) {
-    return;
+    const handler = CONTEXT_QUICK_ACTION_HANDLERS[actionId];
+    if (typeof handler === 'function') {
+      return handler();
+    }
+    return false;
   }
   const value = key === "valor" ? (S.stats.valor || 4) : getEffectiveDie(key);
   let displayText = "d" + value;

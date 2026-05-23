@@ -2317,6 +2317,173 @@ function exportWayfarerSheetPDF(options) {
       showNotif('Popup blocked. Allow popups to export PDF.', 'warn');
       return;
     }
+    const esc = function (value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    };
+    const checkedAttr = function (on) { return on ? ' checked' : ''; };
+
+    if (gameSheet) {
+      const stats = (S && S.stats) || {};
+      const getDie = function (key) {
+        try {
+          if (typeof getEffectiveDie === 'function') return Number(getEffectiveDie(key) || 4) || 4;
+        } catch (_err) {}
+        return Number(stats[key] || 4) || 4;
+      };
+      const stressNow = Number((S && (S.health != null ? S.health : S.stress)) || 0) || 0;
+      const traumaNow = Number((S && S.trauma) || 0) || 0;
+      const renownNow = Number((S && S.renown) || 0) || 0;
+      const creditsNow = Number((S && S.credits) || 0) || 0;
+      const pathNow = Number((S && S.pathTokens) || 0) || 0;
+      const successNow = Number((S && S.successRolls) || 0) || 0;
+      const radsNow = Number((S && S.rads) || 0) || 0;
+      const maxStressEl = document.getElementById('maxStressVal');
+      const maxStress = Number(maxStressEl ? maxStressEl.textContent : 0) || (getDie('defend') * 2);
+      const injuries = Array.isArray(S && S.injuries) ? S.injuries : [];
+      const scars = (S && S.scarState && Array.isArray(S.scarState.results)) ? S.scarState.results : [];
+      const backpack = Array.isArray(S && S.backpack) ? S.backpack.slice(0, 8) : [];
+      while (backpack.length < 8) backpack.push('');
+      const cond = (S && S.conditions) || {};
+      const traits = (S && S.traits) || {};
+
+      const lines = function (count, rows, baseName) {
+        var out = '';
+        for (var i = 0; i < count; i++) {
+          out += '<div class="line-row"><span class="line-dot">o</span><input type="text" name="' + baseName + '-' + i + '" value="' + esc(rows[i] || '') + '"></div>';
+        }
+        return out;
+      };
+
+      w.document.open();
+      w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Wayfarer Character Sheet</title>'
+        + '<style>'
+        + ':root{--ink:#111;--line:#2a2a2a;--soft:#666;--paper:#f5f2ec;}'
+        + '*{box-sizing:border-box;} html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:"Times New Roman",Georgia,serif;}'
+        + '.sheet{width:210mm;min-height:297mm;margin:0 auto;padding:9mm;border:1px solid #1b1b1b;background:var(--paper);}'
+        + '.title{display:flex;align-items:flex-end;justify-content:space-between;border-bottom:2px solid var(--line);padding-bottom:3mm;margin-bottom:3.5mm;}'
+        + '.title h1{margin:0;font-size:9.5mm;letter-spacing:.6mm;text-transform:uppercase;}'
+        + '.title .meta{font-size:3.3mm;color:#333;}'
+        + '.grid-top{display:grid;grid-template-columns:1.2fr .8fr;gap:3mm;margin-bottom:3mm;}'
+        + '.box{border:1px solid var(--line);padding:2.2mm;background:rgba(255,255,255,.35);}'
+        + '.box h3{margin:0 0 1.3mm 0;font-size:3.6mm;letter-spacing:.2mm;text-transform:uppercase;}'
+        + '.field{display:grid;grid-template-columns:30mm 1fr;align-items:end;gap:2mm;margin-bottom:1.4mm;}'
+        + '.field label{font-size:3mm;font-weight:700;text-transform:uppercase;letter-spacing:.2mm;}'
+        + '.field input,.field textarea{width:100%;border:none;border-bottom:1px solid var(--line);background:transparent;padding:.4mm .4mm 0;font:inherit;font-size:3.2mm;}'
+        + '.field textarea{min-height:9mm;resize:vertical;}'
+        + '.vital-grid{display:grid;grid-template-columns:1fr 1fr;gap:2mm;}'
+        + '.mini{border:1px solid var(--line);padding:1.6mm;min-height:15mm;}'
+        + '.mini strong{display:block;font-size:3mm;text-transform:uppercase;letter-spacing:.2mm;margin-bottom:.8mm;}'
+        + '.mini input{width:100%;border:none;border-bottom:1px solid var(--line);background:transparent;font-size:4mm;font-weight:700;text-align:center;}'
+        + '.dot-track{display:flex;gap:1.6mm;align-items:center;flex-wrap:wrap;margin-top:1.5mm;}'
+        + '.dot-track span{font-size:2.8mm;font-weight:700;text-transform:uppercase;}'
+        + '.dot-track label{display:inline-flex;align-items:center;justify-content:center;width:5mm;height:5mm;border:1px solid var(--line);border-radius:50%;font-size:0;}'
+        + '.dot-track input{width:100%;height:100%;margin:0;accent-color:#111;}'
+        + '.actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2.5mm;margin-bottom:3mm;}'
+        + '.action-col{border:1px solid var(--line);padding:2mm;}'
+        + '.action-head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:1mm;margin-bottom:1.3mm;}'
+        + '.action-head h4{margin:0;font-size:3.5mm;text-transform:uppercase;}'
+        + '.action-head input{width:15mm;border:none;border-bottom:1px solid var(--line);background:transparent;text-align:center;font-size:3.3mm;}'
+        + '.action-row{display:grid;grid-template-columns:1fr 13mm;gap:2mm;align-items:end;margin-bottom:1mm;}'
+        + '.action-row label{font-size:2.9mm;font-weight:700;text-transform:uppercase;}'
+        + '.action-row input{border:none;border-bottom:1px solid var(--line);background:transparent;text-align:center;font-size:3.1mm;}'
+        + '.cond-strip{display:grid;grid-template-columns:1fr 1fr;gap:1mm;margin-top:1.4mm;}'
+        + '.cond-strip label{display:flex;gap:1.2mm;align-items:center;border:1px solid var(--line);padding:.8mm 1mm;font-size:2.6mm;text-transform:uppercase;}'
+        + '.mid-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2.5mm;margin-bottom:3mm;}'
+        + '.line-row{display:grid;grid-template-columns:4mm 1fr;gap:1.2mm;align-items:end;margin-bottom:1mm;}'
+        + '.line-dot{font-size:3.2mm;line-height:1;}'
+        + '.line-row input{border:none;border-bottom:1px solid var(--line);background:transparent;font-size:3mm;padding:0;}'
+        + '.stack h5{margin:0 0 1.2mm 0;font-size:3.1mm;text-transform:uppercase;letter-spacing:.2mm;}'
+        + '.stack{border:1px solid var(--line);padding:1.8mm;}'
+        + '.bottom{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2.5mm;}'
+        + '.note{font-size:2.5mm;color:#444;line-height:1.35;margin-top:1.1mm;}'
+        + '.footer{margin-top:2.6mm;padding-top:1.8mm;border-top:1px solid var(--line);display:flex;justify-content:space-between;font-size:3mm;text-transform:uppercase;letter-spacing:.15mm;}'
+        + '@media print{@page{size:A4 portrait;margin:8mm;} .sheet{border:1px solid #111;min-height:0;width:auto;margin:0;}}'
+        + '</style></head><body>'
+        + '<form class="sheet">'
+        + '<div class="title"><h1>Beyond The Stars</h1><div class="meta">Wayfarer Character Sheet</div></div>'
+        + '<div class="grid-top">'
+        + '<div class="box">'
+        + '<h3>Identity</h3>'
+        + '<div class="field"><label>Name</label><input type="text" value="' + esc((S && S.name) || '') + '"></div>'
+        + '<div class="field"><label>Background</label><input type="text" value="' + esc((S && S.background) || '') + '"></div>'
+        + '<div class="field"><label>Career</label><input type="text" value="' + esc((S && S.career) || '') + '"></div>'
+        + '<div class="field"><label>Drive</label><textarea>' + esc((S && S.reason) || '') + '</textarea></div>'
+        + '<div class="field"><label>Age</label><input type="text" value="' + esc((S && S.age) || '') + '"></div>'
+        + '<div class="field"><label>Birth Omen</label><input type="text" value="' + esc((S && S.omen) || '') + '"></div>'
+        + '</div>'
+        + '<div class="box">'
+        + '<h3>Stress and Recovery</h3>'
+        + '<div class="vital-grid">'
+        + '<div class="mini"><strong>Health</strong><input type="text" value="' + esc(stressNow + ' / ' + maxStress) + '"></div>'
+        + '<div class="mini"><strong>Stamina</strong><input type="text" value="' + esc(String(Math.max(0, maxStress - stressNow))) + '"></div>'
+        + '<div class="mini"><strong>Stress Count</strong><input type="text" value="' + esc(String(stressNow)) + '"></div>'
+        + '<div class="mini"><strong>Trauma Count</strong><input type="text" value="' + esc(String(traumaNow)) + '"></div>'
+        + '</div>'
+        + '<div class="dot-track"><span>Path Tokens</span>'
+        + '<label><input type="checkbox"' + checkedAttr(pathNow >= 1) + '></label><label><input type="checkbox"' + checkedAttr(pathNow >= 2) + '></label><label><input type="checkbox"' + checkedAttr(pathNow >= 3) + '></label><label><input type="checkbox"' + checkedAttr(pathNow >= 4) + '></label><label><input type="checkbox"' + checkedAttr(pathNow >= 5) + '></label>'
+        + '</div>'
+        + '<div class="dot-track"><span>Success Rolls</span>'
+        + '<label><input type="checkbox"' + checkedAttr(successNow >= 1) + '></label><label><input type="checkbox"' + checkedAttr(successNow >= 2) + '></label><label><input type="checkbox"' + checkedAttr(successNow >= 3) + '></label>'
+        + '</div>'
+        + '<div class="note">Renown: ' + esc(String(renownNow)) + ' | Credits: ' + esc(String(creditsNow)) + ' | Rads: ' + esc(String(radsNow)) + '</div>'
+        + '</div>'
+        + '</div>'
+        + '<div class="actions">'
+        + '<div class="action-col">'
+        + '<div class="action-head"><h4>Body</h4><input type="text" value="d' + esc(String(getDie('body'))) + '"></div>'
+        + '<div class="action-row"><label>Strike</label><input type="text" value="d' + esc(String(getDie('strike'))) + '"></div>'
+        + '<div class="action-row"><label>Shoot</label><input type="text" value="d' + esc(String(getDie('shoot'))) + '"></div>'
+        + '<div class="cond-strip"><label><input type="checkbox"' + checkedAttr(!!cond.empowered) + '>Empowered</label><label><input type="checkbox"' + checkedAttr(!!cond.weakened) + '>Weakened</label></div>'
+        + '</div>'
+        + '<div class="action-col">'
+        + '<div class="action-head"><h4>Mind</h4><input type="text" value="d' + esc(String(getDie('mind'))) + '"></div>'
+        + '<div class="action-row"><label>Control</label><input type="text" value="d' + esc(String(getDie('control'))) + '"></div>'
+        + '<div class="action-row"><label>Valor</label><input type="text" value="d' + esc(String(getDie('valor'))) + '"></div>'
+        + '<div class="cond-strip"><label><input type="checkbox"' + checkedAttr(!!cond.focused) + '>Focused</label><label><input type="checkbox"' + checkedAttr(!!cond.distracted) + '>Distracted</label></div>'
+        + '</div>'
+        + '<div class="action-col">'
+        + '<div class="action-head"><h4>Spirit</h4><input type="text" value="d' + esc(String(getDie('spirit'))) + '"></div>'
+        + '<div class="action-row"><label>Lead</label><input type="text" value="d' + esc(String(getDie('lead'))) + '"></div>'
+        + '<div class="action-row"><label>Defend</label><input type="text" value="d' + esc(String(getDie('defend'))) + '"></div>'
+        + '<div class="cond-strip"><label><input type="checkbox"' + checkedAttr(!!cond.bolstered || !!cond.protected) + '>Bolstered</label><label><input type="checkbox"' + checkedAttr(!!cond.shaken || !!cond.vulnerable) + '>Shaken/Vulnerable</label></div>'
+        + '</div>'
+        + '</div>'
+        + '<div class="mid-grid">'
+        + '<div class="stack"><h5>Weapon</h5>' + lines(3, [((S && S.equipment && S.equipment.weapon1) || ''), ((S && S.equipment && S.equipment.weapon2) || ''), ''], 'weapon') + '</div>'
+        + '<div class="stack"><h5>Armor and Mutations</h5>' + lines(4, [((S && S.equipment && S.equipment.armor) || ''), ((S && S.mutation) || ''), '', ''], 'armor') + '</div>'
+        + '<div class="stack"><h5>Readied Item</h5>' + lines(2, [((S && S.equipment && S.equipment.readied) || ''), ((S && S.randomItem) || '')], 'readied') + '<h5 style="margin-top:2mm;">Backpack</h5>' + lines(6, backpack, 'pack') + '</div>'
+        + '</div>'
+        + '<div class="bottom">'
+        + '<div class="stack"><h5>Injuries</h5>' + lines(3, [injuries[0] ? 'Injury 1' : '', injuries[1] ? 'Injury 2' : '', injuries[2] ? 'Injury 3' : ''], 'injury') + '<div class="note">Three injuries means death.</div><h5 style="margin-top:2mm;">Obsessions and Stress Reactions</h5>' + lines(5, scars.slice(0, 5), 'obsession') + '</div>'
+        + '<div class="stack"><h5>Profile</h5>'
+        + '<div class="field"><label>Physique</label><input type="text" value="' + esc(traits.physique || '') + '"></div>'
+        + '<div class="field"><label>Skin</label><input type="text" value="' + esc(traits.skin || '') + '"></div>'
+        + '<div class="field"><label>Hair</label><input type="text" value="' + esc(traits.hair || '') + '"></div>'
+        + '<div class="field"><label>Face</label><input type="text" value="' + esc(traits.face || '') + '"></div>'
+        + '<div class="field"><label>Clothing</label><input type="text" value="' + esc(traits.clothing || '') + '"></div>'
+        + '<div class="field"><label>Virtues</label><input type="text" value="' + esc(traits.virtue || '') + '"></div>'
+        + '<div class="field"><label>Vices</label><input type="text" value="' + esc(traits.vice || '') + '"></div>'
+        + '<div class="field"><label>Reputation</label><input type="text" value="' + esc(traits.reputation || '') + '"></div>'
+        + '<div class="field"><label>Misfortune</label><input type="text" value="' + esc(traits.misfortune || '') + '"></div>'
+        + '</div>'
+        + '<div class="stack"><h5>Current Task</h5>'
+        + '<textarea style="width:100%;min-height:32mm;border:1px solid var(--line);background:transparent;padding:1.2mm;font:inherit;font-size:3mm;">' + esc('') + '</textarea>'
+        + '<h5 style="margin-top:2mm;">Notes</h5>' + lines(8, [], 'notes')
+        + '</div>'
+        + '</div>'
+        + '<div class="footer"><div>Rations d4 HP (decrease 1 per week-day)</div><div>Oxygen levels (decrease 1 per phase of day)</div></div>'
+        + '</form>'
+        + '<script>setTimeout(function(){window.print();},180);</script>'
+        + '</body></html>');
+      w.document.close();
+      showNotif('Wayfarer PDF print view opened', 'good');
+      return;
+    }
+
     const cssLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map(function(link) {
       return '<link rel="stylesheet" href="' + link.href + '">';
     }).join('');
@@ -2344,7 +2511,7 @@ function openWayfarerExportModal() {
     + '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
     + '<div style="margin-bottom:.45rem;">Choose an export format for the Character (Wayfarer) page only.</div>'
     + '<div style="display:grid;gap:.3rem;">'
-    + '<button class="btn btn-sm btn-teal" onclick="closeModal(); exportWayfarerSheetPDF({gameSheet:true,compact:false});">PDF (Game Sheet Layout)</button>'
+    + '<button class="btn btn-sm btn-teal" onclick="closeModal(); exportWayfarerSheetPDF({gameSheet:true,compact:false});">PDF (Printable Character Sheet)</button>'
     + '<button class="btn btn-sm btn-teal" onclick="closeModal(); exportWayfarerSheetPDF({compact:false});">PDF (Standard Print Layout)</button>'
     + '<button class="btn btn-sm" onclick="closeModal(); exportWayfarerSheetPDF({compact:true});">PDF (Compact Print Layout)</button>'
     + '<button class="btn btn-sm" onclick="closeModal(); exportWayfarerSheetImage();">PNG Image</button>'

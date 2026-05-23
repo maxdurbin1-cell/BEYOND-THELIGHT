@@ -371,6 +371,7 @@ body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr 1f
 .hist-entry{display:grid;grid-template-columns:2rem 1fr;gap:.4rem;padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,.03);}
 .hist-num{font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--gold);font-size:.9rem;}
 .hist-text{font-size:.85rem;color:var(--text2);line-height:1.5;}
+#codexContent .card,#codexContent .hist-entry,#codexContent .hist-text,#codexContent p,#codexContent li,#codexContent pre{overflow-wrap:anywhere;word-break:break-word;}
 .ruin-room{background:var(--surface);border:1px solid var(--border2);padding:.5rem;margin-bottom:.3rem;}
 .ruin-room-title{font-family:'Cinzel',serif;font-size:.65rem;color:var(--gold2);letter-spacing:.08em;margin-bottom:.2rem;}
 .gate-block{background:var(--surface);border:1px solid rgba(46,196,182,.3);padding:.5rem .65rem;margin-bottom:.3rem;}
@@ -2827,7 +2828,7 @@ const RUIN_TREASURE=['A named weapon sealed in a case (Roll Weapons table d6, ad
 const TEMPLE_CHAMBER_TYPES=['Sanctum','Reliquary','Ossuary','Oracle Chamber','Sealed Vault','Garden of Contemplation'];
 const TEMPLE_CHAMBER_DESC=['A vaulted sanctum lit by pale blue flame. The altar is intact. Something watches from the shadows behind it.','Glass cases hold fragments of bone and cloth — the relics of a saint, or a warning. One is broken from within.','Row upon row of niches, each sealed with carved stone. Not all the seals are secure.','A smooth bowl-shaped room. Voices echo differently here. Whoever enters hears something whispered back.','A heavy door, sealed with seven locks. Behind it: cold air and the faint sound of breathing.','A walled garden, impossibly alive. A figure kneels in the center and does not acknowledge you.'];
 const TEMPLE_GUARDIAN_DESC=['A penitent warrior, bound by oath to the temple\'s last order. She attacks anyone who cannot answer her question.','An ancient construct of devotion — still maintaining, still protecting, still believing.','A congregation of the dead, kneeling in the nave. They rise when the altar is disturbed.','A bound spirit, sealed inside a reliquary. It offers knowledge in exchange for release.','Something that crept in through the cracks and now believes itself sacred.','A priest who never left, long past death, still conducting the rite.'];
-const GATE_SYMPTOMS=['Soul leakage. Step Down Disadvantage to all Checks for 1 hour.','Migraine. Memories of the last 1d6 hours are gone.','Nausea and vomiting. −d4 to Body checks for 1 hour.','Mild unease and discomfort. No mechanical effect.','No symptoms whatsoever.','Reinvigorated by the void energy. Gain 1d6 extra Stress capacity until rest.'];
+const GATE_SYMPTOMS=['Soul leakage. Step Down Disadvantage to all Checks for 1 hour.','Migraine. Memories of the last 1d6 hours are gone.','Nausea and vomiting. −d4 to Body checks for 1 hour.','Mild unease and discomfort. No mechanical effect.','No symptoms whatsoever.','Reinvigorated by the void energy. Gain 1d6 extra Health capacity until rest.'];
 const GATE_CONDITIONS=['Inanimate. Nothing happens when you approach.','Requires ceremony. Seek a cult to learn the rite.','Dormant. Needs the right spell. Seek a library.','Sealed by rocks. 2d6 weeks of excavation required.','Sealed from the other side. Someone doesn\'t want visitors.','Needs a key... oh... it\'s activating.'];
 const GATE_FUNCTIONS=['Storage: treasury, cargo hold, prison, tomb, archive, or garage.','A postal service operation — delivers packages across the Province.','Opens to a random hex in this Province.','Houses a horrific creature (DD20 | 40 Stress).','Pleasure portal. Journey lasts 1d4 weeks. Personal Flavor changes.','Time Portal. Change the Season, Year, Age of Existence, or Your Age.'];
 const GATE_NAME_FIRST=['Doorway','Third Eye','Dark Side','Paradox','Revolver','Rectification'];
@@ -7813,6 +7814,7 @@ function executeWayfarerAction(){
         S.combat.fastAttackVulnerable=1;
         S.combat.fastAttackUsedEncounter=true;
       }
+      applyFastAttackSelfVulnerable();
       window.selectedDice={action:baseDie3,dread:enemyDie3};
       window.fastAttackData={type:type3,advDie:advDie3};
       performCombatActionManualRoll(type3);
@@ -7833,6 +7835,7 @@ function executeWayfarerAction(){
     if(hit3&&enem3)applyStressToEnemy(enem3,dmg3,'Fast Attack');
     if(S&&S.combat)S.combat.fastAttackVulnerable=1;
     if(S&&S.combat)S.combat.fastAttackUsedEncounter=true;
+    applyFastAttackSelfVulnerable();
     clearConditionOnUse(type3);
     updateWayfarerActionBtn();
     return;
@@ -10250,7 +10253,7 @@ function updateRollModDisplay(){
 
 // Parse weapon slot texts to find bonuses for a given stat:
 //   flat    — +N bonus always added to total
-//   advDie  — AdN advantage die (roll both, keep highest)
+//   advDie  — AdN/Advantage die (roll both, keep highest)
 //   addAdvDie — +V.D. bonus: roll the Valor Die and ADD to total
 function parseWeaponBonuses(stat) {
   if (!S || !S.equipment) return {flat:0, advDie:0, addAdvDie:false};
@@ -10263,8 +10266,10 @@ function parseWeaponBonuses(stat) {
   weapons.forEach(function(w) {
     if (!w) return;
     var text = String(w);
-    var flatRx = /\+(\d+)\s+([A-Za-z/]+)/g;
-    var advRx = /\bAd(\d+)\s+([A-Za-z/]+)/g;
+    var flatRx = /\+(\d+)\s*(?:on|to|for)?\s*([A-Za-z/]+)/g;
+    var advRx = /\bAd(\d+)\s*(?:on|to|for)?\s*([A-Za-z/]+)/g;
+    var advWordDieRx = /\badv(?:antage)?\s*d(\d+)\s*(?:on|to|for)?\s*([A-Za-z/]+)/ig;
+    var advWordRx = /\badv(?:antage)?\s*(?:on|to|for)?\s*([A-Za-z/]+)/ig;
     var vdRx = /[+]?(?:A\.D\.|V\.D\.)\s*(?:to\s+)?([A-Za-z/]+)/ig;
     var m;
     while ((m = flatRx.exec(text))) {
@@ -10274,6 +10279,18 @@ function parseWeaponBonuses(stat) {
       if (statListIncludes(m[2])) {
         var d = parseInt(m[1], 10) || 0;
         if (d > advDie) advDie = d;
+      }
+    }
+    while ((m = advWordDieRx.exec(text))) {
+      if (statListIncludes(m[2])) {
+        var ad = parseInt(m[1], 10) || 0;
+        if (ad > advDie) advDie = ad;
+      }
+    }
+    while ((m = advWordRx.exec(text))) {
+      if (statListIncludes(m[1])) {
+        // Generic "advantage on Defend" means roll-twice on base die.
+        if (advDie < 2) advDie = 2;
       }
     }
     while ((m = vdRx.exec(text))) {
@@ -10294,7 +10311,16 @@ function parseArmorAdvDie() {
   var armor = S.equipment.armor || '';
   var m = armor.match(/\bAd(\d+)/i);
   if (m) return parseInt(m[1], 10);
+  if (/\badv(?:antage)?\b[^\n\r]*\bdefend\b/i.test(String(armor))) return 2;
   return 0;
+}
+
+function applyFastAttackSelfVulnerable(){
+  if(!S) return;
+  if(!S.conditions||typeof S.conditions!=='object') S.conditions={};
+  S.conditions.vulnerable=true;
+  if(typeof updateConditionButtons==='function') updateConditionButtons();
+  if(typeof updateAllStatDisplays==='function') updateAllStatDisplays();
 }
 
 // Auto-clear a positive condition after the player uses the relevant stat.
@@ -17247,7 +17273,7 @@ function renderHexInfo(hex){
     [['Gate Name',hex.name],['Condition',d.condition],['Made Of',d.material],['Made By',d.maker],['What Happened',d.happened],['Leads To',d.leads],['Function',d.fn]].forEach(([l,v])=>{
       if(v)html+=`<div class="gate-block"><div class="gb-label">${l}</div><div class="gb-text">${v}</div></div>`;
     });
-    html+=`<div style="font-size:.8rem;color:var(--muted3);padding:.4rem;border:1px solid rgba(46,196,182,.2);margin-top:.3rem;">Roll <strong>Spirit Save</strong> when traveling through.<br><strong style="color:var(--red2);">On failure:</strong> ${d.symptom||'Unknown symptom'}</div>`;
+    html+=`<div style="font-size:.8rem;color:var(--muted3);padding:.4rem;border:1px solid rgba(46,196,182,.2);margin-top:.3rem;">Roll <strong>Spirit Save vs DD6</strong> when traveling through.<br><strong style="color:var(--red2);">On failure:</strong> ${d.symptom||'Unknown symptom'}</div>`;
     html+=`<div style="margin-top:.35rem;display:flex;gap:.3rem;flex-wrap:wrap;"><button class="btn btn-sm btn-teal" onclick="travelThroughProvinceGate(${hex.col},${hex.row})">◆ Travel Through Gate (Spirit vs Dread d12)</button></div>`;
     html+=`<div id="gateTravel-${hex.col}-${hex.row}" style="margin-top:.3rem;"></div>`;
 
@@ -19837,7 +19863,7 @@ function openLostCityBuildingHexcrawl(col,row){
     if(!hex)return;
     hex.data=hex.data||{};
     if(!hex.data.hexcrawl){
-      const LC_TRAPS=['Pressure plate triggers a sealed gas vent (Body vs DD8 or Irradiated).','Tripwire releases a wall panel — roll Control vs DD6 or take 3 damage.','Magnetic mine array — metallic armor wearers check Defend vs DD10.','Rigged door detonates a charge: AD vs DD8 or Weakened.','Automated seeker turret activates — first action costs 1 extra AP.','Weight-sensitive floor panel collapses: Body vs DD8 or fall 1 floor (4 damage + Irradiated).'];
+      const LC_TRAPS=['Pressure plate triggers a sealed gas vent (Body vs DD8 or Irradiated).','Tripwire releases a wall panel — roll Control vs DD6 or take 3 damage.','Magnetic mine array — metallic armor wearers check Defend vs DD10.','Rigged door detonates a charge: VD vs DD8 or Weakened.','Automated seeker turret activates — first action costs 1 extra AP.','Weight-sensitive floor panel collapses: Body vs DD8 or fall 1 floor (4 damage + Irradiated).'];
       const LC_LOOT_ITEMS=['Lost City Fuel Rod (poisonous rods, sell for 200₵)','Radiothermal Canister (powers caravan drive cells)','Pre-fall Currency Cache (roll 3d6 × 10 credits)','Builder\'s Blueprint (rare schematic)','Irradiated Power Cell (functions as a grenade equivalent)','Sealed Medkit (heals 6 HP, removes Irradiated)','Pre-fall Comms Unit (repair to active use)','Salvage Circuit Board (sell 150₵)'];
       const LC_ENTRY_TEXTS=['An avenue of broken tram-lines vanishes into pink dust. A cracked station map still glows beneath your boots.','This hex smells of hot copper and flooded concrete. Somewhere below, pumps are still trying to work.','An apartment block leans over the street like a watchtower. Curtains fossilized in ash sway without wind.','A public archive has burst open here. Wet pages cling to shattered terminals and half-melted statues.','This district was once a market court. Glass canopies glitter under soot while old coin-dispensers click in the dark.','Collapsed skybridges choke this hex. The sound of your steps comes back a beat too late.'];
       const LC_ENCOUNTERS=['A scouting pack of Irradiated Ones slinks between storefronts.','Stitched rat horrors burst from a collapsed vent.','A static-haunted security drone wakes and sweeps the lane.','A scavenger crew shadows you from a high walkway.','A blind tunnel beast drags chains through the underpass.','A civic defense turret starts reacquiring old target data.'];
@@ -19969,7 +19995,7 @@ function lcResolveRoom(col,row,idx){
     const r=crawl.rooms[idx];
     if(!r||r.cleared)return;
     const ad=(S.stats&&S.stats.adventure)||4;
-    const a=explodingRoll(ad,{type:'action',major:true,label:'Lost City Search AD'+ad}),d=explodingRoll(6,{type:'dread',major:true,label:'Lost City Search DD6'});
+    const a=explodingRoll(ad,{type:'action',major:true,label:'Lost City Search VD'+ad}),d=explodingRoll(6,{type:'dread',major:true,label:'Lost City Search DD6'});
     const success=a.total>=d.total;
     if(success){
       const resultRoll=roll(6);
@@ -19977,18 +20003,18 @@ function lcResolveRoom(col,row,idx){
         const profile=pickNamedEnemyProfile('lostcity');
         const count=Math.max(1,roll(3));
         seedLostCityEncounterCombat(profile,count);
-        r.result='AD'+ad+' '+a.total+' vs DD6 '+d.total+' — Search success. '+r.searchFind+' Enemy contact: '+formatNamedEncounterLine(profile,count)+' Combat roster seeded.';
+        r.result='VD'+ad+' '+a.total+' vs DD6 '+d.total+' — Search success. '+r.searchFind+' Enemy contact: '+formatNamedEncounterLine(profile,count)+' Combat roster seeded.';
       }else{
         const loot=drawLostCityMerchantLoot();
         if(typeof addToBackpack==='function')try{addToBackpack(loot);}catch(_){ }
-        r.result='AD'+ad+' '+a.total+' vs DD6 '+d.total+' — Search success. '+r.searchFind+' Merchant cache recovered: '+loot+'.';
+        r.result='VD'+ad+' '+a.total+' vs DD6 '+d.total+' — Search success. '+r.searchFind+' Merchant cache recovered: '+loot+'.';
       }
       r.cleared=true;
       // Unlock next 2 rooms
       crawl.unlockedRooms=Math.min(crawl.rooms.length,crawl.unlockedRooms+2);
       if(typeof showNotif==='function')showNotif('Room cleared.','good');
     }else{
-      r.result='AD'+ad+' '+a.total+' vs DD6 '+d.total+' — Failure. +2 Radiation Stress.';
+      r.result='VD'+ad+' '+a.total+' vs DD6 '+d.total+' — Failure. +2 Radiation Stress.';
       r.cleared=true;
       crawl.unlockedRooms=Math.min(crawl.rooms.length,Number(crawl.unlockedRooms||1)+1);
       if(typeof changeStress==='function')changeStress(2);
@@ -20069,7 +20095,7 @@ function lcTriggerTrap(col,row,idx){
     const r=hex.data.hexcrawl.rooms[idx];
     if(!r)return;
     const ad=(S.stats&&S.stats.action)||4;
-    const a=explodingRoll(ad,{type:'action',major:true,label:'Lost City Trap AD'+ad}),d=explodingRoll(8,{type:'dread',major:true,label:'Lost City Trap DD8'});
+    const a=explodingRoll(ad,{type:'action',major:true,label:'Lost City Trap VD'+ad}),d=explodingRoll(8,{type:'dread',major:true,label:'Lost City Trap DD8'});
     const success=a.total>=d.total;
     const resultMsg=success?'No trap triggered — room is safe.':'Trap! '+r.trap;
     if(!success){
@@ -20176,7 +20202,7 @@ function showCodexCat(cat,btn){
     </div>`;
   }else if(cat==='gates'){
     c.innerHTML=`<div class="card"><div class="section-title">Gates Beyond the Light</div>
-      <div style="font-size:.85rem;color:var(--muted2);margin-bottom:.65rem;">Eerie portals emerge from the haze. Passing through exposes the body to Void radiation. Roll Spirit Save.</div>
+      <div style="font-size:.85rem;color:var(--muted2);margin-bottom:.65rem;">Eerie portals emerge from the haze. Passing through exposes the body to Void radiation. Roll Spirit Save vs DD6.</div>
       <button class="btn btn-primary btn-sm" onclick="rollGate()">⚄ Generate Gate</button>
       <div id="gateResult" style="margin-top:.5rem;"></div>
       <div class="section-title" style="margin-top:.65rem;">Symptoms (d6)</div>

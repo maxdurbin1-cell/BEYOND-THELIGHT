@@ -93,26 +93,46 @@ async function clearSession(page) {
 
 async function ensureBaseState(page) {
   await page.evaluate(() => {
-    if (!window.S && typeof window.generateCharacter === "function") {
+    const state = (() => {
+      try {
+        return (typeof S !== "undefined" && S) ? S : (window.S || null);
+      } catch (_err) {
+        return window.S || null;
+      }
+    })();
+    if (!state && typeof window.generateCharacter === "function") {
       try { window.generateCharacter(); } catch (_err) {}
     }
-    if (!window.S) {
-      window.S = {};
-    }
-    window.S.combat = window.S.combat || {};
-    window.S.enemies = Array.isArray(window.S.enemies) ? window.S.enemies : [];
-    window.S.combatMap = window.S.combatMap && typeof window.S.combatMap === "object"
-      ? window.S.combatMap
+    const liveState = (() => {
+      try {
+        return (typeof S !== "undefined" && S) ? S : (window.S = window.S || {});
+      } catch (_err) {
+        return (window.S = window.S || {});
+      }
+    })();
+    window.S = liveState;
+    liveState.combat = liveState.combat || {};
+    liveState.enemies = Array.isArray(liveState.enemies) ? liveState.enemies : [];
+    liveState.combatMap = liveState.combatMap && typeof liveState.combatMap === "object"
+      ? liveState.combatMap
       : { units: [] };
   });
 }
 
 async function collectCombatSummary(page) {
   return page.evaluate(() => {
-    const combat = window.S && window.S.combat ? window.S.combat : {};
-    const enemies = Array.isArray(window.S && window.S.enemies) ? window.S.enemies : [];
-    const units = window.S && window.S.combatMap && Array.isArray(window.S.combatMap.units)
-      ? window.S.combatMap.units
+    const state = (() => {
+      try {
+        return (typeof S !== "undefined" && S) ? S : (window.S || {});
+      } catch (_err) {
+        return window.S || {};
+      }
+    })();
+    window.S = state;
+    const combat = state && state.combat ? state.combat : {};
+    const enemies = Array.isArray(state && state.enemies) ? state.enemies : [];
+    const units = state && state.combatMap && Array.isArray(state.combatMap.units)
+      ? state.combatMap.units
       : [];
     const ashRaiderUnit = units.find((unit) => unit && (unit.trackerKey === "enemy:smoke-e1" || unit.name === "Ash Raider")) || null;
     const paleHoundUnit = units.find((unit) => unit && (unit.trackerKey === "enemy:smoke-e2" || unit.name === "Pale Hound")) || null;
@@ -124,7 +144,7 @@ async function collectCombatSummary(page) {
       ashRaiderZone: ashRaiderUnit ? String(ashRaiderUnit.zone || "") : "",
       paleHoundPresent: !!paleHoundUnit,
       unitCount: units.length,
-      combatAugState: !!(window.S && window.S.combatAugState && window.S.combatAugState.decentralizedHeartUsed)
+      combatAugState: !!(state && state.combatAugState && state.combatAugState.decentralizedHeartUsed)
     };
   });
 }
@@ -133,10 +153,18 @@ async function waitForCombatSummary(page, expected, label) {
   try {
     await page.waitForFunction(
       (target) => {
-        const combat = window.S && window.S.combat ? window.S.combat : {};
-        const enemies = Array.isArray(window.S && window.S.enemies) ? window.S.enemies : [];
-        const units = window.S && window.S.combatMap && Array.isArray(window.S.combatMap.units)
-          ? window.S.combatMap.units
+        const state = (() => {
+          try {
+            return (typeof S !== "undefined" && S) ? S : (window.S || {});
+          } catch (_err) {
+            return window.S || {};
+          }
+        })();
+        window.S = state;
+        const combat = state && state.combat ? state.combat : {};
+        const enemies = Array.isArray(state && state.enemies) ? state.enemies : [];
+        const units = state && state.combatMap && Array.isArray(state.combatMap.units)
+          ? state.combatMap.units
           : [];
         const ashRaiderUnit = units.find((unit) => unit && (unit.trackerKey === "enemy:smoke-e1" || unit.name === "Ash Raider")) || null;
         const paleHoundUnit = units.find((unit) => unit && (unit.trackerKey === "enemy:smoke-e2" || unit.name === "Pale Hound")) || null;
@@ -148,7 +176,7 @@ async function waitForCombatSummary(page, expected, label) {
           String(ashRaiderUnit && ashRaiderUnit.zone || "") === String(target.ashRaiderZone || "") &&
           (!!paleHoundUnit === !!target.paleHoundPresent) &&
           units.length >= Number(target.minUnitCount || 0) &&
-          (!!(window.S && window.S.combatAugState && window.S.combatAugState.decentralizedHeartUsed) === !!target.combatAugState)
+          (!!(state && state.combatAugState && state.combatAugState.decentralizedHeartUsed) === !!target.combatAugState)
         );
       },
       expected,
@@ -215,9 +243,17 @@ async function waitForCombatHydration(page, label, minUnits = 3) {
   try {
     await page.waitForFunction(
       (targetUnits) => {
-        const enemies = Array.isArray(window.S && window.S.enemies) ? window.S.enemies : [];
-        const units = window.S && window.S.combatMap && Array.isArray(window.S.combatMap.units)
-          ? window.S.combatMap.units
+        const state = (() => {
+          try {
+            return (typeof S !== "undefined" && S) ? S : (window.S || {});
+          } catch (_err) {
+            return window.S || {};
+          }
+        })();
+        window.S = state;
+        const enemies = Array.isArray(state && state.enemies) ? state.enemies : [];
+        const units = state && state.combatMap && Array.isArray(state.combatMap.units)
+          ? state.combatMap.units
           : [];
         const ashRaiderUnit = units.find((unit) => unit && (unit.trackerKey === "enemy:smoke-e1" || unit.name === "Ash Raider")) || null;
         const paleHoundUnit = units.find((unit) => unit && (unit.trackerKey === "enemy:smoke-e2" || unit.name === "Pale Hound")) || null;
@@ -317,6 +353,14 @@ async function runScenario(browser) {
   );
 
   const seeded = await gmPage.evaluate(async () => {
+    const liveState = (() => {
+      try {
+        return (typeof S !== "undefined" && S) ? S : (window.S = window.S || {});
+      } catch (_err) {
+        return (window.S = window.S || {});
+      }
+    })();
+    window.S = liveState;
     const combat = {
       active: true,
       enemyDread: 8,
@@ -342,10 +386,10 @@ async function runScenario(browser) {
       lastRelativeZone: "Nearby"
     };
     const combatAugState = { decentralizedHeartUsed: false };
-    window.S.combat = combat;
-    window.S.enemies = enemies;
-    window.S.combatMap = combatMap;
-    window.S.combatAugState = combatAugState;
+    liveState.combat = combat;
+    liveState.enemies = enemies;
+    liveState.combatMap = combatMap;
+    liveState.combatAugState = combatAugState;
     if (typeof window.updateCombatUI === "function") {
       try { window.updateCombatUI(); } catch (_err) {}
     }
@@ -389,6 +433,14 @@ async function runScenario(browser) {
   await waitForCombatSummaryWithRetry(gmPage, playerPage, expectedSeed, "Player seeded state");
 
   const mutated = await gmPage.evaluate(async () => {
+    const liveState = (() => {
+      try {
+        return (typeof S !== "undefined" && S) ? S : (window.S = window.S || {});
+      } catch (_err) {
+        return (window.S = window.S || {});
+      }
+    })();
+    window.S = liveState;
     const combat = {
       active: true,
       enemyDread: 12,
@@ -415,10 +467,10 @@ async function runScenario(browser) {
       lastRelativeZone: "Nearby"
     };
     const combatAugState = { decentralizedHeartUsed: true };
-    window.S.combat = combat;
-    window.S.enemies = enemies;
-    window.S.combatMap = combatMap;
-    window.S.combatAugState = combatAugState;
+    liveState.combat = combat;
+    liveState.enemies = enemies;
+    liveState.combatMap = combatMap;
+    liveState.combatAugState = combatAugState;
     if (typeof window.updateCombatUI === "function") {
       try { window.updateCombatUI(); } catch (_err) {}
     }

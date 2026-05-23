@@ -553,6 +553,25 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 <a href="#main-content" class="skip-link">Skip to main content</a>
 <!-- INTRO PAGE -->
 <div id="intro" class="intro-overlay"></div>
+<script>
+(function(){
+  try{
+    var introEl=document.getElementById('intro');
+    if(!introEl)return;
+    var params=new URLSearchParams(window.location.search||'');
+    var force=String(params.get('forceIntro')||'').toLowerCase();
+    var shouldForce=(force==='1'||force==='true'||force==='yes'||window.__BTL_FORCE_SHOW_INTRO__===true);
+    var hasSeen=localStorage.getItem('btl_intro_seen')==='1';
+    if(shouldForce||!hasSeen){
+      introEl.style.setProperty('display','flex','important');
+      introEl.style.setProperty('visibility','visible','important');
+      introEl.style.setProperty('opacity','1','important');
+      introEl.style.setProperty('pointer-events','auto','important');
+      introEl.style.setProperty('z-index','9999','important');
+    }
+  }catch(_err){}
+})();
+</script>
 
 <header role="banner">
   <div class="logo" aria-label="Beyond: The Light">BEYOND: THE LIGHT</div>

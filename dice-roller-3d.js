@@ -78,6 +78,121 @@
     d20: { sides: 20, color: '#e05050', min: 1, max: 20 }
   };
 
+  const DICE_SETTINGS_STORAGE_KEY = 'btl-dice-settings-v1';
+  const MAX_ROLL_LOG = 40;
+
+  function loadDiceSettings() {
+    try {
+      const raw = localStorage.getItem(DICE_SETTINGS_STORAGE_KEY);
+      if (!raw) return { deterministic: false, seed: '' };
+      const parsed = JSON.parse(raw);
+      return {
+        deterministic: !!(parsed && parsed.deterministic),
+        seed: String(parsed && parsed.seed || '')
+      };
+    } catch (_err) {
+      return { deterministic: false, seed: '' };
+    }
+  }
+
+  function saveDiceSettings(settings) {
+    try {
+      localStorage.setItem(DICE_SETTINGS_STORAGE_KEY, JSON.stringify({
+        deterministic: !!(settings && settings.deterministic),
+        seed: String(settings && settings.seed || '')
+      }));
+    } catch (_err) {}
+  }
+
+  function hashSeed(seedText) {
+    const text = String(seedText || 'default-seed');
+    let h = 2166136261;
+    for (let i = 0; i < text.length; i += 1) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0) || 1;
+  }
+
+  function formatSignedNumber(value) {
+    const n = Number(value || 0);
+    if (!Number.isFinite(n) || n === 0) return '';
+    return n > 0 ? ` + ${n}` : ` - ${Math.abs(n)}`;
+  }
+
+  function parseDiceNotation(notation) {
+    const raw = String(notation || '').trim();
+    if (!raw) return { ok: false, error: 'Enter a dice notation first.' };
+
+    const normalized = raw.toLowerCase().replace(/\s+/g, '');
+    const tokens = normalized.match(/[+\-]?[^+\-]+/g);
+    if (!tokens || !tokens.length) return { ok: false, error: 'Invalid notation.' };
+
+    const terms = [];
+    let modifier = 0;
+    let totalDice = 0;
+
+    for (let i = 0; i < tokens.length; i += 1) {
+      const token = tokens[i];
+      let sign = 1;
+      let body = token;
+      if (body.charAt(0) === '+') body = body.slice(1);
+      else if (body.charAt(0) === '-') {
+        sign = -1;
+        body = body.slice(1);
+      }
+      if (!body) return { ok: false, error: `Invalid token: ${token}` };
+
+      const diceMatch = body.match(/^(\d*)d(\d+)(?:k([hl])(\d+))?$/);
+      if (diceMatch) {
+        const count = Math.max(1, Number(diceMatch[1] || 1));
+        const sides = Math.max(2, Number(diceMatch[2] || 0));
+        const keepKind = diceMatch[3] ? `k${diceMatch[3]}` : 'all';
+        const keepCount = diceMatch[4] ? Math.max(1, Number(diceMatch[4] || 1)) : count;
+        const key = `d${sides}`;
+        if (!DICE_CONFIG[key]) {
+          return { ok: false, error: `Unsupported die size d${sides}.` };
+        }
+        if (keepCount > count) {
+          return { ok: false, error: `Cannot keep ${keepCount} from ${count}d${sides}.` };
+        }
+        totalDice += count;
+        if (totalDice > 30) {
+          return { ok: false, error: 'Too many dice in one roll (max 30).' };
+        }
+        terms.push({
+          id: terms.length,
+          sign,
+          count,
+          sides,
+          keepKind,
+          keepCount,
+          raw: token
+        });
+        continue;
+      }
+
+      const intMatch = body.match(/^\d+$/);
+      if (intMatch) {
+        modifier += sign * Number(body);
+        continue;
+      }
+
+      return { ok: false, error: `Invalid token: ${token}` };
+    }
+
+    if (!terms.length && modifier === 0) {
+      return { ok: false, error: 'Notation has no rollable terms.' };
+    }
+
+    return {
+      ok: true,
+      notation: raw,
+      terms,
+      modifier
+    };
+  }
+
   // ── Particle / Effect helpers ─────────────────────────────────────────────
   const PARTICLE_POOL = [];
 
@@ -182,6 +297,28 @@
       this.effectDuration = 1400;
       this.rollMode = 'sum';
       this.resultAggregator = null;
+      this.rollPlan = null;
+      this.lastBreakdown = '';
+      this.rollLog = [];
+
+      const settings = loadDiceSettings();
+      this.deterministic = !!settings.deterministic;
+      this.deterministicSeedText = String(settings.seed || '');
+      this.randomState = hashSeed(this.deterministicSeedText || 'default-seed');
+    }
+
+    setDeterministicMode(enabled, seedText) {
+      this.deterministic = !!enabled;
+      this.deterministicSeedText = String(seedText || this.deterministicSeedText || 'default-seed');
+      this.randomState = hashSeed(this.deterministicSeedText || 'default-seed');
+      saveDiceSettings({ deterministic: this.deterministic, seed: this.deterministicSeedText });
+    }
+
+    nextRandom() {
+      if (!this.deterministic) return Math.random();
+      // Linear congruential generator for deterministic test rolls.
+      this.randomState = (Math.imul(1664525, this.randomState) + 1013904223) >>> 0;
+      return this.randomState / 0x100000000;
     }
 
     init() {
@@ -237,30 +374,30 @@
     }
 
     roll(diceString) {
-      // Parse dice string: "2d6", "3d20", "1d20+5", etc
-      const match = diceString.toLowerCase().match(/^(\d+)d(\d+)(?:\+(\d+))?$/);
-      if (!match) {
-        console.error('Invalid dice string:', diceString);
+      const parsed = parseDiceNotation(diceString);
+      if (!parsed.ok) {
+        console.error('Invalid dice string:', diceString, parsed.error);
+        const resultEl = document.getElementById('diceRollerResult');
+        if (resultEl) {
+          resultEl.innerHTML = `<span style="color:var(--red2);">⚠ ${parsed.error}</span>`;
+        }
         return null;
       }
 
-      const count = parseInt(match[1]);
-      const sides = parseInt(match[2]);
-      const bonus = parseInt(match[3]) || 0;
+      const pool = parsed.terms.map(term => ({
+        sides: term.sides,
+        count: term.count,
+        label: `${term.sign < 0 ? '-' : ''}${term.count}d${term.sides}${term.keepKind === 'all' ? '' : `${term.keepKind}${term.keepCount}`}`,
+        termId: term.id,
+        termSign: term.sign,
+        keepKind: term.keepKind,
+        keepCount: term.keepCount
+      }));
 
-      // Validate
-      if (count < 1 || count > 10) {
-        console.error('Dice count must be 1-10');
-        return null;
-      }
-
-      const diceKey = `d${sides}`;
-      if (!DICE_CONFIG[diceKey]) {
-        console.error('Invalid dice type:', diceKey);
-        return null;
-      }
-
-      this.initRoll(count, diceKey, bonus);
+      this.initMixedRoll(pool, parsed.modifier, {
+        mode: 'notation',
+        rollPlan: parsed
+      });
       return this;
     }
 
@@ -276,6 +413,7 @@
       this.effectTimer = 0;
       this.rollMode = 'sum';
       this.resultAggregator = null;
+      this.rollPlan = null;
       PARTICLE_POOL.length = 0;
 
       // Create dice with random initial velocities
@@ -284,7 +422,7 @@
 
       for (let i = 0; i < count; i++) {
         const angle = (Math.PI * 2 * i) / count;
-        const velocity = 8 + Math.random() * 4;
+        const velocity = 8 + this.nextRandom() * 4;
         
         const die = {
           id: i,
@@ -293,12 +431,12 @@
           y: startY + Math.sin(angle) * 40,
           vx: Math.cos(angle) * velocity,
           vy: Math.sin(angle) * velocity - 2,
-          rotX: Math.random() * Math.PI * 2,
-          rotY: Math.random() * Math.PI * 2,
-          rotZ: Math.random() * Math.PI * 2,
-          angVelX: (Math.random() - 0.5) * 0.3,
-          angVelY: (Math.random() - 0.5) * 0.3,
-          angVelZ: (Math.random() - 0.5) * 0.3,
+          rotX: this.nextRandom() * Math.PI * 2,
+          rotY: this.nextRandom() * Math.PI * 2,
+          rotZ: this.nextRandom() * Math.PI * 2,
+          angVelX: (this.nextRandom() - 0.5) * 0.3,
+          angVelY: (this.nextRandom() - 0.5) * 0.3,
+          angVelZ: (this.nextRandom() - 0.5) * 0.3,
           settled: false,
           settledValue: null
         };
@@ -330,6 +468,7 @@
       this.effectTimer = 0;
       this.rollMode = String(options.mode || 'sum');
       this.resultAggregator = typeof options.aggregate === 'function' ? options.aggregate : null;
+      this.rollPlan = options.rollPlan && typeof options.rollPlan === 'object' ? options.rollPlan : null;
       PARTICLE_POOL.length = 0;
 
       const startX = this.canvas.width / 2;
@@ -339,7 +478,7 @@
       safePool.forEach(entry => {
         for (let i = 0; i < entry.count; i++) {
           const angle = (Math.PI * 2 * index) / Math.max(1, totalDice);
-          const velocity = 8 + Math.random() * 4;
+          const velocity = 8 + this.nextRandom() * 4;
           const dieType = `d${entry.sides}`;
           const die = {
             id: index,
@@ -348,15 +487,19 @@
             y: startY + Math.sin(angle) * 40,
             vx: Math.cos(angle) * velocity,
             vy: Math.sin(angle) * velocity - 2,
-            rotX: Math.random() * Math.PI * 2,
-            rotY: Math.random() * Math.PI * 2,
-            rotZ: Math.random() * Math.PI * 2,
-            angVelX: (Math.random() - 0.5) * 0.3,
-            angVelY: (Math.random() - 0.5) * 0.3,
-            angVelZ: (Math.random() - 0.5) * 0.3,
+            rotX: this.nextRandom() * Math.PI * 2,
+            rotY: this.nextRandom() * Math.PI * 2,
+            rotZ: this.nextRandom() * Math.PI * 2,
+            angVelX: (this.nextRandom() - 0.5) * 0.3,
+            angVelY: (this.nextRandom() - 0.5) * 0.3,
+            angVelZ: (this.nextRandom() - 0.5) * 0.3,
             settled: false,
             settledValue: null,
-            poolLabel: entry.label
+            poolLabel: entry.label,
+            termId: Number(entry.termId),
+            termSign: Number(entry.termSign || 1),
+            keepKind: String(entry.keepKind || 'all'),
+            keepCount: Math.max(1, Number(entry.keepCount || entry.count || 1))
           };
           this.dice.push(die);
           index += 1;
@@ -617,19 +760,53 @@
         id: d.id,
         type: d.type,
         value: d.settledValue || this.getDiceResult(d),
-        poolLabel: d.poolLabel || d.type
+        poolLabel: d.poolLabel || d.type,
+        termId: Number.isFinite(Number(d.termId)) ? Number(d.termId) : null,
+        termSign: Number(d.termSign || 1),
+        keepKind: String(d.keepKind || 'all'),
+        keepCount: Math.max(1, Number(d.keepCount || 1))
       }));
 
       const rollValues = this.results.map(r => Number(r.value || 0));
-      const totalBase = typeof this.resultAggregator === 'function'
-        ? Number(this.resultAggregator(this.results, this.bonus) || 0)
-        : this.rollMode === 'highest'
-          ? (rollValues.length ? Math.max.apply(Math, rollValues) : 0) + this.bonus
-          : rollValues.reduce((sum, r) => sum + r, 0) + this.bonus;
-      const total = Number(totalBase || 0);
-      const resultStr = this.rollMode === 'highest'
-        ? `${rollValues.join(' / ')}${this.bonus ? ` + ${this.bonus}` : ''} = ${total}`
-        : `${rollValues.join(' + ')}${this.bonus ? ` + ${this.bonus}` : ''} = ${total}`;
+      let total = 0;
+      let resultStr = '';
+      let breakdownHtml = '';
+
+      if (this.rollPlan && Array.isArray(this.rollPlan.terms) && this.rollPlan.terms.length) {
+        const termLines = [];
+        let termTotal = 0;
+        this.rollPlan.terms.forEach(term => {
+          const termRolls = this.results
+            .filter(r => Number(r.termId) === Number(term.id))
+            .map(r => Number(r.value || 0));
+          let kept = termRolls.slice();
+          if (term.keepKind === 'kh') {
+            kept = termRolls.slice().sort((a, b) => b - a).slice(0, term.keepCount);
+          } else if (term.keepKind === 'kl') {
+            kept = termRolls.slice().sort((a, b) => a - b).slice(0, term.keepCount);
+          }
+          const keptSum = kept.reduce((sum, v) => sum + v, 0);
+          termTotal += term.sign * keptSum;
+          const keepInfo = term.keepKind === 'all' ? '' : ` (${term.keepKind}${term.keepCount}: ${kept.join(', ')})`;
+          termLines.push(`${term.sign < 0 ? '-' : '+'} ${term.count}d${term.sides}${term.keepKind === 'all' ? '' : `${term.keepKind}${term.keepCount}`}: [${termRolls.join(', ')}]${keepInfo} => ${term.sign < 0 ? '-' : ''}${keptSum}`);
+        });
+        total = termTotal + Number(this.rollPlan.modifier || 0);
+        resultStr = `${this.rollPlan.notation} = ${total}`;
+        breakdownHtml = termLines.map(line => `<div style="margin-bottom:.2rem;">${line}</div>`).join('')
+          + `<div style="margin-top:.3rem;border-top:1px solid rgba(255,255,255,.08);padding-top:.25rem;">Modifier: ${Number(this.rollPlan.modifier || 0)} | Total: <strong>${total}</strong></div>`;
+      } else {
+        const totalBase = typeof this.resultAggregator === 'function'
+          ? Number(this.resultAggregator(this.results, this.bonus) || 0)
+          : this.rollMode === 'highest'
+            ? (rollValues.length ? Math.max.apply(Math, rollValues) : 0) + this.bonus
+            : rollValues.reduce((sum, r) => sum + r, 0) + this.bonus;
+        total = Number(totalBase || 0);
+        resultStr = this.rollMode === 'highest'
+          ? `${rollValues.join(' / ')}${formatSignedNumber(this.bonus)} = ${total}`
+          : `${rollValues.join(' + ')}${formatSignedNumber(this.bonus)} = ${total}`;
+        breakdownHtml = `<div>Rolls: [${rollValues.join(', ')}]</div><div>Modifier: ${Number(this.bonus || 0)} | Total: <strong>${total}</strong></div>`;
+      }
+      this.lastBreakdown = breakdownHtml;
 
       // Detect nat 20 / nat 1 for d20 rolls
       const d20Results = this.results.filter(r => r.type === 'd20');
@@ -668,8 +845,31 @@
         resultEl.innerHTML = `<span style="color:var(--gold2);margin-right:.5rem;">📊</span>${resultStr}${badge}`;
       }
 
+      const breakdownEl = document.getElementById('diceRollerBreakdown');
+      if (breakdownEl) {
+        breakdownEl.innerHTML = breakdownHtml;
+      }
+
+      this.rollLog.unshift({
+        at: Date.now(),
+        notation: this.rollPlan && this.rollPlan.notation ? this.rollPlan.notation : `${this.dice.length}${this.diceType}`,
+        total,
+        mode: this.deterministic ? `deterministic(${this.deterministicSeedText || 'default-seed'})` : 'random',
+        summary: resultStr
+      });
+      if (this.rollLog.length > MAX_ROLL_LOG) this.rollLog.length = MAX_ROLL_LOG;
+      renderDiceRollerLog(this.rollLog);
+
       if (this.onComplete) {
-        this.onComplete({ rolls: this.results, bonus: this.bonus, total });
+        this.onComplete({
+          rolls: this.results,
+          bonus: this.bonus,
+          total,
+          notation: this.rollPlan ? this.rollPlan.notation : '',
+          deterministic: this.deterministic,
+          seed: this.deterministic ? this.deterministicSeedText : '',
+          breakdown: this.lastBreakdown
+        });
       }
     }
   }
@@ -700,6 +900,24 @@
     }
   }
 
+  function renderDiceRollerLog(log) {
+    const logEl = document.getElementById('diceRollerLog');
+    if (!logEl) return;
+    const entries = Array.isArray(log) ? log : [];
+    if (!entries.length) {
+      logEl.innerHTML = '<div style="color:var(--muted2);font-size:.75rem;">No rolls yet.</div>';
+      return;
+    }
+    logEl.innerHTML = entries.slice(0, 10).map(entry => {
+      const stamp = new Date(Number(entry.at || Date.now())).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      return `<div style="padding:.3rem .4rem;border-bottom:1px solid rgba(255,255,255,.06);font-size:.74rem;">
+        <div style="display:flex;justify-content:space-between;gap:.4rem;"><span style="color:var(--gold2);">${entry.notation || 'roll'}</span><span style="color:var(--muted2);">${stamp}</span></div>
+        <div style="color:var(--text);">${entry.summary || ''}</div>
+        <div style="color:var(--muted2);">${entry.mode || 'random'}</div>
+      </div>`;
+    }).join('');
+  }
+
   function renderDiceRollerControls() {
     const controlsEl = document.getElementById('diceRollerControls');
     if (!controlsEl) return;
@@ -722,7 +940,24 @@
     });
     skinHtml += `</div></div>`;
 
+    const deterministicChecked = diceRoller && diceRoller.deterministic ? 'checked' : '';
+    const deterministicSeed = diceRoller && diceRoller.deterministicSeedText ? diceRoller.deterministicSeedText : '';
+
     let html = skinHtml + `
+      <div style="margin-bottom:.8rem;display:grid;grid-template-columns:2fr 1fr auto;gap:.45rem;align-items:end;">
+        <div>
+          <label style="font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);display:block;margin-bottom:.25rem;">Notation</label>
+          <input id="diceNotationInput" type="text" placeholder="e.g. 2d20kh1 + 4 - 1d4" style="background:var(--surface);border:1px solid var(--border2);color:var(--text);padding:.45rem .55rem;border-radius:4px;width:100%;font-size:.82rem;">
+        </div>
+        <div>
+          <label style="font-family:'Cinzel',serif;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);display:block;margin-bottom:.25rem;">Test Seed</label>
+          <input id="diceDeterministicSeed" type="text" value="${deterministicSeed.replace(/"/g, '&quot;')}" placeholder="seed" style="background:var(--surface);border:1px solid var(--border2);color:var(--text);padding:.45rem .5rem;border-radius:4px;width:100%;font-size:.8rem;">
+        </div>
+        <label style="display:flex;align-items:center;gap:.35rem;font-size:.76rem;color:var(--text);margin-bottom:.1rem;">
+          <input id="diceDeterministicToggle" type="checkbox" ${deterministicChecked}>
+          Deterministic
+        </label>
+      </div>
       <div style="margin-bottom:1rem;">
         <div style="font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin-bottom:.5rem;">Select Dice</div>
         <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:.4rem;">
@@ -804,6 +1039,11 @@
       " onmouseover="this.style.background='linear-gradient(180deg,rgba(73,201,187,.5) 0%,rgba(73,201,187,.2) 100%)';this.style.borderColor='rgba(73,201,187,.8)'" onmouseout="this.style.background='linear-gradient(180deg,rgba(73,201,187,.3) 0%,rgba(73,201,187,.1) 100%)';this.style.borderColor='var(--teal)'">
         🎲 Roll Dice
       </button>
+      <div id="diceRollerBreakdown" style="margin-top:.7rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:.5rem .6rem;min-height:2.2rem;font-size:.76rem;color:var(--text2);"></div>
+      <div style="margin-top:.6rem;">
+        <div style="font-family:'Cinzel',serif;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin-bottom:.25rem;">Roll Log</div>
+        <div id="diceRollerLog" style="max-height:180px;overflow:auto;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.08);border-radius:6px;"></div>
+      </div>
     `;
 
     controlsEl.innerHTML = html;
@@ -841,9 +1081,35 @@
     if (defaultDiceBtn) defaultDiceBtn.style.opacity = '1';
     const defaultCountBtn = document.querySelector('[data-count="1"]');
     if (defaultCountBtn) defaultCountBtn.style.background = 'rgba(46,196,182,.5)';
+
+    const deterministicToggle = document.getElementById('diceDeterministicToggle');
+    const deterministicSeedInput = document.getElementById('diceDeterministicSeed');
+    if (deterministicToggle && deterministicSeedInput && diceRoller) {
+      const applyDeterministicSettings = () => {
+        diceRoller.setDeterministicMode(!!deterministicToggle.checked, deterministicSeedInput.value || 'default-seed');
+      };
+      deterministicToggle.addEventListener('change', applyDeterministicSettings);
+      deterministicSeedInput.addEventListener('change', applyDeterministicSettings);
+      deterministicSeedInput.addEventListener('blur', applyDeterministicSettings);
+    }
+
+    if (diceRoller) {
+      renderDiceRollerLog(diceRoller.rollLog);
+      const breakdownEl = document.getElementById('diceRollerBreakdown');
+      if (breakdownEl && diceRoller.lastBreakdown) breakdownEl.innerHTML = diceRoller.lastBreakdown;
+    }
   }
 
   function rollDiceFromUI() {
+    if (!diceRoller) initializeDiceRoller();
+
+    const notationInput = document.getElementById('diceNotationInput');
+    const notation = String(notationInput && notationInput.value || '').trim();
+    if (notation) {
+      diceRoller.roll(notation);
+      return;
+    }
+
     const selectedType = document.querySelector('.dice-btn[style*="opacity: 1"]')?.dataset.type || 'd20';
     const selectedCount = parseInt(document.querySelector('.count-btn[style*="background: rgba(46, 196, 182, 0.5)"]')?.dataset.count || 1);
     const bonus = parseInt(document.getElementById('bonusInput')?.value || 0);
@@ -871,6 +1137,15 @@
   window.DICE_SKINS = DICE_SKINS;
   window.getDiceActiveSkin = getActiveSkin;
   window.setDiceActiveSkin = function(key) { setActiveSkin(key); renderDiceRollerControls(); };
+  window.setDiceDeterministicMode = function(enabled, seed) {
+    initializeDiceRoller();
+    diceRoller.setDeterministicMode(!!enabled, String(seed || 'default-seed'));
+    renderDiceRollerControls();
+  };
+  window.getDiceRollLog = function() {
+    initializeDiceRoller();
+    return (diceRoller.rollLog || []).slice();
+  };
   window.rollPreset3DDice = function(sides, values, bonus, onComplete) {
     initializeDiceRoller();
     const modal = document.getElementById('diceRollerModal');

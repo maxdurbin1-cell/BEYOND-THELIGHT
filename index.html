@@ -353,6 +353,22 @@ body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr 1f
 .codex-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;}
 @media(max-width:900px){.codex-grid{grid-template-columns:1fr;}}
 .codex-cats{display:flex;gap:.2rem;margin-bottom:.85rem;flex-wrap:wrap;}
+.theos-lore-shell{position:relative;overflow:hidden;background:radial-gradient(circle at 85% 8%,rgba(201,162,39,.14) 0%,rgba(201,162,39,0) 35%),linear-gradient(180deg,rgba(10,12,23,.95) 0%,rgba(13,16,30,.98) 100%);}
+.theos-lore-shell::before{content:'';position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px);background-size:100% 32px;opacity:.12;}
+.theos-lore-hero{position:relative;border:1px solid rgba(201,162,39,.3);background:linear-gradient(125deg,rgba(201,162,39,.13) 0%,rgba(26,24,42,.78) 40%,rgba(10,14,28,.88) 100%);padding:.7rem .8rem;margin-bottom:.7rem;}
+.theos-lore-title{font-family:'Cinzel',serif;font-size:1.05rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gold2);margin:0 0 .22rem;}
+.theos-lore-sub{font-size:.8rem;color:var(--muted3);line-height:1.55;margin:0;}
+.theos-lore-columns{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(180px,1fr);gap:.7rem;align-items:start;}
+.theos-lore-manuscript{position:relative;border:1px solid rgba(201,162,39,.24);background:linear-gradient(180deg,rgba(25,19,14,.72) 0%,rgba(20,16,12,.8) 100%);padding:.85rem .9rem;box-shadow:inset 0 0 0 1px rgba(255,238,201,.05);}
+.theos-lore-manuscript::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 15% 18%,rgba(255,226,165,.06) 0%,rgba(255,226,165,0) 42%);}
+.theos-lore-text{column-count:2;column-gap:1.2rem;column-fill:balance;position:relative;z-index:1;}
+.theos-lore-text h1,.theos-lore-text h2,.theos-lore-text h3,.theos-lore-text p,.theos-lore-text ul,.theos-lore-text ol,.theos-lore-text hr{break-inside:avoid;}
+.theos-lore-text p:first-of-type::first-letter{float:left;font-family:'Cinzel',serif;font-size:2.2rem;line-height:.9;padding:.05rem .24rem 0 0;color:var(--gold2);}
+.theos-lore-marginalia{border:1px solid rgba(46,196,182,.24);background:linear-gradient(180deg,rgba(9,24,28,.52) 0%,rgba(11,16,25,.84) 100%);padding:.65rem .7rem;}
+.theos-lore-marginalia .m-title{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.13em;text-transform:uppercase;color:var(--teal2);margin-bottom:.24rem;}
+.theos-lore-marginalia .m-item{font-size:.75rem;color:var(--muted3);line-height:1.55;padding:.24rem 0;border-bottom:1px solid rgba(255,255,255,.07);}
+.theos-lore-marginalia .m-item:last-child{border-bottom:none;padding-bottom:0;}
+@media(max-width:980px){.theos-lore-columns{grid-template-columns:1fr;}.theos-lore-text{column-count:1;}}
 .wild-panel{background:var(--surface);border:1px solid var(--border2);padding:.55rem;margin-bottom:.3rem;}
 .wild-panel .wp-label{font-family:'Cinzel',serif;font-size:.71rem;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;margin-bottom:.22rem;}
 .wild-panel .wp-text{font-size:.92rem;color:var(--text2);line-height:1.62;}
@@ -7790,7 +7806,13 @@ function executeWayfarerAction(){
     var dreadRoll=enem?rollEnemyDreadWithEffects(enem,'Enemy DD'):{total:explodingRoll(S.combat.enemyDread||8,{type:'dread',label:'Enemy DD'}).total};
     var hit=flatTotal>dreadRoll.total;
     var dmg=hit?Math.max(1,flatTotal-dreadRoll.total)+2:0;
-    setRes('<span style="color:'+(hit?'var(--teal)':'var(--red2)')+';">Heavy Attack: '+flatTotal+' vs Dread '+dreadRoll.total+' \u2014 '+(hit?'HIT! '+dmg+' Health damage (+2 bonus)':'MISS')+'</span>'+(Number(sceneHeavyMod.total||0)?('<span style="font-size:.72rem;color:var(--teal);"> (Scene '+(sceneHeavyMod.total>=0?'+':'')+sceneHeavyMod.total+')</span>'):''));
+    var heavyLines=[];
+    heavyLines.push('Base: d'+die+' / Adv kept = '+ra.total+(ra.breakdown?' '+ra.breakdown:''));
+    heavyLines.push('Heavy Valor bonus: +d'+advDie+'='+advRoll.total);
+    if(S.rollMod&&Number(S.rollMod.flat||0)!==0)heavyLines.push('Manual flat: '+(Number(S.rollMod.flat)>=0?'+':'')+Number(S.rollMod.flat));
+    if(type2==='shoot'&&Number(affixBonus.shootCloseBonus||0)!==0&&getPrimaryEnemyZoneRelative()==='close')heavyLines.push('Close shoot bonus: +'+Number(affixBonus.shootCloseBonus||0));
+    if(Number(sceneHeavyMod.total||0)!==0)heavyLines.push('Scene modifier: '+(Number(sceneHeavyMod.total)>=0?'+':'')+Number(sceneHeavyMod.total));
+    setRes('<span style="color:'+(hit?'var(--teal)':'var(--red2)')+';">Heavy Attack: '+flatTotal+' vs Dread '+dreadRoll.total+' \u2014 '+(hit?'HIT! '+dmg+' Health damage (+2 bonus)':'MISS')+'</span>'+(Number(sceneHeavyMod.total||0)?('<span style="font-size:.72rem;color:var(--teal);"> (Scene '+(sceneHeavyMod.total>=0?'+':'')+sceneHeavyMod.total+')</span>'):'')+'<div style="margin-top:.2rem;font-size:.7rem;color:var(--muted2);line-height:1.45;">'+heavyLines.join('<br>')+'</div>');
     if(hit&&enem)applyStressToEnemy(enem,dmg,'Heavy Attack');
     clearConditionOnUse(type2);
     return;
@@ -7831,7 +7853,11 @@ function executeWayfarerAction(){
     var dread3=enem3?rollEnemyDreadWithEffects(enem3,'Enemy DD'):{total:explodingRoll(S.combat.enemyDread||8,{type:'dread',label:'Enemy DD'}).total};
     var hit3=total3>dread3.total;
     var dmg3=hit3?Math.max(1,total3-dread3.total):0;
-    setRes('<span style="color:'+(hit3?'var(--teal)':'var(--red2)')+';">Fast Attack (Free): '+aRoll3.total+'-'+penRoll.total+'='+total3+' vs Dread '+dread3.total+' \u2014 '+(hit3?'HIT! '+dmg3+' Health damage':'MISS')+' - You are Vulnerable next enemy action.</span>'+(Number(sceneFastMod.total||0)?('<span style="font-size:.72rem;color:var(--teal);"> (Scene '+(sceneFastMod.total>=0?'+':'')+sceneFastMod.total+')</span>'):''));
+    var fastLines=[];
+    fastLines.push('Action roll: d'+die3+'='+aRoll3.total);
+    fastLines.push('Fast penalty (Valor): -d'+advDie3+'='+penRoll.total);
+    if(Number(sceneFastMod.total||0)!==0)fastLines.push('Scene modifier: '+(Number(sceneFastMod.total)>=0?'+':'')+Number(sceneFastMod.total));
+    setRes('<span style="color:'+(hit3?'var(--teal)':'var(--red2)')+';">Fast Attack (Free): '+aRoll3.total+'-'+penRoll.total+'='+total3+' vs Dread '+dread3.total+' \u2014 '+(hit3?'HIT! '+dmg3+' Health damage':'MISS')+' - You are Vulnerable next enemy action.</span>'+(Number(sceneFastMod.total||0)?('<span style="font-size:.72rem;color:var(--teal);"> (Scene '+(sceneFastMod.total>=0?'+':'')+sceneFastMod.total+')</span>'):'')+'<div style="margin-top:.2rem;font-size:.7rem;color:var(--muted2);line-height:1.45;">'+fastLines.join('<br>')+'</div>');
     if(hit3&&enem3)applyStressToEnemy(enem3,dmg3,'Fast Attack');
     if(S&&S.combat)S.combat.fastAttackVulnerable=1;
     if(S&&S.combat)S.combat.fastAttackUsedEncounter=true;
@@ -8487,26 +8513,14 @@ function rollEnemyDreadWithEffects(enemy,label){
 function applyStressToEnemy(enemy, stress, source){
   if(!enemy)return;
   var dmg=Math.max(1,parseInt(stress,10)||1);
-  var wasUntouched=Number(enemy.stress||0)<=0;
-  var deathNumber=Math.max(0,Number(enemy.deathNumber||0));
-  var muted=!!enemy.deathNumberMuted;
-  var deathMode='';
+  var maxHealth=Math.max(1,Number(enemy.maxStress||enemy.health||dmg));
+  var deathNumber=Math.max(1,Number(enemy.deathNumber||Math.ceil(maxHealth/2)));
+  enemy.deathNumber=deathNumber;
+  enemy.maxStress=maxHealth;
+  enemy.stress=Math.min(maxHealth,Number(enemy.stress||0)+dmg);
+  var deathByThreshold=enemy.stress>=deathNumber;
 
-  if(wasUntouched&&deathNumber>0&&!muted){
-    if(dmg>=deathNumber){
-      enemy.stress=Number(enemy.maxStress||dmg);
-      enemy.deathNumberTriggered=true;
-      deathMode='instant';
-    }else{
-      enemy.deathNumberMuted=true;
-      enemy.stress=Math.min(enemy.maxStress||dmg,(enemy.stress||0)+dmg);
-      deathMode='muted';
-    }
-  }else{
-    enemy.stress=Math.min(enemy.maxStress||dmg,(enemy.stress||0)+dmg);
-  }
-
-  if(enemy.stress>=(enemy.maxStress||enemy.stress)){
+  if(deathByThreshold||enemy.stress>=maxHealth){
     var defeated=enemy.name;
     S.enemies=(S.enemies||[]).filter(function(entry){return entry!==enemy;});
     var onKillAffix=getEquippedAffixCombatBonuses();
@@ -8518,13 +8532,12 @@ function applyStressToEnemy(enemy, stress, source){
     }
     var next=getPrimaryCombatEnemy();
     var nextText=next?(' Next target: '+next.name+'.'):'';
-    var deathText=deathMode==='instant'?' Death Number hit: instant kill.':'';
+    var deathText=' Death Number hit ('+deathNumber+'/'+maxHealth+'): instant kill.';
     showNotif(defeated+' eliminated!'+deathText+nextText,'good');
     maybeDropAfflictionCureItem(defeated);
     promptConsumeAfterEnemyDefeat(defeated);
   }else if(source){
-    var note=deathMode==='muted'?' Death Number muted; defeat now requires full Health depletion.':'';
-    showNotif(source+' dealt '+dmg+' Stress to '+enemy.name+'.'+note,'good');
+    showNotif(source+' dealt '+dmg+' Health damage to '+enemy.name+' ('+enemy.stress+'/'+maxHealth+', DN '+deathNumber+').','good');
   }
   if(typeof renderEnemies==='function')renderEnemies();
   if(typeof renderQP==='function')renderQP('combat');
@@ -10798,9 +10811,10 @@ function addEnemy(nameArg,dreadArg){
   const resolvedName=(typeof nameArg==='string'&&nameArg.trim())?nameArg.trim():(prompt('Enemy name:','Enemy '+(S.enemies.length+1))||'Enemy');
   const dd=parseInt(dreadArg,10)||S.combat.enemyDread;
   const maxStress=dd*2;
+  const deathNumber=Math.max(1,Math.ceil(maxStress/2));
   const factionSel=document.getElementById('enemyFactionStandingSel');
   const standing=(factionSel&&factionSel.value)?String(factionSel.value):pickRandomFactionStanding();
-  S.enemies.push({id:enemyIdCounter++,name:resolvedName,dread:dd,stress:0,maxStress,health:0,conditions:[],faction:standing});
+  S.enemies.push({id:enemyIdCounter++,name:resolvedName,dread:dd,stress:0,maxStress,health:0,deathNumber:deathNumber,conditions:[],faction:standing});
   // Auto-place in zone map as Engaged by default
   if(typeof S.combatMap==='object'&&Array.isArray(S.combatMap.units)){
     const label=standing?resolvedName+' ['+standing+']':resolvedName;
@@ -10919,7 +10933,8 @@ function renderEnemies(){
     var condText=e.conditions&&e.conditions.length?'<div style="font-size:.68rem;color:'+ (e.ally?'var(--teal)':'var(--orange)') +';margin-top:.18rem;">'+e.conditions.join(' · ')+'</div>':'';
     var factionBadge=e.faction?`<span style="font-size:.6rem;background:rgba(122,120,152,.18);border:1px solid var(--border2);border-radius:3px;padding:.05rem .22rem;color:var(--muted2);margin-left:.3rem;">${e.faction}</span>`:'';
     var sideBadge=e.ally?'<span style="font-size:.6rem;color:var(--teal);background:rgba(46,196,182,.12);border:1px solid var(--teal);border-radius:3px;padding:.05rem .22rem;margin-left:.25rem;">ALLY</span>':'<span style="font-size:.6rem;color:var(--red2);background:rgba(201,64,64,.1);border:1px solid var(--red);border-radius:3px;padding:.05rem .22rem;margin-left:.25rem;">HOSTILE</span>';
-    return `<div class="enemy-card"><div style="flex:1;"><div style="font-family:'Cinzel',serif;font-size:.7rem;color:${e.ally?'var(--teal)':'var(--gold2)'};display:flex;align-items:center;flex-wrap:wrap;gap:.1rem;">${e.name}<button class="btn btn-xs" title="Enemy lore" onclick="openCombatEnemyLore(${e.id})">?</button>${sideBadge}${factionBadge}</div><div style="font-size:.72rem;color:var(--muted2);">${getEnemyDisplayDread(e)} | ${e.stress}/${e.maxStress} Stress</div>${condText}<div style="display:flex;flex-wrap:wrap;gap:.15rem;margin-top:.25rem;">${Array.from({length:e.maxStress},(_,i)=>`<div class="e-pip${i<e.stress?' filled':''}" onclick="enemyPip(${e.id},${i})"></div>`).join('')}</div></div><div style="display:flex;flex-direction:column;gap:.2rem;"><button class="btn btn-xs btn-red" onclick="removeEnemy(${e.id})">✕</button><button class="btn btn-xs" onclick="enemyAttack(${e.id})">⚔ Atk</button><button class="btn btn-xs" title="Toggle ally/hostile side" onclick="toggleEnemySide(${e.id})">${e.ally?'→ Hostile':'→ Ally'}</button></div></div>`;
+    var dn=Math.max(1,Number(e.deathNumber||Math.ceil(Number(e.maxStress||1)/2)));
+    return `<div class="enemy-card"><div style="flex:1;"><div style="font-family:'Cinzel',serif;font-size:.7rem;color:${e.ally?'var(--teal)':'var(--gold2)'};display:flex;align-items:center;flex-wrap:wrap;gap:.1rem;">${e.name}<button class="btn btn-xs" title="Enemy lore" onclick="openCombatEnemyLore(${e.id})">?</button>${sideBadge}${factionBadge}</div><div style="font-size:.72rem;color:var(--muted2);">${getEnemyDisplayDread(e)} | ${e.stress}/${e.maxStress} Health · DN ${dn}</div>${condText}<div style="display:flex;flex-wrap:wrap;gap:.15rem;margin-top:.25rem;">${Array.from({length:e.maxStress},(_,i)=>`<div class="e-pip${i<e.stress?' filled':''}" onclick="enemyPip(${e.id},${i})"></div>`).join('')}</div></div><div style="display:flex;flex-direction:column;gap:.2rem;"><button class="btn btn-xs btn-red" onclick="removeEnemy(${e.id})">✕</button><button class="btn btn-xs" onclick="enemyAttack(${e.id})">⚔ Atk</button><button class="btn btn-xs" title="Toggle ally/hostile side" onclick="toggleEnemySide(${e.id})">${e.ally?'→ Hostile':'→ Ally'}</button></div></div>`;
   }).join('');
   if(typeof renderEnemyFocusSelect==='function')renderEnemyFocusSelect();
 }
@@ -21945,7 +21960,23 @@ window.addEventListener('DOMContentLoaded', function() {
     var c = document.getElementById('codexContent');
     if(!c) return;
     c.innerHTML = '<div class="card"><div class="section-title">The Known Realm of Theos</div><div style="font-size:.82rem;color:var(--muted2);">Loading lore page…</div></div>';
-    c.innerHTML = '<div class="card"><div class="section-title">The Known Realm of Theos</div><div style="font-size:.82rem;color:var(--muted2);margin-bottom:.65rem;">The living codex page for provinces, factions, myths, and the New Sun.</div>' + renderTheosSystemsEncyclopediaPanel() + renderTheosLoreInteractivePanel() + renderCodexMarkdown(CODEX_THEOS_LORE_TEXT) + '</div>';
+    c.innerHTML = '<div class="card theos-lore-shell">'
+      + '<div class="theos-lore-hero">'
+        + '<h2 class="theos-lore-title">The Known Realm of Theos</h2>'
+        + '<p class="theos-lore-sub">A living chronicle of provinces, factions, myths, and the New Sun. Read this like a tabletop campaign folio: reference, omen, and doctrine in one page.</p>'
+      + '</div>'
+      + renderTheosSystemsEncyclopediaPanel()
+      + renderTheosLoreInteractivePanel()
+      + '<div class="theos-lore-columns">'
+        + '<div class="theos-lore-manuscript"><div class="theos-lore-text">' + renderCodexMarkdown(CODEX_THEOS_LORE_TEXT) + '</div></div>'
+        + '<div class="theos-lore-marginalia">'
+          + '<div class="m-title">Reader Marginalia</div>'
+          + '<div class="m-item"><strong style="color:var(--gold2);">Session Prompt:</strong> What rumor in this page would make your Wayfarer leave safety tonight?</div>'
+          + '<div class="m-item"><strong style="color:var(--gold2);">Faction Lens:</strong> Read one section as a military report, one as shrine propaganda, and one as survivor testimony.</div>'
+          + '<div class="m-item"><strong style="color:var(--gold2);">At The Table:</strong> Pull one line into play as a clue, omen, or threat whenever travel slows.</div>'
+        + '</div>'
+      + '</div>'
+    + '</div>';
   }
   window.renderCodexTheosLorePage = renderCodexTheosLorePage;
   window.showCodexCat = showCodexCat;

@@ -1125,17 +1125,51 @@
     const hex = (Array.isArray(S.lastSea.map) ? S.lastSea.map : []).find(e => e && e.key === S.lastSea.selectedKey);
     if (!hex) { showNotif('Select a sea hex first.', 'warn'); return; }
     const leadDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
+    const target = getSeaHexByDirection(hex, directionKey);
+    const finalizeObservation = function(outcome) {
+      const actionTotal = Number((outcome && outcome.actionTotal) || 0);
+      const dreadTotal = Number((outcome && outcome.dreadTotal) || 0);
+      const success = !!(outcome && outcome.success);
+      let result = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;"><div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">Lead d' + leadDie + '</div><div style="font-size:1.6rem;color:var(--teal);font-family:Rajdhani,sans-serif;font-weight:700;">' + actionTotal + '</div></div><div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">DD6</div><div style="font-size:1.6rem;color:var(--red2);font-family:Rajdhani,sans-serif;font-weight:700;">' + dreadTotal + '</div></div></div>';
+      if (success) {
+        if (target) {
+          if (typeof window.revealMapFogHex === 'function') window.revealMapFogHex('sea', String(target.hex.key || ''));
+          if (typeof addSuccessRoll === 'function') addSuccessRoll();
+          result += '<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--green2);font-weight:700;margin-bottom:.25rem;">✓ Observation success (' + target.label + ')</div><div style="padding:.22rem .42rem;border-left:2px solid rgba(201,162,39,.4);"><div style="font-size:.78rem;color:var(--teal);font-weight:700;margin-bottom:.15rem;">[' + (target.hex.col + 1) + ',' + (target.hex.row + 1) + '] ' + (target.hex.title || target.hex.islandName || target.hex.seaLabel || 'Open Sea') + '</div><div style="font-size:.7rem;color:var(--muted2);">New lane intel acquired.</div></div></div>';
+        } else {
+          result += '<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">No hex in that direction</div></div>';
+        }
+      } else {
+        if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+        result += '<div style="font-size:.82rem;color:var(--red2);">✗ Observation fails. Fog and spray obscure the route.</div>';
+      }
+      if (typeof openModal === 'function') openModal('Observe Adjacent Sea Hex', result);
+      renderLastSeaMap();
+      renderLastSeaInfo();
+    };
+
+    if (isSeaManualRollMode()) {
+      if (typeof closeModal === 'function') closeModal();
+      openSeaManualActionDreadPrompt({
+        title: 'Manual Roll - Observe Adjacent Sea Hex',
+        context: 'Observe Adjacent (' + (target ? target.label : 'Unknown Direction') + ')',
+        statKey: 'lead',
+        statLabel: 'Lead',
+        actionDie: leadDie,
+        dreadDie: 6,
+        onResolve: finalizeObservation
+      });
+      return;
+    }
+
     const action = explodingRoll(leadDie);
     const dread = explodingRoll(6);
-    const success = action.total >= dread.total;
-    const target = getSeaHexByDirection(hex, directionKey);
-    let result = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.4rem;"><div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">Lead d' + leadDie + '</div><div style="font-size:1.6rem;color:var(--teal);font-family:Rajdhani,sans-serif;font-weight:700;">' + action.total + '</div></div><div style="text-align:center;"><div style="font-size:.7rem;color:var(--muted2);">DD6</div><div style="font-size:1.6rem;color:var(--red2);font-family:Rajdhani,sans-serif;font-weight:700;">' + dread.total + '</div></div></div>';
-    if (success) {
-      if (target) { if (typeof window.revealMapFogHex === 'function') window.revealMapFogHex('sea', String(target.hex.key || '')); if (typeof addSuccessRoll === 'function') addSuccessRoll(); result += '<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--green2);font-weight:700;margin-bottom:.25rem;">✓ Observation success (' + target.label + ')</div><div style="padding:.22rem .42rem;border-left:2px solid rgba(201,162,39,.4);"><div style="font-size:.78rem;color:var(--teal);font-weight:700;margin-bottom:.15rem;">[' + (target.hex.col + 1) + ',' + (target.hex.row + 1) + '] ' + (target.hex.title || target.hex.islandName || target.hex.seaLabel || 'Open Sea') + '</div><div style="font-size:.7rem;color:var(--muted2);">New lane intel acquired.</div></div></div>'; } else { result += '<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">No hex in that direction</div></div>'; }
-    } else { if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure'); result += '<div style="font-size:.82rem;color:var(--red2);">✗ Observation fails. Fog and spray obscure the route.</div>'; }
-    if (typeof openModal === 'function') openModal('Observe Adjacent Sea Hex', result);
-    renderLastSeaMap();
-    renderLastSeaInfo();
+    finalizeObservation({
+      success: action.total >= dread.total,
+      actionTotal: action.total,
+      dreadTotal: dread.total,
+      manual: false
+    });
   }
   function observeAdjacentSeaFromSelected() {
     ensureExpansionState();

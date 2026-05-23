@@ -3774,7 +3774,7 @@
       + '<div style="display:grid;gap:.5rem;">'
       + '<div class="combat-mini"><strong>' + escapeHtml(String(token && token.name || 'Token')) + '</strong> is resolving <strong>' + escapeHtml(String(cfg.label || 'Hazard')) + '</strong> at ' + toKey(q, r) + ' against DD ' + Number(cfg.dd || 4) + '.</div>'
       + '<label style="display:grid;gap:.2rem;"><span class="combat-mini">Chosen Die</span><select id="combatHazardRunDie" class="combat-select">' + actionDice + '</select></label>'
-      + '<label style="display:grid;gap:.2rem;"><span class="combat-mini">' + (manualMode ? 'Manual Total' : 'Override Total (optional)') + '</span><input id="combatHazardRunTotal" class="combat-input" type="number" min="1" max="40" value="' + (manualMode ? Math.max(1, Math.floor(Number(getWayfarerEffectiveDie(cfg.dieKey, 6) || 6) / 2)) : '') + '" placeholder="' + (manualMode ? 'Required in manual mode' : 'Leave blank to auto-roll') + '"></label>'
+      + '<label style="display:grid;gap:.2rem;"><span class="combat-mini">' + (manualMode ? 'Manual Total' : 'Override Total (optional)') + '</span><input id="combatHazardRunTotal" class="combat-input" type="number" min="1" value="' + (manualMode ? Math.max(1, Math.floor(Number(getWayfarerEffectiveDie(cfg.dieKey, 6) || 6) / 2)) : '') + '" placeholder="' + (manualMode ? 'Required in manual mode (1+, explode ok)' : 'Leave blank to auto-roll') + '"></label>'
       + '<div class="combat-mini">Fail damage: ' + Number(opts.failDamage || cfg.onFailDamage || 1) + '</div>'
       + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;justify-content:flex-end;">'
       + '<button class="btn btn-xs" type="button" onclick="window.closeModal&&window.closeModal()">Cancel</button>'
@@ -5070,7 +5070,7 @@
     var manualMode = !state.autoRoll || isManualRollModeActive();
     var base = 0;
     if (manualMode) {
-      var manualBase = promptManualDieTotal('Manual action roll total (1-20):', 10, 1, 20);
+      var manualBase = promptManualDieTotal('Manual action roll total (1+; exploding totals allowed):', 10, 1, 9999);
       if (manualBase === null) {
         safeNotif('Manual action roll cancelled.', 'info');
         return;
@@ -5079,7 +5079,7 @@
     } else {
       base = Math.floor(Math.random() * 20) + 1;
     }
-    base = Math.max(1, Math.min(20, Number(base || 10)));
+    base = Math.max(1, Number(base || 10));
 
     var foes = (state.tokens || []).filter(function (token) {
       return token && String(token.id) !== String(actor.id) && String(token.faction) !== String(actor.faction);
@@ -10421,12 +10421,12 @@
         });
         return true;
       }
-      var fallbackDefend = promptManualDieTotal('Manual Defend total for ' + String(foe.name || 'target') + ' (1-40):', 8, 1, 40);
+      var fallbackDefend = promptManualDieTotal('Manual Defend total for ' + String(foe.name || 'target') + ' (1+; exploding totals allowed):', 8, 1, 9999);
       if (fallbackDefend === null) {
         safeNotif('Manual enemy action cancelled.', 'info');
         return false;
       }
-      var fallbackEnemy = promptManualDieTotal('Manual Dread total for ' + String(actor.name || 'Enemy') + ' (1-40):', 8, 1, 40);
+      var fallbackEnemy = promptManualDieTotal('Manual Dread total for ' + String(actor.name || 'Enemy') + ' (1+; exploding totals allowed):', 8, 1, 9999);
       if (fallbackEnemy === null) {
         safeNotif('Manual enemy action cancelled.', 'info');
         return false;

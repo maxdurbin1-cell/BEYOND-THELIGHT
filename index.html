@@ -560,9 +560,10 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     if(!introEl)return;
     var params=new URLSearchParams(window.location.search||'');
     var force=String(params.get('forceIntro')||'').toLowerCase();
+    var skip=String(params.get('skipIntro')||'').toLowerCase();
     var shouldForce=(force==='1'||force==='true'||force==='yes'||window.__BTL_FORCE_SHOW_INTRO__===true);
-    var hasSeen=localStorage.getItem('btl_intro_seen')==='1';
-    if(shouldForce||!hasSeen){
+    var shouldSkip=(skip==='1'||skip==='true'||skip==='yes'||window.__BTL_SKIP_INTRO__===true);
+    if(shouldForce||!shouldSkip){
       introEl.style.setProperty('display','flex','important');
       introEl.style.setProperty('visibility','visible','important');
       introEl.style.setProperty('opacity','1','important');

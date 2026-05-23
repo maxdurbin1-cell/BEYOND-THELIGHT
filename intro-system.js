@@ -276,6 +276,18 @@ Enter the game.
     }
   }
 
+  function shouldForceSkipIntro() {
+    if (typeof window === 'undefined') return false;
+    if (window.__BTL_SKIP_INTRO__ === true) return true;
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      const skip = String(params.get('skipIntro') || '').toLowerCase();
+      return skip === '1' || skip === 'true' || skip === 'yes';
+    } catch (_err) {
+      return false;
+    }
+  }
+
   function hasExistingProgress() {
     const state = (typeof window !== 'undefined') ? (window.S || {}) : {};
     const hasCharacter = !!String((state && state.name) || '').trim();
@@ -301,7 +313,7 @@ Enter the game.
 
   function shouldAutoSkipIntro() {
     if (shouldForceShowIntro()) return false;
-    return hasSeenIntro();
+    return shouldForceSkipIntro();
   }
 
   function forceShowIntroOverlay() {

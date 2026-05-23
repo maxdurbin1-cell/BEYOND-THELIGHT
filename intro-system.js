@@ -212,6 +212,8 @@ Enter the game.
       return;
     }
 
+    forceShowIntroOverlay();
+
     let html = `<div class="intro-wrapper">`;
 
     INTRO_CONTENT.screens.forEach((screen, index) => {
@@ -245,6 +247,12 @@ Enter the game.
 
     html += `</div>`;
     introContainer.innerHTML = html;
+    forceShowIntroOverlay();
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(forceShowIntroOverlay);
+    }
+    setTimeout(forceShowIntroOverlay, 0);
+    setTimeout(forceShowIntroOverlay, 80);
     showScreen("welcome");
   }
 
@@ -296,9 +304,20 @@ Enter the game.
     return hasSeenIntro();
   }
 
+  function forceShowIntroOverlay() {
+    const introContainer = document.getElementById(INTRO_ID);
+    if (!introContainer) return;
+    introContainer.style.setProperty('display', 'flex', 'important');
+    introContainer.style.setProperty('visibility', 'visible', 'important');
+    introContainer.style.setProperty('opacity', '1', 'important');
+    introContainer.style.setProperty('pointer-events', 'auto', 'important');
+    introContainer.style.setProperty('z-index', '9999', 'important');
+  }
+
   let currentScreenIndex = 0;
 
   function showScreen(screenId) {
+    forceShowIntroOverlay();
     document.querySelectorAll(".intro-screen").forEach(s => s.style.display = "none");
     const screen = document.querySelector(`[data-screen="${screenId}"]`);
     if (screen) {
@@ -336,6 +355,10 @@ Enter the game.
   function hideIntroOverlay() {
     const introContainer = document.getElementById(INTRO_ID);
     if (introContainer) {
+      introContainer.style.removeProperty('visibility');
+      introContainer.style.removeProperty('opacity');
+      introContainer.style.removeProperty('pointer-events');
+      introContainer.style.removeProperty('z-index');
       introContainer.style.display = "none";
     }
   }
@@ -438,7 +461,8 @@ Enter the game.
     skipIntro,
     enterLegacyMode,
     enterKnownRealmMode,
-    shouldForceShowIntro
+    shouldForceShowIntro,
+    forceShowIntroOverlay
   };
 
   // Auto-setup

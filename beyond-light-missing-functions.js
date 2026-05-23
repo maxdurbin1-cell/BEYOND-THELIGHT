@@ -1785,7 +1785,8 @@ function clearCharacter(options) {
   if (typeof renderWeaponModsPanel === 'function') { renderWeaponModsPanel(); }
   if (typeof updateInjuriesUI === 'function') updateInjuriesUI();
   if (typeof updateScarUI === 'function') updateScarUI();
-  _lastSoloLoadedChecksum = computeSaveChecksum(JSON.stringify(S || {}));
+  try { localStorage.removeItem(SOLO_SAVE_MEDIA_KEY); } catch (_err) {}
+  _lastSoloLoadedChecksum = computeCurrentSoloStateChecksum();
 }
 
 const SOLO_SAVE_KEY = "beyond-light-character";
@@ -1793,6 +1794,7 @@ const SOLO_SAVE_BACKUP_KEY = "beyond-light-character-backup";
 const SOLO_SAVE_CHECKPOINT_KEY = "beyond-light-character-checkpoint";
 const SOLO_SAVE_CHECKPOINT_PREFIX = "beyond-light-character-checkpoint-";
 const SOLO_SAVE_META_KEY = "beyond-light-character-meta";
+const SOLO_SAVE_MEDIA_KEY = "beyond-light-character-media";
 const SOLO_SAVE_CORRUPT_PREFIX = "beyond-light-character-corrupt-";
 const SOLO_SAVE_SCHEMA_VERSION = 2;
 const SOLO_CHECKPOINT_HISTORY_LIMIT = 3;
@@ -1820,6 +1822,106 @@ function serializeSoloStateSafe(stateObj) {
     }
     return value;
   });
+}
+
+function isSoloImageDataUrl(value) {
+  return /^data:image\//i.test(String(value || ""));
+}
+
+function readSoloMediaEnvelope() {
+  try {
+    const raw = localStorage.getItem(SOLO_SAVE_MEDIA_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    if (!parsed.media || typeof parsed.media !== "object") return null;
+    return parsed;
+  } catch (_err) {
+    return null;
+  }
+}
+
+function writeSoloMediaEnvelope(mediaPatch) {
+  if (!mediaPatch || typeof mediaPatch !== "object") return;
+  const keys = Object.keys(mediaPatch);
+  if (!keys.length) return;
+  const current = readSoloMediaEnvelope();
+  const nextMedia = Object.assign({}, current && current.media ? current.media : {}, mediaPatch);
+  localStorage.setItem(SOLO_SAVE_MEDIA_KEY, JSON.stringify({
+    savedAt: Date.now(),
+    media: nextMedia
+  }));
+}
+
+function detachSoloMediaFromEnvelope(envelope) {
+  if (!envelope || typeof envelope !== "object" || !envelope.data || typeof envelope.data !== "object") {
+    return {};
+  }
+  const data = envelope.data;
+  const mediaPatch = {};
+
+  if (isSoloImageDataUrl(data.portraitImage)) {
+    mediaPatch.portraitImage = String(data.portraitImage || "");
+    if (data.portraitSource) {
+      mediaPatch.portraitSource = String(data.portraitSource || "");
+    }
+    data.portraitImage = "";
+  }
+
+  const identityForge = data.identityForge && typeof data.identityForge === "object" ? data.identityForge : null;
+  const media = identityForge && identityForge.media && typeof identityForge.media === "object" ? identityForge.media : null;
+  if (media) {
+    if (isSoloImageDataUrl(media.portrait)) {
+      mediaPatch.identityForgePortrait = String(media.portrait || "");
+      media.portrait = "";
+    }
+    if (isSoloImageDataUrl(media.token)) {
+      mediaPatch.identityForgeToken = String(media.token || "");
+      media.token = "";
+    }
+  }
+
+  envelope.savedAt = Date.now();
+  envelope.checksum = computeSaveChecksum(JSON.stringify(data));
+  return mediaPatch;
+}
+
+function hydrateSoloMediaIntoState(saved) {
+  const state = (saved && typeof saved === "object") ? saved : {};
+  const mediaEnvelope = readSoloMediaEnvelope();
+  const media = mediaEnvelope && mediaEnvelope.media && typeof mediaEnvelope.media === "object"
+    ? mediaEnvelope.media
+    : null;
+  if (!media) return state;
+
+  if (!state.portraitImage && media.portraitImage) {
+    state.portraitImage = String(media.portraitImage || "");
+  }
+  if (!state.portraitSource && media.portraitSource) {
+    state.portraitSource = String(media.portraitSource || "");
+  }
+
+  if (media.identityForgePortrait || media.identityForgeToken) {
+    if (!state.identityForge || typeof state.identityForge !== "object") {
+      state.identityForge = {};
+    }
+    if (!state.identityForge.media || typeof state.identityForge.media !== "object") {
+      state.identityForge.media = {};
+    }
+    if (!state.identityForge.media.portrait && media.identityForgePortrait) {
+      state.identityForge.media.portrait = String(media.identityForgePortrait || "");
+    }
+    if (!state.identityForge.media.token && media.identityForgeToken) {
+      state.identityForge.media.token = String(media.identityForgeToken || "");
+    }
+  }
+  return state;
+}
+
+function computeCurrentSoloStateChecksum() {
+  const envelope = makeSoloSaveEnvelope(S || {});
+  detachSoloMediaFromEnvelope(envelope);
+  return String(envelope.checksum || "");
 }
 
 function makeSoloSaveEnvelope(stateObj) {
@@ -1951,7 +2053,7 @@ function hasUnsavedSoloChanges() {
   if (!hasMeaningfulCharacterState()) return false;
   let nowChecksum = "";
   try {
-    nowChecksum = computeSaveChecksum(JSON.stringify(S || {}));
+    nowChecksum = computeCurrentSoloStateChecksum();
   } catch (_err) {
     return true;
   }
@@ -1990,19 +2092,20 @@ function confirmClearCharacter() {
 window.confirmClearCharacter = confirmClearCharacter;
 
 function applyLoadedCharacterState(saved) {
+  const loaded = hydrateSoloMediaIntoState(saved || {});
   S = {
     ...S,
-    ...saved,
-    equipment: { ...S.equipment, ...(saved.equipment || {}) },
-    backpack: Array.isArray(saved.backpack) ? saved.backpack.slice(0, 6) : S.backpack,
-    conditions: { ...S.conditions, ...(saved.conditions || {}) },
-    stats: { ...S.stats, ...(saved.stats || {}) },
-    traits: { ...(saved.traits || {}) },
+    ...loaded,
+    equipment: { ...S.equipment, ...(loaded.equipment || {}) },
+    backpack: Array.isArray(loaded.backpack) ? loaded.backpack.slice(0, 6) : S.backpack,
+    conditions: { ...S.conditions, ...(loaded.conditions || {}) },
+    stats: { ...S.stats, ...(loaded.stats || {}) },
+    traits: { ...(loaded.traits || {}) },
     combat: {
       ...S.combat,
-      ...(saved.combat || {}),
-      armyA: { ...S.combat.armyA, ...((saved.combat && saved.combat.armyA) || {}) },
-      armyB: { ...S.combat.armyB, ...((saved.combat && saved.combat.armyB) || {}) }
+      ...(loaded.combat || {}),
+      armyA: { ...S.combat.armyA, ...((loaded.combat && loaded.combat.armyA) || {}) },
+      armyB: { ...S.combat.armyB, ...((loaded.combat && loaded.combat.armyB) || {}) }
     }
   };
 
@@ -2050,6 +2153,8 @@ function saveCharacter() {
 
   try {
     const envelope = makeSoloSaveEnvelope(S);
+    const mediaPatch = detachSoloMediaFromEnvelope(envelope);
+    try { writeSoloMediaEnvelope(mediaPatch); } catch (_mediaErr) {}
     writeSoloEnvelope(envelope);
     let checkpointOk = true;
     try {
@@ -2788,6 +2893,8 @@ function confirmImportCharacterSave(rawInput) {
       showNotif("Imported save failed integrity check", "warn");
       return;
     }
+    const mediaPatch = detachSoloMediaFromEnvelope(envelope);
+    try { writeSoloMediaEnvelope(mediaPatch); } catch (_mediaErr) {}
     writeSoloEnvelope(envelope);
     writeSoloCheckpoint(envelope);
     applyLoadedCharacterState(envelope.data || {});
@@ -3000,7 +3107,7 @@ setTimeout(function () {
 setInterval(function () {
   if (!S) return;
   try {
-    const nowChecksum = computeSaveChecksum(JSON.stringify(S));
+    const nowChecksum = computeCurrentSoloStateChecksum();
     const hasBaseline = !!_lastSoloLoadedChecksum;
     if (hasBaseline && nowChecksum !== _lastSoloLoadedChecksum) {
       document.body.classList.add("solo-unsaved");
@@ -3024,6 +3131,8 @@ setInterval(function () {
   if (now - _lastSoloAutoSaveAt < 60000) return;
   try {
     const envelope = makeSoloSaveEnvelope(S);
+    const mediaPatch = detachSoloMediaFromEnvelope(envelope);
+    try { writeSoloMediaEnvelope(mediaPatch); } catch (_mediaErr) {}
     writeSoloEnvelope(envelope);
     _lastSoloLoadedChecksum = envelope.checksum;
     _lastSoloAutoSaveAt = now;

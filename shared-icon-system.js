@@ -278,6 +278,53 @@
     return true;
   }
 
+  function downscaleImageDataUrl(dataUrl, done) {
+    if (typeof done !== 'function') return;
+    var src = String(dataUrl || '');
+    if (!src) {
+      done('');
+      return;
+    }
+    if (typeof Image === 'undefined' || typeof document === 'undefined') {
+      done(src);
+      return;
+    }
+    var img = new Image();
+    img.onload = function () {
+      try {
+        var maxEdge = 1024;
+        var w = Number(img.naturalWidth || img.width || 0);
+        var h = Number(img.naturalHeight || img.height || 0);
+        if (!w || !h) {
+          done(src);
+          return;
+        }
+        var scale = Math.min(1, maxEdge / Math.max(w, h));
+        var outW = Math.max(1, Math.round(w * scale));
+        var outH = Math.max(1, Math.round(h * scale));
+        var canvas = document.createElement('canvas');
+        canvas.width = outW;
+        canvas.height = outH;
+        var ctx = canvas.getContext('2d');
+        if (!ctx) {
+          done(src);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, outW, outH);
+        var out = canvas.toDataURL('image/jpeg', 0.82);
+        if (!out || out.length > src.length) {
+          done(src);
+          return;
+        }
+        done(out);
+      } catch (_err) {
+        done(src);
+      }
+    };
+    img.onerror = function () { done(src); };
+    img.src = src;
+  }
+
   function clearWayfarerPortraitImage() {
     if (typeof window === 'undefined' || !window.S || typeof window.S !== 'object') return false;
     delete window.S.portraitImage;
@@ -307,7 +354,10 @@
       if (!file) return;
       var reader = new FileReader();
       reader.onload = function () {
-        setWayfarerPortraitImage(String(reader.result || ''), 'Uploaded image');
+        var raw = String(reader.result || '');
+        downscaleImageDataUrl(raw, function (finalData) {
+          setWayfarerPortraitImage(String(finalData || raw), 'Uploaded image');
+        });
       };
       reader.readAsDataURL(file);
     };

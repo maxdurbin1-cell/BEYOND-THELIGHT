@@ -1148,6 +1148,41 @@ function toggleCond(key) {
   updateAllStatDisplays();
 }
 
+function removeCondition(key) {
+  if (!key || !S || !S.conditions || !(key in S.conditions)) {
+    return false;
+  }
+  if (!S.conditions[key]) {
+    return false;
+  }
+  S.conditions[key] = false;
+  updateConditionButtons();
+  updateAllStatDisplays();
+  if (typeof showNotif === 'function') showNotif('Removed condition: ' + key + '.', 'good');
+  return true;
+}
+
+function openRemoveConditionWindow() {
+  if (!S || !S.conditions) {
+    if (typeof showNotif === 'function') showNotif('No condition state available.', 'warn');
+    return;
+  }
+  const active = Object.keys(S.conditions).filter(function (key) { return !!S.conditions[key]; });
+  if (!active.length) {
+    if (typeof showNotif === 'function') showNotif('No active conditions to remove.', 'info');
+    return;
+  }
+  const html = ''
+    + '<div style="font-size:.84rem;color:var(--text2);line-height:1.55;margin-bottom:.45rem;">Select a condition to remove.</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:.35rem;">'
+    + active.map(function (key) {
+      var label = key.charAt(0).toUpperCase() + key.slice(1);
+      return '<button class="btn btn-sm" onclick="if(removeCondition(\'' + key + '\')){closeModal();}">' + label + '</button>';
+    }).join('')
+    + '</div>';
+  if (typeof openModal === 'function') openModal('Remove Condition', html, null, { preventScroll: true, focusTrap: true });
+}
+
 function clearAllConditions() {
   // Only clear temporary combat conditions; trauma conditions are permanent.
   Object.keys(S.conditions).forEach((key) => {

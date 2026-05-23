@@ -26,6 +26,7 @@
     dockOpen: false,
     lastDockLogSize: 0,
     timelineFilter: "all",
+    hiddenTimelineKeys: [],
     lastCharacterHash: "",
     gmIdea: "",
     gmWayfarerSort: "online",
@@ -3484,8 +3485,21 @@
     }).join("");
   }
 
+  function getTimelineEntryKey(entry) {
+    var e = entry && typeof entry === "object" ? entry : {};
+    var id = String(e.id || "").trim();
+    if (id) return id;
+    return String(e.kind || "system") + "|" + Number(e.at || 0) + "|" + String(e.text || "");
+  }
+
   function filterTimeline(log) {
     var source = Array.isArray(log) ? log : [];
+    var hidden = Array.isArray(state.hiddenTimelineKeys) ? state.hiddenTimelineKeys : [];
+    if (hidden.length) {
+      source = source.filter(function (entry) {
+        return hidden.indexOf(getTimelineEntryKey(entry)) === -1;
+      });
+    }
     function isTriggerDebug(entry) {
       var text = String(entry && entry.text || "");
       return text.indexOf("GM Trigger Debug") >= 0 || text.indexOf("Trigger:") >= 0 || text.indexOf("hex-enter") >= 0;
@@ -4258,6 +4272,7 @@
       + '<div class="campaign-dock-chat">'
       + '<input id="campaignDockChatInput" class="campaign-dock-input" type="text" maxlength="500" placeholder="Type campaign chat...">'
       + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.sendChatMessage()">Send</button>'
+      + '<button class="btn btn-xs" onclick="window.campaignSystem.clearRecentDockChat()">Clear Recent</button>'
       + "</div>"
       + "</div>";
 
@@ -5162,6 +5177,33 @@
     renderDockPanel();
   }
 
+  function clearRecentDockChat(count) {
+    var take = Math.max(1, Math.min(100, Number(count || 20)));
+    var campaignLog = state.campaign && Array.isArray(state.campaign.log) ? state.campaign.log : [];
+    var shared = getCampaignSharedState();
+    var recap = shared && Array.isArray(shared.sessionTimeline) ? shared.sessionTimeline : [];
+    var source = buildDockTimelineSource(campaignLog, recap);
+    var visible = filterTimeline(source);
+    var chatEntries = visible.filter(function (entry) {
+      return String(entry && entry.kind || "") === "chat";
+    });
+    if (!chatEntries.length) {
+      safeNotif("No chat lines to clear.", "info");
+      return;
+    }
+    var removed = chatEntries.slice(-take);
+    state.hiddenTimelineKeys = Array.isArray(state.hiddenTimelineKeys) ? state.hiddenTimelineKeys : [];
+    removed.forEach(function (entry) {
+      var key = getTimelineEntryKey(entry);
+      if (state.hiddenTimelineKeys.indexOf(key) === -1) state.hiddenTimelineKeys.push(key);
+    });
+    if (state.hiddenTimelineKeys.length > 1000) {
+      state.hiddenTimelineKeys = state.hiddenTimelineKeys.slice(state.hiddenTimelineKeys.length - 1000);
+    }
+    renderDockPanel();
+    safeNotif("Cleared " + removed.length + " recent chat line" + (removed.length === 1 ? "" : "s") + " from your dock view.", "good");
+  }
+
   async function submitActiveRoll() {
     var req = state.campaign && state.campaign.activeRollRequest;
     if (!req) {
@@ -5689,6 +5731,7 @@
     exportSnapshot: exportSnapshot,
     importSnapshotPrompt: importSnapshotPrompt,
     importSnapshotFromModal: importSnapshotFromModal,
+    clearRecentDockChat: clearRecentDockChat,
     toggleDock: toggleDock,
     openDock: openDock,
     recordEconomyDelta: recordEconomyDelta,

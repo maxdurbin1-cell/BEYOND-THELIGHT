@@ -120,6 +120,79 @@
     return n > 0 ? ` + ${n}` : ` - ${Math.abs(n)}`;
   }
 
+  const SOUL_WIDGET_STATS = [
+    { key: 'body', label: 'Body' },
+    { key: 'strike', label: 'Strike' },
+    { key: 'shoot', label: 'Shoot' },
+    { key: 'mind', label: 'Mind' },
+    { key: 'spirit', label: 'Spirit' },
+    { key: 'defend', label: 'Defend' },
+    { key: 'control', label: 'Control' },
+    { key: 'lead', label: 'Lead' },
+    { key: 'adventure', label: 'Valor' }
+  ];
+  const DIE_STEPS = [4, 6, 8, 10, 12, 20];
+
+  function clampDieStep(value) {
+    const raw = Number(value || 6);
+    if (DIE_STEPS.indexOf(raw) >= 0) return raw;
+    let best = DIE_STEPS[0];
+    let bestDist = Math.abs(raw - best);
+    for (let i = 1; i < DIE_STEPS.length; i += 1) {
+      const d = DIE_STEPS[i];
+      const dist = Math.abs(raw - d);
+      if (dist < bestDist) {
+        best = d;
+        bestDist = dist;
+      }
+    }
+    return best;
+  }
+
+  function stepDie(value, delta) {
+    const die = clampDieStep(value);
+    let idx = DIE_STEPS.indexOf(die);
+    idx = Math.max(0, Math.min(DIE_STEPS.length - 1, idx + Number(delta || 0)));
+    return DIE_STEPS[idx];
+  }
+
+  function getSoulStatDie(statKey) {
+    const fallback = 6;
+    const source = typeof window !== 'undefined' && window.S && window.S.stats ? window.S.stats : null;
+    if (!source) return fallback;
+    return clampDieStep(Number(source[statKey] || fallback));
+  }
+
+  function getConditionStepShift(statKey) {
+    const s = typeof window !== 'undefined' && window.S ? window.S : null;
+    const c = s && s.conditions ? s.conditions : null;
+    if (!c) return 0;
+    const key = String(statKey || '').toLowerCase();
+    let shift = 0;
+    if ((key === 'body' || key === 'strike' || key === 'shoot')) {
+      if (c.empowered) shift += 1;
+      if (c.weakened) shift -= 1;
+    }
+    if (key === 'defend') {
+      if (c.protected) shift += 1;
+      if (c.vulnerable) shift -= 1;
+    }
+    if (key === 'mind' || key === 'control') {
+      if (c.focused) shift += 1;
+      if (c.distracted) shift -= 1;
+    }
+    if (key === 'spirit' || key === 'lead') {
+      if (c.bolstered) shift += 1;
+      if (c.shaken) shift -= 1;
+    }
+    return shift;
+  }
+
+  function getSoulLabel(statKey) {
+    const hit = SOUL_WIDGET_STATS.find((entry) => entry.key === statKey);
+    return hit ? hit.label : 'Action';
+  }
+
   function parseDiceNotation(notation) {
     const raw = String(notation || '').trim();
     if (!raw) return { ok: false, error: 'Enter a dice notation first.' };
@@ -324,6 +397,7 @@
     init() {
       const container = document.getElementById('diceRollerContainer');
       if (!container) this.createContainer();
+      initDiceWindowSystem();
       
       this.canvas = document.getElementById('diceRollerCanvas');
       if (!this.canvas) {
@@ -345,13 +419,19 @@
       const container = document.createElement('div');
       container.id = 'diceRollerContainer';
       container.innerHTML = `
-        <div id="diceRollerModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:2000;align-items:center;justify-content:center;backdrop-filter:blur(8px);">
-          <div style="background:rgba(11,12,26,.98);border:2px solid rgba(201,162,39,.4);border-radius:12px;overflow:hidden;box-shadow:0 40px 80px rgba(0,0,0,.6),0 0 1px rgba(201,162,39,.3) inset;max-width:680px;width:90%;">
-            <div style="background:linear-gradient(180deg,rgba(201,162,39,.12) 0%,rgba(201,162,39,.02) 100%);border-bottom:1px solid rgba(201,162,39,.2);padding:1rem;display:flex;justify-content:space-between;align-items:center;">
-              <div style="font-family:'Cinzel',serif;font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gold2);">⚄ Roll Dice</div>
-              <button onclick="closeDiceRoller()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:1.4rem;">✕</button>
+        <div id="diceRollerModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:5300;backdrop-filter:blur(8px);">
+          <div id="diceRollerWindow" style="position:fixed;left:50%;top:8vh;transform:translateX(-50%);background:rgba(11,12,26,.98);border:2px solid rgba(201,162,39,.4);border-radius:12px;overflow:hidden;box-shadow:0 40px 80px rgba(0,0,0,.6),0 0 1px rgba(201,162,39,.3) inset;max-width:680px;width:90%;min-width:340px;min-height:260px;max-height:88vh;display:flex;flex-direction:column;">
+            <div id="diceRollerHeader" style="background:linear-gradient(180deg,rgba(201,162,39,.12) 0%,rgba(201,162,39,.02) 100%);border-bottom:1px solid rgba(201,162,39,.2);padding:.75rem .85rem;display:flex;justify-content:space-between;align-items:flex-start;gap:.55rem;cursor:move;user-select:none;">
+              <div style="font-family:'Cinzel',serif;font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;color:var(--gold2);">⚄ Dice Widget</div>
+              <div style="display:flex;gap:.25rem;align-items:center;flex-wrap:wrap;">
+                <button id="diceRollerDockLeft" class="btn btn-xs" type="button">Dock Left</button>
+                <button id="diceRollerDockRight" class="btn btn-xs" type="button">Dock Right</button>
+                <button id="diceRollerFullscreen" class="btn btn-xs" type="button">Fullscreen</button>
+                <button id="diceRollerFloat" class="btn btn-xs" type="button">Float</button>
+                <button onclick="closeDiceRoller()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:1.2rem;line-height:1;">✕</button>
+              </div>
             </div>
-            <div style="padding:1.2rem;background:rgba(6,7,14,.5);">
+            <div style="padding:1rem;background:rgba(6,7,14,.5);overflow:auto;flex:1;">
               <canvas id="diceRollerCanvas" width="640" height="480" style="max-width:100%;border-radius:8px;display:block;margin:0 auto;border:1px solid rgba(201,162,39,.15);"></canvas>
               <div id="diceRollerControls" style="margin-top:1rem;"></div>
             </div>
@@ -359,6 +439,7 @@
               <div id="diceRollerResult" style="flex:1;min-height:2rem;display:flex;align-items:center;font-size:.9rem;color:var(--teal);font-family:'Rajdhani',sans-serif;font-weight:600;"></div>
               <button onclick="closeDiceRoller()" class="btn btn-sm">Close</button>
             </div>
+            <div id="diceRollerResizeHandle" style="position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 40%,rgba(232,192,80,.45) 40%,rgba(232,192,80,.45) 52%,transparent 52%,transparent 62%,rgba(232,192,80,.45) 62%,rgba(232,192,80,.45) 74%,transparent 74%);"></div>
           </div>
         </div>
       `;
@@ -876,6 +957,189 @@
 
   // Global instance
   let diceRoller = null;
+  const diceWindowState = {
+    mode: 'floating',
+    x: null,
+    y: null,
+    width: null,
+    height: null,
+    dragging: false,
+    dragOffsetX: 0,
+    dragOffsetY: 0,
+    resizing: false,
+    resizeStartX: 0,
+    resizeStartY: 0,
+    resizeStartW: 0,
+    resizeStartH: 0
+  };
+
+  function getDiceWindowEl() {
+    return document.getElementById('diceRollerWindow');
+  }
+
+  function clampDiceWindow() {
+    const panel = getDiceWindowEl();
+    if (!panel || diceWindowState.mode !== 'floating') return;
+    const width = Math.max(340, Math.min(window.innerWidth - 12, Number(diceWindowState.width || panel.offsetWidth || 680)));
+    const height = Math.max(260, Math.min(window.innerHeight - 12, Number(diceWindowState.height || panel.offsetHeight || 620)));
+    const maxX = Math.max(6, window.innerWidth - width - 6);
+    const maxY = Math.max(6, window.innerHeight - height - 6);
+    let x = Number(diceWindowState.x);
+    let y = Number(diceWindowState.y);
+    if (!Number.isFinite(x)) x = Math.max(6, (window.innerWidth - width) / 2);
+    if (!Number.isFinite(y)) y = Math.max(6, Math.min(window.innerHeight * 0.08, (window.innerHeight - height) / 2));
+    diceWindowState.width = width;
+    diceWindowState.height = height;
+    diceWindowState.x = Math.max(6, Math.min(maxX, x));
+    diceWindowState.y = Math.max(6, Math.min(maxY, y));
+  }
+
+  function applyDiceWindowMode() {
+    const panel = getDiceWindowEl();
+    const resize = document.getElementById('diceRollerResizeHandle');
+    if (!panel) return;
+    panel.style.left = '';
+    panel.style.top = '';
+    panel.style.right = '';
+    panel.style.transform = '';
+    panel.style.width = '';
+    panel.style.height = '';
+    panel.style.maxWidth = '';
+    panel.style.maxHeight = '';
+    panel.style.borderRadius = '12px';
+    if (resize) resize.style.display = '';
+
+    if (diceWindowState.mode === 'fullscreen') {
+      panel.style.left = '0';
+      panel.style.top = '0';
+      panel.style.transform = 'none';
+      panel.style.width = '100vw';
+      panel.style.height = '100vh';
+      panel.style.maxWidth = 'none';
+      panel.style.maxHeight = 'none';
+      panel.style.borderRadius = '0';
+      if (resize) resize.style.display = 'none';
+      return;
+    }
+    if (diceWindowState.mode === 'dock-left') {
+      panel.style.left = '0';
+      panel.style.top = '0';
+      panel.style.transform = 'none';
+      panel.style.width = 'min(460px, 100vw)';
+      panel.style.height = '100vh';
+      panel.style.maxWidth = 'none';
+      panel.style.maxHeight = 'none';
+      panel.style.borderRadius = '0';
+      if (resize) resize.style.display = 'none';
+      return;
+    }
+    if (diceWindowState.mode === 'dock-right') {
+      panel.style.right = '0';
+      panel.style.top = '0';
+      panel.style.transform = 'none';
+      panel.style.width = 'min(460px, 100vw)';
+      panel.style.height = '100vh';
+      panel.style.maxWidth = 'none';
+      panel.style.maxHeight = 'none';
+      panel.style.borderRadius = '0';
+      if (resize) resize.style.display = 'none';
+      return;
+    }
+
+    clampDiceWindow();
+    panel.style.left = Math.round(Number(diceWindowState.x || 8)) + 'px';
+    panel.style.top = Math.round(Number(diceWindowState.y || 8)) + 'px';
+    panel.style.width = Math.round(Number(diceWindowState.width || 680)) + 'px';
+    panel.style.height = Math.round(Number(diceWindowState.height || 620)) + 'px';
+    panel.style.transform = 'none';
+  }
+
+  function setDiceWindowMode(mode) {
+    const next = ['floating', 'fullscreen', 'dock-left', 'dock-right'].indexOf(String(mode || 'floating')) >= 0
+      ? String(mode)
+      : 'floating';
+    const panel = getDiceWindowEl();
+    if (panel && diceWindowState.mode === 'floating') {
+      const rect = panel.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        diceWindowState.x = rect.left;
+        diceWindowState.y = rect.top;
+        diceWindowState.width = rect.width;
+        diceWindowState.height = rect.height;
+      }
+    }
+    diceWindowState.mode = next;
+    applyDiceWindowMode();
+    if (diceRoller) diceRoller.resizeCanvas();
+  }
+
+  function initDiceWindowSystem() {
+    if (window._diceWindowSystemReady) return;
+    window._diceWindowSystemReady = true;
+    const panel = getDiceWindowEl();
+    const header = document.getElementById('diceRollerHeader');
+    const resize = document.getElementById('diceRollerResizeHandle');
+    const dockLeft = document.getElementById('diceRollerDockLeft');
+    const dockRight = document.getElementById('diceRollerDockRight');
+    const fullscreen = document.getElementById('diceRollerFullscreen');
+    const floatBtn = document.getElementById('diceRollerFloat');
+    if (!panel) return;
+
+    if (dockLeft) dockLeft.addEventListener('click', () => setDiceWindowMode('dock-left'));
+    if (dockRight) dockRight.addEventListener('click', () => setDiceWindowMode('dock-right'));
+    if (fullscreen) fullscreen.addEventListener('click', () => setDiceWindowMode(diceWindowState.mode === 'fullscreen' ? 'floating' : 'fullscreen'));
+    if (floatBtn) floatBtn.addEventListener('click', () => setDiceWindowMode('floating'));
+
+    if (header) {
+      header.addEventListener('mousedown', (evt) => {
+        const t = evt.target;
+        if (t && t.closest && t.closest('button')) return;
+        if (diceWindowState.mode !== 'floating') return;
+        const rect = panel.getBoundingClientRect();
+        diceWindowState.dragging = true;
+        diceWindowState.dragOffsetX = evt.clientX - rect.left;
+        diceWindowState.dragOffsetY = evt.clientY - rect.top;
+        evt.preventDefault();
+      });
+    }
+
+    if (resize) {
+      resize.addEventListener('mousedown', (evt) => {
+        if (diceWindowState.mode !== 'floating') return;
+        const rect = panel.getBoundingClientRect();
+        diceWindowState.resizing = true;
+        diceWindowState.resizeStartX = evt.clientX;
+        diceWindowState.resizeStartY = evt.clientY;
+        diceWindowState.resizeStartW = rect.width;
+        diceWindowState.resizeStartH = rect.height;
+        evt.preventDefault();
+      });
+    }
+
+    document.addEventListener('mousemove', (evt) => {
+      if (diceWindowState.dragging && diceWindowState.mode === 'floating') {
+        diceWindowState.x = evt.clientX - diceWindowState.dragOffsetX;
+        diceWindowState.y = evt.clientY - diceWindowState.dragOffsetY;
+        applyDiceWindowMode();
+        if (diceRoller) diceRoller.resizeCanvas();
+        return;
+      }
+      if (diceWindowState.resizing && diceWindowState.mode === 'floating') {
+        diceWindowState.width = Math.max(340, diceWindowState.resizeStartW + (evt.clientX - diceWindowState.resizeStartX));
+        diceWindowState.height = Math.max(260, diceWindowState.resizeStartH + (evt.clientY - diceWindowState.resizeStartY));
+        applyDiceWindowMode();
+        if (diceRoller) diceRoller.resizeCanvas();
+      }
+    });
+    document.addEventListener('mouseup', () => {
+      diceWindowState.dragging = false;
+      diceWindowState.resizing = false;
+    });
+    window.addEventListener('resize', () => {
+      applyDiceWindowMode();
+      if (diceRoller) diceRoller.resizeCanvas();
+    });
+  }
 
   function initializeDiceRoller() {
     if (!diceRoller) {
@@ -888,7 +1152,9 @@
     initializeDiceRoller();
     const modal = document.getElementById('diceRollerModal');
     if (modal) {
-      modal.style.display = 'flex';
+      modal.style.display = 'block';
+      applyDiceWindowMode();
+      if (diceRoller) diceRoller.resizeCanvas();
       renderDiceRollerControls();
     }
   }
@@ -925,6 +1191,10 @@
     const diceTypes = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20'];
     const counts = [1, 2, 3, 4, 5];
     const activeSkinKey = (() => { try { return localStorage.getItem(SKIN_STORAGE_KEY) || 'classic'; } catch(e) { return 'classic'; } })();
+    const soulStatOptions = SOUL_WIDGET_STATS.map(entry => {
+      const die = getSoulStatDie(entry.key);
+      return `<option value="${entry.key}">${entry.label} (d${die})</option>`;
+    }).join('');
 
     // ── Skin selector row ──────────────────────────────────────────────────
     let skinHtml = `<div style="margin-bottom:.8rem;">
@@ -957,6 +1227,56 @@
           <input id="diceDeterministicToggle" type="checkbox" ${deterministicChecked}>
           Deterministic
         </label>
+      </div>
+      <div style="margin-bottom:1rem;border:1px solid rgba(232,192,80,.24);background:rgba(232,192,80,.05);border-radius:8px;padding:.65rem;">
+        <div style="font-family:'Cinzel',serif;font-size:.69rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold2);margin-bottom:.45rem;">VTT Dice Widget</div>
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem;">
+          <div>
+            <label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Soul Array Stat</label>
+            <select id="diceWidgetSoulStat" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.35rem .45rem;border-radius:4px;width:100%;font-size:.8rem;">${soulStatOptions}</select>
+          </div>
+          <div>
+            <label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Action Die Source</label>
+            <select id="diceWidgetActionSource" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.35rem .45rem;border-radius:4px;width:100%;font-size:.8rem;">
+              <option value="soul">Use Soul Stat Die</option>
+              <option value="d4">d4</option>
+              <option value="d6">d6</option>
+              <option value="d8">d8</option>
+              <option value="d10">d10</option>
+              <option value="d12">d12</option>
+              <option value="d20">d20</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Dread Die</label>
+            <select id="diceWidgetDreadDie" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.35rem .45rem;border-radius:4px;width:100%;font-size:.8rem;">
+              <option value="4">d4</option>
+              <option value="6">d6</option>
+              <option value="8" selected>d8</option>
+              <option value="10">d10</option>
+              <option value="12">d12</option>
+              <option value="20">d20</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Action Dice Count</label>
+            <input id="diceWidgetActionCount" type="number" min="1" max="5" value="1" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.35rem .45rem;border-radius:4px;width:100%;font-size:.8rem;">
+          </div>
+          <div>
+            <label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Modifier</label>
+            <input id="diceWidgetModifier" type="number" min="-20" max="20" value="0" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.35rem .45rem;border-radius:4px;width:100%;font-size:.8rem;">
+          </div>
+          <div>
+            <label style="font-size:.7rem;color:var(--muted2);display:block;margin-bottom:.15rem;">Roll Mode</label>
+            <select id="diceWidgetAdvMode" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.35rem .45rem;border-radius:4px;width:100%;font-size:.8rem;">
+              <option value="none" selected>Normal</option>
+              <option value="adv">Advantage</option>
+              <option value="dis">Disadvantage</option>
+            </select>
+          </div>
+        </div>
+        <button id="diceWidgetRollBtn" class="btn btn-sm btn-teal" type="button" style="margin-top:.55rem;">Roll Widget Check</button>
+        <div id="diceWidgetSummary" style="margin-top:.4rem;font-size:.74rem;color:var(--muted2);line-height:1.5;">Roll Body/Mind/etc vs a Dread die. Results auto-post to campaign shared chat when connected.</div>
       </div>
       <div style="margin-bottom:1rem;">
         <div style="font-family:'Cinzel',serif;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);margin-bottom:.5rem;">Select Dice</div>
@@ -1093,11 +1413,109 @@
       deterministicSeedInput.addEventListener('blur', applyDeterministicSettings);
     }
 
+    const widgetBtn = document.getElementById('diceWidgetRollBtn');
+    if (widgetBtn) {
+      widgetBtn.addEventListener('click', function () {
+        rollDiceWidgetFromUI();
+      });
+    }
+
     if (diceRoller) {
       renderDiceRollerLog(diceRoller.rollLog);
       const breakdownEl = document.getElementById('diceRollerBreakdown');
       if (breakdownEl && diceRoller.lastBreakdown) breakdownEl.innerHTML = diceRoller.lastBreakdown;
     }
+  }
+
+  function rollDiceWidgetFromUI() {
+    if (!diceRoller) initializeDiceRoller();
+
+    const statKey = String(document.getElementById('diceWidgetSoulStat')?.value || 'body');
+    const actionSource = String(document.getElementById('diceWidgetActionSource')?.value || 'soul');
+    const dreadDie = clampDieStep(Number(document.getElementById('diceWidgetDreadDie')?.value || 8));
+    const mode = String(document.getElementById('diceWidgetAdvMode')?.value || 'none');
+    const actionCount = Math.max(1, Math.min(5, Number(document.getElementById('diceWidgetActionCount')?.value || 1)));
+    const modifier = Number(document.getElementById('diceWidgetModifier')?.value || 0);
+
+    const baseSoulDie = getSoulStatDie(statKey);
+    const sourceDie = actionSource === 'soul' ? baseSoulDie : clampDieStep(Number(String(actionSource || 'd6').replace(/d/gi, '')));
+    const conditionedDie = stepDie(sourceDie, getConditionStepShift(statKey));
+    const actionDiceToRoll = (mode === 'adv' || mode === 'dis') ? Math.max(2, actionCount) : actionCount;
+
+    const summaryEl = document.getElementById('diceWidgetSummary');
+    if (summaryEl) {
+      summaryEl.innerHTML = 'Rolling ' + actionDiceToRoll + 'd' + conditionedDie + ' vs d' + dreadDie + '...';
+    }
+
+    const priorOnComplete = diceRoller.onComplete;
+    diceRoller.onComplete = function widgetComplete(payload) {
+      const rolls = Array.isArray(payload && payload.rolls) ? payload.rolls : [];
+      const actionRolls = rolls.filter((r) => Number(r && r.termId) === 7001).map((r) => Number(r.value || 0));
+      const dreadRoll = rolls.find((r) => Number(r && r.termId) === 7002);
+      const dreadTotal = Number(dreadRoll && dreadRoll.value || 0);
+      const pickedAction = mode === 'adv'
+        ? (actionRolls.length ? Math.max.apply(Math, actionRolls) : 0)
+        : mode === 'dis'
+          ? (actionRolls.length ? Math.min.apply(Math, actionRolls) : 0)
+          : actionRolls.reduce((sum, val) => sum + val, 0);
+      const actionTotal = pickedAction + modifier;
+      const success = actionTotal >= dreadTotal;
+      const modeLabel = mode === 'adv' ? 'Advantage' : mode === 'dis' ? 'Disadvantage' : 'Normal';
+      const statLabel = getSoulLabel(statKey);
+      const sourceLabel = actionSource === 'soul' ? `${statLabel} Soul Die` : `Manual d${sourceDie}`;
+      const actor = (typeof window !== 'undefined' && window.S && window.S.name) ? String(window.S.name || 'Wayfarer') : 'Wayfarer';
+
+      const resultEl = document.getElementById('diceRollerResult');
+      if (resultEl) {
+        resultEl.innerHTML = `<span style="color:var(--gold2);margin-right:.5rem;">⚔</span>${statLabel} ${modeLabel}: <strong style="color:${success ? 'var(--green2)' : 'var(--red2)'};">${actionTotal}</strong> vs Dread ${dreadTotal}`;
+      }
+
+      const breakdown = ''
+        + `<div><strong>${statLabel}</strong> (${sourceLabel}) | Mode: ${modeLabel}</div>`
+        + `<div>Action rolls: [${actionRolls.join(', ')}]${mode === 'none' ? ' (sum)' : (mode === 'adv' ? ' (highest kept)' : ' (lowest kept)')}</div>`
+        + `<div>Picked action total: ${pickedAction}</div>`
+        + `<div>Modifier: ${modifier >= 0 ? '+' : ''}${modifier}</div>`
+        + `<div>Dread d${dreadDie}: ${dreadTotal}</div>`
+        + `<div style="margin-top:.2rem;color:${success ? 'var(--green2)' : 'var(--red2)'};"><strong>${success ? 'SUCCESS' : 'FAILURE'}</strong> (${actionTotal} vs ${dreadTotal})</div>`;
+      const breakdownEl = document.getElementById('diceRollerBreakdown');
+      if (breakdownEl) breakdownEl.innerHTML = breakdown;
+
+      const chatSummary = `${actor} | ${statLabel} ${modeLabel} | Action [${actionRolls.join(', ')}] => ${pickedAction}${modifier ? (modifier > 0 ? ' + ' + modifier : ' - ' + Math.abs(modifier)) : ''} = ${actionTotal} vs Dread d${dreadDie}=${dreadTotal} => ${success ? 'SUCCESS' : 'FAILURE'}`;
+      if (summaryEl) {
+        summaryEl.innerHTML = `${success ? 'Success' : 'Failure'} posted to campaign chat when connected.<br>${chatSummary}`;
+      }
+
+      if (typeof window !== 'undefined' && window.campaignSystem && typeof window.campaignSystem.broadcastRollResult === 'function') {
+        window.campaignSystem.broadcastRollResult('Dice Widget', chatSummary);
+      }
+
+      if (typeof priorOnComplete === 'function') {
+        try { priorOnComplete(payload); } catch (_err) {}
+      }
+      diceRoller.onComplete = priorOnComplete;
+    };
+
+    const pool = [
+      {
+        sides: conditionedDie,
+        count: actionDiceToRoll,
+        label: 'Action',
+        termId: 7001,
+        termSign: 1,
+        keepKind: 'all',
+        keepCount: actionDiceToRoll
+      },
+      {
+        sides: dreadDie,
+        count: 1,
+        label: 'Dread',
+        termId: 7002,
+        termSign: 1,
+        keepKind: 'all',
+        keepCount: 1
+      }
+    ];
+    diceRoller.initMixedRoll(pool, 0, { mode: 'sum' });
   }
 
   function rollDiceFromUI() {
@@ -1121,7 +1539,11 @@
   function rollMixed3DDice(pool, bonus, options, onComplete) {
     initializeDiceRoller();
     const modal = document.getElementById('diceRollerModal');
-    if (modal) modal.style.display = 'flex';
+    if (modal) {
+      modal.style.display = 'block';
+      applyDiceWindowMode();
+      if (diceRoller) diceRoller.resizeCanvas();
+    }
     if (typeof onComplete === 'function') diceRoller.onComplete = onComplete;
     const safeOptions = options && typeof options === 'object' ? options : {};
     return diceRoller.initMixedRoll(pool, bonus || 0, safeOptions);
@@ -1132,6 +1554,7 @@
   window.openDiceRoller = openDiceRoller;
   window.closeDiceRoller = closeDiceRoller;
   window.rollDiceFromUI = rollDiceFromUI;
+  window.rollDiceWidgetFromUI = rollDiceWidgetFromUI;
   window.rollMixed3DDice = rollMixed3DDice;
   window.Dice3DRoller = Dice3DRoller;
   window.DICE_SKINS = DICE_SKINS;
@@ -1149,7 +1572,11 @@
   window.rollPreset3DDice = function(sides, values, bonus, onComplete) {
     initializeDiceRoller();
     const modal = document.getElementById('diceRollerModal');
-    if (modal) modal.style.display = 'flex';
+    if (modal) {
+      modal.style.display = 'block';
+      applyDiceWindowMode();
+      if (diceRoller) diceRoller.resizeCanvas();
+    }
     if (typeof onComplete === 'function') diceRoller.onComplete = onComplete;
       if (Array.isArray(sides)) {
         const mixedBonus = typeof values === 'number' ? values : Number(bonus || 0);

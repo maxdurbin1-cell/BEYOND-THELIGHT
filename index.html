@@ -261,6 +261,18 @@ body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr 1f
 .overlay.open{opacity:1;pointer-events:all;}
 .modal{background:var(--card);border:1px solid var(--border2);max-width:760px;width:100%;padding:1.1rem;max-height:88vh;overflow-y:auto;line-height:1.62;}
 .modal-header{font-family:'Cinzel',serif;font-size:1rem;letter-spacing:.11em;color:var(--gold2);margin-bottom:.92rem;padding-bottom:.62rem;border-bottom:1px solid var(--border);font-weight:700;}
+.modal.window-system{position:fixed;left:50%;top:8vh;transform:translateX(-50%);width:min(760px,calc(100vw - 2rem));max-width:min(760px,calc(100vw - 2rem));min-width:320px;min-height:220px;max-height:88vh;padding:1rem 1rem 1.1rem 1rem;overflow:auto;box-shadow:0 20px 55px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.04) inset;}
+.modal-header-row{display:flex;justify-content:space-between;align-items:flex-start;gap:.7rem;cursor:move;user-select:none;}
+.modal.window-system .modal-header{margin-bottom:.65rem;padding-bottom:.5rem;flex:1;min-width:0;}
+.modal-window-actions{display:flex;gap:.28rem;align-items:center;padding-top:.05rem;}
+.modal-window-actions .btn{padding:.18rem .38rem;min-height:auto;font-size:.66rem;line-height:1.2;letter-spacing:.08em;}
+.modal.window-system.is-fullscreen{left:0;top:0;transform:none;width:100vw!important;max-width:none!important;height:100vh!important;max-height:none!important;border-radius:0;padding:1rem 1rem 1.15rem 1rem;}
+.modal.window-system.is-docked-left{left:0;top:0;transform:none;width:min(460px,100vw)!important;max-width:none!important;height:100vh!important;max-height:none!important;border-radius:0;}
+.modal.window-system.is-docked-right{left:auto;right:0;top:0;transform:none;width:min(460px,100vw)!important;max-width:none!important;height:100vh!important;max-height:none!important;border-radius:0;}
+.modal-resize-handle{position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 40%,rgba(232,192,80,.45) 40%,rgba(232,192,80,.45) 52%,transparent 52%,transparent 62%,rgba(232,192,80,.45) 62%,rgba(232,192,80,.45) 74%,transparent 74%);opacity:.75;}
+.modal.window-system.is-fullscreen .modal-resize-handle,
+.modal.window-system.is-docked-left .modal-resize-handle,
+.modal.window-system.is-docked-right .modal-resize-handle{display:none;}
 #modalContent{font-size:.97rem;color:var(--text);line-height:1.66;}
 #modalContent [style*="color:var(--muted2)"]{color:var(--text2)!important;}
 #modalContent [style*="font-size:.6"],
@@ -877,6 +889,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
         <div class="sub-label">Passion Roll (d8) — once per Scene</div>
         <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
           <button class="btn btn-sm btn-teal" onclick="rollPassion()">⚄ Roll Passion</button>
+          <button class="btn btn-sm" onclick="openRemoveConditionWindow()">Remove Condition</button>
           <button class="btn btn-sm" onclick="clearAllConditions()">Clear All</button>
         </div>
         <div id="passionResult" style="font-size:.82rem;color:var(--muted3);margin-top:.35rem;min-height:1rem;line-height:1.4;"></div>
@@ -1881,12 +1894,21 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 </main>
 <!-- MODAL -->
 <div class="overlay" id="rollModal" role="presentation">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-    <div class="modal-header" id="modalTitle">Roll</div>
+  <div class="modal window-system" id="rollModalWindow" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-header-row" id="rollModalHeaderRow">
+      <div class="modal-header" id="modalTitle">Roll</div>
+      <div class="modal-window-actions">
+        <button class="btn btn-xs" type="button" id="rollModalDockLeft" title="Dock left">Dock Left</button>
+        <button class="btn btn-xs" type="button" id="rollModalDockRight" title="Dock right">Dock Right</button>
+        <button class="btn btn-xs" type="button" id="rollModalFullscreen" title="Toggle fullscreen">Fullscreen</button>
+        <button class="btn btn-xs" type="button" id="rollModalFloat" title="Restore floating window">Float</button>
+      </div>
+    </div>
     <div id="modalContent"></div>
     <div style="display:flex;gap:.4rem;margin-top:.9rem;justify-content:flex-end;">
       <button class="btn btn-sm" onclick="closeModal()" aria-label="Close dialog">Close</button>
     </div>
+    <div class="modal-resize-handle" id="rollModalResizeHandle" aria-hidden="true"></div>
   </div>
 </div>
 <div id="settingsPanel" class="settings-panel"></div>
@@ -20589,10 +20611,169 @@ function travelThroughProvinceGate(col,row){
 
 // ── MODAL & NOTIF ─────────────────────────────────────────────────────────────
 var _modalPrevFocus = null;
+var _modalWindowState = {
+  mode: 'floating',
+  x: null,
+  y: null,
+  width: null,
+  height: null,
+  dragOffsetX: 0,
+  dragOffsetY: 0,
+  dragging: false,
+  resizing: false,
+  resizeStartX: 0,
+  resizeStartY: 0,
+  resizeStartWidth: 0,
+  resizeStartHeight: 0
+};
+
+function getModalWindowEl() {
+  return document.getElementById('rollModalWindow');
+}
+
+function clampModalWindowToViewport() {
+  var modal = getModalWindowEl();
+  if (!modal || _modalWindowState.mode !== 'floating') return;
+  var width = Math.max(320, Math.min(window.innerWidth - 16, Number(_modalWindowState.width || modal.offsetWidth || 760)));
+  var height = Math.max(220, Math.min(window.innerHeight - 16, Number(_modalWindowState.height || modal.offsetHeight || 480)));
+  var maxX = Math.max(8, window.innerWidth - width - 8);
+  var maxY = Math.max(8, window.innerHeight - height - 8);
+  var x = Number(_modalWindowState.x);
+  var y = Number(_modalWindowState.y);
+  if (!Number.isFinite(x)) x = Math.max(8, (window.innerWidth - width) / 2);
+  if (!Number.isFinite(y)) y = Math.max(8, Math.min(window.innerHeight * 0.08, (window.innerHeight - height) / 2));
+  _modalWindowState.width = width;
+  _modalWindowState.height = height;
+  _modalWindowState.x = Math.max(8, Math.min(maxX, x));
+  _modalWindowState.y = Math.max(8, Math.min(maxY, y));
+}
+
+function applyModalWindowMode() {
+  var modal = getModalWindowEl();
+  if (!modal) return;
+  modal.classList.remove('is-fullscreen', 'is-docked-left', 'is-docked-right');
+  modal.style.right = '';
+  modal.style.width = '';
+  modal.style.height = '';
+  modal.style.left = '';
+  modal.style.top = '';
+  modal.style.transform = '';
+
+  if (_modalWindowState.mode === 'fullscreen') {
+    modal.classList.add('is-fullscreen');
+    return;
+  }
+  if (_modalWindowState.mode === 'dock-left') {
+    modal.classList.add('is-docked-left');
+    return;
+  }
+  if (_modalWindowState.mode === 'dock-right') {
+    modal.classList.add('is-docked-right');
+    return;
+  }
+
+  clampModalWindowToViewport();
+  modal.style.left = Math.round(Number(_modalWindowState.x || 12)) + 'px';
+  modal.style.top = Math.round(Number(_modalWindowState.y || 12)) + 'px';
+  modal.style.width = Math.round(Number(_modalWindowState.width || 760)) + 'px';
+  modal.style.height = Math.round(Number(_modalWindowState.height || 460)) + 'px';
+  modal.style.transform = 'none';
+}
+
+function setModalWindowMode(mode) {
+  var next = String(mode || 'floating');
+  if (['floating', 'fullscreen', 'dock-left', 'dock-right'].indexOf(next) === -1) next = 'floating';
+  if (_modalWindowState.mode === 'floating') {
+    var modal = getModalWindowEl();
+    if (modal) {
+      var rect = modal.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        _modalWindowState.x = rect.left;
+        _modalWindowState.y = rect.top;
+        _modalWindowState.width = rect.width;
+        _modalWindowState.height = rect.height;
+      }
+    }
+  }
+  _modalWindowState.mode = next;
+  applyModalWindowMode();
+}
+
+function ensureModalWindowInit() {
+  if (window._modalWindowSystemReady) return;
+  window._modalWindowSystemReady = true;
+  var modal = getModalWindowEl();
+  var header = document.getElementById('rollModalHeaderRow');
+  var resizeHandle = document.getElementById('rollModalResizeHandle');
+  var dockLeftBtn = document.getElementById('rollModalDockLeft');
+  var dockRightBtn = document.getElementById('rollModalDockRight');
+  var fullscreenBtn = document.getElementById('rollModalFullscreen');
+  var floatBtn = document.getElementById('rollModalFloat');
+
+  if (dockLeftBtn) dockLeftBtn.addEventListener('click', function () { setModalWindowMode('dock-left'); });
+  if (dockRightBtn) dockRightBtn.addEventListener('click', function () { setModalWindowMode('dock-right'); });
+  if (fullscreenBtn) fullscreenBtn.addEventListener('click', function () {
+    setModalWindowMode(_modalWindowState.mode === 'fullscreen' ? 'floating' : 'fullscreen');
+  });
+  if (floatBtn) floatBtn.addEventListener('click', function () { setModalWindowMode('floating'); });
+
+  if (header) {
+    header.addEventListener('mousedown', function (evt) {
+      var target = evt.target;
+      if (target && target.closest && target.closest('button')) return;
+      if (_modalWindowState.mode !== 'floating') return;
+      var rect = modal.getBoundingClientRect();
+      _modalWindowState.dragging = true;
+      _modalWindowState.dragOffsetX = evt.clientX - rect.left;
+      _modalWindowState.dragOffsetY = evt.clientY - rect.top;
+      evt.preventDefault();
+    });
+  }
+
+  if (resizeHandle) {
+    resizeHandle.addEventListener('mousedown', function (evt) {
+      if (_modalWindowState.mode !== 'floating') return;
+      var rect = modal.getBoundingClientRect();
+      _modalWindowState.resizing = true;
+      _modalWindowState.resizeStartX = evt.clientX;
+      _modalWindowState.resizeStartY = evt.clientY;
+      _modalWindowState.resizeStartWidth = rect.width;
+      _modalWindowState.resizeStartHeight = rect.height;
+      evt.preventDefault();
+    });
+  }
+
+  document.addEventListener('mousemove', function (evt) {
+    if (_modalWindowState.dragging && _modalWindowState.mode === 'floating') {
+      _modalWindowState.x = evt.clientX - _modalWindowState.dragOffsetX;
+      _modalWindowState.y = evt.clientY - _modalWindowState.dragOffsetY;
+      applyModalWindowMode();
+      return;
+    }
+    if (_modalWindowState.resizing && _modalWindowState.mode === 'floating') {
+      var nextW = _modalWindowState.resizeStartWidth + (evt.clientX - _modalWindowState.resizeStartX);
+      var nextH = _modalWindowState.resizeStartHeight + (evt.clientY - _modalWindowState.resizeStartY);
+      _modalWindowState.width = Math.max(320, nextW);
+      _modalWindowState.height = Math.max(220, nextH);
+      applyModalWindowMode();
+    }
+  });
+
+  document.addEventListener('mouseup', function () {
+    _modalWindowState.dragging = false;
+    _modalWindowState.resizing = false;
+  });
+
+  window.addEventListener('resize', function () {
+    applyModalWindowMode();
+  });
+}
+
 function openModal(title, content, restoreCallback, options) {
   if (restoreCallback && typeof restoreCallback === 'object' && typeof options === 'undefined') {
     options = restoreCallback;
   }
+  ensureModalWindowInit();
   var opts = (options && typeof options === 'object') ? options : {};
   var usePreventScroll = opts.preventScroll !== false;
   _modalPrevFocus = document.activeElement;
@@ -20606,6 +20787,7 @@ function openModal(title, content, restoreCallback, options) {
   var pageScrollTop = rootEl ? Number(rootEl.scrollTop || 0) : 0;
   // Focus first focusable element inside dialog
   var modal = overlay.querySelector('[role="dialog"]');
+  applyModalWindowMode();
   requestAnimationFrame(function() {
     var focusable = modal.querySelectorAll('button,input,select,textarea,[tabindex]:not([tabindex="-1"])');
     if (focusable.length) {
@@ -20631,6 +20813,11 @@ function closeModal() {
   }
 }
 document.getElementById('rollModal').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+window.setModalWindowMode = setModalWindowMode;
+window.floatModalWindow = function () { setModalWindowMode('floating'); };
+window.toggleModalWindowFullscreen = function () {
+  setModalWindowMode(_modalWindowState.mode === 'fullscreen' ? 'floating' : 'fullscreen');
+};
 // Escape key closes modal
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {

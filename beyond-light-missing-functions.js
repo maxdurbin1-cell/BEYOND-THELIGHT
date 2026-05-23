@@ -1238,6 +1238,57 @@ function syncCharacterFields() {
   }
 }
 
+function syncCharacterStateFromFields() {
+  if (!S || typeof S !== "object") return;
+  const active = document.activeElement;
+  if (!active || !active.id) return;
+  const id = String(active.id);
+  const value = String(active.value || "");
+
+  const directMap = {
+    charName: "name",
+    charCareer: "career",
+    charBackground: "background",
+    charAge: "age",
+    charOmen: "omen",
+    charReason: "reason",
+    charFlavor: "flavor",
+    charMutation: "mutation",
+    charItem: "randomItem"
+  };
+
+  if (Object.prototype.hasOwnProperty.call(directMap, id)) {
+    S[directMap[id]] = value;
+    return;
+  }
+
+  S.equipment = S.equipment && typeof S.equipment === "object" ? S.equipment : {};
+  if (id === "eqWeapon1") {
+    S.equipment.weapon1 = value;
+    return;
+  }
+  if (id === "eqWeapon2") {
+    S.equipment.weapon2 = value;
+    return;
+  }
+  if (id === "eqArmor") {
+    S.equipment.armor = value;
+    return;
+  }
+  if (id === "eqReadied") {
+    S.equipment.readied = value;
+    return;
+  }
+
+  if (/^bp[0-5]$/.test(id)) {
+    if (!Array.isArray(S.backpack)) {
+      S.backpack = ["", "", "", "", "", ""];
+    }
+    const idx = Number(id.slice(2));
+    S.backpack[idx] = value;
+  }
+}
+
 function applyFallbackAriaLabels() {
   const controls = document.querySelectorAll('input,select,textarea');
   controls.forEach(function (el) {
@@ -1818,14 +1869,22 @@ function readSoloEnvelopeByKey(key) {
 function writeSoloEnvelope(envelope) {
   const current = localStorage.getItem(SOLO_SAVE_KEY);
   if (current) {
-    localStorage.setItem(SOLO_SAVE_BACKUP_KEY, current);
+    try {
+      localStorage.setItem(SOLO_SAVE_BACKUP_KEY, current);
+    } catch (_backupErr) {
+      // Best effort only; primary save should still proceed.
+    }
   }
   localStorage.setItem(SOLO_SAVE_KEY, JSON.stringify(envelope));
-  localStorage.setItem(SOLO_SAVE_META_KEY, JSON.stringify({
-    lastSavedAt: envelope.savedAt,
-    schema: envelope.schema,
-    checksum: envelope.checksum
-  }));
+  try {
+    localStorage.setItem(SOLO_SAVE_META_KEY, JSON.stringify({
+      lastSavedAt: envelope.savedAt,
+      schema: envelope.schema,
+      checksum: envelope.checksum
+    }));
+  } catch (_metaErr) {
+    // Meta is optional and should never block core save.
+  }
 }
 
 function writeSoloCheckpoint(envelope) {
@@ -1984,13 +2043,24 @@ function applyLoadedCharacterState(saved) {
 
 function saveCharacter() {
   try {
+    syncCharacterStateFromFields();
+  } catch (_syncErr) {
+    // Continue with current in-memory state if form sync fails.
+  }
+
+  try {
     const envelope = makeSoloSaveEnvelope(S);
     writeSoloEnvelope(envelope);
-    writeSoloCheckpoint(envelope);
+    let checkpointOk = true;
+    try {
+      writeSoloCheckpoint(envelope);
+    } catch (_checkpointErr) {
+      checkpointOk = false;
+    }
     _lastSoloLoadedChecksum = envelope.checksum;
     _lastSoloAutoSaveAt = Date.now();
     if (typeof refreshHeaderHeartbeat === 'function') refreshHeaderHeartbeat();
-    showNotif("Character saved + checkpointed", "good");
+    showNotif(checkpointOk ? "Character saved + checkpointed" : "Character saved (checkpoint unavailable)", checkpointOk ? "good" : "warn");
   } catch (error) {
     showNotif("Could not save character", "warn");
   }

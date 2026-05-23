@@ -27,6 +27,7 @@
     lastDockLogSize: 0,
     timelineFilter: "all",
     hiddenTimelineKeys: [],
+    hiddenTimelineUndoBatches: [],
     lastCharacterHash: "",
     gmIdea: "",
     gmWayfarerSort: "online",
@@ -4273,6 +4274,7 @@
       + '<input id="campaignDockChatInput" class="campaign-dock-input" type="text" maxlength="500" placeholder="Type campaign chat...">'
       + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.sendChatMessage()">Send</button>'
       + '<button class="btn btn-xs" onclick="window.campaignSystem.clearRecentDockChat()">Clear Recent</button>'
+      + '<button class="btn btn-xs" onclick="window.campaignSystem.restoreRecentDockChat()" title="Restore last cleared chat batch">Restore</button>'
       + "</div>"
       + "</div>";
 
@@ -5193,15 +5195,49 @@
     }
     var removed = chatEntries.slice(-take);
     state.hiddenTimelineKeys = Array.isArray(state.hiddenTimelineKeys) ? state.hiddenTimelineKeys : [];
+    state.hiddenTimelineUndoBatches = Array.isArray(state.hiddenTimelineUndoBatches) ? state.hiddenTimelineUndoBatches : [];
+    var removedKeys = [];
     removed.forEach(function (entry) {
       var key = getTimelineEntryKey(entry);
-      if (state.hiddenTimelineKeys.indexOf(key) === -1) state.hiddenTimelineKeys.push(key);
+      if (state.hiddenTimelineKeys.indexOf(key) === -1) {
+        state.hiddenTimelineKeys.push(key);
+        removedKeys.push(key);
+      }
     });
     if (state.hiddenTimelineKeys.length > 1000) {
       state.hiddenTimelineKeys = state.hiddenTimelineKeys.slice(state.hiddenTimelineKeys.length - 1000);
     }
+    if (removedKeys.length) {
+      state.hiddenTimelineUndoBatches.push(removedKeys);
+      if (state.hiddenTimelineUndoBatches.length > 40) {
+        state.hiddenTimelineUndoBatches = state.hiddenTimelineUndoBatches.slice(state.hiddenTimelineUndoBatches.length - 40);
+      }
+    }
     renderDockPanel();
     safeNotif("Cleared " + removed.length + " recent chat line" + (removed.length === 1 ? "" : "s") + " from your dock view.", "good");
+  }
+
+  function restoreRecentDockChat() {
+    if (state.role !== "gm") {
+      safeNotif("Only GM can restore cleared chat in this session.", "warn");
+      return;
+    }
+    state.hiddenTimelineUndoBatches = Array.isArray(state.hiddenTimelineUndoBatches) ? state.hiddenTimelineUndoBatches : [];
+    state.hiddenTimelineKeys = Array.isArray(state.hiddenTimelineKeys) ? state.hiddenTimelineKeys : [];
+    if (!state.hiddenTimelineUndoBatches.length) {
+      safeNotif("No cleared chat batch to restore.", "info");
+      return;
+    }
+    var lastBatch = state.hiddenTimelineUndoBatches.pop() || [];
+    if (!lastBatch.length) {
+      safeNotif("No cleared chat batch to restore.", "info");
+      return;
+    }
+    state.hiddenTimelineKeys = state.hiddenTimelineKeys.filter(function (key) {
+      return lastBatch.indexOf(key) === -1;
+    });
+    renderDockPanel();
+    safeNotif("Restored " + lastBatch.length + " cleared chat line" + (lastBatch.length === 1 ? "" : "s") + ".", "good");
   }
 
   async function submitActiveRoll() {
@@ -5732,6 +5768,7 @@
     importSnapshotPrompt: importSnapshotPrompt,
     importSnapshotFromModal: importSnapshotFromModal,
     clearRecentDockChat: clearRecentDockChat,
+    restoreRecentDockChat: restoreRecentDockChat,
     toggleDock: toggleDock,
     openDock: openDock,
     recordEconomyDelta: recordEconomyDelta,

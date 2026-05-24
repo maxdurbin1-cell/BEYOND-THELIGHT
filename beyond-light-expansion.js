@@ -323,6 +323,8 @@
       pendingLook: "",
       enemyClass: "Frigate",
       enemyShip: null,
+      enemyFleet: [],
+      targetEnemyId: "",
       zone: "Close",
       round: 1,
       log: [],
@@ -333,12 +335,25 @@
       actionsRemaining: 0,
       enemyActionsRemaining: 2,
       perception: "indifferent",
+      roleAssignments: {
+        captain: "",
+        navigator: "",
+        engineer: "",
+        gunner: ""
+      },
       boardingReadyRound: 0,
       boardingSession: null,
       ...(S.naval || {})
     };
     S.naval.crew = Array.isArray(S.naval.crew) ? S.naval.crew : [];
     S.naval.log = Array.isArray(S.naval.log) ? S.naval.log : [];
+    S.naval.enemyFleet = Array.isArray(S.naval.enemyFleet) ? S.naval.enemyFleet : [];
+    S.naval.roleAssignments = Object.assign({
+      captain: "",
+      navigator: "",
+      engineer: "",
+      gunner: ""
+    }, S.naval.roleAssignments || {});
 
     S.gambling = {
       difficulty: 1,
@@ -4714,6 +4729,8 @@
     S.credits -= shipClass.cost;
     S.naval.ship = createShipFromClass(className);
     S.naval.enemyShip = null;
+    S.naval.enemyFleet = [];
+    S.naval.targetEnemyId = "";
     S.naval.combatActive = false;
     S.naval.log.unshift({ text: `Purchased ${className} for ${shipClass.cost} Credits.`, type: "good" });
     updateCreditsUI();
@@ -4876,8 +4893,161 @@
     return crewCount + (ship ? ship.extraActions || 0 : 0) + eliteCaptainBonus;
   }
 
+  function makeNavalEnemyId() {
+    return "naval-enemy-" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 1e6).toString(36);
+  }
+
+  function ensureNavalEnemyFleetState() {
+    const fleet = Array.isArray(S.naval.enemyFleet) ? S.naval.enemyFleet : [];
+    if (S.naval.enemyShip && !fleet.includes(S.naval.enemyShip)) {
+      fleet.push(S.naval.enemyShip);
+    }
+    fleet.forEach(function(enemy) {
+      if (!enemy) return;
+      if (!enemy.id) enemy.id = makeNavalEnemyId();
+      enemy.stress = Number(enemy.stress || 0);
+      enemy.wrecked = !!enemy.wrecked;
+    });
+    S.naval.enemyFleet = fleet.filter(Boolean);
+    if (S.naval.targetEnemyId && !S.naval.enemyFleet.some(function(enemy) { return enemy && enemy.id === S.naval.targetEnemyId; })) {
+      S.naval.targetEnemyId = "";
+    }
+    if (!S.naval.targetEnemyId && S.naval.enemyFleet.length) {
+      const preferred = S.naval.enemyFleet.find(function(enemy) { return enemy && !enemy.wrecked; }) || S.naval.enemyFleet[0];
+      S.naval.targetEnemyId = preferred && preferred.id ? preferred.id : "";
+    }
+    let activeEnemy = null;
+    if (S.naval.targetEnemyId) {
+      activeEnemy = S.naval.enemyFleet.find(function(enemy) { return enemy && enemy.id === S.naval.targetEnemyId; }) || null;
+    }
+    if (!activeEnemy && S.naval.enemyFleet.length) {
+      activeEnemy = S.naval.enemyFleet[0];
+      S.naval.targetEnemyId = activeEnemy && activeEnemy.id ? activeEnemy.id : "";
+    }
+    S.naval.enemyShip = activeEnemy || null;
+    return S.naval.enemyFleet;
+  }
+
+  function getActiveNavalEnemy() {
+    ensureNavalEnemyFleetState();
+    return S.naval.enemyShip || null;
+  }
+
+  function setActiveNavalEnemy(enemyId) {
+    ensureNavalEnemyFleetState();
+    const id = String(enemyId || "");
+    if (!id) return false;
+    const next = S.naval.enemyFleet.find(function(enemy) { return enemy && String(enemy.id || "") === id; }) || null;
+    if (!next) return false;
+    S.naval.targetEnemyId = id;
+    S.naval.enemyShip = next;
+    renderNaval();
+    renderNavalCombatPopup();
+    return true;
+  }
+
+  function getNavalRoleRoster() {
+    let roster = [];
+    if (typeof window !== "undefined" && window.campaignSystem && typeof window.campaignSystem.buildPartyRoster === "function") {
+      try {
+        roster = window.campaignSystem.buildPartyRoster() || [];
+      } catch (_err) {
+        roster = [];
+      }
+    }
+    if (!Array.isArray(roster) || !roster.length) {
+      roster = [{
+        token: "local-wayfarer",
+        name: String((S && S.name) || "Wayfarer"),
+        character: {
+          name: String((S && S.name) || "Wayfarer"),
+          stats: Object.assign({}, (S && S.stats) || {})
+        }
+      }];
+    }
+    return roster;
+  }
+
+  function getNavalRoleAssignments() {
+    if (!S.naval.roleAssignments || typeof S.naval.roleAssignments !== "object") {
+      S.naval.roleAssignments = { captain: "", navigator: "", engineer: "", gunner: "" };
+    }
+    return S.naval.roleAssignments;
+  }
+
+  function getAssignedNavalRoleMember(roleKey) {
+    const roster = getNavalRoleRoster();
+    const assignments = getNavalRoleAssignments();
+    const token = String(assignments[roleKey] || "");
+    const assigned = roster.find(function(entry) { return String(entry && entry.token || "") === token; }) || null;
+    return assigned || roster[0] || null;
+  }
+
+  function getNavalRoleDie(roleKey, statKey) {
+    const member = getAssignedNavalRoleMember(roleKey);
+    const stats = member && member.character && member.character.stats ? member.character.stats : null;
+    const raw = Number((stats && stats[statKey]) || (S.stats && S.stats[statKey]) || 4);
+    return Math.max(4, raw || 4);
+  }
+
+  function assignNavalRole(roleKey, token) {
+    const allowed = ["captain", "navigator", "engineer", "gunner"];
+    const role = String(roleKey || "").toLowerCase();
+    if (allowed.indexOf(role) < 0) return false;
+    const roster = getNavalRoleRoster();
+    const tokenValue = String(token || "");
+    const exists = roster.some(function(entry) { return String(entry && entry.token || "") === tokenValue; });
+    if (!exists) return false;
+    const assignments = getNavalRoleAssignments();
+    assignments[role] = tokenValue;
+    renderNavalCombatPopup();
+    return true;
+  }
+
+  function buildNavalRoleAssignmentHtml() {
+    const roster = getNavalRoleRoster();
+    const assignments = getNavalRoleAssignments();
+    const rows = [
+      { key: "captain", label: "Captain", hint: "Lead/Morale/Diplomacy" },
+      { key: "navigator", label: "Navigator", hint: "Control/Mind Survey" },
+      { key: "engineer", label: "Engineer", hint: "Body Repair" },
+      { key: "gunner", label: "Gunner", hint: "Strike/Shoot Calls" }
+    ];
+    return '<div style="border:1px solid var(--border2);padding:.28rem .32rem;background:rgba(255,255,255,.02);margin-bottom:.34rem;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.08em;color:var(--gold2);text-transform:uppercase;margin-bottom:.14rem;">Campaign Role Dice</div>'
+      + '<div style="font-size:.69rem;color:var(--muted2);margin-bottom:.2rem;">Assign a Wayfarer to each station. Their sheet dice drive that role\'s rolls in this popup.</div>'
+      + rows.map(function(row) {
+          const selected = String(assignments[row.key] || "");
+          const member = getAssignedNavalRoleMember(row.key);
+          const leadDie = getNavalRoleDie(row.key, "lead");
+          const spiritDie = getNavalRoleDie(row.key, "spirit");
+          const mindDie = getNavalRoleDie(row.key, "mind");
+          const controlDie = getNavalRoleDie(row.key, "control");
+          const bodyDie = getNavalRoleDie(row.key, "body");
+          return '<div style="display:grid;grid-template-columns:8.5rem 1fr auto;gap:.24rem;align-items:center;margin-bottom:.18rem;">'
+            + '<div style="font-size:.7rem;color:var(--teal2);">' + row.label + '<div style="font-size:.62rem;color:var(--muted2);">' + row.hint + '</div></div>'
+            + '<select onchange="runNavalPopupAction(\'assign-role\',\'' + row.key + ':\' + this.value)" style="width:100%;">'
+            + roster.map(function(entry) {
+                const token = String(entry && entry.token || "");
+                const name = String(entry && entry.character && entry.character.name || entry && entry.name || "Wayfarer");
+                return '<option value="' + token + '"' + (token === selected ? ' selected' : '') + '>' + name + '</option>';
+              }).join("")
+            + '</select>'
+            + '<div style="font-size:.62rem;color:var(--muted2);white-space:nowrap;">'
+            + String(member && member.character && member.character.name || member && member.name || "Wayfarer")
+            + ' · dLead ' + leadDie
+            + ' · dSpirit ' + spiritDie
+            + ' · dMind ' + mindDie
+            + ' · dControl ' + controlDie
+            + ' · dBody ' + bodyDie
+            + '</div>'
+            + '</div>';
+        }).join("")
+      + '</div>';
+  }
+
   function getNavalEnemyDreadDie() {
-    const enemy = S.naval.enemyShip;
+    const enemy = getActiveNavalEnemy();
     return getEffectiveShipDie(enemy, "hull", false) || 6;
   }
 
@@ -5076,7 +5246,7 @@
     if (combatSummary) {
       combatSummary.innerHTML = `
         <div class="combat-card" style="margin-bottom:.45rem;">${renderShipSummary(S.naval.ship, true)}</div>
-        <div class="combat-card" style="margin-bottom:.45rem;">${renderShipSummary(S.naval.enemyShip, false)}</div>
+        <div class="combat-card" style="margin-bottom:.45rem;">${renderShipSummary(getActiveNavalEnemy(), false)}</div>
         <div class="combat-card">
           <div class="ship-copy">
             Round: <strong style="color:var(--gold2);">${S.naval.round}</strong><br>
@@ -5141,7 +5311,7 @@
 
   function isNavalPopupActionEnabled(id) {
     const ship = S.naval.ship;
-    const enemy = S.naval.enemyShip;
+    const enemy = getActiveNavalEnemy();
     const zone = String(S.naval.zone || "Close");
     const turn = getNavalPopupTurnState();
     const hasCombat = !!S.naval.combatActive;
@@ -5150,6 +5320,9 @@
 
     if (id === "start-reset") return !!ship;
     if (id === "next-round") return hasCombat;
+    if (id === "spawn-hostile") return true;
+    if (id === "select-hostile") return true;
+    if (id === "assign-role") return true;
     if (id === "disable-hostile") return !!enemy;
     if (id === "hostile-attack") return hasCombat && enemyActions && !!ship && !!enemy;
     if (id === "ship-perception") return true;
@@ -5168,11 +5341,12 @@
   }
 
   function getNavalPopupActionReason(id) {
+    const enemy = getActiveNavalEnemy();
     const zone = String(S.naval.zone || "Close");
     const turn = getNavalPopupTurnState();
     if (isNavalPopupActionEnabled(id)) return "Ready";
     if (!S.naval.ship) return "Buy your ship first";
-    if (!S.naval.enemyShip && id !== "ship-perception" && id !== "start-reset") return "Spawn hostile ship";
+    if (!enemy && id !== "ship-perception" && id !== "start-reset" && id !== "spawn-hostile" && id !== "select-hostile") return "Spawn hostile ship";
     if (!S.naval.combatActive && id !== "start-reset" && id !== "ship-perception") return "Start combat first";
     if (id === "fire-batteries" && zone !== "Close") return "Cannons require Close zone";
     if (id === "launch-volley" && zone !== "Nearby") return "Crossbows require Nearby zone";
@@ -5182,15 +5356,21 @@
     return "Unavailable";
   }
 
-  function runNavalPopupAction(actionId) {
+  function runNavalPopupAction(actionId, payload) {
     if (!actionId) return false;
-    if (actionId !== "ship-perception" && !isNavalPopupActionEnabled(actionId)) {
+    if (actionId !== "ship-perception" && actionId !== "assign-role" && actionId !== "select-hostile" && actionId !== "spawn-hostile" && !isNavalPopupActionEnabled(actionId)) {
       showNotif(getNavalPopupActionReason(actionId), "warn");
       renderNavalCombatPopup();
       return false;
     }
     if (actionId === "start-reset") startNavalCombat();
     else if (actionId === "next-round") nextNavalRound();
+    else if (actionId === "spawn-hostile") spawnEnemyShip();
+    else if (actionId === "select-hostile") setActiveNavalEnemy(payload);
+    else if (actionId === "assign-role") {
+      const bits = String(payload || "").split(":");
+      assignNavalRole(bits[0], bits.slice(1).join(":"));
+    }
     else if (actionId === "move-closer") adjustNavalZone(-1);
     else if (actionId === "move-wider") adjustNavalZone(1);
     else if (actionId === "fire-batteries") navalAttack("strike");
@@ -5209,6 +5389,7 @@
   }
 
   function buildNavalCombatVisualHtml() {
+    ensureNavalEnemyFleetState();
     const zone = String(S.naval.zone || "Close");
     const zoneIndex = Math.max(0, NAVAL_ZONES.indexOf(zone));
     const turn = getNavalPopupTurnState();
@@ -5221,6 +5402,8 @@
       { x: 370, y: 86, name: "Far" }
     ];
     const enemyPos = centers[Math.max(0, Math.min(centers.length - 1, zoneIndex))];
+    const fleet = S.naval.enemyFleet || [];
+    const aliveFleet = fleet.filter(function(enemy) { return enemy && !enemy.wrecked; });
     function hexPoints(cx, cy, r) {
       const pts = [];
       for (let i = 0; i < 6; i += 1) {
@@ -5239,25 +5422,39 @@
     svg += '<circle cx="38" cy="86" r="16" fill="#2ec4b6" stroke="#c8fff6" stroke-width="2"></circle>';
     svg += '<text x="38" y="90" text-anchor="middle" font-size="13" fill="#0b1a22">⛵</text>';
     svg += '<text x="38" y="114" text-anchor="middle" font-size="10" fill="#9bd9d3">Your Ship</text>';
-    svg += '<circle cx="' + enemyPos.x + '" cy="' + enemyPos.y + '" r="16" fill="#c94040" stroke="#ffc0c0" stroke-width="2"></circle>';
-    svg += '<text x="' + enemyPos.x + '" y="' + (enemyPos.y + 5) + '" text-anchor="middle" font-size="13" fill="#2a0f0f">☠</text>';
-    svg += '<text x="' + enemyPos.x + '" y="' + (enemyPos.y + 28) + '" text-anchor="middle" font-size="10" fill="#f0a0a0">Hostile</text>';
-    svg += '<path d="M56 86 C 98 70, 130 62, ' + (enemyPos.x - 18) + ' ' + enemyPos.y + '" stroke="rgba(240,208,112,.55)" stroke-width="2" fill="none" stroke-dasharray="4 4"></path>';
+    if (!aliveFleet.length) {
+      svg += '<text x="' + enemyPos.x + '" y="' + (enemyPos.y + 5) + '" text-anchor="middle" font-size="10" fill="#9ba3c0">No Hostiles</text>';
+    }
+    aliveFleet.forEach(function(enemy, idx) {
+      const row = Math.floor(idx / 3);
+      const col = idx % 3;
+      const dx = (col - 1) * 18;
+      const dy = row * 18;
+      const x = enemyPos.x + dx;
+      const y = enemyPos.y + dy;
+      const active = String(enemy.id || "") === String(S.naval.targetEnemyId || "");
+      svg += '<circle cx="' + x + '" cy="' + y + '" r="' + (active ? 13 : 10) + '" fill="' + (active ? '#df4d4d' : '#a63b3b') + '" stroke="' + (active ? '#ffe0b8' : '#f0a0a0') + '" stroke-width="2"></circle>';
+      svg += '<text x="' + x + '" y="' + (y + 4) + '" text-anchor="middle" font-size="10" fill="#2a0f0f">☠</text>';
+    });
+    svg += '<text x="' + enemyPos.x + '" y="' + (enemyPos.y + 34) + '" text-anchor="middle" font-size="10" fill="#f0a0a0">Hostiles: ' + aliveFleet.length + '</text>';
+    if (aliveFleet.length) {
+      svg += '<path d="M56 86 C 98 70, 130 62, ' + (enemyPos.x - 18) + ' ' + enemyPos.y + '" stroke="rgba(240,208,112,.55)" stroke-width="2" fill="none" stroke-dasharray="4 4"></path>';
+    }
     svg += '</svg>';
     return svg;
   }
 
   function buildNavalActionCardsHtml() {
     const ship = S.naval.ship;
-    const enemy = S.naval.enemyShip;
+    const enemy = getActiveNavalEnemy();
     const enemyDread = getNavalEnemyDreadDie();
     const strikeDie = ship ? (getEffectiveShipDie(ship, "strike", true) || 0) : 0;
     const shootDie = ship ? (getEffectiveShipDie(ship, "shoot", true) || 0) : 0;
     const hullDie = enemy ? (getEffectiveShipDie(enemy, "hull", false) || 4) : 4;
-    const leadDie = Number(S.stats.lead || 4);
-    const spiritDie = Number(S.stats.spirit || 4);
-    const mindDie = Number(S.stats.mind || 4);
-    const bodyDie = Number(S.stats.body || 4);
+    const leadDie = getNavalRoleDie("captain", "lead");
+    const spiritDie = getNavalRoleDie("captain", "spirit");
+    const mindDie = getNavalRoleDie("navigator", "mind");
+    const bodyDie = getNavalRoleDie("engineer", "body");
     const tactical = Number(S.naval.tacticsBonus || 0);
     const navBonus = ship ? Number(ship.navBonus || 0) : 0;
     const leadBonus = ship ? Number(ship.leadBonus || 0) : 0;
@@ -5293,8 +5490,11 @@
   }
 
   function buildNavalCombatPopupHtml() {
+    ensureNavalEnemyFleetState();
     const ship = S.naval.ship;
-    const enemy = S.naval.enemyShip;
+    const enemy = getActiveNavalEnemy();
+    const fleet = Array.isArray(S.naval.enemyFleet) ? S.naval.enemyFleet : [];
+    const aliveFleet = fleet.filter(function(entry) { return entry && !entry.wrecked; });
     const log = Array.isArray(S.naval.log) ? S.naval.log.slice(0, 18) : [];
     const playerActions = Number(S.naval.actionsRemaining || 0);
     const playerMaxActions = Number(getPlayerActionCount() || 1);
@@ -5313,20 +5513,39 @@
       + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Round ' + Number(S.naval.round || 1) + '</span>'
       + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Zone ' + String(S.naval.zone || 'Close') + '</span>'
       + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Perception ' + capitalize(String(S.naval.perception || 'indifferent')) + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Hostiles ' + aliveFleet.length + '</span>'
       + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Combat ' + (S.naval.combatActive ? 'Active' : 'Idle') + '</span>'
       + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">' + powerShift + '</span>'
       + '</div>'
       + '<div style="margin-bottom:.32rem;">' + buildNavalCombatVisualHtml() + '</div>'
+      + buildNavalRoleAssignmentHtml()
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem;margin-bottom:.35rem;">'
       + '<div class="combat-card">' + (ship ? renderShipSummary(ship, true) : '<div class="ship-copy">No allied ship selected.</div>') + '</div>'
       + '<div class="combat-card">' + (enemy ? renderShipSummary(enemy, false) : '<div class="ship-copy">No enemy ship active. Spawn one.</div>') + '</div>'
       + '</div>'
       + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.25rem;">'
       + '<button class="btn btn-xs btn-teal" onclick="runNavalPopupAction(\'start-reset\')">Start / Reset Combat</button>'
+      + '<button class="btn btn-xs" onclick="runNavalPopupAction(\'spawn-hostile\')">Spawn Hostile</button>'
       + '<button class="btn btn-xs" onclick="runNavalPopupAction(\'next-round\')">Next Round</button>'
       + '<button class="btn btn-xs" onclick="runNavalPopupAction(\'move-closer\')" ' + (isNavalPopupActionEnabled("move-closer") ? '' : 'disabled style="opacity:.45;cursor:default;"') + '>Move Closer</button>'
       + '<button class="btn btn-xs" onclick="runNavalPopupAction(\'move-wider\')" ' + (isNavalPopupActionEnabled("move-wider") ? '' : 'disabled style="opacity:.45;cursor:default;"') + '>Move Wider</button>'
       + '<button class="btn btn-xs" onclick="openNavalCombatRulesPage();">Rules Page</button>'
+      + '</div>'
+      + '<div style="border:1px solid var(--border2);padding:.3rem .35rem;background:rgba(255,255,255,.02);margin-bottom:.34rem;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;color:var(--gold2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.12rem;">Hostile Targeting</div>'
+      + '<div style="display:grid;grid-template-columns:1fr auto;gap:.24rem;align-items:center;">'
+      + '<select onchange="runNavalPopupAction(\'select-hostile\', this.value)">'
+      + (fleet.length ? fleet.map(function(entry, idx) {
+          const name = String(entry && entry.name || ('Hostile ' + (idx + 1)));
+          const status = entry && entry.wrecked ? ' (Wrecked)' : '';
+          const stressVal = Number(entry && entry.stress || 0);
+          const hullVal = Number(getEffectiveShipDie(entry, 'hull', false) || 4);
+          return '<option value="' + String(entry && entry.id || '') + '"' + (String(entry && entry.id || '') === String(S.naval.targetEnemyId || '') ? ' selected' : '') + '>' + name + status + ' · d' + hullVal + ' · Stress ' + stressVal + '</option>';
+        }).join('') : '<option value="">No hostiles yet</option>')
+      + '</select>'
+      + '<button class="btn btn-xs btn-red" onclick="runNavalPopupAction(\'disable-hostile\')" ' + (isNavalPopupActionEnabled("disable-hostile") ? '' : 'disabled style="opacity:.45;cursor:default;"') + '>Disable Target</button>'
+      + '</div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.14rem;">Target first, then run attack cards. This keeps multi-ship naval encounters readable like VTT target selection.</div>'
       + '</div>'
       + '<div style="margin-bottom:.34rem;">' + buildNavalActionCardsHtml() + '</div>'
       + '<div style="border:1px solid var(--border2);padding:.32rem .36rem;max-height:220px;overflow:auto;background:rgba(255,255,255,.02);">'
@@ -5362,6 +5581,14 @@
       + '<div style="font-family:\'Cinzel\',serif;font-size:.6rem;color:var(--teal2);text-transform:uppercase;margin-bottom:.1rem;">Turn Economy</div>'
       + '<div style="font-size:.72rem;">Movement costs 1 action. Attack costs 1 action. Engineer, Captain, and Navigator actions each cost 1 action unless your table overrides.</div>'
       + '</div>'
+      + '</div>'
+      + '<div style="border:1px solid var(--border2);padding:.3rem .35rem;background:rgba(255,255,255,.02);margin-bottom:.3rem;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.6rem;color:var(--teal2);text-transform:uppercase;margin-bottom:.1rem;">Companion App Targeting</div>'
+      + '<div style="font-size:.72rem;">Use Hostile Targeting to pick which enemy ship receives attacks. Multi-ship encounters keep all hostiles listed with live Hull and Stress so everyone tracks the same target clearly.</div>'
+      + '</div>'
+      + '<div style="border:1px solid var(--border2);padding:.3rem .35rem;background:rgba(255,255,255,.02);margin-bottom:.3rem;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.6rem;color:var(--teal2);text-transform:uppercase;margin-bottom:.1rem;">Campaign Role Dice</div>'
+      + '<div style="font-size:.72rem;">Assign party members to Captain/Navigator/Engineer/Gunner in the popup. Their sheet stats become the action dice for that station, so campaign groups can run turns collaboratively and transparently.</div>'
       + '</div>'
       + '<details open style="margin-bottom:.28rem;"><summary style="cursor:pointer;font-size:.76rem;color:var(--gold2);">Action Definitions</summary>'
       + '<div style="margin-top:.18rem;font-size:.73rem;color:var(--text2);">'
@@ -5457,10 +5684,15 @@
     ensureExpansionState();
     const className = document.getElementById("navalEnemyClass")?.value || S.naval.enemyClass || "Frigate";
     S.naval.enemyClass = className;
-    S.naval.enemyShip = createShipFromClass(className);
-    S.naval.enemyShip.name = `${pick(SHIP_NAME_FIRST)} ${pick(SHIP_NAME_LAST)}`;
+    const hostile = createShipFromClass(className);
+    hostile.name = `${pick(SHIP_NAME_FIRST)} ${pick(SHIP_NAME_LAST)}`;
+    hostile.id = makeNavalEnemyId();
+    ensureNavalEnemyFleetState();
+    S.naval.enemyFleet.push(hostile);
+    S.naval.targetEnemyId = hostile.id;
+    S.naval.enemyShip = hostile;
     renderNaval();
-    showNotif(`Enemy ${className} sighted.`, "warn");
+    showNotif(`Enemy ${className} sighted (${S.naval.enemyFleet.length} hostile${S.naval.enemyFleet.length === 1 ? '' : 's'}).`, "warn");
   }
 
   function startNavalCombat() {
@@ -5469,9 +5701,11 @@
       showNotif("Buy a ship before starting naval combat.", "warn");
       return;
     }
-    if (!S.naval.enemyShip) {
+    ensureNavalEnemyFleetState();
+    if (!S.naval.enemyFleet.length) {
       spawnEnemyShip();
     }
+    ensureNavalEnemyFleetState();
     S.naval.combatActive = true;
     S.naval.round = 1;
     S.naval.tacticsBonus = 0;
@@ -5483,10 +5717,12 @@
     S.naval.boardingReadyRound = 0;
     S.naval.ship.stress = 0;
     S.naval.ship.wrecked = false;
-    if (S.naval.enemyShip) {
-      S.naval.enemyShip.stress = 0;
-      S.naval.enemyShip.wrecked = false;
-    }
+    (S.naval.enemyFleet || []).forEach(function(enemy) {
+      if (!enemy) return;
+      enemy.stress = 0;
+      enemy.wrecked = false;
+    });
+    S.naval.enemyShip = getActiveNavalEnemy();
     S.naval.log = [{ text: "Naval combat begins. Wayfarers act first.", type: "good" }];
     renderNaval();
   }
@@ -5557,7 +5793,7 @@
       return;
     }
     if (!spendNavalAction("player")) return;
-    const rollResult = explodingRoll(S.stats.control || 4);
+    const rollResult = explodingRoll(getNavalRoleDie("navigator", "control"));
     const controlTotal = rollResult.total + (S.naval.ship.navBonus || 0) + (S.naval.tacticsBonus || 0);
     const target = explodingRoll(getNavalEnemyDreadDie());
     const success = controlTotal >= target.total;
@@ -5617,7 +5853,7 @@
       return;
     }
     const ship = S.naval.ship;
-    const enemy = S.naval.enemyShip;
+    const enemy = getActiveNavalEnemy();
     if (!ship || !enemy) {
       showNotif("You need both ships on the field.", "warn");
       return;
@@ -5675,7 +5911,7 @@
       return;
     }
     const ship = S.naval.ship;
-    const enemy = S.naval.enemyShip;
+    const enemy = getActiveNavalEnemy();
     if (!ship || !enemy || ship.wrecked || enemy.wrecked) {
       return;
     }
@@ -5722,7 +5958,7 @@
     if (!S.naval.ship) {
       return;
     }
-    const body = explodingRoll(S.stats.body || 4);
+    const body = explodingRoll(getNavalRoleDie("engineer", "body"));
     const bodyTotal = body.total + (S.naval.tacticsBonus || 0);
     const target = explodingRoll(getNavalEnemyDreadDie());
     if (bodyTotal >= target.total) {
@@ -5746,7 +5982,7 @@
       return;
     }
     if (!spendNavalAction("player")) return;
-    const lead = explodingRoll(S.stats.lead || 4);
+    const lead = explodingRoll(getNavalRoleDie("captain", "lead"));
     const leadTotal = lead.total + (S.naval.ship ? S.naval.ship.leadBonus || 0 : 0);
     const target = explodingRoll(getNavalEnemyDreadDie());
     const diff = leadTotal - target.total;
@@ -5766,7 +6002,7 @@
       return;
     }
     if (!spendNavalAction("player")) return;
-    const spirit = explodingRoll(S.stats.spirit || 4);
+    const spirit = explodingRoll(getNavalRoleDie("captain", "spirit"));
     const spiritTotal = spirit.total + (S.naval.tacticsBonus || 0);
     const target = explodingRoll(getNavalEnemyDreadDie());
     if (spiritTotal >= target.total) {
@@ -5791,7 +6027,7 @@
       return;
     }
     if (!spendNavalAction("player")) return;
-    const mind = explodingRoll(S.stats.mind || 4);
+    const mind = explodingRoll(getNavalRoleDie("navigator", "mind"));
     const mindTotal = mind.total + (S.naval.ship ? S.naval.ship.navBonus || 0 : 0) + (S.naval.tacticsBonus || 0);
     const target = explodingRoll(getNavalEnemyDreadDie());
     if (mindTotal >= target.total) {
@@ -5821,7 +6057,7 @@
       return;
     }
     if (!spendNavalAction("player")) return;
-    const lead = explodingRoll(S.stats.lead || 4);
+    const lead = explodingRoll(getNavalRoleDie("captain", "lead"));
     const leadTotal = lead.total + (S.naval.ship ? S.naval.ship.leadBonus || 0 : 0) + (S.naval.tacticsBonus || 0);
     const dread = explodingRoll(getNavalEnemyDreadDie());
     const success = leadTotal >= dread.total;
@@ -5831,14 +6067,15 @@
   }
 
   function canStartNavalBoarding() {
+    const enemy = getActiveNavalEnemy();
     ensureExpansionState();
     return !!(
       S.naval
       && S.naval.combatActive
       && S.naval.ship
-      && S.naval.enemyShip
+      && enemy
       && !S.naval.ship.wrecked
-      && !S.naval.enemyShip.wrecked
+      && !enemy.wrecked
       && S.naval.zone === "Engaged"
       && Number(S.naval.boardingReadyRound || 0) > 0
       && Number(S.naval.round || 1) >= Number(S.naval.boardingReadyRound || 0)
@@ -5846,6 +6083,7 @@
   }
 
   function buildNavalBoardingSeed() {
+    const enemy = getActiveNavalEnemy();
     const playerName = String((S && S.name) || "Wayfarer").trim() || "Wayfarer";
     const playerHealth = Math.max(8, Number((S && S.health) || 12));
     const enemyDread = getNavalEnemyDreadDie();
@@ -5901,7 +6139,7 @@
     }
 
     return {
-      name: `Boarding Action - ${String(S.naval.enemyClass || "Enemy Ship")}`,
+      name: `Boarding Action - ${String((enemy && enemy.className) || S.naval.enemyClass || "Enemy Ship")}`,
       navalBoardingContext: {
         kind: 'naval-boarding',
         round: Number(S.naval.round || 1)
@@ -5910,13 +6148,14 @@
       history: [
         `Boarding launched in naval round ${Number(S.naval.round || 1)} from Engaged range.`,
         `Player ship: ${String((S.naval.ship && S.naval.ship.name) || S.naval.selectedClass || "Unknown")}.`,
-        `Enemy ship: ${String((S.naval.enemyShip && S.naval.enemyShip.name) || S.naval.enemyClass || "Unknown")}.`
+        `Enemy ship: ${String((enemy && enemy.name) || S.naval.enemyClass || "Unknown")}.`
       ]
     };
   }
 
   function startNavalBoardingAction() {
     ensureExpansionState();
+    const enemy = getActiveNavalEnemy();
     if (!canStartNavalBoarding()) {
       showNotif("Boarding requires Engaged range and next-round readiness.", "warn");
       return;
@@ -5928,7 +6167,7 @@
       active: true,
       startedAt: Date.now(),
       startedRound: Number(S.naval.round || 1),
-      enemyClass: String(S.naval.enemyClass || 'Enemy Ship')
+      enemyClass: String((enemy && enemy.className) || S.naval.enemyClass || 'Enemy Ship')
     };
     navalLog("Boarding party launched. Personal combat scene opened in VTT Combat Mode.", "good");
 
@@ -6000,11 +6239,12 @@
 
   function computeNavalBoardingOutcomePlan(payload, options) {
     ensureExpansionState();
+    const enemyShip = getActiveNavalEnemy();
     const session = S.naval && S.naval.boardingSession;
     if (!session || !session.active) {
       return { ok: false, reason: "no-active-session" };
     }
-    if (!S.naval.ship || !S.naval.enemyShip) {
+    if (!S.naval.ship || !enemyShip) {
       return { ok: false, reason: "missing-ships" };
     }
 
@@ -6014,7 +6254,7 @@
     const enemyDread = getNavalEnemyDreadDie();
 
     const playerRef = apply ? S.naval.ship : cloneBoardingShipState(S.naval.ship);
-    const enemyRef = apply ? S.naval.enemyShip : cloneBoardingShipState(S.naval.enemyShip);
+    const enemyRef = apply ? enemyShip : cloneBoardingShipState(enemyShip);
     const playerBefore = cloneBoardingShipState(playerRef);
     const enemyBefore = cloneBoardingShipState(enemyRef);
 
@@ -6096,9 +6336,10 @@
 
   function resolveNavalBoardingOutcomeFromCombatScene(payload) {
     ensureExpansionState();
+    const enemyShip = getActiveNavalEnemy();
     const session = S.naval && S.naval.boardingSession;
     if (!session || !session.active) return false;
-    if (!S.naval.ship || !S.naval.enemyShip) {
+    if (!S.naval.ship || !enemyShip) {
       S.naval.boardingSession = null;
       return false;
     }
@@ -6117,10 +6358,17 @@
 
   function wreckEnemyShip() {
     ensureExpansionState();
-    if (!S.naval.enemyShip) {
+    const enemy = getActiveNavalEnemy();
+    if (!enemy) {
       return;
     }
-    S.naval.enemyShip.wrecked = true;
+    enemy.wrecked = true;
+    ensureNavalEnemyFleetState();
+    const nextAlive = (S.naval.enemyFleet || []).find(function(entry) { return entry && !entry.wrecked; }) || null;
+    if (nextAlive) {
+      S.naval.targetEnemyId = nextAlive.id;
+      S.naval.enemyShip = nextAlive;
+    }
     navalLog("Enemy ship is marked wrecked.", "good");
     renderNaval();
   }
@@ -6446,6 +6694,8 @@
   window.navalSurvey = navalSurvey;
   window.rollShipPerception = rollShipPerception;
   window.navalDiplomacy = navalDiplomacy;
+  window.assignNavalRole = assignNavalRole;
+  window.setActiveNavalEnemy = setActiveNavalEnemy;
   window.runNavalPopupAction = runNavalPopupAction;
   window.openNavalCombatPopup = openNavalCombatPopup;
   window.openNavalCombatRulesPage = openNavalCombatRulesPage;

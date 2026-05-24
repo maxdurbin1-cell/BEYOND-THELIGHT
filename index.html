@@ -222,7 +222,6 @@ body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr 1f
 .modal{padding:.75rem;max-height:92vh;}
 #modalContent [style*="min-width"]{min-width:0!important;}
 #modalContent [style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr!important;}
-#modalContent table{display:block;width:100%;overflow-x:auto;}
 .map-legend{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.6rem;}
 .leg-item{display:flex;align-items:center;gap:.28rem;font-size:.76rem;color:var(--text2);}
 .leg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
@@ -273,7 +272,46 @@ body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr 1f
 .modal.window-system.is-fullscreen .modal-resize-handle,
 .modal.window-system.is-docked-left .modal-resize-handle,
 .modal.window-system.is-docked-right .modal-resize-handle{display:none;}
-#modalContent{font-size:.97rem;color:var(--text);line-height:1.66;}
+#modalContent{font-size:.97rem;color:var(--text);line-height:1.66;min-width:0;overflow-x:hidden;overflow-wrap:anywhere;word-break:break-word;}
+#modalContent > *{min-width:0;max-width:100%;}
+#modalContent .card,
+#modalContent .info-cell,
+#modalContent .stat-row,
+#modalContent .form-row,
+#modalContent .counter-row,
+#modalContent .ship-card,
+#modalContent .story-card,
+#modalContent .wtw-card,
+#modalContent .mission-card,
+#modalContent .room-block,
+#modalContent .npc-block,
+#modalContent .trade-block,
+#modalContent .weather-block,
+#modalContent .wild-panel,
+#modalContent .job-card,
+#modalContent .enemy-card,
+#modalContent .wayfarer-card{min-width:0;max-width:100%;}
+#modalContent .card,
+#modalContent .info-cell,
+#modalContent .stat-row,
+#modalContent .form-row,
+#modalContent .counter-row,
+#modalContent .ship-card,
+#modalContent .story-card,
+#modalContent .wtw-card,
+#modalContent .mission-card,
+#modalContent .room-block,
+#modalContent .npc-block,
+#modalContent .trade-block,
+#modalContent .weather-block,
+#modalContent .wild-panel,
+#modalContent .job-card,
+#modalContent .enemy-card,
+#modalContent .wayfarer-card,
+#modalContent p,
+#modalContent li,
+#modalContent span,
+#modalContent div{overflow-wrap:anywhere;word-break:break-word;}
 #modalContent [style*="color:var(--muted2)"]{color:var(--text2)!important;}
 #modalContent [style*="font-size:.6"],
 #modalContent [style*="font-size:.62"],
@@ -286,6 +324,54 @@ body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr 1f
 #modalContent [style*="font-size:.69"],
 #modalContent [style*="font-size:.7"],
 #modalContent [style*="font-size:.72"]{font-size:.82rem!important;line-height:1.55!important;}
+#modalContent table{display:block;width:100%;overflow-x:auto;}
+
+@media (max-width:900px){
+  .modal.window-system{
+    left:0.35rem;
+    top:0.35rem;
+    transform:none;
+    width:calc(100vw - 0.7rem)!important;
+    max-width:calc(100vw - 0.7rem)!important;
+    height:calc(100dvh - 0.7rem)!important;
+    max-height:calc(100dvh - 0.7rem)!important;
+    min-width:0;
+    padding:0.82rem 0.82rem 0.9rem;
+  }
+  .modal-header-row{
+    gap:0.5rem;
+    touch-action:none;
+  }
+  .modal-window-actions{flex-wrap:wrap;justify-content:flex-end;}
+  .modal-window-actions .btn{
+    min-height:2rem;
+    padding:0.28rem 0.48rem;
+    font-size:0.7rem;
+  }
+  .modal-resize-handle{
+    width:28px;
+    height:28px;
+    touch-action:none;
+  }
+  .modal.window-system.is-docked-left,
+  .modal.window-system.is-docked-right{
+    left:0.35rem;
+    right:0.35rem;
+    width:calc(100vw - 0.7rem)!important;
+    height:calc(100dvh - 0.7rem)!important;
+    border-radius:14px;
+  }
+  .modal.window-system.is-fullscreen{
+    width:100vw!important;
+    height:100dvh!important;
+    max-height:100dvh!important;
+    padding:0.82rem 0.82rem 0.9rem;
+  }
+  #modalContent{
+    font-size:0.95rem;
+    line-height:1.58;
+  }
+}
 
 /* Endgame readability pass */
 #tab-raidtree,

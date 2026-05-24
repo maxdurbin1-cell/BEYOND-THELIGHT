@@ -15372,7 +15372,7 @@
       } else if (room.find&&room.find.type==='enemy'&&!room.find.resolved) {
         actionBtn='<div style="margin-top:.2rem;display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;"><div style="font-size:.7rem;color:var(--red2);font-weight:700;">\u2694 '+room.find.count+' enemies \u00b7 DD'+room.find.dd+' \u00b7 '+room.find.hp+' HP each</div><button class="btn btn-xs" onclick="openMissionRoomCombat('+missionId+','+idx+')">Open Combat</button><button class="btn btn-xs btn-red" onclick="resolveMissionRoomEnemy('+missionId+','+idx+',false)">Failure</button><button class="btn btn-xs btn-primary" onclick="resolveMissionRoomEnemy('+missionId+','+idx+',true)">Success</button></div>';
       } else if (room.find&&room.find.type==='trap'&&!room.find.resolved) {
-        actionBtn='<div style="margin-top:.2rem;"><button class="btn btn-xs btn-teal" onclick="resolveMissionRoomTrap('+missionId+','+idx+')">'+(isMissionManualRollMode()?'Resolve Trap (Success/Failure)':'Resolve Trap (Action vs DD'+(room.find.dd||6)+')')+'</button></div>';
+        actionBtn='<div style="margin-top:.2rem;"><button class="btn btn-xs btn-teal" onclick="resolveMissionRoomTrap('+missionId+','+idx+')">'+(isMissionManualRollMode()?'Resolve Trap (Valor vs DD'+(room.find.dd||6)+' • Success/Failure)':'Resolve Trap (Valor vs DD'+(room.find.dd||6)+')')+'</button></div>';
       } else if (room.find&&room.find.type==='puzzle'&&!room.find.resolved) {
         actionBtn='<div style="margin-top:.2rem;"><button class="btn btn-xs btn-teal" onclick="startMissionRoomPuzzle('+missionId+','+idx+')">Solve Puzzle</button></div>';
       } else if (confrontActive) {
@@ -15832,7 +15832,7 @@
       + '<div style="font-family:Cinzel,serif;font-size:.9rem;color:#ff8a72;margin-bottom:.2rem;">Mission Failure</div>'
       + '<div style="margin-bottom:.3rem;"><strong>Consequence Preview:</strong> ' + consequence.summary + '</div>'
       + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.35rem;">'
-      + (check.inferred ? 'No manual dice values detected; difference defaults to at least 1.' : ('Manual roll seen: Action ' + check.action + ' vs Dread ' + check.dread + '.'))
+      + (check.inferred ? 'No manual dice values detected; difference defaults to at least 1.' : ('Manual roll seen: Valor ' + check.action + ' vs Dread ' + check.dread + '.'))
       + '</div>'
       + '<div style="font-size:.77rem;color:var(--text2);margin-bottom:.4rem;"><strong>Push Luck:</strong> spend <strong>2 Teamwork</strong>, reroll at higher dread <strong>d' + pushDread + '</strong>. Success grants a positive condition; failure applies the consequence line above.</div>'
       + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;justify-content:flex-end;">'

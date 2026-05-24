@@ -17057,7 +17057,7 @@ function renderHexInfo(hex){
       <div class="nb-label" style="color:${ftask.status==='combat_pending'?'var(--red2)':'var(--gold2)'};">${ftask.monsterTask?'⚔ Monster Wayfarer Task':'✦ Wayfarer Task'}</div>
       <div style="font-size:.8rem;color:var(--text2);line-height:1.5;">${ftask.title}${ftask.monsterSummary?`<br><em>${ftask.monsterSummary}</em>`:''}</div>
       <div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
-        ${!ftask.monsterTask&&ftask.status==='open'?`<button class="btn btn-xs btn-primary" onclick="joinAndResolveFactionTask('province','${nk}')">Roll AD vs Dread d6</button>`:''}
+        ${!ftask.monsterTask&&ftask.status==='open'?`<button class="btn btn-xs btn-primary" onclick="joinAndResolveFactionTask('province','${nk}')">Roll Valor vs Dread d6</button>`:''}
         ${ftask.monsterTask&&ftask.status==='open'?`<button class="btn btn-xs btn-warn" onclick="joinAndStartFactionMonsterTask('province','${nk}')">Generate Monsters / Combat</button>`:''}
         ${ftask.monsterTask&&ftask.status==='combat_pending'?`<button class="btn btn-xs btn-primary" onclick="joinAndFinalizeFactionMonsterTask('province','${nk}',true)">Slayed Monsters (Reward)</button><button class="btn btn-xs btn-red" onclick="joinAndFinalizeFactionMonsterTask('province','${nk}',false)">Failed Encounter</button>`:''}
       </div>

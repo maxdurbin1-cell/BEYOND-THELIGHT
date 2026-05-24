@@ -10583,7 +10583,7 @@
       + '<div style="font-family:Cinzel,serif;font-size:.9rem;color:#ff8a72;margin-bottom:.2rem;">Confrontation Failure</div>'
       + '<div style="margin-bottom:.3rem;"><strong>Consequence Preview:</strong> ' + consequence.summary + '</div>'
       + '<div style="font-size:.75rem;color:var(--muted2);margin-bottom:.35rem;">'
-      + (check.inferred ? 'No manual dice values detected; difference defaults to at least 1.' : ('Manual roll seen: Action ' + check.action + ' vs Dread ' + check.dread + '.'))
+      + (check.inferred ? 'No manual dice values detected; difference defaults to at least 1.' : ('Manual roll seen: Valor ' + check.action + ' vs Dread ' + check.dread + '.'))
       + '</div>'
       + '<div style="font-size:.77rem;color:var(--text2);margin-bottom:.4rem;"><strong>Push Luck:</strong> spend <strong>2 Teamwork</strong>, reroll at higher dread <strong>d' + pushDread + '</strong>. Success grants a positive condition; failure applies the consequence line above.</div>'
       + buildNestedModalActionRow(

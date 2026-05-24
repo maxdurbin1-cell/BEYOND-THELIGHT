@@ -325,6 +325,7 @@
       enemyShip: null,
       enemyFleet: [],
       targetEnemyId: "",
+      focusFireLock: false,
       allyFleet: [],
       activeAllyId: "",
       zone: "Close",
@@ -4908,6 +4909,36 @@
     return "naval-ally-" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 1e6).toString(36);
   }
 
+  function buildCompactStressBarChip(label, current, max, tone) {
+    const safeMax = Math.max(1, Number(max || 1));
+    const safeCurrent = Math.max(0, Math.min(safeMax, Number(current || 0)));
+    const pct = Math.max(0, Math.min(100, Math.round((safeCurrent / safeMax) * 100)));
+    const barTone = tone || "#46c4b6";
+    return '<div style="display:inline-flex;align-items:center;gap:.18rem;border:1px solid var(--border2);padding:.1rem .18rem;background:rgba(255,255,255,.02);">'
+      + '<span style="font-size:.62rem;color:var(--muted2);">' + label + '</span>'
+      + '<span style="font-size:.62rem;color:var(--text2);">' + safeCurrent + '/' + safeMax + '</span>'
+      + '<span style="display:inline-block;width:52px;height:6px;border:1px solid var(--border2);background:rgba(0,0,0,.35);position:relative;overflow:hidden;">'
+      + '<span style="position:absolute;left:0;top:0;height:100%;width:' + pct + '%;background:' + barTone + ';"></span>'
+      + '</span>'
+      + '</div>';
+  }
+
+  function getNavalManualPresetDice(actionId) {
+    const ally = getActiveNavalAlly();
+    const enemy = getActiveNavalEnemy();
+    const presets = {
+      "fire-batteries": { actionDie: Number(getEffectiveShipDie(ally, "strike", true) || 6), oppDie: Number(getEffectiveShipDie(enemy, "hull", false) || 6), actionLabel: "Ship Strike", oppLabel: "Enemy Hull" },
+      "launch-volley": { actionDie: Number(getEffectiveShipDie(ally, "shoot", true) || 6), oppDie: Number(getEffectiveShipDie(enemy, "hull", false) || 6), actionLabel: "Ship Shoot", oppLabel: "Enemy Hull" },
+      "patch-shields": { actionDie: Number(getNavalRoleDie("engineer", "body") || 6), oppDie: Number(getNavalEnemyDreadDie() || 6), actionLabel: "Engineer Body", oppLabel: "Enemy Dread" },
+      "captain-tactics": { actionDie: Number(getNavalRoleDie("captain", "lead") || 6), oppDie: Number(getNavalEnemyDreadDie() || 6), actionLabel: "Captain Lead", oppLabel: "Enemy Dread" },
+      "captain-morale": { actionDie: Number(getNavalRoleDie("captain", "spirit") || 6), oppDie: Number(getNavalEnemyDreadDie() || 6), actionLabel: "Captain Spirit", oppLabel: "Enemy Dread" },
+      "navigator-survey": { actionDie: Number(getNavalRoleDie("navigator", "mind") || 6), oppDie: Number(getNavalEnemyDreadDie() || 6), actionLabel: "Navigator Mind", oppLabel: "Enemy Dread" },
+      "captain-diplomacy": { actionDie: Number(getNavalRoleDie("captain", "lead") || 6), oppDie: Number(getNavalEnemyDreadDie() || 6), actionLabel: "Captain Lead", oppLabel: "Enemy Dread" },
+      "hostile-attack": { actionDie: Number(getEffectiveShipDie(enemy, (S.naval.zone === "Nearby" ? "shoot" : "strike"), false) || 6), oppDie: Number(getEffectiveShipDie(ally, "hull", true) || 6), actionLabel: "Enemy Weapon", oppLabel: "Ally Hull" }
+    };
+    return presets[actionId] || { actionDie: 6, oppDie: 6, actionLabel: "Action", oppLabel: "Opposition" };
+  }
+
   function ensureNavalAllyFleetState() {
     const allies = Array.isArray(S.naval.allyFleet) ? S.naval.allyFleet : [];
     if (S.naval.ship && !allies.includes(S.naval.ship)) {
@@ -4987,13 +5018,15 @@
       showNotif("Manual entry not needed for this card.", "info");
       return false;
     }
+    const preset = getNavalManualPresetDice(actionId);
     const html = '<div style="font-size:.84rem;color:var(--text2);line-height:1.55;">'
       + '<div style="margin-bottom:.2rem;color:var(--gold2);font-family:\'Cinzel\',serif;">' + cfg.title + '</div>'
+      + '<div style="font-size:.7rem;color:var(--teal2);margin-bottom:.14rem;">Preset: ' + preset.actionLabel + ' d' + preset.actionDie + ' vs ' + preset.oppLabel + ' d' + preset.oppDie + '</div>'
       + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.24rem;">Enter final totals from physical dice and table modifiers.</div>'
       + '<label style="display:block;font-size:.72rem;color:var(--muted2);margin-bottom:.08rem;">Action Total</label>'
-      + '<input id="navalManualActionTotal" type="number" value="0" style="width:100%;margin-bottom:.18rem;">'
+      + '<input id="navalManualActionTotal" type="number" value="' + Number(preset.actionDie || 0) + '" style="width:100%;margin-bottom:.18rem;">'
       + '<label style="display:block;font-size:.72rem;color:var(--muted2);margin-bottom:.08rem;">Opposition Total</label>'
-      + '<input id="navalManualOppTotal" type="number" value="0" style="width:100%;margin-bottom:.24rem;">'
+      + '<input id="navalManualOppTotal" type="number" value="' + Number(preset.oppDie || 0) + '" style="width:100%;margin-bottom:.24rem;">'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
       + '<button class="btn btn-xs btn-teal" onclick="resolveNavalCardManualPrompt(\'' + actionId + '\')">Apply</button>'
       + '<button class="btn btn-xs" onclick="closeModal();openNavalCombatPopup();">Cancel</button>'
@@ -5074,7 +5107,7 @@
     if (S.naval.targetEnemyId && !S.naval.enemyFleet.some(function(enemy) { return enemy && enemy.id === S.naval.targetEnemyId; })) {
       S.naval.targetEnemyId = "";
     }
-    if (!S.naval.targetEnemyId && S.naval.enemyFleet.length) {
+    if (!S.naval.targetEnemyId && S.naval.enemyFleet.length && !S.naval.focusFireLock) {
       const preferred = S.naval.enemyFleet.find(function(enemy) { return enemy && !enemy.wrecked; }) || S.naval.enemyFleet[0];
       S.naval.targetEnemyId = preferred && preferred.id ? preferred.id : "";
     }
@@ -5082,7 +5115,7 @@
     if (S.naval.targetEnemyId) {
       activeEnemy = S.naval.enemyFleet.find(function(enemy) { return enemy && enemy.id === S.naval.targetEnemyId; }) || null;
     }
-    if (!activeEnemy && S.naval.enemyFleet.length) {
+    if (!activeEnemy && S.naval.enemyFleet.length && !S.naval.focusFireLock) {
       activeEnemy = S.naval.enemyFleet[0];
       S.naval.targetEnemyId = activeEnemy && activeEnemy.id ? activeEnemy.id : "";
     }
@@ -5488,6 +5521,7 @@
     if (id === "select-ally") return true;
     if (id === "assign-role") return true;
     if (id === "manual-action") return true;
+    if (id === "toggle-focus-fire") return true;
     if (id === "disable-hostile") return !!enemy;
     if (id === "hostile-attack") return hasCombat && enemyActions && !!ship && !!enemy;
     if (id === "ship-perception") return true;
@@ -5540,6 +5574,7 @@
       assignNavalRole(bits[0], bits.slice(1).join(":"));
     }
     else if (actionId === "manual-action") openNavalCardManualPrompt(payload);
+    else if (actionId === "toggle-focus-fire") S.naval.focusFireLock = !S.naval.focusFireLock;
     else if (actionId === "move-closer") adjustNavalZone(-1);
     else if (actionId === "move-wider") adjustNavalZone(1);
     else if (actionId === "fire-batteries") navalAttack("strike");
@@ -5717,6 +5752,11 @@
           return '<option value="' + String(entry && entry.id || '') + '"' + (String(entry && entry.id || '') === String(S.naval.activeAllyId || '') ? ' selected' : '') + '>' + name + status + ' · d' + hullVal + ' · Stress ' + stressVal + '</option>';
         }).join('') : '<option value="">No allies yet</option>')
       + '</select>'
+      + '<div style="display:flex;gap:.12rem;flex-wrap:wrap;">'
+      + (allies.length ? allies.map(function(entry, idx) {
+          return buildCompactStressBarChip(String(entry && entry.name || ('Ally ' + (idx + 1))), Number(entry && entry.stress || 0), Number(getShipThreshold(entry, true) || 1), '#46c4b6');
+        }).join('') : '')
+      + '</div>'
       + '</div>'
       + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.14rem;margin-bottom:.2rem;">Pick which allied ship is acting and receives damage this turn.</div>'
       + '</div>'
@@ -5733,6 +5773,15 @@
         }).join('') : '<option value="">No hostiles yet</option>')
       + '</select>'
       + '<button class="btn btn-xs btn-red" onclick="runNavalPopupAction(\'disable-hostile\')" ' + (isNavalPopupActionEnabled("disable-hostile") ? '' : 'disabled style="opacity:.45;cursor:default;"') + '>Disable Target</button>'
+      + '</div>'
+      + '<div style="display:flex;gap:.12rem;flex-wrap:wrap;margin-top:.14rem;">'
+      + (fleet.length ? fleet.map(function(entry, idx) {
+          return buildCompactStressBarChip(String(entry && entry.name || ('Hostile ' + (idx + 1))), Number(entry && entry.stress || 0), Number(getShipThreshold(entry, false) || 1), '#df4d4d');
+        }).join('') : '')
+      + '</div>'
+      + '<div style="display:flex;gap:.2rem;align-items:center;margin-top:.14rem;">'
+      + '<button class="btn btn-xs ' + (S.naval.focusFireLock ? 'btn-primary' : '') + '" onclick="runNavalPopupAction(\'toggle-focus-fire\')">Focus Fire ' + (S.naval.focusFireLock ? 'On' : 'Off') + '</button>'
+      + '<span style="font-size:.64rem;color:var(--muted2);">When On, target will not auto-switch.</span>'
       + '</div>'
       + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.14rem;">Target first, then run attack cards. This keeps multi-ship naval encounters readable like VTT target selection.</div>'
       + '</div>'
@@ -5878,7 +5927,9 @@
     hostile.id = makeNavalEnemyId();
     ensureNavalEnemyFleetState();
     S.naval.enemyFleet.push(hostile);
-    S.naval.targetEnemyId = hostile.id;
+    if (!S.naval.focusFireLock || !S.naval.targetEnemyId) {
+      S.naval.targetEnemyId = hostile.id;
+    }
     S.naval.enemyShip = hostile;
     renderNaval();
     showNotif(`Enemy ${className} sighted (${S.naval.enemyFleet.length} hostile${S.naval.enemyFleet.length === 1 ? '' : 's'}).`, "warn");
@@ -6569,7 +6620,7 @@
     enemy.wrecked = true;
     ensureNavalEnemyFleetState();
     const nextAlive = (S.naval.enemyFleet || []).find(function(entry) { return entry && !entry.wrecked; }) || null;
-    if (nextAlive) {
+    if (nextAlive && !S.naval.focusFireLock) {
       S.naval.targetEnemyId = nextAlive.id;
       S.naval.enemyShip = nextAlive;
     }

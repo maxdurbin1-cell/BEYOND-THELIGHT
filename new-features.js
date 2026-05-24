@@ -117,6 +117,7 @@
         enemyActionsRemaining: 2,
         enemyConvoys: [],
         targetEnemyId: "",
+        focusFireLock: false,
         allyConvoys: [],
         activeAllyId: "",
         roleAssignments: {
@@ -144,6 +145,7 @@
         enemyActionsRemaining: 2,
         enemyConvoys: [],
         targetEnemyId: "",
+        focusFireLock: false,
         allyConvoys: [],
         activeAllyId: "",
         roleAssignments: { driver: "", scout: "", captain: "", engineer: "" },
@@ -1388,6 +1390,20 @@
     return String(prefix || "caravan") + "-" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 1e6).toString(36);
   }
 
+  function buildCompactCaravanStressChip(label, current, max, tone) {
+    var safeMax = Math.max(1, Number(max || 1));
+    var safeCurrent = Math.max(0, Math.min(safeMax, Number(current || 0)));
+    var pct = Math.max(0, Math.min(100, Math.round((safeCurrent / safeMax) * 100)));
+    var barTone = tone || '#46c4b6';
+    return '<div style="display:inline-flex;align-items:center;gap:.18rem;border:1px solid var(--border2);padding:.1rem .18rem;background:rgba(255,255,255,.02);">'
+      + '<span style="font-size:.62rem;color:var(--muted2);">' + label + '</span>'
+      + '<span style="font-size:.62rem;color:var(--text2);">' + safeCurrent + '/' + safeMax + '</span>'
+      + '<span style="display:inline-block;width:52px;height:6px;border:1px solid var(--border2);background:rgba(0,0,0,.35);position:relative;overflow:hidden;">'
+      + '<span style="position:absolute;left:0;top:0;height:100%;width:' + pct + '%;background:' + barTone + ';"></span>'
+      + '</span>'
+      + '</div>';
+  }
+
   function getCaravanMaxStressBySize(size) {
     return Number((CARAVAN_SIZES[size || S.caravan.size] || CARAVAN_SIZES.Small).stress || 12);
   }
@@ -1436,7 +1452,7 @@
     if (chase.targetEnemyId && !chase.enemyConvoys.some(function(enemy) { return enemy && enemy.id === chase.targetEnemyId; })) {
       chase.targetEnemyId = "";
     }
-    if (!chase.targetEnemyId && chase.enemyConvoys.length) {
+    if (!chase.targetEnemyId && chase.enemyConvoys.length && !chase.focusFireLock) {
       var preferredEnemy = chase.enemyConvoys.find(function(enemy) { return enemy && !enemy.wrecked; }) || chase.enemyConvoys[0];
       chase.targetEnemyId = preferredEnemy && preferredEnemy.id ? preferredEnemy.id : "";
     }
@@ -1491,7 +1507,9 @@
       wrecked: false
     };
     chase.enemyConvoys.push(enemy);
-    chase.targetEnemyId = enemy.id;
+    if (!chase.focusFireLock || !chase.targetEnemyId) {
+      chase.targetEnemyId = enemy.id;
+    }
     if (shouldRender !== false) {
       showNotif("Hostile caravan added.", "warn");
       renderCaravanUI();
@@ -1594,6 +1612,23 @@
   }
 
   function openCaravanCardManualPrompt(actionId) {
+    var presetMap = {
+      'driver-maneuver': {
+        actionDie: Number(getCaravanRoleDie('driver', String(S.caravan.chase.driverStat || 'control')) || 6),
+        oppDie: Number(getActiveCaravanEnemy() && getActiveCaravanEnemy().dread || S.caravan.chase.enemyDread || 6),
+        actionLabel: 'Driver check',
+        oppLabel: 'Enemy Dread'
+      },
+      'enemy-attack': {
+        actionDie: Number(getActiveCaravanEnemy() && getActiveCaravanEnemy().dread || S.caravan.chase.enemyDread || 6),
+        oppDie: Number(getCaravanDreadForAlly(getActiveCaravanAlly()) || 6),
+        actionLabel: 'Enemy strike',
+        oppLabel: 'Ally Dread'
+      },
+      'move-closer': { actionDie: 1, oppDie: 1, actionLabel: 'Move cost', oppLabel: 'None' },
+      'move-wider': { actionDie: 1, oppDie: 1, actionLabel: 'Move cost', oppLabel: 'None' }
+    };
+    var preset = presetMap[actionId] || { actionDie: 6, oppDie: 6, actionLabel: 'Action', oppLabel: 'Opposition' };
     var supported = {
       'driver-maneuver': true,
       'enemy-attack': true,
@@ -1606,11 +1641,12 @@
     }
     var html = '<div style="font-size:.84rem;color:var(--text2);line-height:1.55;">'
       + '<div style="margin-bottom:.2rem;color:var(--gold2);font-family:\'Cinzel\',serif;">Caravan Manual Roll</div>'
+      + '<div style="font-size:.7rem;color:var(--teal2);margin-bottom:.14rem;">Preset: ' + preset.actionLabel + ' d' + preset.actionDie + ' vs ' + preset.oppLabel + ' d' + preset.oppDie + '</div>'
       + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.24rem;">Enter final totals from physical dice and table modifiers.</div>'
       + '<label style="display:block;font-size:.72rem;color:var(--muted2);margin-bottom:.08rem;">Action Total</label>'
-      + '<input id="caravanManualActionTotal" type="number" value="0" style="width:100%;margin-bottom:.18rem;">'
+      + '<input id="caravanManualActionTotal" type="number" value="' + Number(preset.actionDie || 0) + '" style="width:100%;margin-bottom:.18rem;">'
       + '<label style="display:block;font-size:.72rem;color:var(--muted2);margin-bottom:.08rem;">Opposition Total</label>'
-      + '<input id="caravanManualOppTotal" type="number" value="0" style="width:100%;margin-bottom:.24rem;">'
+      + '<input id="caravanManualOppTotal" type="number" value="' + Number(preset.oppDie || 0) + '" style="width:100%;margin-bottom:.24rem;">'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;">'
       + '<button class="btn btn-xs btn-teal" onclick="resolveCaravanCardManualPrompt(\'' + actionId + '\')">Apply</button>'
       + '<button class="btn btn-xs" onclick="closeModal();openCaravanCombatPopup();">Cancel</button>'
@@ -1701,7 +1737,7 @@
     if (id === "next-round") return !!chase.active;
     if (id === "end-chase") return !!chase.active;
     if (id === "set-enemy-dread") return true;
-    if (id === "spawn-hostile" || id === "spawn-ally" || id === "select-hostile" || id === "select-ally" || id === "assign-role" || id === "manual-action") return true;
+    if (id === "spawn-hostile" || id === "spawn-ally" || id === "select-hostile" || id === "select-ally" || id === "assign-role" || id === "manual-action" || id === "toggle-focus-fire") return true;
     if (!chase.active) return false;
     if (id === "driver-maneuver") return turn === "wayfarer" && Number(chase.actionsRemaining || 0) > 0;
     if (id === "move-closer" || id === "move-wider") return turn === "wayfarer" && Number(chase.actionsRemaining || 0) > 0;
@@ -1752,6 +1788,7 @@
       assignCaravanRole(roleBits[0], roleBits.slice(1).join(':'));
     }
     else if (actionId === "manual-action") openCaravanCardManualPrompt(payload);
+    else if (actionId === "toggle-focus-fire") S.caravan.chase.focusFireLock = !S.caravan.chase.focusFireLock;
     else if (actionId === "driver-maneuver") rollChaseControl();
     else if (actionId === "move-closer") adjustChaseZone(-1);
     else if (actionId === "move-wider") adjustChaseZone(1);
@@ -1901,6 +1938,11 @@
           return '<option value="' + String(entry && entry.id || '') + '"' + (String(entry && entry.id || '') === String(chase.activeAllyId || '') ? ' selected' : '') + '>' + name + status + ' · Stress ' + Number(entry && entry.stress || 0) + '/' + Number(entry && entry.maxStress || 12) + '</option>';
         }).join('') : '<option value="">No allies yet</option>')
       + '</select>'
+      + '<div style="display:flex;gap:.12rem;flex-wrap:wrap;margin-bottom:.12rem;">'
+      + (allies.length ? allies.map(function(entry, idx) {
+          return buildCompactCaravanStressChip(String(entry && entry.name || ('Ally Caravan ' + (idx + 1))), Number(entry && entry.stress || 0), Number(entry && entry.maxStress || 12), '#46c4b6');
+        }).join('') : '')
+      + '</div>'
       + '<div style="font-size:.66rem;color:var(--muted2);">Selected ally performs actions and receives hostile hits.</div>'
       + '</div>'
       + '<div style="border:1px solid var(--border2);padding:.3rem .35rem;background:rgba(255,255,255,.02);margin-bottom:.34rem;">'
@@ -1912,6 +1954,15 @@
           return '<option value="' + String(entry && entry.id || '') + '"' + (String(entry && entry.id || '') === String(chase.targetEnemyId || '') ? ' selected' : '') + '>' + name + status + ' · d' + Number(entry && entry.dread || 6) + ' · Stress ' + Number(entry && entry.stress || 0) + '/' + Number(entry && entry.maxStress || 12) + '</option>';
         }).join('') : '<option value="">No hostiles yet</option>')
       + '</select>'
+      + '<div style="display:flex;gap:.12rem;flex-wrap:wrap;margin-bottom:.12rem;">'
+      + (enemies.length ? enemies.map(function(entry, idx) {
+          return buildCompactCaravanStressChip(String(entry && entry.name || ('Hostile Caravan ' + (idx + 1))), Number(entry && entry.stress || 0), Number(entry && entry.maxStress || 12), '#df4d4d');
+        }).join('') : '')
+      + '</div>'
+      + '<div style="display:flex;gap:.2rem;align-items:center;margin-bottom:.12rem;">'
+      + '<button class="btn btn-xs ' + (chase.focusFireLock ? 'btn-primary' : '') + '" onclick="runCaravanPopupAction(\'toggle-focus-fire\')">Focus Fire ' + (chase.focusFireLock ? 'On' : 'Off') + '</button>'
+      + '<span style="font-size:.64rem;color:var(--muted2);">When On, target will not auto-switch.</span>'
+      + '</div>'
       + '<div style="font-size:.66rem;color:var(--muted2);">Target enemy determines dread and damage application for this action.</div>'
       + '</div>'
       + '<div style="margin-bottom:.34rem;">' + buildCaravanActionCardsHtml() + '</div>'

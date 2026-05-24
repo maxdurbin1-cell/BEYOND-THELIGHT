@@ -150,7 +150,7 @@
     { id: "watchcairn",   name: "Watchcairn",         continent: "ioniir",    x: 46.0, y: 33.5, threat: 5, climateBand: "storm"     },
     { id: "dewt",         name: "Dewt Crown",         continent: "nominion",  x: 68.0, y: 42.5, threat: 3, climateBand: "temperate" },
     { id: "lynridge",     name: "Lynridge",            continent: "nominion",  x: 71.5, y: 55.0, threat: 4, climateBand: "forest"    },
-    { id: "wrathwatch",   name: "Wraithwatch",         continent: "nominion",  x: 80.0, y: 20.5, threat: 5, climateBand: "storm"     },
+    { id: "wrathwatch",   name: "Wraithwatch",         continent: "nominion",  x: 80.0, y: 20.5, threat: 5, climateBand: "storm", specialMapLink: "worldthatwas" },
     { id: "vosshollow",   name: "Voss Hollow",         continent: "nominion",  x: 83.0, y: 44.5, threat: 6, climateBand: "marsh"     },
     { id: "bazaarun",     name: "Baazarun",            continent: "cyphyyr",   x: 56.0, y: 74.0, threat: 4, climateBand: "coastal"   },
     { id: "krovan",       name: "Krovan Vale",         continent: "cyphyyr",   x: 76.0, y: 73.5, threat: 5, climateBand: "tropical"  },
@@ -991,15 +991,17 @@
         ? 'Cross-continent travel requires Last Sea routing.'
         : (canRailHop ? 'Connected by rail corridor.' : 'Train movement follows neighboring land links only.'));
 
+    var isSpecialMapRegion = String(p.specialMapLink || '').toLowerCase() === 'worldthatwas';
+    var enterLabel = isSpecialMapRegion ? 'Enter Region (World That Was)' : 'Enter Region';
     var travelAction = '';
     if (!stTrain.trainOwned && !isFreeEntryProvince) {
       travelAction = '<button class="btn btn-sm ' + (canBuyTrain ? 'btn-teal' : '') + '" onclick="window.theosBuyTrain()"' + (canBuyTrain ? '' : ' disabled title="Need more credits"') + '>Purchase Train Ticket (' + TRAIN_COST + ' \u20B5)</button>';
     } else if (sameProvince) {
-      travelAction = '<button class="btn btn-sm btn-primary" onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">Enter Region</button>';
+      travelAction = '<button class="btn btn-sm btn-primary" onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">' + enterLabel + '</button>';
     } else if (crossContinent) {
       travelAction = '<button class="btn btn-sm" onclick="if(window.theosBeginSeaVoyage)window.theosBeginSeaVoyage(\'' + esc(p.id) + '\');">Sail the Last Sea</button>';
     } else {
-      travelAction = '<button class="btn btn-sm btn-primary" ' + (canRailHop ? '' : 'disabled title="Rail only reaches connected neighboring provinces"') + ' onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">Enter Region</button>';
+      travelAction = '<button class="btn btn-sm btn-primary" ' + (canRailHop ? '' : 'disabled title="Rail only reaches connected neighboring provinces"') + ' onclick="window.theosEnterProvince(\'' + esc(p.id) + '\')">' + enterLabel + '</button>';
     }
 
     return ''
@@ -1323,19 +1325,116 @@
       ]
     };
     var palette = paletteByClimate[String(province.climateBand || "")] || [{ name: province.name + " Wilds", color: "#667b5a" }];
+    var directionalPalette = {
+      north: [
+        { name: "North-Ice Barrens", color: "#a8c0d1" },
+        { name: "Frostwind Shelf", color: "#93adbf" },
+        { name: "Rimefield", color: "#9db7c7" }
+      ],
+      south: [
+        { name: "South-Burn Dunes", color: "#ba965f" },
+        { name: "Suncleft Barrens", color: "#b28956" },
+        { name: "Glassheat Flats", color: "#c29f72" }
+      ],
+      east: [
+        { name: "Eastwind Drysteppe", color: "#9d8c67" },
+        { name: "Saltwind Reach", color: "#a79473" },
+        { name: "Ravine Shelf", color: "#8f7f62" }
+      ],
+      west: [
+        { name: "Westgrove Verge", color: "#68885d" },
+        { name: "Mossbank Lowland", color: "#5f7f57" },
+        { name: "Rootwater Fold", color: "#5a7750" }
+      ]
+    };
+
+    var minCol = Infinity;
+    var maxCol = -Infinity;
+    var minRow = Infinity;
+    var maxRow = -Infinity;
+    window.mapData.forEach(function (hex) {
+      if (!hex) return;
+      var col = Number(hex.col || 0);
+      var row = Number(hex.row || 0);
+      minCol = Math.min(minCol, col);
+      maxCol = Math.max(maxCol, col);
+      minRow = Math.min(minRow, row);
+      maxRow = Math.max(maxRow, row);
+    });
+
+    var width = Math.max(1, maxCol - minCol);
+    var height = Math.max(1, maxRow - minRow);
+    var provinceNorthBias = Number(province.y || 50) <= 35 ? 0.45 : 0;
+    var provinceSouthBias = Number(province.y || 50) >= 65 ? 0.45 : 0;
+    var provinceEastBias = Number(province.x || 50) >= 65 ? 0.22 : 0;
+    var provinceWestBias = Number(province.x || 50) <= 35 ? 0.22 : 0;
+
     var token = String(province.id || "") + ":topography";
     window.mapData.forEach(function (hex, idx) {
       if (!hex) return;
       var terrain = (hex.terrain && typeof hex.terrain === "object") ? hex.terrain : { name: "Wilderness", color: "#6a7f5e" };
       if (String(hex.type || "") === "wilderness" || String(hex.type || "") === "trade") {
-        var pick = palette[hashString(token + ":" + idx) % palette.length];
-        terrain = Object.assign({}, terrain, { name: pick.name, color: pick.color, topographyTag: province.id });
+        var normX = (Number(hex.col || 0) - minCol) / width;
+        var normY = (Number(hex.row || 0) - minRow) / height;
+        var northWeight = (1 - normY) + provinceNorthBias;
+        var southWeight = normY + provinceSouthBias;
+        var eastWeight = (normX * 0.85) + provinceEastBias;
+        var westWeight = ((1 - normX) * 0.85) + provinceWestBias;
+
+        var biomeKey = "north";
+        var maxWeight = northWeight;
+        if (southWeight > maxWeight) {
+          biomeKey = "south";
+          maxWeight = southWeight;
+        }
+        if (eastWeight > maxWeight) {
+          biomeKey = "east";
+          maxWeight = eastWeight;
+        }
+        if (westWeight > maxWeight) {
+          biomeKey = "west";
+          maxWeight = westWeight;
+        }
+
+        var climatePick = palette[hashString(token + ":" + idx) % palette.length];
+        var dirPool = directionalPalette[biomeKey] || [];
+        var dirPick = dirPool.length
+          ? dirPool[hashString(token + ":" + biomeKey + ":" + idx) % dirPool.length]
+          : climatePick;
+        // Keep province climate identity while reinforcing world-position flavor.
+        var selectedPick = maxWeight >= 1.05 ? dirPick : climatePick;
+
+        terrain = Object.assign({}, terrain, {
+          name: selectedPick.name,
+          color: selectedPick.color,
+          topographyTag: province.id,
+          worldBand: biomeKey
+        });
         hex.terrain = terrain;
       }
       if (!hex.data || typeof hex.data !== "object") hex.data = {};
       hex.data.provinceTag = province.id;
       hex.data.provinceTopography = terrain.name;
+      if (terrain.worldBand) hex.data.provinceWorldBand = terrain.worldBand;
     });
+  }
+
+  function openSpecialProvinceMapIfNeeded(province) {
+    if (!province) return false;
+    var mapLink = String(province.specialMapLink || "").toLowerCase();
+    if (!mapLink) return false;
+    if (mapLink === "worldthatwas") {
+      if (typeof window.openWorldThatWasFromGalaxy === "function") {
+        window.openWorldThatWasFromGalaxy();
+        return true;
+      }
+      if (typeof window.switchTab === "function") {
+        var btn = byId("tabnav-worldthatwas");
+        window.switchTab("worldthatwas", btn || null);
+        return true;
+      }
+    }
+    return false;
   }
 
   function buildProvinceFlavorPool(provinceId) {
@@ -1475,6 +1574,11 @@
     if (typeof window.setContext === "function") {
       var holdingBtn = document.querySelector('.ctx-btn[data-ctx="holding"]');
       window.setContext("holding", holdingBtn || null);
+    }
+
+    if (openSpecialProvinceMapIfNeeded(targetProvince)) {
+      notify("Entered " + targetProvince.name + ". This Nominion region links directly to World That Was.", "good");
+      return;
     }
 
     switchToTab("map");

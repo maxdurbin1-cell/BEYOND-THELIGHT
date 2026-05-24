@@ -12211,12 +12211,12 @@
 
   // ── HACK EFFECTS TABLE ────────────────────────────────────────────────────────
   var HACK_EFFECTS = {
-    'Javelin':              { tmw: 1,  effect: function() { var d=roll(10); return 'Deals <strong>'+d+' Stress</strong> to the target. (1d10)'; } },
-    'Ember':                { tmw: 2,  effect: function() { return 'Target is <strong>Vulnerable</strong>.'; } },
-    'Short Circuit':        { tmw: 4,  effect: function() { return 'Target <strong>loses 2 Rounds</strong>.'; } },
+    'Javelin':              { tmw: 1,  effect: function() { var d=roll(10); return 'On success, deal <strong>'+d+' damage</strong> to your target. (1d10)'; } },
+    'Ember':                { tmw: 2,  effect: function() { return 'On success, the enemy becomes <strong>Vulnerable</strong> (their Dread Die is reduced by one step).'; } },
+    'Short Circuit':        { tmw: 4,  effect: function() { return 'The target <strong>cannot make an action for 2 rounds</strong>.'; } },
     'Reboot Optics':        { tmw: 3,  effect: function() { return 'Enemy rolls with <strong>Step Up Disadvantage</strong> for 3 Rounds (rolls higher die, takes lowest).'; } },
     'Weapon Glitch':        { tmw: 2,  effect: function() { return "Target's <strong>weapons don't work</strong> for 2 Rounds."; } },
-    'Ping':                 { tmw: 1,  effect: function() { return 'Enemy <strong>Dread reduced by one Step</strong>.'; } },
+    'Ping':                 { tmw: 1,  effect: function() { return 'You reveal all available targets in the zone and gain <strong>Advantage d6 (Ad6)</strong> against them.'; } },
     'Sonic Shock':          { tmw: 2,  effect: function() { var d=roll(4); return 'Gain <strong>+'+d+'</strong> to Attack rolls against that enemy. (d4 rolled)'; } },
     'Take Control':         { tmw: 1,  effect: function() { return 'You <strong>remotely operate</strong> a small electronic device.'; } },
     'Counterspell':         { tmw: 2,  effect: function() { return '<strong>Enemy Hack countered!</strong>'; } },
@@ -12224,7 +12224,7 @@
     'LASHOUT (Master)':     { tmw: 10, effect: function() { return 'Enemy <strong>forced to attack</strong> nearest ally/hostile (or commits suicide if alone).'; } },
     'SUICIDE (Master)':     { tmw: 15, effect: function() { return 'Enemy <strong>forced to kill themselves</strong>.'; } },
     'COLLAPSE (Master)':    { tmw: 12, effect: function() { return 'Enemy <strong>crippled for the day</strong> — cannot act.'; } },
-    'DETONATE GRENADE (Master)': { tmw: 10, effect: function() { var d=roll(10)+roll(10); return 'Explosion deals <strong>'+d+' Stress</strong>. (2d10)'; } },
+    'DETONATE GRENADE (Master)': { tmw: 10, effect: function() { var d=roll(10)+roll(10); return 'Explosion deals <strong>'+d+' damage</strong>. (2d10)'; } },
     'AEGIES (Master)':      { tmw: 10, effect: function() { return 'You gain <strong>+10 to Defend Rolls</strong> for this Combat Scene.'; } },
     'PARASYTE (Master)':    { tmw: 12, effect: function() { var vd=S.stats&&S.stats.valor?S.stats.valor:4; var d=roll(vd); return 'Enemy takes <strong>'+d+' Stress per Round</strong> for 12 Rounds. (Valor d'+vd+' rolled)'; } }
   };

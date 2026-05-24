@@ -5226,6 +5226,14 @@
     var health = hpSnap.remaining;
     var maxHealth = hpSnap.max;
     var flavor = String(window.S && window.S.flavor || '').trim();
+    var allFlavors = [];
+    if (window.S && Array.isArray(window.S.personalFlavors)) {
+      window.S.personalFlavors.forEach(function (entry) {
+        var txt = String(entry || '').trim();
+        if (txt && allFlavors.indexOf(txt) < 0) allFlavors.push(txt);
+      });
+    }
+    if (flavor && allFlavors.indexOf(flavor) < 0) allFlavors.push(flavor);
 
     var affix = (typeof window.getEquippedAffixCombatBonuses === 'function') ? window.getEquippedAffixCombatBonuses() : {};
     var wpStrike = (typeof window.parseWeaponBonuses === 'function') ? window.parseWeaponBonuses('strike') : { flat: 0, advDie: 0 };
@@ -5273,7 +5281,18 @@
     var w1 = String(equip.weapon1 || '').trim();
     var w2 = String(equip.weapon2 || '').trim();
     var armor = String(equip.armor || '').trim();
+    var augments = window.S && Array.isArray(window.S.augmentations) ? window.S.augmentations.filter(Boolean) : [];
+    var hacks = window.S && Array.isArray(window.S.ownedHacks) ? window.S.ownedHacks.filter(Boolean) : [];
+    var weaponMods = window.S && Array.isArray(window.S.weaponMods) ? window.S.weaponMods.filter(Boolean) : [];
+    var backpack = window.S && Array.isArray(window.S.backpack) ? window.S.backpack.map(function (item) { return String(item || '').trim(); }).filter(Boolean) : [];
     lines.push('Weapon: ' + (w1 || 'None') + (w2 ? (' · Off-hand: ' + w2) : '') + ' · Armor: ' + (armor || 'None'));
+    lines.push(
+      'Loadout: Flavor ' + (allFlavors.length ? allFlavors.slice(0, 3).map(function (f) { return String(f).split(':')[0].trim(); }).join(', ') : 'None')
+      + ' · Hacks ' + (hacks.length ? hacks.slice(0, 4).join(', ') : 'None')
+      + ' · Augmentations ' + (augments.length ? augments.slice(0, 4).join(', ') : 'None')
+      + ' · Weapon Mods ' + (weaponMods.length ? weaponMods.slice(0, 4).join(', ') : 'None')
+      + ' · Backpack ' + (backpack.length ? backpack.slice(0, 3).join(', ') : 'Empty')
+    );
     return lines;
   }
 
@@ -5616,8 +5635,8 @@
       cards.push({
         title: 'Loadout and Flavor',
         icon: 'KIT',
-        chips: ['Equipment', 'Flavor'],
-        lines: [lines[6] || '', lines[7] || '']
+        chips: ['Equipment', 'Flavor', 'Utility'],
+        lines: [lines[6] || '', lines[7] || '', lines[8] || '']
       });
       cards.push({
         title: 'Soul Array and Resources',
@@ -9363,8 +9382,16 @@
         if (defendArmorDiceNow.length) defendBitsNow.push('Armor AD ' + defendArmorDiceNow.map(function (die) { return 'd' + die; }).join(', '));
         actionCtxLines.push('Defend from armor/affixes: ' + (defendFlatNow >= 0 ? '+' : '') + defendFlatNow + ' flat' + (defendBitsNow.length ? (' · ' + defendBitsNow.join(' · ')) : ''));
         if (selAct.indexOf('personal_flavor') >= 0 || selAct.indexOf('flavor') >= 0) {
-          var fl2 = String(window.S && window.S.flavor || 'None selected');
-          actionCtxLines.push('Personal Flavor: ' + fl2);
+          var flavorList = [];
+          if (window.S && Array.isArray(window.S.personalFlavors)) {
+            window.S.personalFlavors.forEach(function (entry) {
+              var text = String(entry || '').trim();
+              if (text && flavorList.indexOf(text) < 0) flavorList.push(text);
+            });
+          }
+          var activeFlavor = String(window.S && window.S.flavor || '').trim();
+          if (activeFlavor && flavorList.indexOf(activeFlavor) < 0) flavorList.push(activeFlavor);
+          actionCtxLines.push('Personal Flavor options: ' + (flavorList.length ? flavorList.map(function (entry) { return String(entry).split(':')[0].trim(); }).join(', ') : 'None selected'));
         } else if (selAct.indexOf('use_item') >= 0 || selAct.indexOf('item') >= 0 || selAct.indexOf('hack') >= 0 || selAct.indexOf('spell') >= 0) {
           var w1c = String(equip2.weapon1 || '').trim();
           var w2c = String(equip2.weapon2 || '').trim();
@@ -9374,6 +9401,12 @@
           if (items2 && Array.isArray(items2) && items2.length) {
             actionCtxLines.push('Backpack: ' + items2.slice(0, 3).map(function (it) { return String(it && (it.name || it) || ''); }).filter(Boolean).join(', ') + (items2.length > 3 ? ' +more' : ''));
           }
+          var hacks2 = window.S && Array.isArray(window.S.ownedHacks) ? window.S.ownedHacks.filter(Boolean) : [];
+          if (hacks2.length) actionCtxLines.push('Hacks: ' + hacks2.slice(0, 4).join(', ') + (hacks2.length > 4 ? ' +more' : ''));
+          var aug2 = window.S && Array.isArray(window.S.augmentations) ? window.S.augmentations.filter(Boolean) : [];
+          if (aug2.length) actionCtxLines.push('Augmentations: ' + aug2.slice(0, 4).join(', ') + (aug2.length > 4 ? ' +more' : ''));
+          var mods2 = window.S && Array.isArray(window.S.weaponMods) ? window.S.weaponMods.filter(Boolean) : [];
+          if (mods2.length) actionCtxLines.push('Weapon Mods: ' + mods2.slice(0, 4).join(', ') + (mods2.length > 4 ? ' +more' : ''));
         } else {
           actionCtxLines.push('Quick Actions: choose target + action, then Execute.');
         }

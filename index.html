@@ -6157,8 +6157,15 @@ function applySpecificFlavorActionOverride(entry){
 }
 
 function usePersonalFlavorAction(){
-  var flavor=String(S.flavor||'').trim();
+  var flavorOverride = arguments.length > 0 ? arguments[0] : null;
+  var flavor=String(flavorOverride||S.flavor||'').trim();
   if(!flavor){showNotif('Set a Personal Flavor first.','info');return;}
+  if(flavorOverride&&String(flavorOverride).trim()!==String(S.flavor||'').trim()){
+    S.flavor=flavor;
+    var input=document.getElementById('charFlavor');
+    if(input)input.value=S.flavor;
+    if(typeof applyPersonalFlavorEffects==='function')applyPersonalFlavorEffects();
+  }
   if(S&&S.combat&&Number(S.combat.personalFlavorSuppressedRounds||0)>0){
     S.combat.personalFlavorSuppressedRounds=Math.max(0,Number(S.combat.personalFlavorSuppressedRounds||0)-1);
     showNotif('Personal Flavor is suppressed by enemy pressure this round.','warn');
@@ -7754,7 +7761,16 @@ function promptWayfarerBackpackOrFlavor(){
   var backpackItems=Array.isArray(S&&S.backpack)?S.backpack.map(function(item,idx){
     return {item:String(item||'').trim(),idx:idx};
   }).filter(function(entry){return !!entry.item;}):[];
-  var hasFlavor=!!String(S&&S.flavor||'').trim();
+  var flavors=[];
+  if(Array.isArray(S&&S.personalFlavors)){
+    S.personalFlavors.forEach(function(entry){
+      var value=String(entry||'').trim();
+      if(value&&flavors.indexOf(value)<0)flavors.push(value);
+    });
+  }
+  var activeFlavor=String(S&&S.flavor||'').trim();
+  if(activeFlavor&&flavors.indexOf(activeFlavor)<0)flavors.push(activeFlavor);
+  var hasFlavor=flavors.length>0;
   var hacks=Array.isArray(S&&S.ownedHacks)?S.ownedHacks.filter(Boolean):[];
   if(!readied&&!backpackItems.length&&!hasFlavor&&!hacks.length){
     showNotif('No readied item, backpack item, hack, or Personal Flavor is ready to use.','warn');
@@ -7768,7 +7784,11 @@ function promptWayfarerBackpackOrFlavor(){
   if(readied)lines.push('Readied: '+readied);
   backpackItems.forEach(function(entry){lines.push('Backpack ['+(entry.idx+1)+']: '+entry.item);});
   hacks.forEach(function(h){lines.push('Hack: '+String(h));});
-  if(hasFlavor)lines.push('Personal Flavor: '+String(S.flavor||''));
+  if(hasFlavor){
+    flavors.forEach(function(flavorText,idx){
+      lines.push('Personal Flavor '+(idx+1)+': '+String(flavorText||''));
+    });
+  }
   if(typeof openModal==='function')openModal('Combat Utility','<div style="font-size:.8rem;color:var(--muted2);line-height:1.5;">'+lines.join('<br>')+'</div>');
   return true;
 }
@@ -8300,8 +8320,23 @@ function openCombatUtilityChooser(){
   if(hacks.length){
     sections.push('<div style="margin-bottom:.5rem;"><div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">Owned Hacks</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">'+hacks.map(function(hack){var safe=String(hack).replace(/'/g,'&#39;');return '<button class="btn btn-xs btn-teal" onclick="executeCombatUtilityAction(\'hack\',\''+safe+'\');closeModal()">'+safe+'</button>';}).join('')+'</div></div>');
   }
-  if(String(S&&S.flavor||'').trim()){
-    sections.push('<div><div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">Personal Flavor</div><button class="btn btn-sm" onclick="executeCombatUtilityAction(\'flavor\');closeModal()">Use Personal Flavor</button></div>');
+  var flavors=[];
+  if(Array.isArray(S&&S.personalFlavors)){
+    S.personalFlavors.forEach(function(entry){
+      var value=String(entry||'').trim();
+      if(value&&flavors.indexOf(value)<0)flavors.push(value);
+    });
+  }
+  var activeFlavor=String(S&&S.flavor||'').trim();
+  if(activeFlavor&&flavors.indexOf(activeFlavor)<0)flavors.push(activeFlavor);
+  if(flavors.length){
+    sections.push('<div><div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">Personal Flavor</div><div style="display:grid;grid-template-columns:1fr;gap:.2rem;">'+flavors.map(function(flavorText){
+      var encoded=encodeURIComponent(String(flavorText||''));
+      var bits=String(flavorText||'').split(':');
+      var label=String(bits[0]||'Personal Flavor').trim();
+      var detail=String(bits.slice(1).join(':')||'').trim();
+      return '<button class="btn btn-xs" style="text-align:left;" onclick="executeCombatUtilityAction(\'flavor\',decodeURIComponent(\''+encoded+'\'));closeModal()"><strong>'+label+'</strong>'+(detail?' <span style="color:var(--muted2);font-size:.68rem;">- '+detail+'</span>':'')+'</button>';
+    }).join('')+'</div></div>');
   }
   if(!sections.length){showNotif('No readied item, backpack item, hack, or Personal Flavor is ready to use.','warn');return;}
   openModal('Use Item / Hack / Personal Flavor','<div style="font-size:.8rem;color:var(--muted2);line-height:1.55;margin-bottom:.45rem;">Choose from your actual readied gear, backpack, owned hacks, or Personal Flavor.</div>'+sections.join(''));
@@ -8352,7 +8387,7 @@ function executeCombatUtilityAction(kind,payload){
     return;
   }
   if(kind==='flavor'){
-    if(typeof usePersonalFlavorAction==='function')usePersonalFlavorAction();
+    if(typeof usePersonalFlavorAction==='function')usePersonalFlavorAction(payload);
     return;
   }
   if(kind==='hack'){
@@ -8631,16 +8666,20 @@ function applyCombatHackEffect(hackName){
     case 'Javelin':
       var javelinStress=roll(10);
       applyStressToEnemy(enemy,javelinStress,'Javelin');
-      return 'Deals <strong>'+javelinStress+' Stress</strong> to '+enemy.name+'. (1d10)';
+      return 'On success, deal <strong>'+javelinStress+' damage</strong> to '+enemy.name+'. (1d10)';
     case 'Ember':
       applyEnemyCombatCondition(enemy,'vulnerable',1);
-      return enemy.name+' is <strong>Vulnerable</strong> for 1 round.';
+      st.dreadStepDown=Math.max(st.dreadStepDown,1);
+      syncEnemyConditionList(enemy);
+      if(typeof renderEnemies==='function')renderEnemies();
+      if(typeof renderQP==='function')renderQP('combat');
+      return enemy.name+' becomes <strong>Vulnerable</strong> and their Dread Die is reduced by one step.';
     case 'Short Circuit':
       st.skipTurns=Math.max(st.skipTurns,2);
       syncEnemyConditionList(enemy);
       if(typeof renderEnemies==='function')renderEnemies();
       if(typeof renderQP==='function')renderQP('combat');
-      return enemy.name+' <strong>loses 2 turns</strong>.';
+      return enemy.name+' <strong>cannot make an action for 2 rounds</strong>.';
     case 'Reboot Optics':
       st.rebootOpticsRounds=Math.max(st.rebootOpticsRounds,3);
       syncEnemyConditionList(enemy);
@@ -8654,11 +8693,11 @@ function applyCombatHackEffect(hackName){
       if(typeof renderQP==='function')renderQP('combat');
       return enemy.name+' suffers <strong>Weapon Glitch</strong> for 2 rounds.';
     case 'Ping':
-      st.dreadStepDown=Math.max(st.dreadStepDown,1);
-      syncEnemyConditionList(enemy);
-      if(typeof renderEnemies==='function')renderEnemies();
-      if(typeof renderQP==='function')renderQP('combat');
-      return enemy.name+' has their <strong>Dread reduced one step</strong> until their next turn.';
+      if(!S.rollMod)S.rollMod={advDice:[],flat:0};
+      if(!Array.isArray(S.rollMod.advDice))S.rollMod.advDice=[];
+      S.rollMod.advDice.push(6);
+      if(typeof updateRollModDisplay==='function')updateRollModDisplay();
+      return 'Ping reveals all available targets in this zone. You gain <strong>Advantage d6 (Ad6)</strong> on your next attack.';
     case 'Sonic Shock':
       st.sonicShockBonus=Math.max(st.sonicShockBonus,roll(4));
       syncEnemyConditionList(enemy);

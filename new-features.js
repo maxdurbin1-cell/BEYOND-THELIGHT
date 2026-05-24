@@ -12243,7 +12243,12 @@
     var listEl = document.getElementById('ownedHacksList');
     if (listEl) {
       if (!S.ownedHacks.length) {
-        listEl.innerHTML = '<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.35rem;">No Hacks acquired yet. Buy them in the Merchants tab.</div>';
+        listEl.innerHTML = ''
+          + '<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.35rem;">No Hacks acquired yet. Buy OS Hacks in Merchants or unlock Master Hacks through Black Market encounters.</div>'
+          + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.2rem;">'
+          + '<button class="btn btn-xs btn-primary" onclick="switchTab(\'shop\',document.getElementById(\'tabnav-shop\'))">Open Merchant</button>'
+          + '<button class="btn btn-xs" onclick="switchTab(\'traveling\',document.getElementById(\'tabnav-traveling\'))">Travel For Black Market</button>'
+          + '</div>';
       } else {
         listEl.innerHTML = S.ownedHacks.map(function(hackName, i) {
           var hackData = (SHOP_DATA.os_hacks || []).find(function(h) { return h.name === hackName; });

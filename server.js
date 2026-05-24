@@ -950,13 +950,29 @@ function normalizeCharacter(input, fallbackName) {
   const c = input && typeof input === "object" ? input : {};
   const stats = c.stats && typeof c.stats === "object" ? c.stats : {};
   const mentalStress = Math.max(0, Number((typeof c.mentalStress === "number" ? c.mentalStress : c.stress) || 0));
+  const maxHealthFromStats = Math.max(1, Number((stats.defend || stats.body || stats.valor || stats.adventure || 4)) * 2);
+  const maxHealth = Math.max(1, Number(c.maxHealth || c.maxStress || maxHealthFromStats));
+  const maxMentalStress = Math.max(1, Number(c.maxMentalStress || c.mentalStressCap || c.stressCap || 20));
+  const loadoutInput = c.loadout && typeof c.loadout === "object" ? c.loadout : {};
+  const loadout = {
+    weapon1: String(loadoutInput.weapon1 || c.weapon1 || "").trim().slice(0, 120),
+    weapon2: String(loadoutInput.weapon2 || c.weapon2 || "").trim().slice(0, 120),
+    armor: String(loadoutInput.armor || c.armor || "").trim().slice(0, 120),
+    readied: String(loadoutInput.readied || c.readied || "").trim().slice(0, 120)
+  };
+  const hacksInput = Array.isArray(c.hacks) ? c.hacks : (Array.isArray(c.ownedHacks) ? c.ownedHacks : []);
+  const hacks = hacksInput.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 40);
   return {
     name: String(c.name || fallbackName || "Wayfarer").slice(0, 48),
     health: Math.max(0, Number(c.health || 0)),
+    maxHealth,
     mentalStress,
+    maxMentalStress,
     stress: mentalStress,
     look: String(c.look || "").slice(0, 180),
     stats,
+    loadout,
+    hacks,
     backpack: Array.isArray(c.backpack)
       ? c.backpack.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 20)
       : [],

@@ -1961,6 +1961,40 @@
     return sharedState.gmSettings;
   }
 
+  function resolveCharacterMaxHealth(character) {
+    var c = character && typeof character === "object" ? character : {};
+    var stats = c.stats && typeof c.stats === "object" ? c.stats : {};
+    var explicit = Number(c.maxHealth || c.maxStress || 0);
+    if (Number.isFinite(explicit) && explicit > 0) return Math.max(1, Math.floor(explicit));
+    var defendDie = Math.max(4, Number(stats.defend || stats.body || stats.valor || stats.adventure || 4));
+    var bonus = Math.max(0, Number(c.tempStressCapacityBonus || 0));
+    return Math.max(1, (defendDie * 2) + bonus);
+  }
+
+  function resolveCharacterMaxMentalStress(character) {
+    var c = character && typeof character === "object" ? character : {};
+    var explicit = Number(c.maxMentalStress || c.mentalStressCap || c.stressCap || 0);
+    if (Number.isFinite(explicit) && explicit > 0) return Math.max(1, Math.floor(explicit));
+    return 20;
+  }
+
+  function normalizeCharacterLoadout(character) {
+    var c = character && typeof character === "object" ? character : {};
+    var loadout = c.loadout && typeof c.loadout === "object" ? c.loadout : {};
+    return {
+      weapon1: String(loadout.weapon1 || c.weapon1 || "").trim(),
+      weapon2: String(loadout.weapon2 || c.weapon2 || "").trim(),
+      armor: String(loadout.armor || c.armor || "").trim(),
+      readied: String(loadout.readied || c.readied || "").trim()
+    };
+  }
+
+  function normalizeCharacterHacks(character) {
+    var c = character && typeof character === "object" ? character : {};
+    var list = Array.isArray(c.hacks) ? c.hacks : (Array.isArray(c.ownedHacks) ? c.ownedHacks : []);
+    return list.map(function (name) { return String(name || "").trim(); }).filter(Boolean);
+  }
+
   // Get party roster from campaign (all participants with character data)
   function buildPartyRoster() {
     if (!state.campaign || !state.campaign.participants) return [];
@@ -1974,12 +2008,14 @@
         character: {
           name: participant.character.name || "Wayfarer",
           health: Math.max(0, Number(participant.character.health || 0)),
-          maxHealth: 10, // TODO: track from campaign
+          maxHealth: resolveCharacterMaxHealth(participant.character),
           mentalStress: Math.max(0, Number(participant.character.mentalStress || 0)),
-          maxMentalStress: 10, // TODO: track from campaign
+          maxMentalStress: resolveCharacterMaxMentalStress(participant.character),
           look: String(participant.character.look || ""),
           stats: participant.character.stats || {},
-          backpack: Array.isArray(participant.character.backpack) ? participant.character.backpack : []
+          backpack: Array.isArray(participant.character.backpack) ? participant.character.backpack : [],
+          loadout: normalizeCharacterLoadout(participant.character),
+          hacks: normalizeCharacterHacks(participant.character)
         },
         lastSeenAt: Number(participant.lastSeenAt || Date.now())
       });
@@ -2582,9 +2618,9 @@
       token: token,
       name: participant.character.name || participant.name || "Wayfarer",
       health: Math.max(0, Number(participant.character.health || 0)),
-      maxHealth: 10, // TODO: get from character sheet
+      maxHealth: resolveCharacterMaxHealth(participant.character),
       mentalStress: Math.max(0, Number(participant.character.mentalStress || 0)),
-      maxMentalStress: 10, // TODO: get from character sheet
+      maxMentalStress: resolveCharacterMaxMentalStress(participant.character),
       conditions: participant.character.conditions || [],
       isDead: !!(participant.character.isDead),
       role: participant.role || "player",
@@ -3275,10 +3311,26 @@
     var look = (typeof window.S !== "undefined" && window.S)
       ? (window.S.look || window.S.flavor || window.S.reason || "")
       : "";
+    var defendDie = Math.max(4, Number(stats.defend || stats.body || 4));
+    var tempStressBonus = Math.max(0, Number((typeof window.S !== "undefined" && window.S && window.S.tempStressCapacityBonus) || 0));
+    var maxHealth = (typeof window.S !== "undefined" && window.S && Number(window.S.maxHealth) > 0)
+      ? Math.max(1, Number(window.S.maxHealth))
+      : Math.max(1, defendDie * 2 + tempStressBonus);
+    var maxMentalStress = (typeof window.S !== "undefined" && window.S && Number(window.S.maxMentalStress) > 0)
+      ? Math.max(1, Number(window.S.maxMentalStress))
+      : 20;
+    var equipment = (typeof window.S !== "undefined" && window.S && window.S.equipment && typeof window.S.equipment === "object")
+      ? window.S.equipment
+      : {};
+    var ownedHacks = (typeof window.S !== "undefined" && window.S && Array.isArray(window.S.ownedHacks))
+      ? window.S.ownedHacks
+      : [];
     return {
       name: ensureName(),
       health: Math.max(0, Number(hp || 0)),
+      maxHealth: maxHealth,
       mentalStress: Math.max(0, Number(mentalStress || 0)),
+      maxMentalStress: maxMentalStress,
       stress: Math.max(0, Number(mentalStress || 0)),
       look: String(look || "").slice(0, 180),
       stats: {
@@ -3287,8 +3339,18 @@
         spirit: Number(stats.spirit || 4),
         control: Number(stats.control || 4),
         lead: Number(stats.lead || 4),
+        defend: Number(stats.defend || 4),
+        strike: Number(stats.strike || 4),
+        shoot: Number(stats.shoot || 4),
         valor: Number((stats.valor || stats.adventure) || 4)
       },
+      loadout: {
+        weapon1: String(equipment.weapon1 || "").trim(),
+        weapon2: String(equipment.weapon2 || "").trim(),
+        armor: String(equipment.armor || "").trim(),
+        readied: String(equipment.readied || "").trim()
+      },
+      hacks: ownedHacks.map(function (name) { return String(name || "").trim(); }).filter(Boolean),
       backpack: normalizeBackpackItems(window.S && window.S.backpack)
     };
   }
@@ -3861,15 +3923,20 @@
             var roster = buildPartyRoster();
             if (roster.length === 0) return '<div class="campaign-muted">No connected characters yet.</div>';
             return roster.map(function(p) {
+              var loadout = p.character && p.character.loadout ? p.character.loadout : {};
+              var loadoutText = [loadout.weapon1, loadout.weapon2, loadout.armor].filter(Boolean).join(' | ');
+              var hacksCount = Array.isArray(p.character && p.character.hacks) ? p.character.hacks.length : 0;
               return '<div style="padding:.5rem;background:var(--bg3);border-radius:.3rem;border-left:3px solid var(--teal);">'
                 + '<div style="display:flex;justify-content:space-between;align-items:center;">'
                 + '<strong>' + escapeHtml(p.character.name) + '</strong>'
                 + '<span class="campaign-muted" style="font-size:.85rem;">' + escapeHtml(p.role) + '</span>'
                 + '</div>'
                 + '<div class="campaign-muted" style="margin-top:.2rem;font-size:.85rem;">'
-                + 'HP ' + p.character.health + ' · MS ' + p.character.mentalStress
+                + 'HP ' + p.character.health + '/' + p.character.maxHealth + ' · MS ' + p.character.mentalStress + '/' + p.character.maxMentalStress
                 + (p.character.stats && (p.character.stats.valor || p.character.stats.adventure) ? ' · Val ' + Number(p.character.stats.valor || p.character.stats.adventure) : '')
                 + '</div>'
+                + '<div class="campaign-muted" style="margin-top:.12rem;font-size:.78rem;">Loadout: ' + escapeHtml(loadoutText || 'Not synced yet') + '</div>'
+                + '<div class="campaign-muted" style="margin-top:.08rem;font-size:.78rem;">OS Hacks: ' + String(hacksCount) + '</div>'
                 + '</div>';
             }).join('');
           })()

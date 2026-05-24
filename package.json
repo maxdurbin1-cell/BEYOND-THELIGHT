@@ -40,6 +40,7 @@
     "smoke:reconnect": "node smoke-tests/reconnect-churn.smoke.mjs",
     "smoke:maybe-reconnect": "node -e \"const run=['1','true','yes','on'].includes(String(process.env.SMOKE_RECONNECT||'').toLowerCase()); if(!run){console.log('Skipping reconnect soak (set SMOKE_RECONNECT=1 to enable).'); process.exit(0);} const {spawnSync}=require('node:child_process'); const cmd=process.platform==='win32'?'npm.cmd':'npm'; const r=spawnSync(cmd,['run','smoke:reconnect'],{stdio:'inherit'}); process.exit(r.status||0);\"",
     "smoke:galaxy-manual-prompts": "node smoke-tests/galaxy-manual-prompts.smoke.mjs",
+    "smoke:health-dashboard": "node smoke-tests/health-dashboard.smoke.mjs",
     "smoke:test": "npm run smoke:clicks && npm run smoke:portrait-preview && npm run smoke:solo-library && npm run smoke:minigames-expedition && npm run smoke:minigames-expedition-campaign && npm run smoke:bone-oracle && npm run smoke:combat-sync && npm run smoke:combat-turns && npm run smoke:token-target-damage && npm run smoke:enemy-loot-drop && npm run smoke:enemy-loot-drop-items && npm run smoke:scenario && npm run smoke:newsun-scheduler && npm run smoke:legacy-raid && npm run smoke:raid-combat-return && npm run smoke:quick-panel-raid-ui && npm run smoke:raid-teleport-choice && npm run smoke:open-world && npm run smoke:maybe-reconnect"
   },
   "dependencies": {

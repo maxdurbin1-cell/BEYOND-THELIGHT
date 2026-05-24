@@ -906,6 +906,10 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <div class="card" id="osHacksPanel" style="display:none;">
       <div class="section-title">💻 OS Interface</div>
       <div style="font-size:.76rem;color:var(--muted2);margin-bottom:.5rem;">Hacking requires the <strong style="color:var(--gold2);">OPERATING SYSTEM</strong> augmentation. Roll two Dread Dice, split them low-to-high, guess <strong style="color:var(--gold);">Below</strong> / <strong style="color:var(--gold);">Middle</strong> / <strong style="color:var(--gold);">Above</strong>, then roll your <strong style="color:var(--teal);">Valor</strong> die.</div>
+      <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.45rem;">
+        <button class="btn btn-xs" onclick="switchTab('shop',document.getElementById('tabnav-shop'))">Get Hacks (Merchant)</button>
+        <button class="btn btn-xs btn-teal" onclick="switchTab('character',document.getElementById('tabnav-character'))">Back To Loadout</button>
+      </div>
       <div id="ownedHacksList"></div>
       <div style="border-top:1px solid var(--border);padding-top:.5rem;margin-top:.4rem;">
         <div class="sub-label">Cast a Hack</div>
@@ -1840,6 +1844,15 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <div class="ship-banner">
       <h3>Missions</h3>
       <p>Accept missions from the board. Each mission is a 3-step process: gather information (optional), travel to site, then face the confrontation. Success earns Credits, Renown, and loot from the merchant tables.</p>
+    </div>
+    <div class="card" style="margin-bottom:.75rem;">
+      <div class="section-title" style="margin-bottom:.3rem;">New Wayfarer Mission Flow</div>
+      <div style="font-size:.78rem;color:var(--muted2);line-height:1.55;">1) Generate mission offers. 2) Accept one contract and track it under Active Missions. 3) Use the map/travel tabs to reach the site, then resolve the confrontation.</div>
+      <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.45rem;">
+        <button class="btn btn-xs btn-primary" onclick="generateMissions()">Step 1: Generate Missions</button>
+        <button class="btn btn-xs" onclick="switchTab('traveling',document.getElementById('tabnav-traveling'))">Step 2: Open Travel</button>
+        <button class="btn btn-xs btn-teal" onclick="switchTab('character',document.getElementById('tabnav-character'))">Step 3: Check Loadout</button>
+      </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;">
       <!-- Mission Board -->

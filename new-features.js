@@ -1452,6 +1452,13 @@
     if (chase.targetEnemyId && !chase.enemyConvoys.some(function(enemy) { return enemy && enemy.id === chase.targetEnemyId; })) {
       chase.targetEnemyId = "";
     }
+    if (chase.targetEnemyId && !chase.focusFireLock) {
+      var currentEnemy = chase.enemyConvoys.find(function(enemy) { return enemy && enemy.id === chase.targetEnemyId; }) || null;
+      if (currentEnemy && currentEnemy.wrecked) {
+        var nextEnemy = chase.enemyConvoys.find(function(enemy) { return enemy && !enemy.wrecked; }) || null;
+        chase.targetEnemyId = nextEnemy && nextEnemy.id ? nextEnemy.id : "";
+      }
+    }
     if (!chase.targetEnemyId && chase.enemyConvoys.length && !chase.focusFireLock) {
       var preferredEnemy = chase.enemyConvoys.find(function(enemy) { return enemy && !enemy.wrecked; }) || chase.enemyConvoys[0];
       chase.targetEnemyId = preferredEnemy && preferredEnemy.id ? preferredEnemy.id : "";
@@ -1516,6 +1523,21 @@
       renderCaravanCombatPopup();
     }
     return enemy;
+  }
+
+  function wreckCaravanEnemyConvoy() {
+    ensureCaravanConvoyState();
+    var chase = S.caravan.chase;
+    var enemy = getActiveCaravanEnemy();
+    if (!enemy) { return false; }
+    enemy.wrecked = true;
+    if (!chase.focusFireLock) {
+      var nextAlive = (chase.enemyConvoys || []).find(function(entry) { return entry && !entry.wrecked; }) || null;
+      chase.targetEnemyId = nextAlive && nextAlive.id ? nextAlive.id : "";
+    }
+    chase.log.push("R" + Number(chase.round || 1) + ": Hostile convoy disabled.");
+    renderCaravanUI();
+    return true;
   }
 
   function spawnCaravanAllyConvoy() {
@@ -1738,6 +1760,7 @@
     if (id === "end-chase") return !!chase.active;
     if (id === "set-enemy-dread") return true;
     if (id === "spawn-hostile" || id === "spawn-ally" || id === "select-hostile" || id === "select-ally" || id === "assign-role" || id === "manual-action" || id === "toggle-focus-fire") return true;
+    if (id === "disable-hostile") return !!getActiveCaravanEnemy();
     if (!chase.active) return false;
     if (id === "driver-maneuver") return turn === "wayfarer" && Number(chase.actionsRemaining || 0) > 0;
     if (id === "move-closer" || id === "move-wider") return turn === "wayfarer" && Number(chase.actionsRemaining || 0) > 0;
@@ -1783,6 +1806,7 @@
     else if (actionId === "spawn-ally") spawnCaravanAllyConvoy();
     else if (actionId === "select-hostile") setActiveCaravanEnemy(payload);
     else if (actionId === "select-ally") setActiveCaravanAlly(payload);
+    else if (actionId === "disable-hostile") wreckCaravanEnemyConvoy();
     else if (actionId === "assign-role") {
       var roleBits = String(payload || '').split(':');
       assignCaravanRole(roleBits[0], roleBits.slice(1).join(':'));
@@ -1947,13 +1971,16 @@
       + '</div>'
       + '<div style="border:1px solid var(--border2);padding:.3rem .35rem;background:rgba(255,255,255,.02);margin-bottom:.34rem;">'
       + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;color:var(--gold2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.12rem;">Hostile Targeting</div>'
-      + '<select onchange="runCaravanPopupAction(\'select-hostile\', this.value)" style="width:100%;margin-bottom:.16rem;">'
+      + '<div style="display:grid;grid-template-columns:1fr auto;gap:.24rem;align-items:center;margin-bottom:.16rem;">'
+      + '<select onchange="runCaravanPopupAction(\'select-hostile\', this.value)" style="width:100%;">'
       + (enemies.length ? enemies.map(function(entry, idx) {
           var name = String(entry && entry.name || ('Hostile Caravan ' + (idx + 1)));
           var status = entry && entry.wrecked ? ' (Wrecked)' : '';
           return '<option value="' + String(entry && entry.id || '') + '"' + (String(entry && entry.id || '') === String(chase.targetEnemyId || '') ? ' selected' : '') + '>' + name + status + ' · d' + Number(entry && entry.dread || 6) + ' · Stress ' + Number(entry && entry.stress || 0) + '/' + Number(entry && entry.maxStress || 12) + '</option>';
         }).join('') : '<option value="">No hostiles yet</option>')
       + '</select>'
+      + '<button class="btn btn-xs btn-red" onclick="runCaravanPopupAction(\'disable-hostile\')" ' + (isCaravanPopupActionEnabled("disable-hostile") ? '' : 'disabled style="opacity:.45;cursor:default;"') + '>Disable Target</button>'
+      + '</div>'
       + '<div style="display:flex;gap:.12rem;flex-wrap:wrap;margin-bottom:.12rem;">'
       + (enemies.length ? enemies.map(function(entry, idx) {
           return buildCompactCaravanStressChip(String(entry && entry.name || ('Hostile Caravan ' + (idx + 1))), Number(entry && entry.stress || 0), Number(entry && entry.maxStress || 12), '#df4d4d');

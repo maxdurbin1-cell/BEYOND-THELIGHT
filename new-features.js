@@ -524,6 +524,7 @@
                 '<button class="btn btn-sm" onclick="adjustChaseZone(-1)">← Closer</button>',
                 '<button class="btn btn-sm" onclick="adjustChaseZone(1)">Farther →</button>',
                 '<button class="btn btn-sm btn-red" onclick="rollChaseEnemyAttack()">Enemy Attack</button>',
+                '<button class="btn btn-sm btn-teal" onclick="openCaravanCombatPopup()">Open Combat Popup</button>',
               '</div>',
               '<div id="chaseCombatStatus" style="font-family:\'Rajdhani\',sans-serif;font-size:.82rem;color:var(--muted2);margin-top:.4rem;"></div>',
             '</div>',
@@ -832,6 +833,8 @@
     // Enemy dread display
     el = document.getElementById("chaseEnemyDreadDisplay");
     if (el) { el.textContent = "d" + c.chase.enemyDread; }
+
+    renderCaravanCombatPopup();
   }
 
   function renderChaseZoneTrack() {
@@ -1280,6 +1283,87 @@
     }
     renderCaravanUI();
     if (!hit) { showNotif("Transporter held firm!", "good"); }
+  }
+
+  function buildCaravanCombatVisualHtml() {
+    var zone = String(S.caravan.chase.zone || "Close");
+    var zoneIndex = Math.max(0, CHASE_ZONES.indexOf(zone));
+    return '<div style="display:flex;gap:.2rem;align-items:stretch;flex-wrap:wrap;">'
+      + CHASE_ZONES.map(function(z, i) {
+          var active = i === zoneIndex;
+          var tone = active ? 'var(--gold2)' : 'var(--muted2)';
+          return '<div style="min-width:88px;flex:1;border:1px solid ' + (active ? 'rgba(201,162,39,.5)' : 'var(--border2)') + ';background:' + (active ? 'rgba(201,162,39,.1)' : 'rgba(255,255,255,.02)') + ';padding:.25rem .3rem;text-align:center;">'
+            + '<div style="font-family:\'Cinzel\',serif;font-size:.58rem;letter-spacing:.08em;color:' + tone + ';text-transform:uppercase;">' + z + '</div>'
+            + '<div style="font-size:.62rem;color:var(--muted);margin-top:.12rem;">' + (z === 'Engaged' ? 'Strike' : z === 'Close' ? 'Spells/Items' : z === 'Nearby' ? 'Shoot' : 'Disengaged') + '</div>'
+            + '<div style="font-size:.76rem;color:' + (active ? 'var(--teal)' : 'transparent') + ';line-height:1.1;margin-top:.05rem;">⛟ ↔ ☠</div>'
+            + '</div>';
+        }).join('')
+      + '</div>';
+  }
+
+  function buildCaravanCombatPopupHtml() {
+    var chase = S.caravan.chase || {};
+    var log = Array.isArray(chase.log) ? chase.log.slice(-14).reverse() : [];
+    return '<div id="caravanCombatPopupRoot" style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.9rem;color:var(--gold2);margin-bottom:.22rem;">Caravan Combat Console</div>'
+      + '<div style="display:flex;gap:.22rem;flex-wrap:wrap;margin-bottom:.32rem;font-size:.7rem;color:var(--muted2);">'
+      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Round ' + Number(chase.round || 1) + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Zone ' + String(chase.zone || 'Close') + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Enemy Dread d' + Number(chase.enemyDread || 6) + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Stress ' + Number(S.caravan.stress || 0) + '/' + Number((CARAVAN_SIZES[S.caravan.size] || CARAVAN_SIZES.Small).stress || 12) + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">State ' + (chase.active ? 'Active' : 'Idle') + '</span>'
+      + '</div>'
+      + '<div style="margin-bottom:.35rem;">' + buildCaravanCombatVisualHtml() + '</div>'
+      + '<div style="display:flex;gap:.26rem;flex-wrap:wrap;margin-bottom:.3rem;">'
+      + '<button class="btn btn-xs btn-teal" onclick="startChase();renderCaravanCombatPopup();">Start / Reset</button>'
+      + '<button class="btn btn-xs" onclick="nextChaseRound();renderCaravanCombatPopup();">Next Round</button>'
+      + '<button class="btn btn-xs btn-red" onclick="endChase();renderCaravanCombatPopup();">End Chase</button>'
+      + '<button class="btn btn-xs" onclick="adjustChaseZone(-1);renderCaravanCombatPopup();">Move Closer</button>'
+      + '<button class="btn btn-xs" onclick="adjustChaseZone(1);renderCaravanCombatPopup();">Move Wider</button>'
+      + '<button class="btn btn-xs btn-primary" onclick="rollChaseControl();renderCaravanCombatPopup();">Driver Roll</button>'
+      + '<button class="btn btn-xs btn-red" onclick="rollChaseEnemyAttack();renderCaravanCombatPopup();">Enemy Attack</button>'
+      + '<button class="btn btn-xs" onclick="openCaravanCombatRulesPage();">Rules Page</button>'
+      + '</div>'
+      + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-bottom:.32rem;">'
+      + [4,6,8,10,12].map(function(d) {
+          return '<button class="btn btn-xs" onclick="setChaseEnemyDread(' + d + ');renderCaravanCombatPopup();">Enemy d' + d + '</button>';
+        }).join('')
+      + '</div>'
+      + '<div style="border:1px solid var(--border2);padding:.32rem .36rem;max-height:230px;overflow:auto;background:rgba(255,255,255,.02);">'
+      + (log.length
+          ? log.map(function(entry) { return '<div style="font-size:.74rem;color:var(--text2);border-bottom:1px solid var(--border2);padding:.12rem 0;">' + entry + '</div>'; }).join('')
+          : '<div style="font-size:.74rem;color:var(--muted2);">No chase events yet.</div>')
+      + '</div>'
+      + '</div>';
+  }
+
+  function renderCaravanCombatPopup() {
+    var content = document.getElementById('modalContent');
+    var root = document.getElementById('caravanCombatPopupRoot');
+    if (!content || !root) { return false; }
+    content.innerHTML = buildCaravanCombatPopupHtml();
+    return true;
+  }
+
+  function openCaravanCombatRulesPage() {
+    var html = '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.88rem;color:var(--gold2);margin-bottom:.24rem;">Caravan Chase Rules</div>'
+      + '<div style="margin-bottom:.24rem;">1. Driver rolls chosen stat vs Enemy Dread. If successful, shift toward Engaged. If failed, drift wider and risk stress.</div>'
+      + '<div style="margin-bottom:.24rem;">2. Zone permissions: Engaged = Strike, Close = spells/items, Nearby = Shoot, Far = mostly disengaged setup.</div>'
+      + '<div style="margin-bottom:.24rem;">3. Enemy Attack compares Enemy Dread to Caravan Dread. On hit, add Stress. Heavy hits can trigger complication rolls.</div>'
+      + '<div style="margin-bottom:.24rem;">4. Buttons: Start/Reset opens a fresh chase state, Next Round advances initiative timing, End Chase exits pursuit.</div>'
+      + '<div style="margin-bottom:.24rem;">5. Set Enemy Dread to tune challenge for convoy rank and encounter severity.</div>'
+      + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs btn-teal" onclick="openCaravanCombatPopup();">Back To Combat Popup</button>'
+      + '<button class="btn btn-xs" onclick="closeModal();">Close</button>'
+      + '</div>'
+      + '</div>';
+    openModal('Caravan Combat Rules', html, null, { preventScroll: true, focusTrap: true });
+  }
+
+  function openCaravanCombatPopup() {
+    ensureNewFeatureState();
+    openModal('Caravan Combat Console', buildCaravanCombatPopupHtml(), null, { preventScroll: true, focusTrap: true });
   }
 
   // ── HOLDING RENDER ─────────────────────────────────────────────────────────────
@@ -11796,6 +11880,9 @@
   window.adjustChaseZone      = adjustChaseZone;
   window.rollChaseControl     = rollChaseControl;
   window.rollChaseEnemyAttack = rollChaseEnemyAttack;
+  window.openCaravanCombatPopup = openCaravanCombatPopup;
+  window.openCaravanCombatRulesPage = openCaravanCombatRulesPage;
+  window.renderCaravanCombatPopup = renderCaravanCombatPopup;
   window.renderCaravanUI      = renderCaravanUI;
   window.mountCaravanPanel    = mountCaravanPanel;
   window.mountHoldingPanel    = mountHoldingPanel;

@@ -462,6 +462,7 @@
               <button class="btn btn-sm btn-teal" onclick="startNavalCombat()">Start / Reset Combat</button>
               <button class="btn btn-sm" onclick="nextNavalRound()">Next Round</button>
               <button class="btn btn-sm btn-red" onclick="clearNavalLog()">Clear Log</button>
+              <button class="btn btn-sm btn-primary" onclick="openNavalCombatPopup()">Open Combat Popup</button>
             </div>
             <div class="zone-track" id="navalZoneTrack" style="margin-bottom:.55rem;"></div>
             <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.65rem;">
@@ -5128,6 +5129,95 @@
     }
 
     syncNavalStateToVttCombat();
+    renderNavalCombatPopup();
+  }
+
+  function buildNavalCombatVisualHtml() {
+    const zone = String(S.naval.zone || "Close");
+    const zoneIndex = Math.max(0, NAVAL_ZONES.indexOf(zone));
+    return '<div style="display:flex;gap:.2rem;align-items:stretch;flex-wrap:wrap;">'
+      + NAVAL_ZONES.map(function(name, index) {
+          const active = index === zoneIndex;
+          const tone = active ? 'var(--gold2)' : 'var(--muted2)';
+          return '<div style="min-width:88px;flex:1;border:1px solid ' + (active ? 'rgba(201,162,39,.5)' : 'var(--border2)') + ';background:' + (active ? 'rgba(201,162,39,.1)' : 'rgba(255,255,255,.02)') + ';padding:.25rem .3rem;text-align:center;">'
+            + '<div style="font-family:\'Cinzel\',serif;font-size:.58rem;letter-spacing:.08em;color:' + tone + ';text-transform:uppercase;">' + name + '</div>'
+            + '<div style="font-size:.62rem;color:var(--muted);margin-top:.12rem;">' + (name === 'Engaged' ? 'Boarding' : name === 'Close' ? 'Cannons' : name === 'Nearby' ? 'Crossbows' : 'Too Far') + '</div>'
+            + '<div style="font-size:.76rem;color:' + (active ? 'var(--teal)' : 'transparent') + ';line-height:1.1;margin-top:.05rem;">⛵ ↔ ☠</div>'
+            + '</div>';
+        }).join('')
+      + '</div>';
+  }
+
+  function buildNavalCombatPopupHtml() {
+    const ship = S.naval.ship;
+    const enemy = S.naval.enemyShip;
+    const log = Array.isArray(S.naval.log) ? S.naval.log.slice(0, 18) : [];
+    const playerActions = Number(S.naval.actionsRemaining || 0);
+    const enemyActions = Number(S.naval.enemyActionsRemaining || 0);
+    return '<div id="navalCombatPopupRoot" style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.9rem;color:var(--gold2);margin-bottom:.22rem;">Naval Combat Console</div>'
+      + '<div style="display:flex;gap:.22rem;flex-wrap:wrap;margin-bottom:.3rem;font-size:.7rem;color:var(--muted2);">'
+      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Round ' + Number(S.naval.round || 1) + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Zone ' + String(S.naval.zone || 'Close') + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Actions ' + playerActions + ' / Enemy ' + enemyActions + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Perception ' + capitalize(String(S.naval.perception || 'indifferent')) + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Combat ' + (S.naval.combatActive ? 'Active' : 'Idle') + '</span>'
+      + '</div>'
+      + '<div style="margin-bottom:.35rem;">' + buildNavalCombatVisualHtml() + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem;margin-bottom:.35rem;">'
+      + '<div class="combat-card">' + (ship ? renderShipSummary(ship, true) : '<div class="ship-copy">No allied ship selected.</div>') + '</div>'
+      + '<div class="combat-card">' + (enemy ? renderShipSummary(enemy, false) : '<div class="ship-copy">No enemy ship active. Spawn one.</div>') + '</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:.26rem;flex-wrap:wrap;margin-bottom:.28rem;">'
+      + '<button class="btn btn-xs btn-teal" onclick="startNavalCombat();renderNavalCombatPopup();">Start / Reset</button>'
+      + '<button class="btn btn-xs" onclick="nextNavalRound();renderNavalCombatPopup();">Next Round</button>'
+      + '<button class="btn btn-xs" onclick="adjustNavalZone(-1);renderNavalCombatPopup();">Move Closer</button>'
+      + '<button class="btn btn-xs" onclick="adjustNavalZone(1);renderNavalCombatPopup();">Move Wider</button>'
+      + '<button class="btn btn-xs btn-primary" onclick="navalAttack(\'strike\');renderNavalCombatPopup();">Cannons</button>'
+      + '<button class="btn btn-xs btn-primary" onclick="navalAttack(\'shoot\');renderNavalCombatPopup();">Crossbows</button>'
+      + '<button class="btn btn-xs" onclick="navalTactics();renderNavalCombatPopup();">Tactics</button>'
+      + '<button class="btn btn-xs" onclick="navalSurvey();renderNavalCombatPopup();">Survey</button>'
+      + '<button class="btn btn-xs btn-teal" onclick="navalRepair();renderNavalCombatPopup();">Repair</button>'
+      + '<button class="btn btn-xs" onclick="navalMorale();renderNavalCombatPopup();">Morale</button>'
+      + '<button class="btn btn-xs" onclick="navalDiplomacy();renderNavalCombatPopup();">Diplomacy</button>'
+      + '<button class="btn btn-xs btn-red" onclick="enemyNavalAttack();renderNavalCombatPopup();">Enemy Attack</button>'
+      + '<button class="btn btn-xs" onclick="openNavalCombatRulesPage();">Rules Page</button>'
+      + '</div>'
+      + '<div style="border:1px solid var(--border2);padding:.32rem .36rem;max-height:230px;overflow:auto;background:rgba(255,255,255,.02);">'
+      + (log.length
+          ? log.map(function(entry) { return '<div style="font-size:.74rem;color:var(--text2);border-bottom:1px solid var(--border2);padding:.12rem 0;">' + String(entry && entry.text || '') + '</div>'; }).join('')
+          : '<div style="font-size:.74rem;color:var(--muted2);">No naval combat events yet.</div>')
+      + '</div>'
+      + '</div>';
+  }
+
+  function renderNavalCombatPopup() {
+    const content = document.getElementById("modalContent");
+    const root = document.getElementById("navalCombatPopupRoot");
+    if (!content || !root) return false;
+    content.innerHTML = buildNavalCombatPopupHtml();
+    return true;
+  }
+
+  function openNavalCombatRulesPage() {
+    const html = '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.88rem;color:var(--gold2);margin-bottom:.24rem;">Naval Combat Rules</div>'
+      + '<div style="margin-bottom:.24rem;">1. Start combat to reset round state, stress tracks, action count, and opening range.</div>'
+      + '<div style="margin-bottom:.24rem;">2. Move range with Navigator checks. Engaged enables boarding, Close enables cannons, Nearby enables crossbows.</div>'
+      + '<div style="margin-bottom:.24rem;">3. Attack compares weapon die plus modifiers vs target hull die. Margin becomes Stress.</div>'
+      + '<div style="margin-bottom:.24rem;">4. When Stress reaches hull threshold, the hull die steps down. If already at d4, the ship is wrecked.</div>'
+      + '<div style="margin-bottom:.24rem;">5. Support actions: Repair stabilizes stress, Tactics changes crew modifiers, Morale/Survey affect status pressure.</div>'
+      + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;">'
+      + '<button class="btn btn-xs btn-teal" onclick="openNavalCombatPopup();">Back To Combat Popup</button>'
+      + '<button class="btn btn-xs" onclick="closeModal();">Close</button>'
+      + '</div>'
+      + '</div>';
+    openModal('Naval Combat Rules', html, null, { preventScroll: true, focusTrap: true });
+  }
+
+  function openNavalCombatPopup() {
+    ensureExpansionState();
+    openModal('Naval Combat Console', buildNavalCombatPopupHtml(), null, { preventScroll: true, focusTrap: true });
   }
 
   function selectNavalClass(className) {
@@ -6168,6 +6258,9 @@
   window.navalSurvey = navalSurvey;
   window.rollShipPerception = rollShipPerception;
   window.navalDiplomacy = navalDiplomacy;
+  window.openNavalCombatPopup = openNavalCombatPopup;
+  window.openNavalCombatRulesPage = openNavalCombatRulesPage;
+  window.renderNavalCombatPopup = renderNavalCombatPopup;
   window.startNavalBoardingAction = startNavalBoardingAction;
   window.previewNavalBoardingOutcomeFromCombatScene = previewNavalBoardingOutcomeFromCombatScene;
   window.resolveNavalBoardingOutcomeFromCombatScene = resolveNavalBoardingOutcomeFromCombatScene;

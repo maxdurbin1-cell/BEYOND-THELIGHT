@@ -5132,20 +5132,164 @@
     renderNavalCombatPopup();
   }
 
+  function getNavalPopupTurnState() {
+    if (!S.naval.combatActive) return "setup";
+    if (Number(S.naval.actionsRemaining || 0) > 0) return "wayfarer";
+    if (Number(S.naval.enemyActionsRemaining || 0) > 0) return "hostile";
+    return "round-end";
+  }
+
+  function isNavalPopupActionEnabled(id) {
+    const ship = S.naval.ship;
+    const enemy = S.naval.enemyShip;
+    const zone = String(S.naval.zone || "Close");
+    const turn = getNavalPopupTurnState();
+    const hasCombat = !!S.naval.combatActive;
+    const playerActions = Number(S.naval.actionsRemaining || 0) > 0;
+    const enemyActions = Number(S.naval.enemyActionsRemaining || 0) > 0;
+
+    if (id === "start-reset") return !!ship;
+    if (id === "next-round") return hasCombat;
+    if (id === "disable-hostile") return !!enemy;
+    if (id === "hostile-attack") return hasCombat && enemyActions && !!ship && !!enemy;
+    if (id === "ship-perception") return true;
+
+    if (!hasCombat || !ship || !enemy) return false;
+    if (id === "board-ship") return turn === "wayfarer" && playerActions && canStartNavalBoarding();
+    if (id === "fire-batteries") return turn === "wayfarer" && playerActions && zone === "Close" && !ship.wrecked && !enemy.wrecked;
+    if (id === "launch-volley") return turn === "wayfarer" && playerActions && zone === "Nearby" && !ship.wrecked && !enemy.wrecked;
+    if (id === "patch-shields") return turn === "wayfarer" && playerActions;
+    if (id === "captain-tactics") return turn === "wayfarer" && playerActions;
+    if (id === "captain-morale") return turn === "wayfarer" && playerActions;
+    if (id === "navigator-survey") return turn === "wayfarer" && playerActions;
+    if (id === "captain-diplomacy") return turn === "wayfarer" && playerActions;
+    if (id === "move-closer" || id === "move-wider") return turn === "wayfarer" && playerActions;
+    return false;
+  }
+
+  function getNavalPopupActionReason(id) {
+    const zone = String(S.naval.zone || "Close");
+    const turn = getNavalPopupTurnState();
+    if (isNavalPopupActionEnabled(id)) return "Ready";
+    if (!S.naval.ship) return "Buy your ship first";
+    if (!S.naval.enemyShip && id !== "ship-perception" && id !== "start-reset") return "Spawn hostile ship";
+    if (!S.naval.combatActive && id !== "start-reset" && id !== "ship-perception") return "Start combat first";
+    if (id === "fire-batteries" && zone !== "Close") return "Cannons require Close zone";
+    if (id === "launch-volley" && zone !== "Nearby") return "Crossbows require Nearby zone";
+    if (id === "board-ship" && zone !== "Engaged") return "Boarding requires Engaged zone";
+    if (turn === "hostile" && id !== "hostile-attack" && id !== "next-round" && id !== "disable-hostile" && id !== "ship-perception") return "Hostile turn";
+    if (turn === "round-end" && id !== "next-round" && id !== "disable-hostile" && id !== "ship-perception") return "Advance to next round";
+    return "Unavailable";
+  }
+
+  function runNavalPopupAction(actionId) {
+    if (!actionId) return false;
+    if (actionId !== "ship-perception" && !isNavalPopupActionEnabled(actionId)) {
+      showNotif(getNavalPopupActionReason(actionId), "warn");
+      renderNavalCombatPopup();
+      return false;
+    }
+    if (actionId === "start-reset") startNavalCombat();
+    else if (actionId === "next-round") nextNavalRound();
+    else if (actionId === "move-closer") adjustNavalZone(-1);
+    else if (actionId === "move-wider") adjustNavalZone(1);
+    else if (actionId === "fire-batteries") navalAttack("strike");
+    else if (actionId === "launch-volley") navalAttack("shoot");
+    else if (actionId === "patch-shields") navalRepair();
+    else if (actionId === "captain-tactics") navalTactics();
+    else if (actionId === "captain-morale") navalMorale();
+    else if (actionId === "navigator-survey") navalSurvey();
+    else if (actionId === "ship-perception") rollShipPerception();
+    else if (actionId === "captain-diplomacy") navalDiplomacy();
+    else if (actionId === "board-ship") startNavalBoardingAction();
+    else if (actionId === "hostile-attack") enemyNavalAttack();
+    else if (actionId === "disable-hostile") wreckEnemyShip();
+    renderNavalCombatPopup();
+    return true;
+  }
+
   function buildNavalCombatVisualHtml() {
     const zone = String(S.naval.zone || "Close");
     const zoneIndex = Math.max(0, NAVAL_ZONES.indexOf(zone));
-    return '<div style="display:flex;gap:.2rem;align-items:stretch;flex-wrap:wrap;">'
-      + NAVAL_ZONES.map(function(name, index) {
-          const active = index === zoneIndex;
-          const tone = active ? 'var(--gold2)' : 'var(--muted2)';
-          return '<div style="min-width:88px;flex:1;border:1px solid ' + (active ? 'rgba(201,162,39,.5)' : 'var(--border2)') + ';background:' + (active ? 'rgba(201,162,39,.1)' : 'rgba(255,255,255,.02)') + ';padding:.25rem .3rem;text-align:center;">'
-            + '<div style="font-family:\'Cinzel\',serif;font-size:.58rem;letter-spacing:.08em;color:' + tone + ';text-transform:uppercase;">' + name + '</div>'
-            + '<div style="font-size:.62rem;color:var(--muted);margin-top:.12rem;">' + (name === 'Engaged' ? 'Boarding' : name === 'Close' ? 'Cannons' : name === 'Nearby' ? 'Crossbows' : 'Too Far') + '</div>'
-            + '<div style="font-size:.76rem;color:' + (active ? 'var(--teal)' : 'transparent') + ';line-height:1.1;margin-top:.05rem;">⛵ ↔ ☠</div>'
-            + '</div>';
-        }).join('')
-      + '</div>';
+    const turn = getNavalPopupTurnState();
+    const turnLabel = turn === "wayfarer" ? "Wayfarer Turn" : (turn === "hostile" ? "Hostile Turn" : (turn === "round-end" ? "Round End" : "Setup"));
+    const turnTone = turn === "wayfarer" ? "var(--teal)" : (turn === "hostile" ? "var(--red2)" : "var(--gold2)");
+    const centers = [
+      { x: 70, y: 86, name: "Engaged" },
+      { x: 170, y: 52, name: "Close" },
+      { x: 270, y: 52, name: "Nearby" },
+      { x: 370, y: 86, name: "Far" }
+    ];
+    const enemyPos = centers[Math.max(0, Math.min(centers.length - 1, zoneIndex))];
+    function hexPoints(cx, cy, r) {
+      const pts = [];
+      for (let i = 0; i < 6; i += 1) {
+        const a = Math.PI / 180 * (60 * i - 30);
+        pts.push((cx + r * Math.cos(a)).toFixed(2) + "," + (cy + r * Math.sin(a)).toFixed(2));
+      }
+      return pts.join(" ");
+    }
+    let svg = '<svg width="440" height="168" viewBox="0 0 440 168" style="width:100%;border:1px solid var(--border2);background:radial-gradient(circle at 35% 30%, rgba(70,196,182,.08), rgba(8,10,16,.95));border-radius:8px;">';
+    svg += '<text x="14" y="18" font-size="11" fill="' + turnTone + '" style="font-family:Rajdhani,sans-serif;letter-spacing:.08em;text-transform:uppercase;">' + turnLabel + '</text>';
+    centers.forEach(function(c, index) {
+      const active = index === zoneIndex;
+      svg += '<polygon points="' + hexPoints(c.x, c.y, 34) + '" fill="' + (active ? 'rgba(201,162,39,.22)' : 'rgba(255,255,255,.03)') + '" stroke="' + (active ? '#e8c050' : '#2a2f45') + '" stroke-width="2"></polygon>';
+      svg += '<text x="' + c.x + '" y="' + (c.y + 4) + '" text-anchor="middle" font-size="10" fill="' + (active ? '#f0d070' : '#9ba3c0') + '">' + c.name + '</text>';
+    });
+    svg += '<circle cx="38" cy="86" r="16" fill="#2ec4b6" stroke="#c8fff6" stroke-width="2"></circle>';
+    svg += '<text x="38" y="90" text-anchor="middle" font-size="13" fill="#0b1a22">⛵</text>';
+    svg += '<text x="38" y="114" text-anchor="middle" font-size="10" fill="#9bd9d3">Your Ship</text>';
+    svg += '<circle cx="' + enemyPos.x + '" cy="' + enemyPos.y + '" r="16" fill="#c94040" stroke="#ffc0c0" stroke-width="2"></circle>';
+    svg += '<text x="' + enemyPos.x + '" y="' + (enemyPos.y + 5) + '" text-anchor="middle" font-size="13" fill="#2a0f0f">☠</text>';
+    svg += '<text x="' + enemyPos.x + '" y="' + (enemyPos.y + 28) + '" text-anchor="middle" font-size="10" fill="#f0a0a0">Hostile</text>';
+    svg += '<path d="M56 86 C 98 70, 130 62, ' + (enemyPos.x - 18) + ' ' + enemyPos.y + '" stroke="rgba(240,208,112,.55)" stroke-width="2" fill="none" stroke-dasharray="4 4"></path>';
+    svg += '</svg>';
+    return svg;
+  }
+
+  function buildNavalActionCardsHtml() {
+    const ship = S.naval.ship;
+    const enemy = S.naval.enemyShip;
+    const enemyDread = getNavalEnemyDreadDie();
+    const strikeDie = ship ? (getEffectiveShipDie(ship, "strike", true) || 0) : 0;
+    const shootDie = ship ? (getEffectiveShipDie(ship, "shoot", true) || 0) : 0;
+    const hullDie = enemy ? (getEffectiveShipDie(enemy, "hull", false) || 4) : 4;
+    const leadDie = Number(S.stats.lead || 4);
+    const spiritDie = Number(S.stats.spirit || 4);
+    const mindDie = Number(S.stats.mind || 4);
+    const bodyDie = Number(S.stats.body || 4);
+    const tactical = Number(S.naval.tacticsBonus || 0);
+    const navBonus = ship ? Number(ship.navBonus || 0) : 0;
+    const leadBonus = ship ? Number(ship.leadBonus || 0) : 0;
+    const cards = [
+      { id: "fire-batteries", title: "Fire Batteries", effect: "Gunner Strike action", formula: "Roll Ship Strike d" + (strikeDie || "-") + " + tactics " + (tactical >= 0 ? "+" : "") + tactical + " vs hostile Hull d" + hullDie + ". Stress = difference.", action: "1 Wayfarer Action" },
+      { id: "launch-volley", title: "Launch Volley", effect: "Gunner Shoot action", formula: "Roll Ship Shoot d" + (shootDie || "-") + " + tactics " + (tactical >= 0 ? "+" : "") + tactical + " vs hostile Hull d" + hullDie + ". Stress = difference.", action: "1 Wayfarer Action" },
+      { id: "patch-shields", title: "Patch Shields", effect: "Engineer repair", formula: "Roll Body d" + bodyDie + " + tactics " + (tactical >= 0 ? "+" : "") + tactical + " vs Dread d" + enemyDread + ". Remove Stress by difference.", action: "1 Wayfarer Action" },
+      { id: "captain-tactics", title: "Captain Tactics", effect: "Crew modifier", formula: "Roll Lead d" + leadDie + " + captain bonus " + (leadBonus >= 0 ? "+" : "") + leadBonus + " vs Dread d" + enemyDread + ". Difference becomes team roll modifier.", action: "1 Wayfarer Action" },
+      { id: "captain-morale", title: "Captain Morale", effect: "Focus check", formula: "Roll Spirit d" + spiritDie + " + tactics " + (tactical >= 0 ? "+" : "") + tactical + " vs Dread d" + enemyDread + ".", action: "1 Wayfarer Action" },
+      { id: "navigator-survey", title: "Navigator Survey", effect: "Read battlefield", formula: "Roll Mind d" + mindDie + " + nav bonus " + (navBonus >= 0 ? "+" : "") + navBonus + " + tactics " + (tactical >= 0 ? "+" : "") + tactical + " vs Dread d" + enemyDread + ".", action: "1 Wayfarer Action" },
+      { id: "ship-perception", title: "Ship Perception (d6)", effect: "Friendly / Indifferent / Hostile", formula: "Roll d6. 1-2 Friendly, 3-4 Indifferent, 5-6 Hostile.", action: "Free / table call" },
+      { id: "captain-diplomacy", title: "Captain Diplomacy", effect: "Shift perception", formula: "Roll Lead d" + leadDie + " + captain bonus " + (leadBonus >= 0 ? "+" : "") + leadBonus + " + tactics " + (tactical >= 0 ? "+" : "") + tactical + " vs Dread d" + enemyDread + ".", action: "1 Wayfarer Action" },
+      { id: "board-ship", title: "Board Enemy Ship", effect: "Enter personal combat", formula: "Requires Engaged and boarding-ready round. Uses boarding flow into personal combat scene.", action: "1 Wayfarer Action" },
+      { id: "hostile-attack", title: "Hostile Attack", effect: "Resolve enemy action", formula: "Enemy strikes from Close or shoots from Nearby vs your Hull die.", action: "1 Hostile Action" },
+      { id: "disable-hostile", title: "Disable Hostile", effect: "Force wreck for debug/GM", formula: "Immediate hostile wreck state.", action: "GM utility" }
+    ];
+    return '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.26rem;">' + cards.map(function(card) {
+      const enabled = isNavalPopupActionEnabled(card.id);
+      const reason = getNavalPopupActionReason(card.id);
+      return '<div style="border:1px solid ' + (enabled ? 'rgba(70,196,182,.35)' : 'var(--border2)') + ';background:' + (enabled ? 'rgba(70,196,182,.08)' : 'rgba(255,255,255,.02)') + ';padding:.28rem .34rem;">'
+        + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:flex-start;margin-bottom:.12rem;">'
+        + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.06em;color:' + (enabled ? 'var(--teal2)' : 'var(--muted2)') + ';text-transform:uppercase;">' + card.title + '</div>'
+        + '<span style="font-size:.62rem;color:var(--gold2);white-space:nowrap;">' + card.action + '</span>'
+        + '</div>'
+        + '<div style="font-size:.68rem;color:var(--text2);margin-bottom:.1rem;">' + card.effect + '</div>'
+        + '<div style="font-size:.64rem;color:var(--muted2);margin-bottom:.2rem;line-height:1.4;">' + card.formula + '</div>'
+        + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;">'
+        + '<button class="btn btn-xs ' + (enabled ? 'btn-primary' : '') + '" onclick="runNavalPopupAction(\'' + card.id + '\')" ' + (enabled ? '' : 'disabled style="opacity:.45;cursor:default;"') + '>Run</button>'
+        + '<span style="font-size:.62rem;color:' + (enabled ? 'var(--teal)' : 'var(--muted2)') + ';">' + reason + '</span>'
+        + '</div>'
+        + '</div>';
+    }).join('') + '</div>';
   }
 
   function buildNavalCombatPopupHtml() {
@@ -5153,37 +5297,39 @@
     const enemy = S.naval.enemyShip;
     const log = Array.isArray(S.naval.log) ? S.naval.log.slice(0, 18) : [];
     const playerActions = Number(S.naval.actionsRemaining || 0);
+    const playerMaxActions = Number(getPlayerActionCount() || 1);
     const enemyActions = Number(S.naval.enemyActionsRemaining || 0);
+    const turn = getNavalPopupTurnState();
+    const turnLabel = turn === "wayfarer" ? "Wayfarers Act" : (turn === "hostile" ? "Hostile Acts" : (turn === "round-end" ? "Advance Round" : "Setup"));
+    const starshipNote = 'Starship variant: use the same flow, but read Stress as Damage.';
+    const powerShift = S.naval.powerShift
+      ? ('Power shifted from ' + String(S.naval.powerShift.from) + ' to ' + String(S.naval.powerShift.to) + '.')
+      : 'No active power diversion.';
     return '<div id="navalCombatPopupRoot" style="font-size:.82rem;color:var(--text2);line-height:1.55;">'
-      + '<div style="font-family:\'Cinzel\',serif;font-size:.9rem;color:var(--gold2);margin-bottom:.22rem;">Naval Combat Console</div>'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.9rem;color:var(--gold2);margin-bottom:.2rem;">Naval Combat Console</div>'
+      + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.2rem;">' + turnLabel + ' • Actions: ' + playerActions + '/' + playerMaxActions + ' (Wayfarer) • ' + enemyActions + '/2 (Hostile)</div>'
+      + '<div style="font-size:.66rem;color:var(--teal);margin-bottom:.3rem;">' + starshipNote + '</div>'
       + '<div style="display:flex;gap:.22rem;flex-wrap:wrap;margin-bottom:.3rem;font-size:.7rem;color:var(--muted2);">'
       + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Round ' + Number(S.naval.round || 1) + '</span>'
       + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Zone ' + String(S.naval.zone || 'Close') + '</span>'
-      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Actions ' + playerActions + ' / Enemy ' + enemyActions + '</span>'
       + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Perception ' + capitalize(String(S.naval.perception || 'indifferent')) + '</span>'
       + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">Combat ' + (S.naval.combatActive ? 'Active' : 'Idle') + '</span>'
+      + '<span style="border:1px solid var(--border2);padding:.1rem .24rem;">' + powerShift + '</span>'
       + '</div>'
-      + '<div style="margin-bottom:.35rem;">' + buildNavalCombatVisualHtml() + '</div>'
+      + '<div style="margin-bottom:.32rem;">' + buildNavalCombatVisualHtml() + '</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.3rem;margin-bottom:.35rem;">'
       + '<div class="combat-card">' + (ship ? renderShipSummary(ship, true) : '<div class="ship-copy">No allied ship selected.</div>') + '</div>'
       + '<div class="combat-card">' + (enemy ? renderShipSummary(enemy, false) : '<div class="ship-copy">No enemy ship active. Spawn one.</div>') + '</div>'
       + '</div>'
-      + '<div style="display:flex;gap:.26rem;flex-wrap:wrap;margin-bottom:.28rem;">'
-      + '<button class="btn btn-xs btn-teal" onclick="startNavalCombat();renderNavalCombatPopup();">Start / Reset</button>'
-      + '<button class="btn btn-xs" onclick="nextNavalRound();renderNavalCombatPopup();">Next Round</button>'
-      + '<button class="btn btn-xs" onclick="adjustNavalZone(-1);renderNavalCombatPopup();">Move Closer</button>'
-      + '<button class="btn btn-xs" onclick="adjustNavalZone(1);renderNavalCombatPopup();">Move Wider</button>'
-      + '<button class="btn btn-xs btn-primary" onclick="navalAttack(\'strike\');renderNavalCombatPopup();">Cannons</button>'
-      + '<button class="btn btn-xs btn-primary" onclick="navalAttack(\'shoot\');renderNavalCombatPopup();">Crossbows</button>'
-      + '<button class="btn btn-xs" onclick="navalTactics();renderNavalCombatPopup();">Tactics</button>'
-      + '<button class="btn btn-xs" onclick="navalSurvey();renderNavalCombatPopup();">Survey</button>'
-      + '<button class="btn btn-xs btn-teal" onclick="navalRepair();renderNavalCombatPopup();">Repair</button>'
-      + '<button class="btn btn-xs" onclick="navalMorale();renderNavalCombatPopup();">Morale</button>'
-      + '<button class="btn btn-xs" onclick="navalDiplomacy();renderNavalCombatPopup();">Diplomacy</button>'
-      + '<button class="btn btn-xs btn-red" onclick="enemyNavalAttack();renderNavalCombatPopup();">Enemy Attack</button>'
+      + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-bottom:.25rem;">'
+      + '<button class="btn btn-xs btn-teal" onclick="runNavalPopupAction(\'start-reset\')">Start / Reset Combat</button>'
+      + '<button class="btn btn-xs" onclick="runNavalPopupAction(\'next-round\')">Next Round</button>'
+      + '<button class="btn btn-xs" onclick="runNavalPopupAction(\'move-closer\')" ' + (isNavalPopupActionEnabled("move-closer") ? '' : 'disabled style="opacity:.45;cursor:default;"') + '>Move Closer</button>'
+      + '<button class="btn btn-xs" onclick="runNavalPopupAction(\'move-wider\')" ' + (isNavalPopupActionEnabled("move-wider") ? '' : 'disabled style="opacity:.45;cursor:default;"') + '>Move Wider</button>'
       + '<button class="btn btn-xs" onclick="openNavalCombatRulesPage();">Rules Page</button>'
       + '</div>'
-      + '<div style="border:1px solid var(--border2);padding:.32rem .36rem;max-height:230px;overflow:auto;background:rgba(255,255,255,.02);">'
+      + '<div style="margin-bottom:.34rem;">' + buildNavalActionCardsHtml() + '</div>'
+      + '<div style="border:1px solid var(--border2);padding:.32rem .36rem;max-height:220px;overflow:auto;background:rgba(255,255,255,.02);">'
       + (log.length
           ? log.map(function(entry) { return '<div style="font-size:.74rem;color:var(--text2);border-bottom:1px solid var(--border2);padding:.12rem 0;">' + String(entry && entry.text || '') + '</div>'; }).join('')
           : '<div style="font-size:.74rem;color:var(--muted2);">No naval combat events yet.</div>')
@@ -5201,12 +5347,54 @@
 
   function openNavalCombatRulesPage() {
     const html = '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
-      + '<div style="font-family:\'Cinzel\',serif;font-size:.88rem;color:var(--gold2);margin-bottom:.24rem;">Naval Combat Rules</div>'
-      + '<div style="margin-bottom:.24rem;">1. Start combat to reset round state, stress tracks, action count, and opening range.</div>'
-      + '<div style="margin-bottom:.24rem;">2. Move range with Navigator checks. Engaged enables boarding, Close enables cannons, Nearby enables crossbows.</div>'
-      + '<div style="margin-bottom:.24rem;">3. Attack compares weapon die plus modifiers vs target hull die. Margin becomes Stress.</div>'
-      + '<div style="margin-bottom:.24rem;">4. When Stress reaches hull threshold, the hull die steps down. If already at d4, the ship is wrecked.</div>'
-      + '<div style="margin-bottom:.24rem;">5. Support actions: Repair stabilizes stress, Tactics changes crew modifiers, Morale/Survey affect status pressure.</div>'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.9rem;color:var(--gold2);margin-bottom:.2rem;">Naval and Starship Combat Rules</div>'
+      + '<div style="font-size:.69rem;color:var(--teal);margin-bottom:.3rem;">For starship combat, use the same rules but replace Stress with Damage.</div>'
+      + '<div style="border:1px solid var(--border2);padding:.3rem .35rem;background:rgba(255,255,255,.02);margin-bottom:.3rem;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.08em;color:var(--gold2);text-transform:uppercase;margin-bottom:.14rem;">Combat Flow</div>'
+      + '<div style="font-size:.74rem;color:var(--text2);">Wayfarers act first. Each Wayfarer grants 1 action to your ship. Opponents get 2 actions total. Actions are Move or Attack, plus role actions. Resolve your side, then hostile side, then end-of-round stress and break tests.</div>'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.26rem;margin-bottom:.3rem;">'
+      + '<div style="border:1px solid var(--border2);padding:.3rem .35rem;background:rgba(255,255,255,.02);">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.6rem;color:var(--teal2);text-transform:uppercase;margin-bottom:.1rem;">Core Rule</div>'
+      + '<div style="font-size:.72rem;">Every action roll is tested against opposing Dread or Hull/Defend as shown on each action card. On success, apply difference as Stress (or Damage for starships).</div>'
+      + '</div>'
+      + '<div style="border:1px solid var(--border2);padding:.3rem .35rem;background:rgba(255,255,255,.02);">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.6rem;color:var(--teal2);text-transform:uppercase;margin-bottom:.1rem;">Turn Economy</div>'
+      + '<div style="font-size:.72rem;">Movement costs 1 action. Attack costs 1 action. Engineer, Captain, and Navigator actions each cost 1 action unless your table overrides.</div>'
+      + '</div>'
+      + '</div>'
+      + '<details open style="margin-bottom:.28rem;"><summary style="cursor:pointer;font-size:.76rem;color:var(--gold2);">Action Definitions</summary>'
+      + '<div style="margin-top:.18rem;font-size:.73rem;color:var(--text2);">'
+      + '<div><strong>Fire Batteries:</strong> Gunner Strike from Close. Roll ship Strike vs hostile Hull/Defend.</div>'
+      + '<div><strong>Launch Volley:</strong> Gunner Shoot from Nearby. Roll ship Shoot vs hostile Hull/Defend.</div>'
+      + '<div><strong>Patch Shields:</strong> Engineer Body vs hostile Dread. Remove Stress by difference. Success leaves ship Protected, failure leaves Vulnerable.</div>'
+      + '<div><strong>Captain Tactics:</strong> Lead vs hostile Dread. Difference is team-wide roll modifier for the round/scene.</div>'
+      + '<div><strong>Captain Morale:</strong> Spirit vs hostile Dread. Success Focused, failure Distracted.</div>'
+      + '<div><strong>Navigator Survey:</strong> Mind vs hostile Dread. Success Bolstered, failure Shaken.</div>'
+      + '<div><strong>Ship Perception (d6):</strong> 1-2 Friendly, 3-4 Indifferent, 5-6 Hostile.</div>'
+      + '<div><strong>Captain Diplomacy:</strong> Lead/Diplomacy vs hostile Dread. Success moves perception one step friendlier, failure one step more hostile.</div>'
+      + '<div><strong>Board Enemy Ship:</strong> Requires Engaged and boarding readiness. Launches personal combat scene. Failed checks can produce stress risk by table ruling.</div>'
+      + '<div><strong>Hostile Attack:</strong> Resolve one enemy action from their current valid range.</div>'
+      + '<div><strong>Disable Hostile:</strong> Utility override for GM/debug to force hostile wrecked state.</div>'
+      + '</div></details>'
+      + '<details open style="margin-bottom:.28rem;"><summary style="cursor:pointer;font-size:.76rem;color:var(--gold2);">Zones and Movement</summary>'
+      + '<div style="margin-top:.18rem;font-size:.73rem;color:var(--text2);">'
+      + '<div><strong>Engaged:</strong> Grappling/boarding range. No Strike/Shoot ship fire.</div>'
+      + '<div><strong>Close:</strong> Strike (cannons) zone.</div>'
+      + '<div><strong>Nearby:</strong> Shoot (long-range projectiles) zone.</div>'
+      + '<div><strong>Far:</strong> Visible but out of weapon range.</div>'
+      + '<div>Movement between zones costs 1 action. In hazardous terrain, Navigator Control/Sail checks may be required.</div>'
+      + '</div></details>'
+      + '<details open style="margin-bottom:.28rem;"><summary style="cursor:pointer;font-size:.76rem;color:var(--gold2);">Stress, Threshold, and Wrecked</summary>'
+      + '<div style="margin-top:.18rem;font-size:.73rem;color:var(--text2);">'
+      + '<div>Stress threshold equals double the current Hull/Defend die value.</div>'
+      + '<div>When threshold is reached, Hull/Defend steps down one die and crew takes +1 Trauma.</div>'
+      + '<div>If Hull/Defend would step below d4, the ship is wrecked and out of action.</div>'
+      + '<div>Example: Defend d8 gives threshold 16. At 16 Stress, step to d6 and threshold becomes 12 for future checks.</div>'
+      + '</div></details>'
+      + '<details style="margin-bottom:.32rem;"><summary style="cursor:pointer;font-size:.76rem;color:var(--gold2);">Non-Combat Role Use</summary>'
+      + '<div style="margin-top:.18rem;font-size:.73rem;color:var(--text2);">Roles can be used outside direct fire: Gunner clears obstacles, Navigator secures escape routes, Captain handles social pressure, Engineer stabilizes systems during hazards.</div>'
+      + '</details>'
       + '<div style="display:flex;gap:.3rem;flex-wrap:wrap;">'
       + '<button class="btn btn-xs btn-teal" onclick="openNavalCombatPopup();">Back To Combat Popup</button>'
       + '<button class="btn btn-xs" onclick="closeModal();">Close</button>'
@@ -6258,6 +6446,7 @@
   window.navalSurvey = navalSurvey;
   window.rollShipPerception = rollShipPerception;
   window.navalDiplomacy = navalDiplomacy;
+  window.runNavalPopupAction = runNavalPopupAction;
   window.openNavalCombatPopup = openNavalCombatPopup;
   window.openNavalCombatRulesPage = openNavalCombatRulesPage;
   window.renderNavalCombatPopup = renderNavalCombatPopup;

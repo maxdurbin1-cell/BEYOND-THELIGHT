@@ -3015,6 +3015,26 @@ if(typeof SHOP_DATA==='object'&&SHOP_DATA&&Array.isArray(SHOP_DATA.remedies)){
     if(!exists)SHOP_DATA.remedies.push(item);
   });
 }
+const EXPANDED_SCROLL_CATALOG=[
+  {name:'Thunder Lattice',stat:'Indefinite | Close',desc:'Crackling arcs lash enemies inside the patterned zone.',cost:110,aoe:{label:'Line burst',base:'4 hexes in front of the caster',focused:'2 hexes in front; +2 arc damage intensity',expanded:'6 hexes in front; damage intensity is reduced by 2'}},
+  {name:'Ashfall Ring',stat:'Indefinite | Self',desc:'A ring of hot ash erupts around you, scorching all engaged hostiles.',cost:95,aoe:{label:'Ring',base:'all Engaged with the caster',focused:'single Engaged target; damage intensity is increased by 3',expanded:'Engaged and Close targets; damage intensity is reduced by 2'}},
+  {name:'Gravitic Fold',stat:'Indefinite | Nearby',desc:'Twist gravity to pin and drag enemies inside the area.',cost:120,aoe:{label:'Circle',base:'2-hex radius circle',focused:'1-hex radius; save penalty increased by 2',expanded:'3-hex radius; save penalty reduced by 1'}},
+  {name:'Glass Rain',stat:'Indefinite | Far',desc:'A shimmering storm of razor shards descends over marked hexes.',cost:130,aoe:{label:'Barrage',base:'choose 3 connected hexes',focused:'choose 2 hexes; shard damage increased by 2',expanded:'choose 5 connected hexes; shard damage reduced by 2'}},
+  {name:'Bastion Bloom',stat:'Indefinite | Close',desc:'Raise protective petals of force around allies in a zone.',cost:105,aoe:{label:'Ward field',base:'all allies in Close range',focused:'one ally gains stronger ward (+2 Defend)',expanded:'all allies in Nearby range, ward strength reduced by 1'}},
+  {name:'Null Choir',stat:'Indefinite | Close',desc:'Suppress sound, hacks, and spellcasting rhythms in the affected area.',cost:140,aoe:{label:'Silence dome',base:'2-hex radius around target point',focused:'1-hex radius; suppression lasts longer',expanded:'3-hex radius; suppression duration is shorter'}},
+  {name:'Hexfire Fan',stat:'Indefinite | Close',desc:'A fan-shaped flame front surges outward and leaves burning sigils.',cost:115,aoe:{label:'Fan',base:'4 hexes in a cone',focused:'2-hex cone; burn intensity increased by 2',expanded:'6-hex cone; burn intensity reduced by 2'}},
+  {name:'Tide of Needles',stat:'Indefinite | Nearby',desc:'Summon spectral needles that pierce multiple lanes at once.',cost:125,aoe:{label:'Lane sweep',base:'3 parallel lanes',focused:'1 lane; heavy puncture damage',expanded:'5 lanes; puncture damage reduced'}},
+  {name:'Veilstep Chorus',stat:'Indefinite | Self',desc:'Blink-step allies through a ghostly corridor and reposition them.',cost:100,aoe:{label:'Reposition field',base:'caster plus 1 ally in Close',focused:'caster only; gain stronger reposition control',expanded:'caster plus all allies in Close; reposition control reduced'}},
+  {name:'Starwell Collapse',stat:'Indefinite | Far',desc:'Open a brief starwell that drags foes inward before detonating.',cost:160,aoe:{label:'Implosion circle',base:'2-hex radius at target point',focused:'1-hex radius; implosion damage increased by 3',expanded:'3-hex radius; implosion damage reduced by 2'}}
+];
+function ensureExpandedScrollCatalog(){
+  if(!(typeof SHOP_DATA==='object'&&SHOP_DATA&&Array.isArray(SHOP_DATA.scrolls)))return;
+  EXPANDED_SCROLL_CATALOG.forEach(function(scroll){
+    var exists=SHOP_DATA.scrolls.some(function(existing){return existing&&existing.name===scroll.name;});
+    if(!exists)SHOP_DATA.scrolls.push(scroll);
+  });
+}
+ensureExpandedScrollCatalog();
 const STAT_NAMES=['Body','Strike','Shoot','Mind','Spirit','Defend','Control','Lead'];
 const STAT_SUBS=['Power / Athletics','Melee Attack','Ranged Attack','Lore / Notice','Convince / Heal','Block / Evade','Stealth / Finesse','Tactics / Inspire'];
 let S={name:'',career:'',background:'',age:'',characterYears:25,omen:'',reason:'',renown:0,credits:0,stress:0,trauma:0,pathTokens:0,tmw:0,successRolls:0,flavor:'',mutation:'',randomItem:'',equipment:{weapon1:'',weapon2:'',armor:'',readied:''},equipmentLayers:{under:'',over:'',suit:''},gearState:{oxygenHours:0,radAbsorbUsed:0,radAbsorbCap:0},environmentContext:{temperature:'',vacuum:false,irradiated:false},backpack:['','','','','',''],backpackUses:{},conditions:{empowered:false,protected:false,focused:false,bolstered:false,weakened:false,vulnerable:false,distracted:false,shaken:false},traumaConditions:{weakened:false,distracted:false,shaken:false,vulnerable:false},stats:{body:4,strike:4,shoot:4,mind:4,spirit:4,defend:4,control:4,lead:4,adventure:4},combat:{enemyDread:8,spacing:'Engaged',actionsLeft:3,round:0,active:false,armyA:{stress:0,dread:0},armyB:{stress:0,dread:0}},enemies:[],soulArray:[],traits:{},currentAge:'green',currentSeason:'spring',rollMod:{advDice:[],flat:0},nightMode:false,fullPhaseClock:false,darkAfflictions:{vampirism:{active:false,corruption:0,lastFedStamp:''},wolfism:{active:false,corruption:0,lastFedStamp:''}},customContent:{affixes:[],items:[],builderAffixes:[]},backstory:{origin:'',upbringing:'',hometown:'',faction:'',rival:'',connection:'',earlyCareer:'',earlyBackground:'',lifeEvent:'',notes:'',provinceMarkers:{}},travelScenes:{byHex:{},activeSceneId:'',seq:1}};
@@ -14539,6 +14559,23 @@ function applySpellFailureBacklash(margin) {
   return notes;
 }
 
+function getScrollAoeOptionHtml(scrollItem, margin) {
+  if (!scrollItem || !scrollItem.aoe) return '';
+  var aoe = scrollItem.aoe;
+  var m = Math.max(1, Number(margin || 1));
+  var expandedUnlocked = m >= 4;
+  return '<div style="padding:.32rem .42rem;border:1px solid var(--border2);background:rgba(70,196,182,.06);margin-bottom:.35rem;">'
+    + '<div style="font-size:.68rem;color:var(--teal);font-family:\'Cinzel\',serif;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.1rem;">AOE Option</div>'
+    + '<div style="font-size:.76rem;color:var(--text2);margin-bottom:.16rem;"><strong>Pattern:</strong> ' + String(aoe.label || 'Area') + ' · <strong>Base:</strong> ' + String(aoe.base || 'scene dependent') + '</div>'
+    + '<div style="font-size:.74rem;color:var(--muted2);line-height:1.48;"><strong>Focused (-AOE):</strong> ' + String(aoe.focused || 'Tighter area, stronger effect') + '</div>'
+    + '<div style="font-size:.74rem;color:var(--muted2);line-height:1.48;margin-top:.06rem;"><strong>Standard:</strong> Use the base area above.</div>'
+    + '<div style="font-size:.74rem;color:var(--muted2);line-height:1.48;margin-top:.06rem;"><strong>Expanded (+AOE):</strong> '
+    + String(aoe.expanded || 'Wider area, weaker effect')
+    + (expandedUnlocked ? '' : ' (requires success margin 4+)')
+    + '</div>'
+    + '</div>';
+}
+
 function readBuildersLetter(index) {
   openModal('Builder\'s Letter', '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
     + 'The paper is brittle but intact. In cramped script it reads:<br><br>'
@@ -14610,6 +14647,8 @@ function castScrollFromBackpack(index) {
       condNote += '<br><span style="color:var(--gold2);font-size:.82rem;">⟡ The next trap you encounter in exploration is revealed and disarmed.</span>';
     }
 
+    var aoeOptionHtml = castSuccess ? getScrollAoeOptionHtml(scrollItem, margin) : '';
+
     var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
       + '<div style="margin-bottom:.5rem;font-size:.8rem;color:var(--muted2);">Mind d' + mindDie + ' vs Valor d' + advDie + (manualMode ? ' (manual)' : '') + '</div>'
       + '<strong style="color:' + (castSuccess ? 'var(--green2)' : 'var(--red)') + ';">'
@@ -14626,6 +14665,7 @@ function castScrollFromBackpack(index) {
       + '<div style="font-size:.68rem;color:var(--teal);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.1rem;">Circumstance Answers</div>'
       + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;">' + circumstanceSummary + '</div>'
       + '</div>'
+        + aoeOptionHtml
       + (castSuccess
           ? '<em style="color:var(--text2);">' + scrollDesc + '</em>' + condNote
           : '<em style="color:var(--muted2);">The words blur and fade. The scroll remains — try again.</em>')

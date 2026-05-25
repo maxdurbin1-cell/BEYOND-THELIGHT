@@ -333,8 +333,11 @@
     if (S.holdingQuest.step3Completed && !S.holdingQuest.failed) { S.holding.established = true; }
 
     var prevMap = S.combatMap || {};
-    S.combatMap = Object.assign({ units: [] }, prevMap);
+    S.combatMap = Object.assign({ units: [], aoeTemplates: [], aoeSeq: 0, activeAoeTemplateId: '' }, prevMap);
     if (!Array.isArray(S.combatMap.units)) { S.combatMap.units = []; }
+    if (!Array.isArray(S.combatMap.aoeTemplates)) { S.combatMap.aoeTemplates = []; }
+    if (!S.combatMap.aoeSeq || !Number.isFinite(Number(S.combatMap.aoeSeq))) S.combatMap.aoeSeq = 0;
+    if (typeof S.combatMap.activeAoeTemplateId !== 'string') S.combatMap.activeAoeTemplateId = '';
   }
 
   // ── MOUNT ─────────────────────────────────────────────────────────────────────
@@ -3696,20 +3699,19 @@
     var m = Math.max(1, Number(margin || 1));
     var picked = normalizeCrucibleQueuedAoeMode(mode, 'standard');
     if (picked === 'focused') {
-      return { mode: 'focused', targetCap: 1, damageAdjust: 2, statusCap: 1, valid: true };
+      return { mode: 'focused', targetCap: 1, statusCap: 1, valid: true };
     }
     if (picked === 'expanded') {
       return {
         mode: 'expanded',
         targetCap: 3,
-        damageAdjust: -1,
         statusCap: 3,
         valid: m >= 4,
         fallback: 'standard',
         reason: 'Expanded mode requires margin 4+.'
       };
     }
-    return { mode: 'standard', targetCap: 2, damageAdjust: 0, statusCap: 2, valid: true };
+    return { mode: 'standard', targetCap: 2, statusCap: 2, valid: true };
   }
 
   function applyCrucibleQueuedAoePacket(match, actor, primaryTarget, actionKind, margin, aoeMode, logs) {
@@ -3727,7 +3729,7 @@
       if (logs) logs.push((actor && actor.name ? actor.name : 'Caster') + ' AOE fallback: ' + (aoeMode || 'expanded') + ' -> ' + plan.mode + ' (' + (getCrucibleSpellAoePlan(aoeMode, margin).reason || 'unlock gate') + ').');
     }
 
-    var baseDamage = Math.max(1, Math.max(1, Number(margin || 1)) + (String(actionKind || 'spell') === 'spell' ? 1 : 0) + Number(plan.damageAdjust || 0));
+    var baseDamage = Math.max(1, Number(margin || 1));
     var cap = Math.max(1, Number(plan.targetCap || 1));
     var statusCap = Math.max(1, Number(plan.statusCap || 1));
     var hits = [];
@@ -3735,8 +3737,7 @@
     for (var i = 0; i < ordered.length && hits.length < cap; i++) {
       var enemy = ordered[i];
       if (!enemy || Number(enemy.hp || 0) <= 0) continue;
-      var falloff = plan.mode === 'expanded' ? i : 0;
-      var dmg = Math.max(1, baseDamage - falloff);
+      var dmg = baseDamage;
       enemy.hp = Math.max(0, Number(enemy.hp || 0) - dmg);
       enemy.conditions = enemy.conditions || {};
       if (hits.length < statusCap) {
@@ -5382,7 +5383,7 @@
           }
         });
       } else {
-        var dmg = Math.max(1, margin + (actionKind === 'spell' ? 1 : 0));
+        var dmg = Math.max(1, margin);
         target.hp = Math.max(0, Number(target.hp || 0) - dmg);
         logs.push(actor.name + ' ' + (actionKind === 'hack' ? 'hacked' : 'cast a spell on') + ' ' + target.name + ': ' + actionTotal + ' vs ' + dreadTotal + ' for ' + dmg + ' dmg.');
         if (target.hp <= 0) {
@@ -12606,6 +12607,324 @@
     return overlays;
   }
 
+  var COMBAT_MAP_ZONES = ['Engaged', 'Close', 'Nearby', 'Far'];
+  var AOE_DISTANCE_RULES = {
+    engaged: { key: 'engaged', label: 'Engaged', hexes: 1, lineLength: 2, ringMin: 0, ringMax: 1, rounds: 1, stress: 2, actionLoss: true },
+    close: { key: 'close', label: 'Close', hexes: 2, lineLength: 3, ringMin: 1, ringMax: 2, rounds: 2, stress: 2, actionLoss: true },
+    nearby: { key: 'nearby', label: 'Nearby', hexes: 3, lineLength: 4, ringMin: 2, ringMax: 3, rounds: 2, stress: 1, actionLoss: false },
+    far: { key: 'far', label: 'Far', hexes: 4, lineLength: 6, ringMin: 3, ringMax: 5, rounds: 3, stress: 1, actionLoss: false }
+  };
+  var AOE_SPELL_PRESETS = [
+    { key: 'thunder_lattice', name: 'Thunder Lattice', shape: 'line', band: 'nearby', note: 'Lightning lane, margin damage on each hit.' },
+    { key: 'ashfall_ring', name: 'Ashfall Ring', shape: 'ring', band: 'close', note: 'Ring around caster, margin damage on each hit.' },
+    { key: 'gravitic_fold', name: 'Gravitic Fold', shape: 'ring', band: 'nearby', note: 'Gravity ring control field.' },
+    { key: 'glass_rain', name: 'Glass Rain', shape: 'line', band: 'far', note: 'Long lane barrage from distance.' },
+    { key: 'null_choir', name: 'Null Choir', shape: 'ring', band: 'nearby', note: 'Suppression dome, action pressure.' },
+    { key: 'hexfire_fan', name: 'Hexfire Fan', shape: 'line', band: 'nearby', note: 'Flame fan lane.' },
+    { key: 'tide_of_needles', name: 'Tide of Needles', shape: 'line', band: 'nearby', note: 'Needle lane sweep.' },
+    { key: 'starwell_collapse', name: 'Starwell Collapse', shape: 'ring', band: 'far', note: 'Long-range implosion ring.' },
+    { key: 'custom_line', name: 'Custom Line', shape: 'line', band: 'close', note: 'Generic line template.' },
+    { key: 'custom_ring', name: 'Custom Ring', shape: 'ring', band: 'close', note: 'Generic ring template.' }
+  ];
+
+  function escapeCombatAoeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function normalizeCombatAoeBand(value) {
+    var raw = String(value || '').toLowerCase().trim();
+    if (raw === 'engaged' || raw === 'e1') return 'engaged';
+    if (raw === 'close' || raw === 'c2') return 'close';
+    if (raw === 'nearby' || raw === 'n3') return 'nearby';
+    if (raw === 'far' || raw === 'f4') return 'far';
+    return 'close';
+  }
+
+  function normalizeCombatAoeShape(value) {
+    var raw = String(value || '').toLowerCase().trim();
+    if (raw === 'line' || raw === 'lane' || raw === 'fan') return 'line';
+    if (raw === 'ring' || raw === 'circle' || raw === 'dome') return 'ring';
+    return 'line';
+  }
+
+  function getCombatAoeBandSpec(band) {
+    var key = normalizeCombatAoeBand(band);
+    return AOE_DISTANCE_RULES[key] || AOE_DISTANCE_RULES.close;
+  }
+
+  function getCombatAoePresetByKey(key) {
+    var target = String(key || '').toLowerCase();
+    for (var i = 0; i < AOE_SPELL_PRESETS.length; i++) {
+      if (String(AOE_SPELL_PRESETS[i].key || '').toLowerCase() === target) return AOE_SPELL_PRESETS[i];
+    }
+    return null;
+  }
+
+  function getCombatMapPrimaryPlayerZone() {
+    ensureNewFeatureState();
+    var playerName = (typeof S !== 'undefined' && S.name && S.name.trim()) ? S.name : 'You';
+    var player = (S.combatMap.units || []).filter(function (u) {
+      return u && u.side === 'ally' && (u.isPlayer || String(u.name || '') === String(playerName));
+    })[0];
+    return player && COMBAT_MAP_ZONES.indexOf(String(player.zone || '')) >= 0 ? player.zone : 'Engaged';
+  }
+
+  function getCombatAoeTemplateTargets(template) {
+    var t = template || {};
+    var origin = String(t.originZone || getCombatMapPrimaryPlayerZone());
+    var originIdx = Math.max(0, COMBAT_MAP_ZONES.indexOf(origin));
+    var band = getCombatAoeBandSpec(t.band);
+    var shape = normalizeCombatAoeShape(t.shape);
+    var zones = [];
+    var overspill = false;
+    if (shape === 'line') {
+      for (var i = 0; i < Number(band.lineLength || 1); i++) {
+        var idx = originIdx + i;
+        if (idx <= COMBAT_MAP_ZONES.length - 1) zones.push(COMBAT_MAP_ZONES[idx]);
+      }
+      overspill = (originIdx + Number(band.lineLength || 1) - 1) > (COMBAT_MAP_ZONES.length - 1);
+    } else {
+      for (var z = 0; z < COMBAT_MAP_ZONES.length; z++) {
+        var dist = Math.abs(z - originIdx);
+        if (dist >= Number(band.ringMin || 0) && dist <= Number(band.ringMax || 0)) zones.push(COMBAT_MAP_ZONES[z]);
+      }
+      overspill = (originIdx + Number(band.ringMax || 0)) > (COMBAT_MAP_ZONES.length - 1);
+    }
+    return { zones: zones, overspill: overspill, band: band, shape: shape, origin: origin };
+  }
+
+  function getCombatAoeZoneOverlays(zones) {
+    var overlays = {};
+    ensureNewFeatureState();
+    var templates = Array.isArray(S.combatMap.aoeTemplates) ? S.combatMap.aoeTemplates : [];
+    templates.forEach(function (tpl) {
+      if (!tpl) return;
+      var targets = getCombatAoeTemplateTargets(tpl);
+      var active = String(S.combatMap.activeAoeTemplateId || '') === String(tpl.id || '');
+      var shapeLabel = targets.shape === 'ring' ? 'Ring' : 'Line';
+      var badgeColor = active ? 'rgba(201,64,64,.2)' : 'rgba(201,64,64,.12)';
+      var borderColor = active ? 'rgba(201,64,64,.72)' : 'rgba(201,64,64,.45)';
+      targets.zones.forEach(function (zone) {
+        if (zones.indexOf(zone) < 0) return;
+        overlays[zone] = (overlays[zone] || '')
+          + '<div style="margin-top:.22rem;padding:.2rem .34rem;background:' + badgeColor + ';border:1px solid ' + borderColor + ';border-radius:4px;font-size:.62rem;color:var(--text2);">'
+          + '<div style="display:flex;justify-content:space-between;gap:.3rem;align-items:center;">'
+          + '<span style="font-weight:700;letter-spacing:.02em;">' + escapeCombatAoeHtml(String(tpl.name || 'AOE')) + '</span>'
+          + '<span style="font-size:.56rem;color:var(--muted2);">' + shapeLabel + ' · ' + escapeCombatAoeHtml(targets.band.label) + '</span>'
+          + '</div>'
+          + '<div style="margin-top:.1rem;font-size:.58rem;color:var(--muted2);">Rounds ' + Number(tpl.roundsLeft || targets.band.rounds || 1) + ' · Stress +' + Number(targets.band.stress || 0)
+          + (targets.band.actionLoss ? ' · Action Loss -1' : '') + '</div>'
+          + '</div>';
+      });
+    });
+    return overlays;
+  }
+
+  function applyActiveCombatAoeTick() {
+    ensureNewFeatureState();
+    var activeId = String(S.combatMap.activeAoeTemplateId || '');
+    var templates = Array.isArray(S.combatMap.aoeTemplates) ? S.combatMap.aoeTemplates : [];
+    var tpl = templates.filter(function (row) { return String(row && row.id || '') === activeId; })[0] || null;
+    if (!tpl) {
+      if (typeof showNotif === 'function') showNotif('No active AOE template selected.', 'warn');
+      return false;
+    }
+    if (!Array.isArray(S.combatMap.units) || !Array.isArray(S.enemies)) {
+      if (typeof showNotif === 'function') showNotif('Combat tracker not ready for AOE application.', 'warn');
+      return false;
+    }
+    var targets = getCombatAoeTemplateTargets(tpl);
+    var band = targets.band;
+    var affected = 0;
+    S.combatMap.units.forEach(function (unit) {
+      if (!unit || unit.side !== 'enemy') return;
+      if (targets.zones.indexOf(String(unit.zone || '')) < 0) return;
+      var stripped = String(unit.name || '').replace(/\s*\[[^\]]+\]\s*$/, '').trim().toLowerCase();
+      var enemy = (S.enemies || []).filter(function (e) {
+        if (!e || e.ally) return false;
+        var nm = String(e.name || '').trim().toLowerCase();
+        return nm === stripped || nm.indexOf(stripped) === 0 || stripped.indexOf(nm) === 0;
+      })[0];
+      if (!enemy) return;
+      affected++;
+      if (typeof applyStressToEnemy === 'function') {
+        applyStressToEnemy(enemy, Math.max(1, Number(band.stress || 1)), String(tpl.name || 'AOE') + ' tick');
+      }
+      if (band.actionLoss && typeof ensureEnemyEffectState === 'function') {
+        var st = ensureEnemyEffectState(enemy);
+        st.actionDrainRounds = Math.max(Number(st.actionDrainRounds || 0), 1);
+        st.actionDrainAmount = Math.max(Number(st.actionDrainAmount || 0), 1);
+      }
+      if (typeof syncEnemyConditionList === 'function') syncEnemyConditionList(enemy);
+    });
+    tpl.roundsLeft = Math.max(0, Number(tpl.roundsLeft || 0) - 1);
+    if (tpl.roundsLeft <= 0) {
+      S.combatMap.aoeTemplates = templates.filter(function (row) { return String(row && row.id || '') !== String(tpl.id || ''); });
+      if (String(S.combatMap.activeAoeTemplateId || '') === String(tpl.id || '')) {
+        S.combatMap.activeAoeTemplateId = S.combatMap.aoeTemplates.length ? String(S.combatMap.aoeTemplates[0].id || '') : '';
+      }
+    }
+    if (typeof renderEnemies === 'function') renderEnemies();
+    if (typeof renderQP === 'function') renderQP('combat');
+    if (typeof updateCombatUI === 'function') updateCombatUI();
+    renderCombatMap();
+    renderCombatOptions();
+    if (typeof showNotif === 'function') showNotif('AOE tick applied to ' + affected + ' enemy token(s).', affected ? 'good' : 'warn');
+    return true;
+  }
+
+  function onCombatAoeSpellPresetChange() {
+    var presetEl = document.getElementById('aoeSpellPresetSelect');
+    var shapeEl = document.getElementById('aoeShapeSelect');
+    var bandEl = document.getElementById('aoeBandSelect');
+    var labelEl = document.getElementById('aoeTemplateLabel');
+    if (!presetEl || !shapeEl || !bandEl) return;
+    var preset = getCombatAoePresetByKey(presetEl.value);
+    if (!preset) return;
+    shapeEl.value = normalizeCombatAoeShape(preset.shape);
+    bandEl.value = normalizeCombatAoeBand(preset.band);
+    if (labelEl && !String(labelEl.value || '').trim()) labelEl.value = String(preset.name || 'AOE Template');
+  }
+
+  function removeCombatAoeTemplate(templateId) {
+    ensureNewFeatureState();
+    var id = String(templateId || '');
+    S.combatMap.aoeTemplates = (S.combatMap.aoeTemplates || []).filter(function (row) {
+      return String(row && row.id || '') !== id;
+    });
+    if (String(S.combatMap.activeAoeTemplateId || '') === id) {
+      S.combatMap.activeAoeTemplateId = S.combatMap.aoeTemplates.length ? String(S.combatMap.aoeTemplates[0].id || '') : '';
+    }
+    renderCombatMap();
+    renderCombatOptions();
+    openCombatAoeEffectTools();
+  }
+
+  function clearCombatAoeTemplates() {
+    ensureNewFeatureState();
+    S.combatMap.aoeTemplates = [];
+    S.combatMap.activeAoeTemplateId = '';
+    renderCombatMap();
+    renderCombatOptions();
+    openCombatAoeEffectTools();
+  }
+
+  function applyCombatAoeTemplateFromModal() {
+    ensureNewFeatureState();
+    var presetEl = document.getElementById('aoeSpellPresetSelect');
+    var shapeEl = document.getElementById('aoeShapeSelect');
+    var bandEl = document.getElementById('aoeBandSelect');
+    var originEl = document.getElementById('aoeOriginSelect');
+    var labelEl = document.getElementById('aoeTemplateLabel');
+    if (!shapeEl || !bandEl || !originEl) return false;
+    var preset = getCombatAoePresetByKey(presetEl ? presetEl.value : '');
+    var shape = normalizeCombatAoeShape(shapeEl.value);
+    var bandKey = normalizeCombatAoeBand(bandEl.value);
+    var band = getCombatAoeBandSpec(bandKey);
+    var label = String(labelEl && labelEl.value || '').trim();
+    if (!label) label = preset ? String(preset.name || 'AOE Template') : 'AOE Template';
+    S.combatMap.aoeSeq = Math.max(0, Number(S.combatMap.aoeSeq || 0)) + 1;
+    var row = {
+      id: 'aoe-' + String(S.combatMap.aoeSeq),
+      name: label,
+      presetKey: preset ? String(preset.key || '') : '',
+      shape: shape,
+      band: bandKey,
+      originZone: String(originEl.value || getCombatMapPrimaryPlayerZone()),
+      roundsLeft: Math.max(1, Number(band.rounds || 1)),
+      placedAtRound: Number(S && S.combat && S.combat.round || 0)
+    };
+    S.combatMap.aoeTemplates.push(row);
+    S.combatMap.activeAoeTemplateId = String(row.id || '');
+    renderCombatMap();
+    renderCombatOptions();
+    if (typeof showNotif === 'function') {
+      showNotif('AOE placed: ' + row.name + ' (' + shape + ', ' + band.label + ').', 'good');
+    }
+    openCombatAoeEffectTools();
+    return true;
+  }
+
+  function openCombatAoeEffectTools() {
+    ensureNewFeatureState();
+    var playerZone = getCombatMapPrimaryPlayerZone();
+    var presetOptions = AOE_SPELL_PRESETS.map(function (preset) {
+      return '<option value="' + escapeCombatAoeHtml(String(preset.key || '')) + '">' + escapeCombatAoeHtml(String(preset.name || 'Preset')) + '</option>';
+    }).join('');
+    var zoneOptions = COMBAT_MAP_ZONES.map(function (zone) {
+      var sel = zone === playerZone ? ' selected' : '';
+      return '<option value="' + zone + '"' + sel + '>' + zone + '</option>';
+    }).join('');
+    var rulesRows = ['engaged', 'close', 'nearby', 'far'].map(function (k) {
+      var row = AOE_DISTANCE_RULES[k];
+      return '<tr>'
+        + '<td style="padding:.16rem .22rem;color:var(--gold2);">' + row.label + ' (' + row.hexes + ' hex)</td>'
+        + '<td style="padding:.16rem .22rem;color:var(--text2);">Line ' + row.lineLength + '</td>'
+        + '<td style="padding:.16rem .22rem;color:var(--text2);">Ring ' + row.ringMin + '-' + row.ringMax + '</td>'
+        + '<td style="padding:.16rem .22rem;color:var(--text2);">' + row.rounds + '</td>'
+        + '<td style="padding:.16rem .22rem;color:var(--text2);">' + row.stress + '</td>'
+        + '<td style="padding:.16rem .22rem;color:var(--text2);">' + (row.actionLoss ? 'Yes (-1)' : 'No') + '</td>'
+        + '</tr>';
+    }).join('');
+    var activeRows = (S.combatMap.aoeTemplates || []).map(function (tpl) {
+      if (!tpl) return '';
+      var targets = getCombatAoeTemplateTargets(tpl);
+      var active = String(S.combatMap.activeAoeTemplateId || '') === String(tpl.id || '');
+      return '<div style="border:1px solid var(--border2);padding:.24rem .3rem;background:rgba(255,255,255,.02);margin-top:.18rem;">'
+        + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;">'
+        + '<div style="font-size:.72rem;color:var(--text2);"><strong>' + escapeCombatAoeHtml(String(tpl.name || 'AOE')) + '</strong> · '
+        + escapeCombatAoeHtml(targets.shape === 'ring' ? 'Ring' : 'Line') + ' · '
+        + escapeCombatAoeHtml(targets.band.label) + (targets.overspill ? ' (+beyond Far)' : '') + '</div>'
+        + '<div style="display:flex;gap:.2rem;">'
+        + '<button class="btn btn-xs" onclick="S.combatMap.activeAoeTemplateId=\'' + escapeCombatAoeHtml(String(tpl.id || '')) + '\';renderCombatMap();renderCombatOptions();openCombatAoeEffectTools();">' + (active ? 'Active' : 'Set Active') + '</button>'
+        + '<button class="btn btn-xs btn-red" onclick="removeCombatAoeTemplate(\'' + escapeCombatAoeHtml(String(tpl.id || '')) + '\')">Remove</button>'
+        + '</div>'
+        + '</div>'
+        + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.1rem;">Origin: ' + escapeCombatAoeHtml(targets.origin) + ' · Affects: '
+        + escapeCombatAoeHtml(targets.zones.join(', ') || 'none') + ' · Rounds left: ' + Number(tpl.roundsLeft || 0) + '</div>'
+        + '</div>';
+    }).join('') || '<div style="font-size:.7rem;color:var(--muted2);margin-top:.18rem;">No active AOE templates placed on the map yet.</div>';
+    var html = ''
+      + '<div style="font-size:.74rem;color:var(--muted2);line-height:1.48;margin-bottom:.34rem;">Place Line or Ring templates directly on the Zone Map. Spell and token AOE now use one spacing language: Engaged=1, Close=2, Nearby=3, Far=4.</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.34rem;">'
+      + '<div><label style="font-size:.68rem;color:var(--muted2);display:block;margin-bottom:.08rem;">Quick Spell</label><select id="aoeSpellPresetSelect" style="width:100%;" onchange="onCombatAoeSpellPresetChange()">' + presetOptions + '</select></div>'
+      + '<div><label style="font-size:.68rem;color:var(--muted2);display:block;margin-bottom:.08rem;">Template Name</label><input id="aoeTemplateLabel" type="text" value="" placeholder="Auto from spell" style="width:100%;"></div>'
+      + '<div><label style="font-size:.68rem;color:var(--muted2);display:block;margin-bottom:.08rem;">Shape</label><select id="aoeShapeSelect" style="width:100%;"><option value="line">Line</option><option value="ring">Ring</option></select></div>'
+      + '<div><label style="font-size:.68rem;color:var(--muted2);display:block;margin-bottom:.08rem;">Effect Band</label><select id="aoeBandSelect" style="width:100%;"><option value="engaged">Engaged</option><option value="close" selected>Close</option><option value="nearby">Nearby</option><option value="far">Far</option></select></div>'
+      + '<div><label style="font-size:.68rem;color:var(--muted2);display:block;margin-bottom:.08rem;">Origin Zone</label><select id="aoeOriginSelect" style="width:100%;">' + zoneOptions + '</select></div>'
+      + '<div style="display:flex;align-items:flex-end;gap:.2rem;">'
+      + '<button class="btn btn-sm btn-primary" onclick="applyCombatAoeTemplateFromModal()">Place Template</button>'
+      + '<button class="btn btn-sm" onclick="applyActiveCombatAoeTick()">Apply Active Tick</button>'
+      + '</div>'
+      + '</div>'
+      + '<div style="margin-top:.42rem;border-top:1px solid var(--border2);padding-top:.3rem;">'
+      + '<div style="font-size:.68rem;color:var(--gold2);font-family:\'Cinzel\',serif;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.12rem;">AOE Rules (Token Actions)</div>'
+      + '<table style="width:100%;border-collapse:collapse;font-size:.66rem;"><thead><tr style="border-bottom:1px solid var(--border2);">'
+      + '<th style="text-align:left;padding:.16rem .22rem;color:var(--muted2);">Band</th>'
+      + '<th style="text-align:left;padding:.16rem .22rem;color:var(--muted2);">Line</th>'
+      + '<th style="text-align:left;padding:.16rem .22rem;color:var(--muted2);">Ring</th>'
+      + '<th style="text-align:left;padding:.16rem .22rem;color:var(--muted2);">Rounds</th>'
+      + '<th style="text-align:left;padding:.16rem .22rem;color:var(--muted2);">Stress</th>'
+      + '<th style="text-align:left;padding:.16rem .22rem;color:var(--muted2);">Action Loss</th>'
+      + '</tr></thead><tbody>' + rulesRows + '</tbody></table>'
+      + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.18rem;">Damage rule for spell AOE packets: success margin equals damage per enemy hit. Example: margin 4 = 4 damage to each affected enemy.</div>'
+      + '</div>'
+      + '<div style="margin-top:.42rem;border-top:1px solid var(--border2);padding-top:.3rem;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;">'
+      + '<div style="font-size:.68rem;color:var(--gold2);font-family:\'Cinzel\',serif;letter-spacing:.08em;text-transform:uppercase;">Placed Templates</div>'
+      + '<button class="btn btn-xs" onclick="clearCombatAoeTemplates()">Clear All</button>'
+      + '</div>'
+      + activeRows
+      + '</div>';
+    openModal('AOE Effect Tools', html);
+    onCombatAoeSpellPresetChange();
+  }
+
   function renderCombatMap() {
     var el = document.getElementById("combatMapZones");
     if (!el) { return; }
@@ -12618,8 +12937,9 @@
       Nearby:  { color: "rgba(46,196,182,.06)",   border: "rgba(46,196,182,.3)",    range: "Ranged / Shoot" },
       Far:     { color: "rgba(122,120,152,.06)",  border: "rgba(122,120,152,.25)",  range: "Out of Range" }
     };
-    var flavOverlays = {};
-    var coverOverlays = {};
+    var flavOverlays = getFlavorOverlays();
+    var coverOverlays = getSceneCoverOverlays(zones);
+    var aoeOverlays = getCombatAoeZoneOverlays(zones);
     // Determine player zone for distance indicator
     var playerName2 = (typeof S !== 'undefined' && S.name && S.name.trim()) ? S.name : 'You';
     var playerUnit2 = S.combatMap.units.filter(function(u){ return u.side === 'ally' && u.name === playerName2; })[0];
@@ -12635,7 +12955,7 @@
       var distBadge = '';
       if (playerZoneIdx >= 0 && playerUnit2) {
         var dist = Math.abs(zoneIdx - playerZoneIdx);
-        var distLabel = ['You are here',''+ZONE_DIST_NAMES[dist-1]||'','',''][Math.min(dist,3)];
+        var distLabel = '';
         if (dist === 0) distLabel = '📍 You';
         else distLabel = ZONE_DIST_NAMES[dist - 1] || '';
         distBadge = '<span style="font-size:.58rem;color:var(--muted);margin-left:.35rem;">'+distLabel+'</span>';
@@ -12661,7 +12981,7 @@
           + '<button style="background:transparent;border:none;color:var(--muted);cursor:pointer;padding:0;font-size:.68rem;line-height:1;" onclick="removeCombatUnit(' + u.id + ')">✕</button>'
           + '</div>';
       }).join("");
-      var overlay = (coverOverlays[zone] || '') + (flavOverlays[zone] || '');
+      var overlay = (coverOverlays[zone] || '') + (flavOverlays[zone] || '') + (aoeOverlays[zone] || '');
       return '<div style="border:2px solid ' + info.border + ';background:' + info.color + ';padding:.45rem .55rem;margin-bottom:.3rem;' + (overlay ? 'box-shadow:0 0 6px '+info.border+';' : '') + '">'
         + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.25rem;">'
         + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:' + info.border + ';">' + zone + distBadge + '</div>'
@@ -12729,6 +13049,8 @@
   function clearCombatMap() {
     ensureNewFeatureState();
     S.combatMap.units = [];
+    S.combatMap.aoeTemplates = [];
+    S.combatMap.activeAoeTemplateId = '';
     renderCombatMap();
     renderCombatOptions();
     if (typeof syncStarsUnitsFromCombatMap === 'function') { syncStarsUnitsFromCombatMap(); }
@@ -12794,6 +13116,14 @@
       ? enemies.map(function(u){ return '<span style="color:var(--red2);">' + u.name + '</span> @ ' + u.zone; }).join(", ")
       : '<span style="color:var(--muted2);">none</span>';
 
+    var aoeTemplates = Array.isArray(S.combatMap.aoeTemplates) ? S.combatMap.aoeTemplates : [];
+    var activeAoe = aoeTemplates.filter(function (row) {
+      return row && String(row.id || '') === String(S.combatMap.activeAoeTemplateId || '');
+    })[0] || null;
+    var aoeSummary = activeAoe
+      ? ('Active: <strong style="color:var(--red2);">' + escapeCombatAoeHtml(String(activeAoe.name || 'AOE')) + '</strong> (' + escapeCombatAoeHtml(String(activeAoe.shape || 'line')) + ' / ' + escapeCombatAoeHtml(getCombatAoeBandSpec(activeAoe.band).label) + ')')
+      : 'No active AOE template.';
+
     el.innerHTML = '<div style="margin-top:.5rem;border-top:1px solid var(--border2);padding-top:.5rem;">'
       + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);margin-bottom:.3rem;">⚔ Combat Options Available</div>'
       + '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.3rem;">Your zone: ' + zoneInfo + ' · Enemies: ' + enemyZoneInfo + '</div>'
@@ -12807,6 +13137,14 @@
       + '<tbody>' + rows + '</tbody>'
       + '</table></div>'
       + '<div style="font-size:.62rem;color:var(--muted);margin-top:.3rem;font-style:italic;">Greyed options are unavailable from your current zone. Move to unlock them.</div>'
+        + '<div style="margin-top:.38rem;padding:.28rem .34rem;border:1px solid rgba(201,64,64,.35);background:rgba(201,64,64,.08);">'
+        + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;">'
+        + '<div style="font-size:.62rem;color:var(--red2);font-family:\'Cinzel\',serif;letter-spacing:.08em;text-transform:uppercase;">Effect Tools - AOE</div>'
+        + '<button class="btn btn-xs btn-primary" onclick="openCombatAoeEffectTools()">Open AOE Tools</button>'
+        + '</div>'
+        + '<div style="font-size:.66rem;color:var(--text2);margin-top:.12rem;">' + aoeSummary + '</div>'
+        + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.1rem;">Damage rule: success margin equals damage per enemy hit. Spacing: Engaged 1, Close 2, Nearby 3, Far 4 hexes.</div>'
+        + '</div>'
       + '</div>';
   }
 
@@ -13090,6 +13428,12 @@
   window.clearCombatMap           = clearCombatMap;
   window.renderCombatMap          = renderCombatMap;
   window.renderCombatOptions      = renderCombatOptions;
+  window.openCombatAoeEffectTools = openCombatAoeEffectTools;
+  window.onCombatAoeSpellPresetChange = onCombatAoeSpellPresetChange;
+  window.applyCombatAoeTemplateFromModal = applyCombatAoeTemplateFromModal;
+  window.removeCombatAoeTemplate = removeCombatAoeTemplate;
+  window.clearCombatAoeTemplates = clearCombatAoeTemplates;
+  window.applyActiveCombatAoeTick = applyActiveCombatAoeTick;
 
   // ── SHOP: SMART BUY ───────────────────────────────────────────────────────────
   function capFirst(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }

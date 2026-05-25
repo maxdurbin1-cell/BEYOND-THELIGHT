@@ -1487,10 +1487,11 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     </div>
     <div class="card" style="grid-column:1/-1;">
       <div class="section-title">Zone Map — Combat Positions</div>
-      <div style="font-size:.78rem;color:var(--muted3);margin-bottom:.5rem;">Track where each combatant stands. Engaged = melee/Strike · Close = spells/items · Nearby = ranged/Shoot · Far = out of range. Also used for ship &amp; Caravan chase spacing.</div>
+      <div style="font-size:.78rem;color:var(--muted3);margin-bottom:.5rem;">Track where each combatant stands. Engaged (1 hex) = melee/Strike · Close (2 hexes) = spells/items · Nearby (3 hexes) = ranged/Shoot · Far (4 hexes) = out of range. Also used for ship &amp; Caravan chase spacing.</div>
       <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.55rem;">
         <button class="btn btn-sm btn-teal" onclick="addCombatUnit('ally')">+ Ally / Self</button>
         <button class="btn btn-sm btn-red" onclick="addCombatUnit('enemy')">+ Enemy</button>
+        <button class="btn btn-sm btn-primary" onclick="openCombatAoeEffectTools()">AOE Effect Tools</button>
         <button class="btn btn-sm" onclick="clearCombatMap()">Clear Map</button>
       </div>
       <div id="combatMapZones"></div>
@@ -3016,16 +3017,16 @@ if(typeof SHOP_DATA==='object'&&SHOP_DATA&&Array.isArray(SHOP_DATA.remedies)){
   });
 }
 const EXPANDED_SCROLL_CATALOG=[
-  {name:'Thunder Lattice',stat:'Indefinite | Close',desc:'Crackling arcs lash enemies inside the patterned zone.',cost:110,aoe:{label:'Line burst',base:'4 hexes in front of the caster',focused:'2 hexes in front; +2 arc damage intensity',expanded:'6 hexes in front; damage intensity is reduced by 2'}},
-  {name:'Ashfall Ring',stat:'Indefinite | Self',desc:'A ring of hot ash erupts around you, scorching all engaged hostiles.',cost:95,aoe:{label:'Ring',base:'all Engaged with the caster',focused:'single Engaged target; damage intensity is increased by 3',expanded:'Engaged and Close targets; damage intensity is reduced by 2'}},
-  {name:'Gravitic Fold',stat:'Indefinite | Nearby',desc:'Twist gravity to pin and drag enemies inside the area.',cost:120,aoe:{label:'Circle',base:'2-hex radius circle',focused:'1-hex radius; save penalty increased by 2',expanded:'3-hex radius; save penalty reduced by 1'}},
-  {name:'Glass Rain',stat:'Indefinite | Far',desc:'A shimmering storm of razor shards descends over marked hexes.',cost:130,aoe:{label:'Barrage',base:'choose 3 connected hexes',focused:'choose 2 hexes; shard damage increased by 2',expanded:'choose 5 connected hexes; shard damage reduced by 2'}},
-  {name:'Bastion Bloom',stat:'Indefinite | Close',desc:'Raise protective petals of force around allies in a zone.',cost:105,aoe:{label:'Ward field',base:'all allies in Close range',focused:'one ally gains stronger ward (+2 Defend)',expanded:'all allies in Nearby range, ward strength reduced by 1'}},
-  {name:'Null Choir',stat:'Indefinite | Close',desc:'Suppress sound, hacks, and spellcasting rhythms in the affected area.',cost:140,aoe:{label:'Silence dome',base:'2-hex radius around target point',focused:'1-hex radius; suppression lasts longer',expanded:'3-hex radius; suppression duration is shorter'}},
-  {name:'Hexfire Fan',stat:'Indefinite | Close',desc:'A fan-shaped flame front surges outward and leaves burning sigils.',cost:115,aoe:{label:'Fan',base:'4 hexes in a cone',focused:'2-hex cone; burn intensity increased by 2',expanded:'6-hex cone; burn intensity reduced by 2'}},
-  {name:'Tide of Needles',stat:'Indefinite | Nearby',desc:'Summon spectral needles that pierce multiple lanes at once.',cost:125,aoe:{label:'Lane sweep',base:'3 parallel lanes',focused:'1 lane; heavy puncture damage',expanded:'5 lanes; puncture damage reduced'}},
-  {name:'Veilstep Chorus',stat:'Indefinite | Self',desc:'Blink-step allies through a ghostly corridor and reposition them.',cost:100,aoe:{label:'Reposition field',base:'caster plus 1 ally in Close',focused:'caster only; gain stronger reposition control',expanded:'caster plus all allies in Close; reposition control reduced'}},
-  {name:'Starwell Collapse',stat:'Indefinite | Far',desc:'Open a brief starwell that drags foes inward before detonating.',cost:160,aoe:{label:'Implosion circle',base:'2-hex radius at target point',focused:'1-hex radius; implosion damage increased by 3',expanded:'3-hex radius; implosion damage reduced by 2'}}
+  {name:'Thunder Lattice',stat:'Indefinite | Close',desc:'Line AOE spell. Cast from Close (2 hexes). Margin on success equals damage to each enemy hit.',cost:110,aoe:{label:'Line burst',base:'Line 4 (Nearby)',focused:'Line 2 (Engaged-Close) for tighter control',expanded:'Line 6 (Far+) and can clip extra lanes if space allows'}},
+  {name:'Ashfall Ring',stat:'Indefinite | Self',desc:'Ring AOE spell. Center on self. Margin on success equals damage to each enemy inside the ring.',cost:95,aoe:{label:'Ring',base:'Ring 1-2 (Engaged-Close)',focused:'Ring 0-1 (self + Engaged)',expanded:'Ring 2-3 (Close-Nearby)'}},
+  {name:'Gravitic Fold',stat:'Indefinite | Nearby',desc:'Ring AOE control field. Place within Nearby (3 hexes). Margin on success equals damage to each enemy hit.',cost:120,aoe:{label:'Circle',base:'Ring 2-3 (Close-Nearby)',focused:'Ring 1-2 (Engaged-Close)',expanded:'Ring 3-5 (Nearby-Far+)'}},
+  {name:'Glass Rain',stat:'Indefinite | Far',desc:'Line AOE barrage. Place at Far (4 hexes). Margin on success equals damage to each enemy hit.',cost:130,aoe:{label:'Barrage',base:'Line 6 (Far+) along connected hex path',focused:'Line 4 (Nearby) for tighter strike lane',expanded:'Line 6 with wider lane choice at placement'}},
+  {name:'Bastion Bloom',stat:'Indefinite | Close',desc:'Support ward field for allies in the selected ring around caster (no direct damage).',cost:105,aoe:{label:'Ward field',base:'Ring 1-2 around caster (Engaged-Close allies)',focused:'Ring 0-1 for tight defensive shell',expanded:'Ring 2-3 for wider allied coverage'}},
+  {name:'Null Choir',stat:'Indefinite | Close',desc:'Silence ring that suppresses hostile tempo. Margin on success equals damage to each enemy caught inside.',cost:140,aoe:{label:'Silence dome',base:'Ring 2-3 around marked point',focused:'Ring 1-2 around marked point',expanded:'Ring 3-5 around marked point'}},
+  {name:'Hexfire Fan',stat:'Indefinite | Close',desc:'Line/fan AOE flame front from caster. Margin on success equals damage to each enemy inside the fan.',cost:115,aoe:{label:'Fan',base:'Line 4 from caster (Nearby)',focused:'Line 2 (Engaged-Close)',expanded:'Line 6 (Far+)'}},
+  {name:'Tide of Needles',stat:'Indefinite | Nearby',desc:'Lane sweep AOE through multiple lanes. Margin on success equals damage to each enemy pierced.',cost:125,aoe:{label:'Lane sweep',base:'Line 4 through selected lanes',focused:'Line 3 with tighter lane count',expanded:'Line 6 with broad lane count'}},
+  {name:'Veilstep Chorus',stat:'Indefinite | Self',desc:'Reposition field for allies around caster (no direct damage).',cost:100,aoe:{label:'Reposition field',base:'Ring 1-2 for caster + nearby allies',focused:'Ring 0-1 for short blink',expanded:'Ring 2-3 for wider blink corridor'}},
+  {name:'Starwell Collapse',stat:'Indefinite | Far',desc:'Implosion ring AOE at a distant point. Margin on success equals damage to each enemy drawn into collapse.',cost:160,aoe:{label:'Implosion circle',base:'Ring 2-3 at target point',focused:'Ring 1-2 high-control collapse',expanded:'Ring 3-5 large-field collapse'}}
 ];
 function ensureExpandedScrollCatalog(){
   if(!(typeof SHOP_DATA==='object'&&SHOP_DATA&&Array.isArray(SHOP_DATA.scrolls)))return;
@@ -14564,6 +14565,7 @@ function getScrollAoeOptionHtml(scrollItem, margin) {
   var aoe = scrollItem.aoe;
   var m = Math.max(1, Number(margin || 1));
   var expandedUnlocked = m >= 4;
+  var spacingGuide = 'Spacing guide: Engaged=1 hex, Close=2, Nearby=3, Far=4.';
   return '<div style="padding:.32rem .42rem;border:1px solid var(--border2);background:rgba(70,196,182,.06);margin-bottom:.35rem;">'
     + '<div style="font-size:.68rem;color:var(--teal);font-family:\'Cinzel\',serif;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.1rem;">AOE Option</div>'
     + '<div style="font-size:.76rem;color:var(--text2);margin-bottom:.16rem;"><strong>Pattern:</strong> ' + String(aoe.label || 'Area') + ' · <strong>Base:</strong> ' + String(aoe.base || 'scene dependent') + '</div>'
@@ -14573,6 +14575,7 @@ function getScrollAoeOptionHtml(scrollItem, margin) {
     + String(aoe.expanded || 'Wider area, weaker effect')
     + (expandedUnlocked ? '' : ' (requires success margin 4+)')
     + '</div>'
+    + '<div style="font-size:.68rem;color:var(--muted2);margin-top:.14rem;">' + spacingGuide + '</div>'
     + '</div>';
 }
 
@@ -14641,12 +14644,12 @@ function applyScrollAoeStatusToEnemy(enemy, profile, damageAmount) {
 
 function getScrollAoeModePlan(mode, margin) {
   var m = Math.max(1, Number(margin || 1));
-  if (mode === 'focused') return { mode: 'focused', targetCap: 1, damageAdjust: 2, statusCap: 1, valid: true };
+  if (mode === 'focused') return { mode: 'focused', targetCap: 1, statusCap: 1, valid: true };
   if (mode === 'expanded') {
     var unlocked = m >= 4;
-    return { mode: 'expanded', targetCap: 3, damageAdjust: -1, statusCap: 3, valid: unlocked, reason: unlocked ? '' : 'Expanded AOE requires success margin 4+.' };
+    return { mode: 'expanded', targetCap: 3, statusCap: 3, valid: unlocked, reason: unlocked ? '' : 'Expanded AOE requires success margin 4+.' };
   }
-  return { mode: 'standard', targetCap: 2, damageAdjust: 0, statusCap: 2, valid: true };
+  return { mode: 'standard', targetCap: 2, statusCap: 2, valid: true };
 }
 
 function resolvePendingScrollAoeMode(mode) {
@@ -14666,14 +14669,13 @@ function resolvePendingScrollAoeMode(mode) {
   var profile = getScrollAoeCombatProfile(pending.scrollName);
   var hostiles = getOrderedHostileEnemiesForScrollAoe();
   var targets = hostiles.slice(0, Math.max(1, Number(plan.targetCap || 1)));
-  var baseDamage = Math.max(1, Math.ceil(Number(pending.margin || 1) / 2) + Number(profile.damageBias || 0) + Number(plan.damageAdjust || 0));
+  var baseDamage = Math.max(1, Number(pending.margin || 1));
   var statusCap = Math.max(1, Number(plan.statusCap || 1));
   var lines = [];
 
   if (!profile.supportOnly && targets.length) {
     targets.forEach(function (enemy, idx) {
-      var splashFalloff = plan.mode === 'expanded' ? idx : 0;
-      var dmg = Math.max(1, baseDamage - splashFalloff);
+      var dmg = baseDamage;
       applyStressToEnemy(enemy, dmg, pending.scrollName + ' [' + plan.mode + ']');
       lines.push(enemy.name + ': -' + dmg + ' Stress');
       if (idx < statusCap) {
@@ -14703,7 +14705,7 @@ function resolvePendingScrollAoeMode(mode) {
   pending.resolved = true;
   var summary = '<div style="font-size:.84rem;color:var(--text2);line-height:1.55;">'
     + '<div style="margin-bottom:.3rem;"><strong style="color:var(--teal);">' + pending.scrollName + '</strong> · <strong style="color:var(--gold2);text-transform:capitalize;">' + plan.mode + '</strong> mode applied.</div>'
-    + '<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.24rem;">Targets: ' + (profile.supportOnly ? 'Support effect' : targets.length) + ' · Base damage: ' + baseDamage + ' · Status radius: ' + statusCap + '</div>'
+    + '<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.24rem;">Targets: ' + (profile.supportOnly ? 'Support effect' : targets.length) + ' · Damage per hit: margin (' + baseDamage + ') · Status radius: ' + statusCap + '</div>'
     + '<div style="font-size:.77rem;color:var(--text2);">' + (lines.length ? lines.join('<br>') : 'No direct combat targets affected.') + '</div>'
     + '</div>';
   openModal('AOE Resolution', summary);
@@ -14730,7 +14732,7 @@ function getScrollAoeActionHtml(scrollItem, scrollName, margin) {
     + '<button class="btn btn-xs btn-primary" onclick="resolvePendingScrollAoeMode(\'standard\')">Standard</button>'
     + '<button class="btn btn-xs btn-teal" ' + (expandedLocked ? 'disabled title="Requires margin 4+"' : 'onclick="resolvePendingScrollAoeMode(\'expanded\')"') + '>Expanded</button>'
     + '</div>'
-    + '<div style="font-size:.7rem;color:var(--muted2);margin-top:.18rem;">Choose one mode to apply target count, damage scaling, and status spread to active combat enemies.</div>'
+    + '<div style="font-size:.7rem;color:var(--muted2);margin-top:.18rem;">Choose one mode to apply target count and status spread. On success, each affected enemy takes damage equal to your success margin.</div>'
     + '</div>';
 }
 

@@ -7790,7 +7790,7 @@
           if (Number(effect.roundsLeft || 0) > 0) {
             ctx.fillStyle = '#fff';
             ctx.font = 'bold 8px Rajdhani, sans-serif';
-            ctx.fillText(String(Math.max(0, Number(effect.roundsLeft || 0))), iconX + (iconSize / 2), iconY + 8);
+            ctx.fillText(String(Math.max(0, Number(effect.roundsLeft || 0))) + 'r', iconX + (iconSize / 2), iconY + 8);
           }
         });
         ctx.restore();
@@ -9002,8 +9002,8 @@
           var tone = String(effect.color || '#e3bc5e');
           return '<div class="combat-feed-line">'
             + '<strong style="display:inline-flex;align-items:center;gap:.35rem;"><span style="display:inline-block;width:.7rem;height:.7rem;border-radius:999px;background:' + tone + ';border:1px solid rgba(255,255,255,.25);"></span>' + String(effect.label || 'Condition') + '</strong>'
-            + ' · ' + Math.max(0, Number(effect.stressPerRound || 0)) + '/round'
-            + ' · ' + Math.max(0, Number(effect.roundsLeft || 0)) + ' rounds left'
+            + ' · Stress/Round: ' + Math.max(0, Number(effect.stressPerRound || 0))
+            + ' · Rounds Left: ' + Math.max(0, Number(effect.roundsLeft || 0))
             + ' <button class="btn btn-xs" type="button" data-remove-round-effect="' + String(effect.id || '') + '">Clear</button>'
             + '</div>';
         }).join('')
@@ -11012,6 +11012,9 @@
         return;
       }
       var token = byId(st.selectedTokenId) || tokens[0];
+      var aoeJumpButton = (typeof window.openCombatAoeEffectTools === 'function')
+        ? '<button class="btn btn-xs" onclick="if(typeof window.closeModal===\'function\')window.closeModal();window.openCombatAoeEffectTools();">Open AOE Effect Tools</button>'
+        : '';
       var targetOptions = tokens.map(function (row) {
         var id = String(row.id || '');
         var selected = String(id) === String(token && token.id || '') ? ' selected' : '';
@@ -11020,11 +11023,20 @@
       }).join('');
       var html = '<div style="display:grid;gap:.28rem;">'
         + '<div style="font-size:.78rem;color:var(--text2);">Apply a timed effect to any active token.</div>'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;font-size:.68rem;color:var(--muted2);padding:.18rem .22rem;border:1px solid var(--combat-border);border-radius:8px;background:rgba(255,255,255,.02);">'
+        + '<span>Need spell template placement? Use the AOE tools modal.</span>'
+        + aoeJumpButton
+        + '</div>'
+        + '<label class="combat-mini">Target Token</label>'
         + '<select id="combatFxTarget" class="combat-select">' + targetOptions + '</select>'
+        + '<label class="combat-mini">Condition Name</label>'
         + '<input id="combatFxName" class="combat-input" placeholder="Condition name (Burning)">'
         + '<div style="display:grid;grid-template-columns:1fr auto;gap:.24rem;align-items:end;"><input id="combatFxColor" class="combat-input" type="color" value="#e3bc5e"><div class="combat-mini" style="padding:.35rem .2rem;">Condition color</div></div>'
-        + '<input id="combatFxStress" class="combat-input" type="number" min="0" max="20" value="1">'
-        + '<input id="combatFxRounds" class="combat-input" type="number" min="1" max="20" value="2">'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.24rem;">'
+        + '<label style="display:grid;gap:.18rem;"><span class="combat-mini">Stress/Round</span><input id="combatFxStress" class="combat-input" type="number" min="0" max="20" value="1"></label>'
+        + '<label style="display:grid;gap:.18rem;"><span class="combat-mini">Rounds</span><input id="combatFxRounds" class="combat-input" type="number" min="1" max="20" value="2"></label>'
+        + '</div>'
+        + '<div class="combat-mini" style="color:var(--muted2);">Indicator guide: Stress/Round = damage applied each round. Rounds = total duration.</div>'
         + '<button class="btn btn-xs btn-primary" onclick="(function(){var t=document.getElementById(\'combatFxTarget\');var n=document.getElementById(\'combatFxName\');var c=document.getElementById(\'combatFxColor\');var s=document.getElementById(\'combatFxStress\');var r=document.getElementById(\'combatFxRounds\');if(window.applyCombatQuickEffectTo){window.applyCombatQuickEffectTo(String(t&&t.value||\'\'),String(n&&n.value||\'Condition\'),Number(s&&s.value||1),Number(r&&r.value||2),String(c&&c.value||\'#e3bc5e\'));}if(typeof window.closeModal===\'function\')window.closeModal();})();">Apply</button>'
         + '</div>';
       if (typeof window.openModal === 'function') {

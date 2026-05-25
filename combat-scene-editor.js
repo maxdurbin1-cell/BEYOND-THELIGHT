@@ -4336,10 +4336,34 @@
   ];
 
   function getSpellcastTemplateById(spellId) {
+    var bootstrapDefaults = [{
+      id: 'thunder-lattice',
+      label: 'Thunder Lattice',
+      shape: 'line',
+      range: 5,
+      length: 5,
+      rounds: 2,
+      width: 0,
+      targetMode: 'enemies',
+      damageOnHit: true,
+      onHitCondition: 'shaken',
+      onHitActionDown: false,
+      zoneEnabled: true,
+      tickMode: 'margin',
+      tickAmount: 0,
+      tickCondition: '',
+      zoneTickOnEnter: false,
+      zoneTickOnRoundStart: false,
+      previewColor: 'rgba(108,189,255,0.26)',
+      previewBorder: 'rgba(164,223,255,0.95)'
+    }];
+    var library = Array.isArray(SPELLCAST_PREVIEW_LIBRARY) && SPELLCAST_PREVIEW_LIBRARY.length
+      ? SPELLCAST_PREVIEW_LIBRARY
+      : bootstrapDefaults;
     var wanted = String(spellId || '').trim().toLowerCase();
-    var fallback = SPELLCAST_PREVIEW_LIBRARY[0];
+    var fallback = library[0];
     if (!wanted) return fallback;
-    return SPELLCAST_PREVIEW_LIBRARY.find(function (entry) {
+    return library.find(function (entry) {
       return String(entry && entry.id || '').toLowerCase() === wanted;
     }) || fallback;
   }

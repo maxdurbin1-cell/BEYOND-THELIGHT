@@ -14576,6 +14576,164 @@ function getScrollAoeOptionHtml(scrollItem, margin) {
     + '</div>';
 }
 
+function getScrollAoeCombatProfile(scrollName) {
+  var key = String(scrollName || '').trim().toLowerCase();
+  var map = {
+    'thunder lattice': { damageBias: 2, status: 'distracted', statusRounds: 1 },
+    'ashfall ring': { damageBias: 2, burnRounds: 2, burnStress: 2 },
+    'gravitic fold': { damageBias: 1, status: 'vulnerable', statusRounds: 2 },
+    'glass rain': { damageBias: 2, status: 'weakened', statusRounds: 1 },
+    'bastion bloom': { supportOnly: true, selfCondition: 'protected', clearNegative: true },
+    'null choir': { damageBias: 1, status: 'weapon glitch', statusRounds: 2, actionDrainRounds: 1, actionDrainAmount: 1 },
+    'hexfire fan': { damageBias: 2, burnRounds: 2, burnStress: 2 },
+    'tide of needles': { damageBias: 2, poisonRounds: 2, poisonStress: 2 },
+    'veilstep chorus': { supportOnly: true, selfCondition: 'focused', clearNegative: true },
+    'starwell collapse': { damageBias: 3, status: 'short circuit', statusRounds: 1 }
+  };
+  return map[key] || { damageBias: 1, status: 'vulnerable', statusRounds: 1 };
+}
+
+function getOrderedHostileEnemiesForScrollAoe() {
+  if (!Array.isArray(S && S.enemies)) return [];
+  var hostiles = S.enemies.filter(function (e) { return e && !e.ally; });
+  if (!hostiles.length) return [];
+  var primary = (typeof getPrimaryCombatEnemy === 'function') ? getPrimaryCombatEnemy() : null;
+  if (!primary) return hostiles;
+  var ordered = [primary];
+  hostiles.forEach(function (e) {
+    if (e !== primary) ordered.push(e);
+  });
+  return ordered;
+}
+
+function clearOnePlayerNegativeConditionForScrollAoe() {
+  if (!S || !S.conditions) return '';
+  var neg = ['weakened', 'distracted', 'shaken', 'vulnerable'];
+  for (var i = 0; i < neg.length; i++) {
+    if (S.conditions[neg[i]]) {
+      S.conditions[neg[i]] = false;
+      return neg[i];
+    }
+  }
+  return '';
+}
+
+function applyScrollAoeStatusToEnemy(enemy, profile, damageAmount) {
+  if (!enemy || !profile) return;
+  var rounds = Math.max(1, Number(profile.statusRounds || 1));
+  if (profile.status) applyEnemyCombatCondition(enemy, profile.status, rounds);
+
+  var st = ensureEnemyEffectState(enemy);
+  if (profile.burnRounds) {
+    st.burnRounds = Math.max(st.burnRounds, Math.max(1, Number(profile.burnRounds || 1)));
+    st.burnStress = Math.max(st.burnStress, Math.max(1, Number(profile.burnStress || Math.ceil(damageAmount / 2) || 1)));
+  }
+  if (profile.poisonRounds) {
+    st.poisonRounds = Math.max(st.poisonRounds, Math.max(1, Number(profile.poisonRounds || 1)));
+    st.poisonStress = Math.max(st.poisonStress, Math.max(1, Number(profile.poisonStress || Math.ceil(damageAmount / 2) || 1)));
+  }
+  if (profile.actionDrainRounds && profile.actionDrainAmount) {
+    st.actionDrainRounds = Math.max(st.actionDrainRounds, Math.max(1, Number(profile.actionDrainRounds || 1)));
+    st.actionDrainAmount = Math.max(st.actionDrainAmount, Math.max(1, Number(profile.actionDrainAmount || 1)));
+  }
+  syncEnemyConditionList(enemy);
+}
+
+function getScrollAoeModePlan(mode, margin) {
+  var m = Math.max(1, Number(margin || 1));
+  if (mode === 'focused') return { mode: 'focused', targetCap: 1, damageAdjust: 2, statusCap: 1, valid: true };
+  if (mode === 'expanded') {
+    var unlocked = m >= 4;
+    return { mode: 'expanded', targetCap: 3, damageAdjust: -1, statusCap: 3, valid: unlocked, reason: unlocked ? '' : 'Expanded AOE requires success margin 4+.' };
+  }
+  return { mode: 'standard', targetCap: 2, damageAdjust: 0, statusCap: 2, valid: true };
+}
+
+function resolvePendingScrollAoeMode(mode) {
+  ensureSpellCircumstanceState();
+  var pending = S && S.spellcasting ? S.spellcasting.pendingAoeResolution : null;
+  if (!pending || pending.resolved) {
+    if (typeof showNotif === 'function') showNotif('No pending AOE spell resolution.', 'warn');
+    return false;
+  }
+
+  var plan = getScrollAoeModePlan(String(mode || 'standard').toLowerCase(), pending.margin);
+  if (!plan.valid) {
+    if (typeof showNotif === 'function') showNotif(plan.reason || 'That AOE mode is unavailable.', 'warn');
+    return false;
+  }
+
+  var profile = getScrollAoeCombatProfile(pending.scrollName);
+  var hostiles = getOrderedHostileEnemiesForScrollAoe();
+  var targets = hostiles.slice(0, Math.max(1, Number(plan.targetCap || 1)));
+  var baseDamage = Math.max(1, Math.ceil(Number(pending.margin || 1) / 2) + Number(profile.damageBias || 0) + Number(plan.damageAdjust || 0));
+  var statusCap = Math.max(1, Number(plan.statusCap || 1));
+  var lines = [];
+
+  if (!profile.supportOnly && targets.length) {
+    targets.forEach(function (enemy, idx) {
+      var splashFalloff = plan.mode === 'expanded' ? idx : 0;
+      var dmg = Math.max(1, baseDamage - splashFalloff);
+      applyStressToEnemy(enemy, dmg, pending.scrollName + ' [' + plan.mode + ']');
+      lines.push(enemy.name + ': -' + dmg + ' Stress');
+      if (idx < statusCap) {
+        applyScrollAoeStatusToEnemy(enemy, profile, dmg);
+      }
+    });
+  }
+
+  if (profile.supportOnly) {
+    if (profile.selfCondition && S && S.conditions && (profile.selfCondition in S.conditions)) {
+      S.conditions[profile.selfCondition] = true;
+      lines.push('Caster condition: ' + profile.selfCondition + ' applied');
+    }
+    if (profile.clearNegative) {
+      var cleared = clearOnePlayerNegativeConditionForScrollAoe();
+      if (cleared) lines.push('Cleared condition: ' + cleared);
+    }
+    if (typeof updateConditionButtons === 'function') updateConditionButtons();
+    if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+  }
+
+  if (!targets.length && !profile.supportOnly) {
+    if (typeof showNotif === 'function') showNotif('No hostile targets in combat for AOE resolution.', 'warn');
+    return false;
+  }
+
+  pending.resolved = true;
+  var summary = '<div style="font-size:.84rem;color:var(--text2);line-height:1.55;">'
+    + '<div style="margin-bottom:.3rem;"><strong style="color:var(--teal);">' + pending.scrollName + '</strong> · <strong style="color:var(--gold2);text-transform:capitalize;">' + plan.mode + '</strong> mode applied.</div>'
+    + '<div style="font-size:.76rem;color:var(--muted2);margin-bottom:.24rem;">Targets: ' + (profile.supportOnly ? 'Support effect' : targets.length) + ' · Base damage: ' + baseDamage + ' · Status radius: ' + statusCap + '</div>'
+    + '<div style="font-size:.77rem;color:var(--text2);">' + (lines.length ? lines.join('<br>') : 'No direct combat targets affected.') + '</div>'
+    + '</div>';
+  openModal('AOE Resolution', summary);
+  if (typeof renderEnemies === 'function') renderEnemies();
+  if (typeof renderQP === 'function') renderQP('combat');
+  if (typeof updateCombatUI === 'function') updateCombatUI();
+  return true;
+}
+
+function getScrollAoeActionHtml(scrollItem, scrollName, margin) {
+  if (!scrollItem || !scrollItem.aoe) return '';
+  ensureSpellCircumstanceState();
+  if (!S || !S.spellcasting) return '';
+  S.spellcasting.pendingAoeResolution = {
+    scrollName: String(scrollName || scrollItem.name || 'Spell'),
+    margin: Math.max(1, Number(margin || 1)),
+    resolved: false
+  };
+  var expandedLocked = Math.max(1, Number(margin || 1)) < 4;
+  return '<div style="padding:.32rem .42rem;border:1px dashed var(--border2);background:rgba(255,255,255,.02);margin-bottom:.35rem;">'
+    + '<div style="font-size:.66rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.14rem;">Resolve AOE Into Combat</div>'
+    + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;">'
+    + '<button class="btn btn-xs" onclick="resolvePendingScrollAoeMode(\'focused\')">Focused</button>'
+    + '<button class="btn btn-xs btn-primary" onclick="resolvePendingScrollAoeMode(\'standard\')">Standard</button>'
+    + '<button class="btn btn-xs btn-teal" ' + (expandedLocked ? 'disabled title="Requires margin 4+"' : 'onclick="resolvePendingScrollAoeMode(\'expanded\')"') + '>Expanded</button>'
+    + '</div>'
+    + '<div style="font-size:.7rem;color:var(--muted2);margin-top:.18rem;">Choose one mode to apply target count, damage scaling, and status spread to active combat enemies.</div>'
+    + '</div>';
+}
+
 function readBuildersLetter(index) {
   openModal('Builder\'s Letter', '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
     + 'The paper is brittle but intact. In cramped script it reads:<br><br>'
@@ -14647,7 +14805,9 @@ function castScrollFromBackpack(index) {
       condNote += '<br><span style="color:var(--gold2);font-size:.82rem;">⟡ The next trap you encounter in exploration is revealed and disarmed.</span>';
     }
 
+    var hasCombatHostiles = !!(S && S.combat && S.combat.active && Array.isArray(S.enemies) && S.enemies.some(function (e) { return e && !e.ally; }));
     var aoeOptionHtml = castSuccess ? getScrollAoeOptionHtml(scrollItem, margin) : '';
+    var aoeActionHtml = (castSuccess && hasCombatHostiles) ? getScrollAoeActionHtml(scrollItem, scrollName, margin) : '';
 
     var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
       + '<div style="margin-bottom:.5rem;font-size:.8rem;color:var(--muted2);">Mind d' + mindDie + ' vs Valor d' + advDie + (manualMode ? ' (manual)' : '') + '</div>'
@@ -14665,7 +14825,8 @@ function castScrollFromBackpack(index) {
       + '<div style="font-size:.68rem;color:var(--teal);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.1rem;">Circumstance Answers</div>'
       + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;">' + circumstanceSummary + '</div>'
       + '</div>'
-        + aoeOptionHtml
+      + aoeOptionHtml
+      + aoeActionHtml
       + (castSuccess
           ? '<em style="color:var(--text2);">' + scrollDesc + '</em>' + condNote
           : '<em style="color:var(--muted2);">The words blur and fade. The scroll remains — try again.</em>')

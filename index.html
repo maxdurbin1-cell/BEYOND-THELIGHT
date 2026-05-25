@@ -14250,6 +14250,295 @@ function applyRelicAttunement(index, statKey) {
 window.decryptDataCache=decryptDataCache;
 window.stabilizeRelicShard=stabilizeRelicShard;
 
+function hashSpellSeed(text) {
+  var s = String(text || 'spell');
+  var h = 2166136261;
+  for (var i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+  }
+  return Math.abs(h >>> 0);
+}
+
+function stepSpellDie(die, dir) {
+  var ladder = [4, 6, 8, 10, 12, 20];
+  var cur = Math.max(4, Number(die || 4));
+  var idx = ladder.indexOf(cur);
+  if (idx < 0) idx = 0;
+  var next = idx + (dir > 0 ? 1 : -1);
+  if (next < 0) next = 0;
+  if (next >= ladder.length) next = ladder.length - 1;
+  return ladder[next];
+}
+
+function ensureSpellCircumstanceState() {
+  if (!S.spellcasting || typeof S.spellcasting !== 'object') {
+    S.spellcasting = {};
+  }
+  if (!Number.isFinite(Number(S.spellcasting.nextValorStepUp))) {
+    S.spellcasting.nextValorStepUp = 0;
+  }
+}
+
+function consumeSpellBacklashStepUp() {
+  ensureSpellCircumstanceState();
+  var steps = Math.max(0, Number(S.spellcasting.nextValorStepUp || 0));
+  if (steps > 0) {
+    S.spellcasting.nextValorStepUp = Math.max(0, steps - 1);
+    return 1;
+  }
+  return 0;
+}
+
+function describeSpellCircumstanceEffect(effect, answerLabel) {
+  var bits = [];
+  var e = effect || {};
+  if (Number(e.mindFlat || 0) !== 0) bits.push((e.mindFlat > 0 ? '+' : '') + Number(e.mindFlat) + ' Mind total');
+  if (Number(e.valorStep || 0) !== 0) bits.push('Valor die ' + (e.valorStep > 0 ? 'step up' : 'step down'));
+  if (e.stepUpAdvantage) bits.push('Mind Step Up Advantage');
+  if (e.stepDownDisadvantage) bits.push('Mind Step Down Disadvantage');
+  if (e.addSpiritBonus) bits.push('add Spirit die to Mind');
+  if (e.addSpiritPenalty) bits.push('subtract Spirit die from Mind');
+  if (e.note) bits.push(String(e.note));
+  return answerLabel + ': ' + (bits.join(' | ') || 'no numeric change (narrative trigger)');
+}
+
+function getSpellCircumstanceProfile(scrollName, scrollDesc) {
+  window._spellCircumstanceProfiles = window._spellCircumstanceProfiles || {};
+  var key = String(scrollName || 'Unknown Spell').trim().toLowerCase();
+  if (window._spellCircumstanceProfiles[key]) return window._spellCircumstanceProfiles[key];
+
+  var seed = hashSpellSeed(key + '|' + String(scrollDesc || ''));
+  var motifs = ['amber sigils', 'glass-blue runes', 'ember motes', 'hollow bells', 'star-thread glyphs', 'blackwater geometry', 'sunleaf filaments', 'iron-ink circles'];
+  var motif = motifs[seed % motifs.length];
+
+  var major = [
+    { order: 'Major', q: 'Is a major omen active (eclipse, blood moon, solstice, ley surge)?', yes: { mindFlat: 2, note: 'major omen amplification' }, no: { mindFlat: -2, note: 'the sky is quiet and resistant' } },
+    { order: 'Major', q: 'Is this cast near funeral grounds, divine festival ground, or cataclysm weather?', yes: { valorStep: -1, note: 'the rite aligns with larger currents' }, no: { valorStep: 1, note: 'the rite fights hostile macro-currents' } },
+    { order: 'Major', q: 'Did a cosmic event begin this same scene?', yes: { stepUpAdvantage: true, note: 'fresh cosmic turbulence can be ridden' }, no: { stepDownDisadvantage: true, note: 'stale field drags your pattern' } },
+    { order: 'Major', q: 'Is the spell cast under a sky your tradition reveres?', yes: { addSpiritBonus: true, note: 'spirit resonance harmonizes the cast' }, no: { addSpiritPenalty: true, note: 'spirit resonance jars the cast' } }
+  ];
+  var minor = [
+    { order: 'Minor', q: 'Is it raining right now?', yes: { mindFlat: 2, note: 'rain carries charge into the sigils' }, no: { mindFlat: -2, note: 'dry air resists the channel' } },
+    { order: 'Minor', q: 'Are you near iron structures or dense machinery?', yes: { valorStep: 1, note: 'iron static interferes with arcana' }, no: { valorStep: -1, note: 'fewer iron anchors means cleaner flow' } },
+    { order: 'Minor', q: 'Is there fog, smoke, or dust in the air?', yes: { stepUpAdvantage: true, note: 'particulates give the spell edges to cling to' }, no: { mindFlat: -1, note: 'clean air gives fewer anchors' } },
+    { order: 'Minor', q: 'Are you standing on grave soil, salt air, or charged earth?', yes: { addSpiritBonus: true, note: 'terrain memory empowers the cast' }, no: { addSpiritPenalty: true, note: 'terrain memory rejects the cast' } }
+  ];
+  var tertiary = [
+    { order: 'Tertiary', q: 'Are you facing your tradition’s favored direction?', yes: { mindFlat: 1, note: 'directional geometry lines up' }, no: { mindFlat: -1, note: 'angle drift destabilizes precision' } },
+    { order: 'Tertiary', q: 'Is the moon phase favorable for this spell family?', yes: { valorStep: -1, note: 'lunar cadence eases resistance' }, no: { valorStep: 1, note: 'lunar cadence hardens resistance' } },
+    { order: 'Tertiary', q: 'Did the caster speak in their ritual language?', yes: { stepUpAdvantage: true, note: 'phonetics lock the pattern in place' }, no: { stepDownDisadvantage: true, note: 'translation noise weakens precision' } },
+    { order: 'Tertiary', q: 'Is the caster emotionally steady for this cast?', yes: { addSpiritBonus: true, note: 'steady emotion feeds controlled output' }, no: { addSpiritPenalty: true, note: 'volatile emotion bends the weave' } }
+  ];
+  var quaternary = [
+    { order: 'Quaternary', q: 'Did anyone speak a true name tied to this threshold/object?', yes: { mindFlat: 2, note: 'true-name lock clicks into place' }, no: { mindFlat: -1, note: 'name-less casting remains slippery' } },
+    { order: 'Quaternary', q: 'Was a lie spoken in earshot moments before casting?', yes: { stepDownDisadvantage: true, note: 'the weave recoils from recent falsehood' }, no: { mindFlat: 1, note: 'clean truth leaves the field clearer' } },
+    { order: 'Quaternary', q: 'Is copper touching the caster’s skin right now?', yes: { valorStep: -1, note: 'copper grounds wild surge cleanly' }, no: { valorStep: 1, note: 'ungrounded surge invites resistance' } },
+    { order: 'Quaternary', q: 'Did a witness omen occur (crow, bells, child present, shoes removed)?', yes: { addSpiritBonus: true, note: 'omens favor manifestation' }, no: { addSpiritPenalty: true, note: 'no omen witness; spell goes unblessed' } }
+  ];
+
+  function pickFrom(list, offset) {
+    var idx = (seed + offset) % list.length;
+    return list[idx];
+  }
+
+  var questions = [
+    pickFrom(major, 1),
+    pickFrom(minor, 3),
+    pickFrom(tertiary, 5),
+    pickFrom(quaternary, 7)
+  ];
+
+  var successTiers = [
+    { effect: scrollName + ' works for a heartbeat and only where your focus is perfect.', castLook: 'A thin ring of ' + motif + ' forms around your wrists, then snaps shut.', fieldLook: 'The target shimmers once, like heat over stone.' },
+    { effect: scrollName + ' lands as intended, but narrow and brief.', castLook: 'Sigils spin from your fingertips in a tight helix.', fieldLook: 'A faint halo forms at the target edge and quickly fades.' },
+    { effect: scrollName + ' establishes stable control with minor flourish.', castLook: 'Your breath threads through the runes; each glyph brightens in sequence.', fieldLook: 'A clean arcane lattice hangs in place for several beats.' },
+    { effect: scrollName + ' resolves strongly and carries a bonus detail the GM can reveal.', castLook: 'The air pulls inward, then blooms with patterned light around your shoulders.', fieldLook: 'The effect leaves a visible trail, like luminous ink in water.' },
+    { effect: scrollName + ' arrives with force, extending duration or area cleanly.', castLook: 'A full-circle seal rotates under your feet and rises through your body.', fieldLook: 'Nearby surfaces catch reflective symbols that pulse with the spell.' },
+    { effect: scrollName + ' overperforms and can grant an ally a tactical opening.', castLook: 'Your casting voice doubles with a harmonic echo as motes spiral outward.', fieldLook: 'The spell briefly brands the space with geometric afterimages.' },
+    { effect: scrollName + ' reaches master-grade expression; collateral arcana may ripple outward.', castLook: 'A crown of drifting sigils hovers above your brow before collapsing into the cast.', fieldLook: 'The zone bends around the effect, as if reality inhales then exhales.' },
+    { effect: scrollName + ' manifests at mythic intensity; the GM may add a rare boone side-effect.', castLook: 'Runes flood from your silhouette and lock in a radiant, multi-layered seal.', fieldLook: 'The scene is rewritten by arc-light contours that linger after resolution.' }
+  ];
+
+  var failureTiers = [
+    { effect: scrollName + ' misfires by a sliver.', castLook: 'One glyph fractures as you release the pattern.', fieldLook: 'A brief static ripple brushes the target then collapses.' },
+    { effect: scrollName + ' fails and leaves residue.', castLook: 'Your seal forms unevenly; two sigils spin out of phase.', fieldLook: 'Cracked light spits at the edges and gutters out.' },
+    { effect: scrollName + ' destabilizes mid-cast.', castLook: 'The motif around your hands twists into jagged geometry.', fieldLook: 'The target zone darkens in radial bands before dispersing.' },
+    { effect: scrollName + ' turns volatile and attracts attention.', castLook: 'The casting ring tears and recoils into your chest.', fieldLook: 'The air pops with audible arcane feedback.' },
+    { effect: scrollName + ' suffers severe collapse.', castLook: 'Your voice desynchronizes from the sigils and the pattern shears sideways.', fieldLook: 'Nearby shadows stretch and knot around the failed anchor point.' },
+    { effect: scrollName + ' implodes into backlash.', castLook: 'A mirrored seal appears behind you, then slams shut through your stance.', fieldLook: 'The zone stains with a lingering, unnatural dimness.' },
+    { effect: scrollName + ' catastrophically fails with enduring fallout.', castLook: 'Every glyph burns bright for an instant, then extinguishes at once.', fieldLook: 'A pressure wave passes through doors, locks, and thresholds nearby.' },
+    { effect: scrollName + ' tears the weave open before it snaps closed.', castLook: 'Your outline doubles and blurs as the spell rejects your hold.', fieldLook: 'The environment keeps a permanent scar where the cast collapsed.' }
+  ];
+
+  var profile = {
+    seed: seed,
+    key: key,
+    motif: motif,
+    questions: questions,
+    successTiers: successTiers,
+    failureTiers: failureTiers
+  };
+  window._spellCircumstanceProfiles[key] = profile;
+  return profile;
+}
+
+function openSpellCircumstancePrompt(config) {
+  if (typeof openModal !== 'function') return false;
+  var cfg = config || {};
+  var profile = cfg.profile || getSpellCircumstanceProfile(cfg.scrollName || 'Unknown Spell', cfg.scrollDesc || '');
+  var rows = profile.questions.map(function (q, idx) {
+    var yesText = describeSpellCircumstanceEffect(q.yes, 'Yes');
+    var noText = describeSpellCircumstanceEffect(q.no, 'No');
+    return '<div style="padding:.34rem .4rem;border:1px solid var(--border2);background:var(--surface);margin-bottom:.28rem;">'
+      + '<div style="font-size:.68rem;color:var(--gold2);font-family:\'Cinzel\',serif;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.12rem;">' + q.order + ' Circumstance</div>'
+      + '<div style="font-size:.78rem;color:var(--text2);margin-bottom:.18rem;">' + q.q + '</div>'
+      + '<select id="spellCircAns' + idx + '" style="width:100%;background:var(--bg2);border:1px solid var(--border2);color:var(--text2);padding:.26rem .32rem;border-radius:3px;">'
+      + '<option value="yes">Yes</option>'
+      + '<option value="no" selected>No</option>'
+      + '</select>'
+      + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.16rem;line-height:1.45;">' + yesText + '<br>' + noText + '</div>'
+      + '</div>';
+  }).join('');
+
+  window._pendingSpellCircumstancePrompt = {
+    profile: profile,
+    resolver: typeof cfg.onResolve === 'function' ? cfg.onResolve : null,
+    onCancel: typeof cfg.onCancel === 'function' ? cfg.onCancel : null
+  };
+
+  var html = ''
+    + '<div style="font-size:.82rem;color:var(--text2);line-height:1.58;">'
+    + '<div style="font-family:\'Cinzel\',serif;font-size:.82rem;letter-spacing:.08em;color:var(--gold2);margin-bottom:.24rem;">GM Circumstance Check - ' + String(cfg.scrollName || 'Spell') + '</div>'
+    + '<div style="font-size:.72rem;color:var(--muted2);margin-bottom:.3rem;">Answer each question Yes/No. These answers alter cast difficulty, instability, and manifestation.</div>'
+    + rows
+    + '<div style="display:flex;gap:.28rem;justify-content:flex-end;margin-top:.36rem;">'
+    + '<button class="btn btn-sm" onclick="cancelSpellCircumstancePrompt()">Cancel</button>'
+    + '<button class="btn btn-sm btn-primary" onclick="resolveSpellCircumstancePrompt()">Continue</button>'
+    + '</div>'
+    + '</div>';
+  openModal('Spell Circumstance Questions', html, null, { preventScroll: true, focusTrap: true });
+  return true;
+}
+
+window.cancelSpellCircumstancePrompt = function () {
+  var pending = window._pendingSpellCircumstancePrompt || null;
+  window._pendingSpellCircumstancePrompt = null;
+  if (pending && typeof pending.onCancel === 'function') {
+    pending.onCancel();
+    return;
+  }
+  if (typeof closeModal === 'function') closeModal();
+};
+
+window.resolveSpellCircumstancePrompt = function () {
+  var pending = window._pendingSpellCircumstancePrompt || null;
+  if (!pending || !pending.profile) return;
+  var profile = pending.profile;
+  var answers = [];
+  for (var i = 0; i < profile.questions.length; i++) {
+    var el = document.getElementById('spellCircAns' + i);
+    answers.push((el && String(el.value || 'no').toLowerCase() === 'yes') ? 'yes' : 'no');
+  }
+  window._pendingSpellCircumstancePrompt = null;
+  if (typeof closeModal === 'function') closeModal();
+  if (typeof pending.resolver === 'function') {
+    pending.resolver({ profile: profile, answers: answers });
+  }
+};
+
+function evaluateSpellCircumstances(profile, answers) {
+  var result = {
+    mindFlat: 0,
+    valorStep: 0,
+    stepUpAdvantage: false,
+    stepDownDisadvantage: false,
+    addSpiritBonus: false,
+    addSpiritPenalty: false,
+    modifierLines: [],
+    resolved: []
+  };
+  var qs = (profile && Array.isArray(profile.questions)) ? profile.questions : [];
+  for (var i = 0; i < qs.length; i++) {
+    var q = qs[i];
+    var ans = (answers && answers[i] === 'yes') ? 'yes' : 'no';
+    var fx = ans === 'yes' ? (q.yes || {}) : (q.no || {});
+    result.mindFlat += Number(fx.mindFlat || 0);
+    result.valorStep += Number(fx.valorStep || 0);
+    if (fx.stepUpAdvantage) result.stepUpAdvantage = true;
+    if (fx.stepDownDisadvantage) result.stepDownDisadvantage = true;
+    if (fx.addSpiritBonus) result.addSpiritBonus = true;
+    if (fx.addSpiritPenalty) result.addSpiritPenalty = true;
+    var line = q.q + ' -> ' + (ans === 'yes' ? 'Yes' : 'No') + ' (' + describeSpellCircumstanceEffect(fx, '') + ')';
+    result.modifierLines.push(line.replace(/^:\s*/, ''));
+    result.resolved.push({ question: q.q, answer: ans, effect: fx });
+  }
+  if (result.stepUpAdvantage && result.stepDownDisadvantage) {
+    result.modifierLines.push('Advantage and disadvantage cancel each other for Mind roll type.');
+    result.stepUpAdvantage = false;
+    result.stepDownDisadvantage = false;
+  }
+  return result;
+}
+
+function getSpellMarginTierIndex(margin) {
+  var m = Math.max(1, Number(margin || 1));
+  if (m <= 1) return 0;
+  if (m <= 2) return 1;
+  if (m <= 3) return 2;
+  if (m <= 4) return 3;
+  if (m <= 5) return 4;
+  if (m <= 6) return 5;
+  if (m <= 7) return 6;
+  return 7;
+}
+
+function getSpellFailureBandLabel(margin) {
+  var m = Math.max(1, Number(margin || 1));
+  if (m <= 2) return '1-2: Something may notice the unlocked threshold.';
+  if (m <= 4) return '3-4: Nearby locks may never function again.';
+  if (m <= 6) return '5-6: Shadows near the doorway deepen permanently.';
+  if (m <= 8) return '7-8: Increase Dread next time you cast.';
+  if (m <= 10) return '9-10: Hallucinatory feedback overwhelms your senses.';
+  return '11+: Arcane rupture; apply a severe consequence and lasting scar.';
+}
+
+function applySpellFailureBacklash(margin) {
+  var m = Math.max(1, Number(margin || 1));
+  var notes = [];
+  if (m <= 2) {
+    notes.push('Narrative omen: something nearby notices the cast.');
+    return notes;
+  }
+  if (m <= 4) {
+    notes.push('Nearby lockwork glitches and may stay unreliable.');
+    return notes;
+  }
+  if (m <= 6) {
+    if (typeof applyNegativeCondition === 'function') applyNegativeCondition('shaken');
+    else if (typeof toggleCond === 'function') toggleCond('shaken');
+    notes.push('Condition applied: Shaken.');
+    return notes;
+  }
+  if (m <= 8) {
+    ensureSpellCircumstanceState();
+    S.spellcasting.nextValorStepUp = Math.max(1, Number(S.spellcasting.nextValorStepUp || 0) + 1);
+    notes.push('Backlash stored: next spell cast gets +1 Valor step.');
+    return notes;
+  }
+  if (m <= 10) {
+    if (typeof changeMentalStress === 'function') changeMentalStress(Math.max(1, Math.ceil(m / 3)));
+    else if (typeof changeStress === 'function') changeStress(Math.max(1, Math.ceil(m / 3)));
+    notes.push('Hallucinatory backlash: mental stress applied.');
+    return notes;
+  }
+  if (typeof changeMentalStress === 'function') changeMentalStress(Math.max(2, Math.ceil(m / 2)));
+  else if (typeof changeStress === 'function') changeStress(Math.max(2, Math.ceil(m / 2)));
+  if (typeof addTrauma === 'function') addTrauma(1);
+  notes.push('Severe rupture: high stress and possible trauma.');
+  return notes;
+}
+
 function readBuildersLetter(index) {
   openModal('Builder\'s Letter', '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
     + 'The paper is brittle but intact. In cramped script it reads:<br><br>'
@@ -14279,12 +14568,31 @@ function castScrollFromBackpack(index) {
     }
   }
 
-  var mindDie = S.stats.mind || 4;
-  var advDie = S.stats.adventure || 4;
+  var mindDie = (S.stats && (S.stats.mind || 4)) || 4;
+  var advDie = (S.stats && (S.stats.valor || S.stats.adventure || 4)) || 4;
+  var spiritDie = (S.stats && (S.stats.spirit || 4)) || 4;
   var scrollName = scrollItem ? scrollItem.name : text.replace(/^Scroll:\s*/i, '').trim() || text;
   var scrollDesc = scrollItem ? scrollItem.desc : '';
+  var profile = getSpellCircumstanceProfile(scrollName, scrollDesc);
 
-  function finalizeCastFromTotals(mR, aR, castSuccess, manualMode) {
+  function finalizeCastFromTotals(mR, aR, castSuccess, manualMode, circData) {
+    var actionTotal = Math.max(1, Number(mR && mR.total || 0));
+    var dreadTotal = Math.max(1, Number(aR && aR.total || 0));
+    var margin = Math.max(1, Math.abs(actionTotal - dreadTotal));
+    var tierIdx = getSpellMarginTierIndex(margin);
+    var tier = castSuccess ? profile.successTiers[tierIdx] : profile.failureTiers[tierIdx];
+    var circumstanceSummary = (circData && Array.isArray(circData.resolved) && circData.resolved.length)
+      ? circData.resolved.map(function (r) {
+          return (r.answer === 'yes' ? 'Yes' : 'No') + ': ' + r.question;
+        }).join('<br>')
+      : 'No circumstance answers recorded.';
+
+    var failBand = castSuccess ? '' : getSpellFailureBandLabel(margin);
+    var backlashNotes = (!castSuccess && !manualMode) ? applySpellFailureBacklash(margin) : [];
+    var backlashHtml = (!castSuccess && backlashNotes.length)
+      ? ('<div style="margin-top:.38rem;font-size:.74rem;color:var(--red2);"><strong>Applied Backlash:</strong><br>' + backlashNotes.join('<br>') + '</div>')
+      : '';
+
     // Apply condition if this scroll grants one
     if (castSuccess && scrollItem && scrollItem.condition && S.conditions && (scrollItem.condition in S.conditions)) {
       S.conditions[scrollItem.condition] = true;
@@ -14303,31 +14611,43 @@ function castScrollFromBackpack(index) {
     }
 
     var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
-      + '<div style="margin-bottom:.5rem;font-size:.8rem;color:var(--muted2);">Mind d' + mindDie + ' vs Adventure d' + advDie + (manualMode ? ' (manual)' : '') + '</div>'
+      + '<div style="margin-bottom:.5rem;font-size:.8rem;color:var(--muted2);">Mind d' + mindDie + ' vs Valor d' + advDie + (manualMode ? ' (manual)' : '') + '</div>'
       + '<strong style="color:' + (castSuccess ? 'var(--green2)' : 'var(--red)') + ';">'
       + (castSuccess ? '✦ Cast! — ' : '✕ Failed — ') + '</strong>'
-      + '<strong style="color:var(--teal);">' + mR.total + '</strong> vs <strong style="color:var(--red);">' + aR.total + '</strong><br><br>'
+      + '<strong style="color:var(--teal);">' + actionTotal + '</strong> vs <strong style="color:var(--red);">' + dreadTotal + '</strong> (margin ' + margin + ')<br><br>'
+      + '<div style="padding:.35rem .45rem;border:1px solid var(--border2);background:var(--surface);margin-bottom:.35rem;">'
+      + '<div style="font-size:.72rem;color:var(--gold2);font-family:\'Cinzel\',serif;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.14rem;">Spell Manifestation</div>'
+      + '<div style="font-size:.8rem;color:var(--text2);"><strong>Effect:</strong> ' + tier.effect + '</div>'
+      + '<div style="font-size:.78rem;color:var(--muted2);margin-top:.12rem;"><strong>Cast Look:</strong> ' + tier.castLook + '</div>'
+      + '<div style="font-size:.78rem;color:var(--muted2);margin-top:.1rem;"><strong>Around the Caster:</strong> ' + tier.fieldLook + '</div>'
+      + (castSuccess ? '' : ('<div style="font-size:.78rem;color:var(--red2);margin-top:.14rem;"><strong>Failure Band:</strong> ' + failBand + '</div>'))
+      + '</div>'
+      + '<div style="padding:.3rem .4rem;border:1px dashed var(--border2);background:rgba(255,255,255,.01);margin-bottom:.35rem;">'
+      + '<div style="font-size:.68rem;color:var(--teal);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.1rem;">Circumstance Answers</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.5;">' + circumstanceSummary + '</div>'
+      + '</div>'
       + (castSuccess
           ? '<em style="color:var(--text2);">' + scrollDesc + '</em>' + condNote
           : '<em style="color:var(--muted2);">The words blur and fade. The scroll remains — try again.</em>')
+      + backlashHtml
       + '</div>';
 
     openModal(scrollName, html);
 
     if (castSuccess) {
       if (typeof showDccSuccessOutcome === 'function') {
-        showDccSuccessOutcome('spell', Math.max(1, mR.total - aR.total), {
-          actionTotal: mR.total,
-          dreadTotal: aR.total,
+        showDccSuccessOutcome('spell', margin, {
+          actionTotal: actionTotal,
+          dreadTotal: dreadTotal,
           context: 'Scroll cast: ' + scrollName
         });
       }
       if (typeof addSuccessRoll === 'function') addSuccessRoll();
     } else {
       if (typeof showDccFailureOutcome === 'function') {
-        showDccFailureOutcome('spell', Math.max(1, aR.total - mR.total), {
-          actionTotal: mR.total,
-          dreadTotal: aR.total,
+        showDccFailureOutcome('spell', margin, {
+          actionTotal: actionTotal,
+          dreadTotal: dreadTotal,
           context: 'Scroll cast: ' + scrollName
         });
       }
@@ -14335,32 +14655,79 @@ function castScrollFromBackpack(index) {
     }
   }
 
-  if (window.settingsSystem && typeof window.settingsSystem.isManualRollMode === 'function' && window.settingsSystem.isManualRollMode()) {
-    openProvinceManualCheckPrompt({
-      title: 'Manual Roll - Spell Cast',
-      context: 'Cast ' + scrollName,
-      statKey: 'mind',
-      statLabel: 'Mind',
-      actionDie: mindDie,
-      dreadDie: advDie,
-      cancelLabel: 'Go Back',
-      onCancel: function () { showBackpackItem(index); },
-      onResolve: function (outcome) {
-        finalizeCastFromTotals(
-          { total: Number(outcome && outcome.actionTotal || 0) },
-          { total: Number(outcome && outcome.dreadTotal || 0) },
-          !!(outcome && outcome.success),
-          true
-        );
-      }
-    });
-    return;
-  }
+  var openManual = !!(window.settingsSystem && typeof window.settingsSystem.isManualRollMode === 'function' && window.settingsSystem.isManualRollMode());
+  var carriedBacklashStep = consumeSpellBacklashStepUp();
 
-  var mR = explodingRoll(mindDie);
-  var aR = explodingRoll(advDie);
-  var castSuccess = mR.total >= aR.total;
-  finalizeCastFromTotals(mR, aR, castSuccess, false);
+  openSpellCircumstancePrompt({
+    scrollName: scrollName,
+    scrollDesc: scrollDesc,
+    profile: profile,
+    onCancel: function () { showBackpackItem(index); },
+    onResolve: function (resolved) {
+      var circ = evaluateSpellCircumstances(profile, resolved && resolved.answers ? resolved.answers : []);
+      if (carriedBacklashStep > 0) {
+        circ.valorStep += carriedBacklashStep;
+        circ.modifierLines.push('Stored backlash: Valor die stepped up +1 from your prior failed cast.');
+      }
+
+      if (openManual) {
+        openProvinceManualCheckPrompt({
+          title: 'Manual Roll - Spell Cast',
+          context: 'Cast ' + scrollName,
+          statKey: 'mind',
+          statLabel: 'Mind',
+          actionDie: mindDie,
+          dreadDie: Math.max(4, stepSpellDie(advDie, circ.valorStep)),
+          modifierLines: circ.modifierLines,
+          cancelLabel: 'Go Back',
+          onCancel: function () { showBackpackItem(index); },
+          onResolve: function (outcome) {
+            finalizeCastFromTotals(
+              { total: Number(outcome && outcome.actionTotal || 0) },
+              { total: Number(outcome && outcome.dreadTotal || 0) },
+              !!(outcome && outcome.success),
+              true,
+              circ
+            );
+          }
+        });
+        return;
+      }
+
+      var finalValorDie = Math.max(4, stepSpellDie(advDie, circ.valorStep));
+      var baseMindRoll = explodingRoll(mindDie, { type: 'action', major: true, label: 'Spell Mind d' + mindDie });
+      var mindTotal = Number(baseMindRoll.total || 0);
+
+      if (circ.stepUpAdvantage) {
+        var stepUpDie = stepSpellDie(mindDie, 1);
+        var stepUpRoll = explodingRoll(stepUpDie, { type: 'action', major: true, label: 'Spell Step Up Advantage d' + stepUpDie });
+        mindTotal = Math.max(mindTotal, Number(stepUpRoll.total || 0));
+      } else if (circ.stepDownDisadvantage) {
+        var stepDownDie = stepSpellDie(mindDie, -1);
+        var stepDownRoll = explodingRoll(stepDownDie, { type: 'action', major: true, label: 'Spell Step Down Disadvantage d' + stepDownDie });
+        mindTotal = Math.min(mindTotal, Number(stepDownRoll.total || 0));
+      }
+
+      var spiritRoll = null;
+      if (circ.addSpiritBonus || circ.addSpiritPenalty) {
+        spiritRoll = explodingRoll(spiritDie, { type: 'action', major: true, label: 'Spell Spirit d' + spiritDie });
+      }
+      if (circ.addSpiritBonus && spiritRoll) mindTotal += Number(spiritRoll.total || 0);
+      if (circ.addSpiritPenalty && spiritRoll) mindTotal -= Number(spiritRoll.total || 0);
+      mindTotal += Number(circ.mindFlat || 0);
+      if (mindTotal < 1) mindTotal = 1;
+
+      var valorRoll = explodingRoll(finalValorDie, { type: 'dread', major: true, label: 'Spell Valor d' + finalValorDie });
+      var castSuccess = mindTotal >= Number(valorRoll.total || 0);
+      finalizeCastFromTotals(
+        { total: mindTotal },
+        { total: Number(valorRoll.total || 0) },
+        castSuccess,
+        false,
+        circ
+      );
+    }
+  });
   // Scroll is never removed — indefinite use
 }
 

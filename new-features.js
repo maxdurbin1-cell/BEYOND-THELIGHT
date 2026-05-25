@@ -5057,7 +5057,94 @@
     return false;
   }
 
-  function resolveCrucibleSpellHackAction(actor, target, kind, match, logs, manualTotals) {
+  function hasUnifiedSpellEngine() {
+    return typeof getSpellCircumstanceProfile === 'function'
+      && typeof openSpellCircumstancePrompt === 'function'
+      && typeof evaluateSpellCircumstances === 'function';
+  }
+
+  function summarizeSpellCircumstanceAnswers(circData) {
+    if (!circData || !Array.isArray(circData.resolved) || !circData.resolved.length) return 'No circumstance answers recorded.';
+    return circData.resolved.map(function (row) {
+      return (row.answer === 'yes' ? 'Yes' : 'No') + ': ' + row.question;
+    }).join('<br>');
+  }
+
+  function buildUnifiedSpellManifestHtml(profile, success, margin) {
+    var m = Math.max(1, Number(margin || 1));
+    var p = profile || {};
+    var successTiers = Array.isArray(p.successTiers) ? p.successTiers : [];
+    var failureTiers = Array.isArray(p.failureTiers) ? p.failureTiers : [];
+    var tierIdx = (typeof getSpellMarginTierIndex === 'function') ? getSpellMarginTierIndex(m) : Math.min(7, Math.floor((m - 1) / 1));
+    var tier = success
+      ? (successTiers[tierIdx] || successTiers[0] || { effect: 'Spell resolves.', castLook: 'Arcane signs bloom.', fieldLook: 'The air ripples.' })
+      : (failureTiers[tierIdx] || failureTiers[0] || { effect: 'Spell fails.', castLook: 'The weave buckles.', fieldLook: 'Residual static fades.' });
+    return {
+      effect: String(tier.effect || ''),
+      castLook: String(tier.castLook || ''),
+      fieldLook: String(tier.fieldLook || '')
+    };
+  }
+
+  function showUnifiedSpellResultModal(title, profile, payload) {
+    if (typeof openModal !== 'function') return;
+    var data = payload || {};
+    var success = !!data.success;
+    var margin = Math.max(1, Number(data.margin || 1));
+    var manifest = buildUnifiedSpellManifestHtml(profile, success, margin);
+    var failureBand = (!success && typeof getSpellFailureBandLabel === 'function') ? getSpellFailureBandLabel(margin) : '';
+    var circumstances = summarizeSpellCircumstanceAnswers(data.circData);
+    var backlashNotes = (!success && !data.manual && typeof applySpellFailureBacklash === 'function')
+      ? (applySpellFailureBacklash(margin) || [])
+      : [];
+    var backlashHtml = backlashNotes.length
+      ? ('<div style="margin-top:.35rem;font-size:.74rem;color:var(--red2);"><strong>Applied Backlash:</strong><br>' + backlashNotes.join('<br>') + '</div>')
+      : '';
+    var html = '<div style="font-size:.86rem;color:var(--text2);line-height:1.6;">'
+      + '<div style="margin-bottom:.3rem;color:var(--muted2);">'
+      + String(data.context || 'Spell action') + ' - '
+      + '<strong style="color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">'
+      + Number(data.actionTotal || 0) + ' vs ' + Number(data.dreadTotal || 0) + '</strong> '
+      + '(margin ' + margin + ')' + (data.manual ? ' [manual]' : '')
+      + '</div>'
+      + '<div style="padding:.32rem .42rem;border:1px solid var(--border2);background:var(--surface);margin-bottom:.32rem;">'
+      + '<div style="font-size:.68rem;color:var(--gold2);font-family:\'Cinzel\',serif;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.1rem;">Spell Manifestation</div>'
+      + '<div style="font-size:.79rem;"><strong>Effect:</strong> ' + manifest.effect + '</div>'
+      + '<div style="font-size:.75rem;color:var(--muted2);margin-top:.1rem;"><strong>Cast Look:</strong> ' + manifest.castLook + '</div>'
+      + '<div style="font-size:.75rem;color:var(--muted2);margin-top:.08rem;"><strong>Around the Caster:</strong> ' + manifest.fieldLook + '</div>'
+      + (!success && failureBand ? ('<div style="font-size:.75rem;color:var(--red2);margin-top:.12rem;"><strong>Failure Band:</strong> ' + failureBand + '</div>') : '')
+      + '</div>'
+      + '<div style="padding:.28rem .36rem;border:1px dashed var(--border2);background:rgba(255,255,255,.01);">'
+      + '<div style="font-size:.66rem;color:var(--teal);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.08rem;">Circumstance Answers</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.45;">' + circumstances + '</div>'
+      + '</div>'
+      + backlashHtml
+      + '</div>';
+    openModal(title, html, null, { preventScroll: true, focusTrap: true });
+  }
+
+  function evaluateUnifiedSpellCircumstances(spellName, spellDesc, onResolved, onCancel) {
+    if (!hasUnifiedSpellEngine()) {
+      if (typeof onResolved === 'function') onResolved({ profile: null, circData: { resolved: [], modifierLines: [] } });
+      return true;
+    }
+    var profile = getSpellCircumstanceProfile(spellName, spellDesc || '');
+    openSpellCircumstancePrompt({
+      scrollName: spellName,
+      scrollDesc: spellDesc || '',
+      profile: profile,
+      onCancel: function () {
+        if (typeof onCancel === 'function') onCancel();
+      },
+      onResolve: function (resolved) {
+        var circData = evaluateSpellCircumstances(profile, resolved && resolved.answers ? resolved.answers : []);
+        if (typeof onResolved === 'function') onResolved({ profile: profile, circData: circData });
+      }
+    });
+    return true;
+  }
+
+  function resolveCrucibleSpellHackAction(actor, target, kind, match, logs, manualTotals, spellMeta) {
     if (!actor || !target || !match) return false;
     var actionKind = String(kind || 'spell').toLowerCase();
     var actionDie = actionKind === 'hack' ? getCrucibleStatDie('control', 8) : getCrucibleStatDie('spirit', 8);
@@ -5073,6 +5160,39 @@
       var dreadRoll = (typeof explodingRoll === 'function') ? explodingRoll(dreadDie, { type: 'dread', major: true, label: 'Crucible Defense DD' + dreadDie }) : { total: (Math.floor(Math.random() * dreadDie) + 1) };
       actionTotal = Math.max(1, Number(actionRoll.total || 1));
       dreadTotal = Math.max(1, Number(dreadRoll.total || 1));
+    }
+
+    var circData = spellMeta && spellMeta.circData ? spellMeta.circData : null;
+    if (!manualTotals && circData) {
+      var spiritDie = getCrucibleStatDie('spirit', 8);
+      actionTotal += Number(circData.mindFlat || 0);
+      if (circData.addSpiritBonus || circData.addSpiritPenalty) {
+        var spiritRoll = (typeof explodingRoll === 'function') ? explodingRoll(spiritDie, { type: 'action', major: true, label: 'Circumstance Spirit d' + spiritDie }) : { total: (Math.floor(Math.random() * spiritDie) + 1) };
+        actionTotal += circData.addSpiritBonus ? Number(spiritRoll.total || 0) : 0;
+        actionTotal -= circData.addSpiritPenalty ? Number(spiritRoll.total || 0) : 0;
+      }
+      if (circData.stepUpAdvantage || circData.stepDownDisadvantage) {
+        var auxDie = circData.stepUpAdvantage
+          ? Math.min(20, actionDie >= 12 ? 20 : actionDie + 2)
+          : Math.max(4, actionDie <= 4 ? 4 : actionDie - 2);
+        var auxRoll = (typeof explodingRoll === 'function') ? explodingRoll(auxDie, { type: 'action', major: true, label: 'Circumstance ' + (circData.stepUpAdvantage ? 'StepUp' : 'StepDown') + ' d' + auxDie }) : { total: (Math.floor(Math.random() * auxDie) + 1) };
+        actionTotal = circData.stepUpAdvantage
+          ? Math.max(actionTotal, Number(auxRoll.total || 0))
+          : Math.min(actionTotal, Number(auxRoll.total || 0));
+      }
+      var steppedDread = dreadDie;
+      var steps = Number(circData.valorStep || 0);
+      while (steps !== 0) {
+        steppedDread = (typeof stepSpellDie === 'function')
+          ? stepSpellDie(steppedDread, steps > 0 ? 1 : -1)
+          : Math.max(4, steppedDread + (steps > 0 ? 2 : -2));
+        steps += steps > 0 ? -1 : 1;
+      }
+      if (Number(steppedDread || dreadDie) !== Number(dreadDie)) {
+        var dreadRoll2 = (typeof explodingRoll === 'function') ? explodingRoll(steppedDread, { type: 'dread', major: true, label: 'Crucible Circumstance DD' + steppedDread }) : { total: (Math.floor(Math.random() * steppedDread) + 1) };
+        dreadTotal = Math.max(1, Number(dreadRoll2.total || 1));
+      }
+      actionTotal = Math.max(1, Number(actionTotal || 1));
     }
 
     var success = actionTotal >= dreadTotal;
@@ -5106,10 +5226,25 @@
         });
       }
     }
+    if (spellMeta && spellMeta.profile) {
+      showUnifiedSpellResultModal(
+        (actionKind === 'hack' ? 'Hack Manifestation' : 'Spell Manifestation') + ' - ' + target.name,
+        spellMeta.profile,
+        {
+          success: success,
+          margin: margin,
+          actionTotal: actionTotal,
+          dreadTotal: dreadTotal,
+          context: (actionKind === 'hack' ? 'Hack' : 'Spell') + ' vs ' + target.name + ' (Crucible)',
+          manual: !!manualTotals,
+          circData: spellMeta.circData
+        }
+      );
+    }
     return true;
   }
 
-  function openCrucibleManualSpellHackPrompt(actor, target, kind) {
+  function openCrucibleManualSpellHackPrompt(actor, target, kind, spellMeta) {
     if (typeof openModal !== 'function') return false;
     ensureNewFeatureState();
     var match = getHoldingCrucibleMatch();
@@ -5117,14 +5252,19 @@
     S.holding.crucible.manualActionPending = {
       actorId: String(actor && actor.id || ''),
       targetId: String(target && target.id || ''),
-      kind: String(kind || 'spell').toLowerCase()
+      kind: String(kind || 'spell').toLowerCase(),
+      spellMeta: spellMeta || null
     };
     var pendingKind = String(kind || 'spell').toLowerCase();
     var statKey = pendingKind === 'hack' ? 'control' : 'spirit';
     var actionDie = pendingKind === 'hack' ? getCrucibleStatDie('control', 8) : getCrucibleStatDie('spirit', 8);
     var dreadDie = Math.max(4, Number(target && (target.attackDie || target.defendDie || 8)));
+    var extraLines = ['Enter final totals after applying all listed modifiers.'];
+    if (spellMeta && spellMeta.circData && Array.isArray(spellMeta.circData.modifierLines)) {
+      extraLines = extraLines.concat(spellMeta.circData.modifierLines);
+    }
     var modifierLines = (typeof window !== 'undefined' && typeof window.buildManualRollModifierLines === 'function')
-      ? (window.buildManualRollModifierLines(statKey, actionDie, { extraLines: ['Enter final totals after applying all listed modifiers.'] }) || [])
+      ? (window.buildManualRollModifierLines(statKey, actionDie, { extraLines: extraLines }) || [])
       : [];
     var modifierHtml = modifierLines.length
       ? '<div style="font-size:.72rem;color:var(--muted2);margin-top:.18rem;line-height:1.5;">' + modifierLines.map(function(p){ return '<div>• ' + p + '</div>'; }).join('') + '</div>'
@@ -5193,7 +5333,7 @@
     resolveCrucibleSpellHackAction(actor, target, pending.kind, match, logs, {
       action: actionValue,
       dread: dreadValue
-    });
+    }, pending.spellMeta || null);
     match.log = (match.log || []).concat(logs).slice(-120);
     S.holding.crucible.manualActionPending = null;
     if (typeof goBackModal === 'function') goBackModal();
@@ -5226,6 +5366,33 @@
     if (target && Number(target.hp || 0) > 0) return target;
     var livingEnemies = getLivingTeamUnits(match && match.enemies);
     return livingEnemies.length ? livingEnemies[0] : null;
+  }
+
+  function executeCrucibleSpellHackWithCircumstances(actor, target, action, match, logs, useManualMode) {
+    if (!actor || !target || !match) return false;
+    var kind = String(action || 'spell').toLowerCase();
+    var spellName = (kind === 'hack' ? 'Crucible Hack: ' : 'Crucible Spell: ') + String(actor.name || 'Caster') + ' -> ' + String(target.name || 'Target');
+    var desc = kind === 'hack' ? 'Tactical intrusion cast during Crucible combat.' : 'Tactical spell cast during Crucible combat.';
+    evaluateUnifiedSpellCircumstances(spellName, desc, function (resolved) {
+      var spellMeta = { profile: resolved && resolved.profile, circData: resolved && resolved.circData ? resolved.circData : null };
+      if (useManualMode) {
+        openCrucibleManualSpellHackPrompt(actor, target, kind, spellMeta);
+        return;
+      }
+      if (!spendCrucibleUnitAp(actor, 1)) {
+        if (typeof showNotif === 'function') showNotif(actor.name + ' has no AP left.', 'warn');
+        return;
+      }
+      resolveCrucibleSpellHackAction(actor, target, kind, match, logs, null, spellMeta);
+      match.log = (match.log || []).concat(logs).slice(-120);
+      maybeSyncCrucibleSelection(match);
+      finalizeHoldingCrucibleMatch(match);
+      renderHoldingCruciblePopup();
+      renderHoldingUI();
+    }, function () {
+      if (typeof showNotif === 'function') showNotif('Spell/Hack cast cancelled.', 'warn');
+    });
+    return true;
   }
 
   function getSelectedCrucibleEnemy(match) {
@@ -8242,11 +8409,7 @@
         if (typeof showNotif === 'function') showNotif('Select a valid target in spell/hack range first.', 'warn');
         return false;
       }
-      if (isNewFeaturesManualRollMode()) {
-        return openCrucibleManualSpellHackPrompt(actor, target, action);
-      }
-      if (!spendCrucibleUnitAp(actor, 1)) return false;
-      resolveCrucibleSpellHackAction(actor, target, action, match, logs, null);
+      return executeCrucibleSpellHackWithCircumstances(actor, target, action, match, logs, isNewFeaturesManualRollMode());
     } else if (moveAction) {
       if (!spendCrucibleUnitAp(actor, 1)) return false;
       if (!executeCrucibleMoveAction(actor, target, match, logs)) {
@@ -13117,6 +13280,7 @@
     var tmwCost = Math.max(0, Number(data.tmwCost || 0));
     var manual = !!data.manual;
     var combatEnemy = data.combatEnemy || ((typeof getPrimaryCombatEnemy === 'function') ? getPrimaryCombatEnemy() : null);
+    var spellMeta = data.spellMeta || null;
 
     var actual;
     if (valorVal < low) actual = 'below';
@@ -13186,6 +13350,24 @@
       });
     }
 
+    if (spellMeta && spellMeta.profile) {
+      var displayDread = actual === 'below' ? low : (actual === 'above' ? high : Math.round((low + high) / 2));
+      var displayMargin = success
+        ? (actual === 'below'
+            ? Math.max(1, low - valorVal)
+            : (actual === 'above' ? Math.max(1, valorVal - high) : Math.max(1, Math.min(valorVal - low, high - valorVal) + 1)))
+        : Math.max(1, malwareBy);
+      showUnifiedSpellResultModal('Hack Manifestation - ' + hackName, spellMeta.profile, {
+        success: success,
+        margin: displayMargin,
+        actionTotal: valorVal,
+        dreadTotal: displayDread,
+        context: 'Hack cast: ' + hackName,
+        manual: manual,
+        circData: spellMeta.circData
+      });
+    }
+
     if (typeof renderQP === 'function' && S.quickPanel) {
       S.quickPanel.lastCombatRoll = (resultEl && resultEl.innerHTML) ? resultEl.innerHTML : S.quickPanel.lastCombatRoll;
       renderQP('combat');
@@ -13199,8 +13381,16 @@
       hackName: String(data.hackName || ''),
       tmwCost: Math.max(0, Number(data.tmwCost || 0)),
       dreadDie: Math.max(4, Number(data.dreadDie || 6)),
-      combatEnemyId: String(data.combatEnemy && data.combatEnemy.id || '')
+      combatEnemyId: String(data.combatEnemy && data.combatEnemy.id || ''),
+      spellMeta: data.spellMeta || null
     };
+    var extraLines = [];
+    if (data.spellMeta && data.spellMeta.circData && Array.isArray(data.spellMeta.circData.modifierLines)) {
+      extraLines = data.spellMeta.circData.modifierLines;
+    }
+    var modHtml = extraLines.length
+      ? ('<div style="font-size:.7rem;color:var(--muted2);margin-top:.24rem;line-height:1.45;">' + extraLines.map(function (line) { return '<div>• ' + line + '</div>'; }).join('') + '</div>')
+      : '';
     var html = '<div style="font-size:.82rem;color:var(--text2);line-height:1.54;">'
       + '<div style="margin-bottom:.22rem;">Manual Hack Roll: enter your rolled values and resolve against your guess <strong>' + getHackGuessLabel(S.hackRoller.guess || 'between') + '</strong>.</div>'
       + '<div style="display:grid;grid-template-columns:repeat(3,minmax(100px,1fr));gap:.3rem;">'
@@ -13209,6 +13399,7 @@
       + '<label style="font-size:.7rem;color:var(--muted2);">Valor Total<input id="manualHackControl" type="number" min="1" max="999" style="width:100%;margin-top:.08rem;"></label>'
       + '</div>'
       + '<div style="font-size:.7rem;color:var(--muted2);margin-top:.2rem;">Cost on resolve: ' + Number(data.tmwCost || 0) + ' TMW.</div>'
+      + modHtml
       + '<div style="margin-top:.28rem;">'
       + buildNestedModalActionRow(
           '<button class="btn btn-sm btn-primary" onclick="resolveManualHackCast()">Resolve Manual Hack</button>',
@@ -13256,7 +13447,8 @@
       valorVal: ctrl,
       guess: String(S.hackRoller.guess || 'between'),
       combatEnemy: combatEnemy,
-      manual: true
+      manual: true,
+      spellMeta: pending.spellMeta || null
     });
     S.hackRoller.pendingManual = null;
     goBackOrCloseModal();
@@ -13300,43 +13492,75 @@
       : (S.hackRoller.dreadDie || 6);
     S.hackRoller.dreadDie = dreadDie;
 
-    if (isNewFeaturesManualRollMode()) {
-      openManualHackCastModal({
+    evaluateUnifiedSpellCircumstances('Hack: ' + hackName, (hackData && hackData.desc) ? hackData.desc : 'OS hack cast', function (resolved) {
+      var spellMeta = { profile: resolved && resolved.profile, circData: resolved && resolved.circData ? resolved.circData : null };
+      if (isNewFeaturesManualRollMode()) {
+        openManualHackCastModal({
+          hackName: hackName,
+          tmwCost: tmwCost,
+          dreadDie: dreadDie,
+          combatEnemy: combatEnemy,
+          spellMeta: spellMeta
+        });
+        return;
+      }
+
+      if (tmwCost > 0) {
+        S.tmw = Math.max(0, Number(S.tmw || 0) - tmwCost);
+        if (typeof updateTMWPool === 'function') updateTMWPool();
+      }
+
+      var circ = spellMeta.circData || {};
+      var dreadDieEff = Math.max(4, Number(dreadDie || 6));
+      var steps = Number(circ.valorStep || 0);
+      while (steps !== 0) {
+        dreadDieEff = (typeof stepSpellDie === 'function')
+          ? stepSpellDie(dreadDieEff, steps > 0 ? 1 : -1)
+          : Math.max(4, dreadDieEff + (steps > 0 ? 2 : -2));
+        steps += steps > 0 ? -1 : 1;
+      }
+
+      var d1 = roll(dreadDieEff);
+      var d2 = roll(dreadDieEff);
+      var low = Math.min(d1, d2);
+      var high = Math.max(d1, d2);
+      var valorDie = Math.max(4, Number((S.stats && (S.stats.valor || S.stats.control)) || 4));
+      var valorRoll = explodingRoll(valorDie);
+      var augBonusDie = (typeof getAugBonus === 'function') ? getAugBonus('control') : 0;
+      var augRoll = augBonusDie > 0 ? explodingRoll(augBonusDie) : null;
+      var valorVal = Number(valorRoll.total || 0) + Number(augRoll ? augRoll.total : 0);
+      valorVal += Number(circ.mindFlat || 0);
+      if (circ.addSpiritBonus || circ.addSpiritPenalty) {
+        var spiritDie = Math.max(4, Number((S.stats && S.stats.spirit) || 4));
+        var spiritRoll = explodingRoll(spiritDie);
+        if (circ.addSpiritBonus) valorVal += Number(spiritRoll.total || 0);
+        if (circ.addSpiritPenalty) valorVal -= Number(spiritRoll.total || 0);
+      }
+      if (circ.stepUpAdvantage || circ.stepDownDisadvantage) {
+        var auxDie = circ.stepUpAdvantage
+          ? Math.min(20, valorDie >= 12 ? 20 : valorDie + 2)
+          : Math.max(4, valorDie <= 4 ? 4 : valorDie - 2);
+        var auxVal = Number((explodingRoll(auxDie) || {}).total || 0);
+        valorVal = circ.stepUpAdvantage ? Math.max(valorVal, auxVal) : Math.min(valorVal, auxVal);
+      }
+      valorVal = Math.max(1, Number(valorVal || 1));
+
+      applyHackCastOutcome({
         hackName: hackName,
+        hackData: hackData,
         tmwCost: tmwCost,
-        dreadDie: dreadDie,
-        combatEnemy: combatEnemy
+        dreadDie: dreadDieEff,
+        low: low,
+        high: high,
+        valorDie: valorDie,
+        valorVal: valorVal,
+        guess: String(S.hackRoller.guess || 'between'),
+        combatEnemy: combatEnemy,
+        manual: false,
+        spellMeta: spellMeta
       });
-      return;
-    }
-
-    if (tmwCost > 0) {
-      S.tmw = Math.max(0, Number(S.tmw || 0) - tmwCost);
-      if (typeof updateTMWPool === 'function') updateTMWPool();
-    }
-
-    var d1 = roll(dreadDie);
-    var d2 = roll(dreadDie);
-    var low = Math.min(d1, d2);
-    var high = Math.max(d1, d2);
-    var valorDie = Math.max(4, Number((S.stats && (S.stats.valor || S.stats.control)) || 4));
-    var valorRoll = explodingRoll(valorDie);
-    var augBonusDie = (typeof getAugBonus === 'function') ? getAugBonus('control') : 0;
-    var augRoll = augBonusDie > 0 ? explodingRoll(augBonusDie) : null;
-    var valorVal = Number(valorRoll.total || 0) + Number(augRoll ? augRoll.total : 0);
-
-    applyHackCastOutcome({
-      hackName: hackName,
-      hackData: hackData,
-      tmwCost: tmwCost,
-      dreadDie: dreadDie,
-      low: low,
-      high: high,
-      valorDie: valorDie,
-      valorVal: valorVal,
-      guess: String(S.hackRoller.guess || 'between'),
-      combatEnemy: combatEnemy,
-      manual: false
+    }, function () {
+      if (typeof showNotif === 'function') showNotif('Hack cast cancelled.', 'warn');
     });
   }
 

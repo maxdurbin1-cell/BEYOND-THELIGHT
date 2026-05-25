@@ -14755,6 +14755,64 @@ function getScrollAoeActionHtml(scrollItem, scrollName, margin) {
     + '</div>';
 }
 
+function getScrollVttPreviewModes(scrollItem, scrollName, margin) {
+  if (typeof window.openVttSpellPreviewFromScroll !== 'function') return [];
+  var name = String(scrollName || scrollItem && scrollItem.name || 'Spell').toLowerCase();
+  var expandedUnlocked = Math.max(1, Number(margin || 1)) >= 4;
+  if (/thunder\s*lattice/.test(name)) {
+    return [
+      { label: 'VTT Focused Line', shape: 'line', mode: 'focused', enabled: true },
+      { label: 'VTT Standard Line', shape: 'line', mode: 'standard', enabled: true },
+      { label: 'VTT Ring Variant', shape: 'ring', mode: expandedUnlocked ? 'expanded' : 'standard', enabled: true }
+    ];
+  }
+  if (/gravit|starwell|gravity/.test(name)) {
+    return [
+      { label: 'VTT Focused Pull', shape: 'ring', mode: 'focused', enabled: true },
+      { label: 'VTT Standard Pull', shape: 'ring', mode: 'standard', enabled: true },
+      { label: 'VTT Expanded Pull', shape: 'ring', mode: 'expanded', enabled: expandedUnlocked }
+    ];
+  }
+  var defaultShape = (scrollItem && scrollItem.aoe && String(scrollItem.aoe.shape || '').toLowerCase() === 'ring') ? 'ring' : 'line';
+  return [
+    { label: 'VTT Focused', shape: defaultShape, mode: 'focused', enabled: true },
+    { label: 'VTT Standard', shape: defaultShape, mode: 'standard', enabled: true },
+    { label: 'VTT Expanded', shape: defaultShape, mode: 'expanded', enabled: expandedUnlocked }
+  ];
+}
+
+function getScrollVttPreviewActionHtml(scrollItem, scrollName, margin) {
+  var modes = getScrollVttPreviewModes(scrollItem, scrollName, margin);
+  if (!modes.length) return '';
+  var safeName = String(scrollName || scrollItem && scrollItem.name || 'Spell').replace(/'/g, "\\'");
+  var buttons = modes.map(function (mode) {
+    var enabled = mode && mode.enabled !== false;
+    if (!enabled) {
+      return '<button class="btn btn-xs" disabled title="Requires margin 4+">' + String(mode.label || 'VTT') + '</button>';
+    }
+    return '<button class="btn btn-xs btn-teal" onclick="launchVttScrollSpellPreviewFromModal(\'' + safeName + '\',\'' + String(mode.shape || 'line') + '\',\'' + String(mode.mode || 'standard') + '\',\'' + String(margin || 1) + '\')">' + String(mode.label || 'VTT') + '</button>';
+  }).join('');
+  return '<div style="padding:.32rem .42rem;border:1px dashed var(--border2);background:rgba(108,189,255,.07);margin-bottom:.35rem;">'
+    + '<div style="font-size:.66rem;color:var(--teal);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.14rem;">Open In VTT Spell Preview</div>'
+    + '<div style="display:flex;gap:.25rem;flex-wrap:wrap;">' + buttons + '</div>'
+    + '<div style="font-size:.7rem;color:var(--muted2);margin-top:.18rem;">Launches the combat map preview with this scroll profile and shape mode.</div>'
+    + '</div>';
+}
+
+window.launchVttScrollSpellPreviewFromModal = function (scrollName, shape, mode, margin) {
+  if (typeof window.openVttSpellPreviewFromScroll !== 'function') {
+    if (typeof showNotif === 'function') showNotif('VTT spell preview is unavailable in this context.', 'warn');
+    return false;
+  }
+  var ok = window.openVttSpellPreviewFromScroll(String(scrollName || 'Spell'), {
+    shape: String(shape || 'line'),
+    mode: String(mode || 'standard'),
+    margin: Math.max(1, Number(margin || 1))
+  });
+  if (ok && typeof closeModal === 'function') closeModal();
+  return !!ok;
+};
+
 function readBuildersLetter(index) {
   openModal('Builder\'s Letter', '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
     + 'The paper is brittle but intact. In cramped script it reads:<br><br>'
@@ -14829,6 +14887,7 @@ function castScrollFromBackpack(index) {
     var hasCombatHostiles = !!(S && S.combat && S.combat.active && Array.isArray(S.enemies) && S.enemies.some(function (e) { return e && !e.ally; }));
     var aoeOptionHtml = castSuccess ? getScrollAoeOptionHtml(scrollItem, margin) : '';
     var aoeActionHtml = (castSuccess && hasCombatHostiles) ? getScrollAoeActionHtml(scrollItem, scrollName, margin) : '';
+    var vttActionHtml = castSuccess ? getScrollVttPreviewActionHtml(scrollItem, scrollName, margin) : '';
 
     var html = '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'
       + '<div style="margin-bottom:.5rem;font-size:.8rem;color:var(--muted2);">Mind d' + mindDie + ' vs Valor d' + advDie + (manualMode ? ' (manual)' : '') + '</div>'
@@ -14848,6 +14907,7 @@ function castScrollFromBackpack(index) {
       + '</div>'
       + aoeOptionHtml
       + aoeActionHtml
+        + vttActionHtml
       + (castSuccess
           ? '<em style="color:var(--text2);">' + scrollDesc + '</em>' + condNote
           : '<em style="color:var(--muted2);">The words blur and fade. The scroll remains — try again.</em>')

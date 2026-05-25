@@ -4270,6 +4270,29 @@
       previewBorder: 'rgba(255,214,168,0.9)'
     },
     {
+      id: 'gravitic-fold',
+      label: 'Gravitic Fold',
+      shape: 'ring',
+      range: 4,
+      innerRadius: 1,
+      outerRadius: 3,
+      rounds: 2,
+      width: 0,
+      targetMode: 'enemies',
+      damageOnHit: true,
+      onHitCondition: 'vulnerable',
+      onHitActionDown: false,
+      zoneEnabled: true,
+      tickMode: 'fixed',
+      tickAmount: 1,
+      tickCondition: '',
+      zoneTickOnEnter: false,
+      zoneTickOnRoundStart: false,
+      pullToCenterRadius: 1,
+      previewColor: 'rgba(173,142,255,0.22)',
+      previewBorder: 'rgba(214,194,255,0.92)'
+    },
+    {
       id: 'mind-shear-cone',
       label: 'Mind Shear Cone',
       shape: 'cone',
@@ -4335,6 +4358,129 @@
     }
   ];
 
+  var SPELLCAST_DIRECTION_KEYS = ['e', 'ne', 'nw', 'w', 'sw', 'se'];
+
+  function getSpellcastBandSpec(bandKey) {
+    var map = {
+      engaged: { key: 'engaged', label: 'Engaged', range: 1, lineLength: 2, ringMin: 0, ringMax: 1, rounds: 1 },
+      close: { key: 'close', label: 'Close', range: 2, lineLength: 3, ringMin: 1, ringMax: 2, rounds: 2 },
+      nearby: { key: 'nearby', label: 'Nearby', range: 3, lineLength: 4, ringMin: 2, ringMax: 3, rounds: 2 },
+      far: { key: 'far', label: 'Far', range: 4, lineLength: 6, ringMin: 3, ringMax: 5, rounds: 3 }
+    };
+    var key = String(bandKey || 'close').toLowerCase();
+    return map[key] || map.close;
+  }
+
+  function normalizeSpellcastBandKey(value) {
+    var key = String(value || '').toLowerCase().trim();
+    if (key === 'engaged' || key === 'close' || key === 'nearby' || key === 'far') return key;
+    return 'close';
+  }
+
+  function stepSpellDieLocal(die, dir) {
+    var chain = [4, 6, 8, 10, 12, 20];
+    var d = Math.max(4, Number(die || 4));
+    var idx = chain.indexOf(d);
+    if (idx < 0) idx = 0;
+    var next = idx + (Number(dir || 0) > 0 ? 1 : -1);
+    if (next < 0) next = 0;
+    if (next > chain.length - 1) next = chain.length - 1;
+    return chain[next];
+  }
+
+  function resolveLegacySpellPreviewSelection(rawValue) {
+    var value = String(rawValue || '').trim();
+    var out = { spellId: value || 'thunder-lattice', overrides: {} };
+    if (value.indexOf('legacy:') !== 0) return out;
+    var presetKey = value.replace(/^legacy:/, '').trim().toLowerCase();
+    var presets = Array.isArray(window.AOE_SPELL_PRESETS) ? window.AOE_SPELL_PRESETS : [];
+    var row = presets.find(function (entry) {
+      return String(entry && entry.key || '').toLowerCase() === presetKey;
+    }) || null;
+    if (!row) return out;
+    var shape = String(row.shape || 'line').toLowerCase();
+    var band = normalizeSpellcastBandKey(row.band || 'close');
+    out.spellId = shape === 'ring' ? 'entropy-vault' : 'thunder-lattice';
+    out.overrides = {
+      spellLabel: String(row.name || 'AOE Template'),
+      shape: shape,
+      bandKey: band
+    };
+    return out;
+  }
+
+  function applySpellPreviewOverridesToTemplate(baseTemplate, overrides) {
+    var tpl = Object.assign({}, baseTemplate || {});
+    var patch = overrides && typeof overrides === 'object' ? overrides : {};
+    if (patch.spellLabel) tpl.label = String(patch.spellLabel);
+    if (patch.shape) tpl.shape = String(patch.shape).toLowerCase();
+    if (patch.targetMode) tpl.targetMode = String(patch.targetMode || 'enemies');
+    if (patch.tickMode) tpl.tickMode = String(patch.tickMode || 'none');
+    if (Number.isFinite(Number(patch.tickAmount))) tpl.tickAmount = Math.max(0, Number(patch.tickAmount));
+    if (patch.tickCondition != null) tpl.tickCondition = String(patch.tickCondition || '');
+    if (patch.onHitCondition != null) tpl.onHitCondition = String(patch.onHitCondition || '');
+    if (Number.isFinite(Number(patch.rounds))) tpl.rounds = Math.max(1, Number(patch.rounds));
+    if (Number.isFinite(Number(patch.range))) tpl.range = Math.max(1, Number(patch.range));
+    if (patch.damageOnHit != null) tpl.damageOnHit = !!patch.damageOnHit;
+    if (patch.zoneEnabled != null) tpl.zoneEnabled = !!patch.zoneEnabled;
+    if (patch.onHitActionDown != null) tpl.onHitActionDown = !!patch.onHitActionDown;
+    if (patch.zoneTickOnEnter != null) tpl.zoneTickOnEnter = !!patch.zoneTickOnEnter;
+    if (patch.zoneTickOnRoundStart != null) tpl.zoneTickOnRoundStart = !!patch.zoneTickOnRoundStart;
+    if (Number.isFinite(Number(patch.pullToCenterRadius))) tpl.pullToCenterRadius = Math.max(0, Number(patch.pullToCenterRadius));
+
+    var bandKey = normalizeSpellcastBandKey(patch.bandKey || '');
+    if (patch.bandKey) {
+      var band = getSpellcastBandSpec(bandKey);
+      tpl.range = Math.max(1, Number(band.range || tpl.range || 2));
+      tpl.rounds = Math.max(1, Number(band.rounds || tpl.rounds || 2));
+      if (String(tpl.shape || '').toLowerCase() === 'line') {
+        tpl.length = Math.max(1, Number(band.lineLength || tpl.length || 3));
+      } else if (String(tpl.shape || '').toLowerCase() === 'ring') {
+        tpl.innerRadius = Math.max(0, Number(band.ringMin || tpl.innerRadius || 0));
+        tpl.outerRadius = Math.max(tpl.innerRadius, Number(band.ringMax || tpl.outerRadius || 1));
+      }
+    }
+
+    if (String(tpl.shape || '').toLowerCase() === 'line') {
+      tpl.length = Math.max(1, Number(patch.length || tpl.length || 3));
+    }
+    if (String(tpl.shape || '').toLowerCase() === 'cone') {
+      tpl.length = Math.max(1, Number(patch.length || tpl.length || 4));
+      tpl.width = Math.max(0, Number(patch.width || tpl.width || 2));
+    }
+    if (String(tpl.shape || '').toLowerCase() === 'ring') {
+      tpl.innerRadius = Math.max(0, Number(patch.innerRadius == null ? tpl.innerRadius : patch.innerRadius));
+      tpl.outerRadius = Math.max(tpl.innerRadius, Number(patch.outerRadius == null ? tpl.outerRadius : patch.outerRadius));
+    }
+    if (String(tpl.shape || '').toLowerCase() === 'burst') {
+      tpl.radius = Math.max(0, Number(patch.radius == null ? tpl.radius : patch.radius));
+    }
+    return tpl;
+  }
+
+  function applyCombatSpellPullToCenter(tokens, centerQ, centerR, targetRadius) {
+    var radius = Math.max(0, Number(targetRadius || 0));
+    if (!radius || !Array.isArray(tokens) || !tokens.length) return;
+    var reserved = {};
+    tokens.forEach(function (token) {
+      if (!token) return;
+      var ray = axialLine({ q: Number(centerQ || 0), r: Number(centerR || 0) }, { q: Number(token.q || 0), r: Number(token.r || 0) });
+      if (!ray || !ray.length) return;
+      var desired = ray[Math.min(ray.length - 1, radius)] || null;
+      if (!desired) return;
+      var key = toKey(Number(desired.q || 0), Number(desired.r || 0));
+      if (reserved[key]) return;
+      reserved[key] = true;
+      moveToken(String(token.id || ''), Number(desired.q || 0), Number(desired.r || 0));
+    });
+  }
+
+  function isUnifiedSpellPromptAvailable() {
+    return typeof getSpellCircumstanceProfile === 'function'
+      && typeof openSpellCircumstancePrompt === 'function'
+      && typeof evaluateSpellCircumstances === 'function';
+  }
+
   function getSpellcastTemplateById(spellId) {
     var bootstrapDefaults = [{
       id: 'thunder-lattice',
@@ -4395,6 +4541,8 @@
       tickCondition: String(tpl && tpl.tickCondition || ''),
       zoneTickOnEnter: !!(tpl && tpl.zoneTickOnEnter),
       zoneTickOnRoundStart: !!(tpl && tpl.zoneTickOnRoundStart),
+      pullToCenterRadius: Math.max(0, Number(tpl && tpl.pullToCenterRadius || 0)),
+      directionKey: String(tpl && tpl.directionKey || 'e'),
       color: String(tpl && tpl.previewColor || 'rgba(108,189,255,0.26)'),
       border: String(tpl && tpl.previewBorder || 'rgba(164,223,255,0.95)'),
       isValid: false,
@@ -4424,6 +4572,10 @@
     next.tickCondition = String(next.tickCondition || '').trim().toLowerCase();
     next.zoneTickOnEnter = !!next.zoneTickOnEnter;
     next.zoneTickOnRoundStart = !!next.zoneTickOnRoundStart;
+    next.pullToCenterRadius = Math.max(0, Number(next.pullToCenterRadius || 0));
+    next.directionKey = SPELLCAST_DIRECTION_KEYS.indexOf(String(next.directionKey || '').toLowerCase()) >= 0
+      ? String(next.directionKey || '').toLowerCase()
+      : 'e';
     next.color = String(next.color || 'rgba(108,189,255,0.26)');
     next.border = String(next.border || 'rgba(164,223,255,0.95)');
     next.isValid = !!next.isValid;
@@ -4447,8 +4599,9 @@
     }) || null;
   }
 
-  function computeSpellPreviewState(state, caster, targetQ, targetR, spellCfg) {
+  function computeSpellPreviewState(state, caster, targetQ, targetR, spellCfg, previousPreview) {
     var tpl = spellCfg && typeof spellCfg === 'object' ? spellCfg : getSpellcastTemplateById('thunder-lattice');
+    var prev = previousPreview && typeof previousPreview === 'object' ? normalizeCombatSpellPreview(previousPreview) : null;
     var casterToken = caster || null;
     var out = normalizeCombatSpellPreview({
       active: true,
@@ -4472,6 +4625,8 @@
       tickCondition: String(tpl.tickCondition || ''),
       zoneTickOnEnter: !!tpl.zoneTickOnEnter,
       zoneTickOnRoundStart: !!tpl.zoneTickOnRoundStart,
+      pullToCenterRadius: Math.max(0, Number(tpl.pullToCenterRadius || 0)),
+      directionKey: String(prev && prev.directionKey || 'e'),
       color: String(tpl.previewColor || 'rgba(108,189,255,0.26)'),
       border: String(tpl.previewBorder || 'rgba(164,223,255,0.95)')
     });
@@ -4483,6 +4638,13 @@
 
     var target = { q: Number(targetQ || casterToken.q || 0), r: Number(targetR || casterToken.r || 0) };
     var dist = hexDistance({ q: Number(casterToken.q || 0), r: Number(casterToken.r || 0) }, target);
+    if (dist > 0) {
+      var line = axialLine({ q: Number(casterToken.q || 0), r: Number(casterToken.r || 0) }, target);
+      var nextHex = line.length > 1 ? line[1] : target;
+      var dq = Number(nextHex && nextHex.q || target.q) - Number(casterToken.q || 0);
+      var dr = Number(nextHex && nextHex.r || target.r) - Number(casterToken.r || 0);
+      out.directionKey = getAxialDirectionKeyFromDelta(dq, dr);
+    }
     out.distance = dist;
     out.label = hexLabel(dist);
 
@@ -4492,9 +4654,13 @@
     } else if (String(tpl.shape || '') === 'burst') {
       hexes = buildAoeZoneBurstHexes(state, target, Number(tpl.radius || 1));
     } else if (String(tpl.shape || '') === 'cone') {
-      hexes = buildAoeZoneConeHexes(state, casterToken, target, Math.max(1, Number(tpl.length || 4)), Math.max(0, Number(tpl.width || 2)));
+      var coneCenter = target;
+      if (dist <= 0) coneCenter = stepAxialByDirection(casterToken, out.directionKey, 1);
+      hexes = buildAoeZoneConeHexes(state, casterToken, coneCenter, Math.max(1, Number(tpl.length || 4)), Math.max(0, Number(tpl.width || 2)));
     } else {
-      hexes = buildAoeZoneLineHexes(state, casterToken, target, Math.max(1, Number(tpl.length || 4)));
+      var lineCenter = target;
+      if (dist <= 0) lineCenter = stepAxialByDirection(casterToken, out.directionKey, 1);
+      hexes = buildAoeZoneLineHexes(state, casterToken, lineCenter, Math.max(1, Number(tpl.length || 4)));
     }
     out.hexKeys = hexes.map(function (hex) { return toKey(Number(hex.q || 0), Number(hex.r || 0)); });
 
@@ -4526,17 +4692,17 @@
     updateUiPanels();
   }
 
-  function startCombatSpellPreview(spellId, casterTokenId) {
+  function startCombatSpellPreview(spellId, casterTokenId, options) {
     var state = store.getState();
     var caster = pickSpellcastCasterToken(state, casterTokenId);
     if (!caster) {
       safeNotif('No available caster token. Add or select a token first.', 'warn');
       return false;
     }
-    var tpl = getSpellcastTemplateById(spellId);
+    var tpl = applySpellPreviewOverridesToTemplate(getSpellcastTemplateById(spellId), options);
     var targetQ = Number(caster.q || 0);
     var targetR = Number(caster.r || 0);
-    var built = computeSpellPreviewState(state, caster, targetQ, targetR, tpl);
+    var built = computeSpellPreviewState(state, caster, targetQ, targetR, tpl, null);
     store.setState({
       activeTool: 'spellcast',
       selectedTokenId: String(caster.id || ''),
@@ -4555,11 +4721,32 @@
     var preview = normalizeCombatSpellPreview(state.spellPreview);
     if (!preview.active) return;
     var caster = pickSpellcastCasterToken(state, preview.casterTokenId);
+    var tpl = applySpellPreviewOverridesToTemplate(getSpellcastTemplateById(preview.spellId), preview);
     if (!caster) return;
-    var nextPreview = computeSpellPreviewState(state, caster, Number(q || caster.q || 0), Number(r || caster.r || 0), tpl);
+    var nextPreview = computeSpellPreviewState(state, caster, Number(q || caster.q || 0), Number(r || caster.r || 0), tpl, preview);
     store.setState({ spellPreview: nextPreview });
     drawBoard();
     updateUiPanels();
+  }
+
+  function rotateCombatSpellPreviewDirection(step) {
+    var state = store.getState();
+    var preview = normalizeCombatSpellPreview(state.spellPreview);
+    if (!preview.active) return false;
+    var idx = SPELLCAST_DIRECTION_KEYS.indexOf(String(preview.directionKey || 'e'));
+    var startIdx = idx < 0 ? 0 : idx;
+    var nextIdx = (startIdx + (Number(step || 0) >= 0 ? 1 : -1) + SPELLCAST_DIRECTION_KEYS.length) % SPELLCAST_DIRECTION_KEYS.length;
+    var nextDirection = SPELLCAST_DIRECTION_KEYS[nextIdx];
+    var caster = pickSpellcastCasterToken(state, preview.casterTokenId);
+    if (!caster) return false;
+    var nextPreviewSeed = Object.assign({}, preview, { directionKey: nextDirection });
+    var tpl = applySpellPreviewOverridesToTemplate(getSpellcastTemplateById(preview.spellId), nextPreviewSeed);
+    var nextPreview = computeSpellPreviewState(state, caster, Number(preview.targetQ || caster.q || 0), Number(preview.targetR || caster.r || 0), tpl, nextPreviewSeed);
+    nextPreview.directionKey = nextDirection;
+    store.setState({ spellPreview: nextPreview });
+    drawBoard();
+    updateUiPanels();
+    return true;
   }
 
   function castCombatSpellPreview() {
@@ -4581,17 +4768,50 @@
     var tpl = getSpellcastTemplateById(preview.spellId);
 
     var manualMode = !state.autoRoll || isManualRollModeActive();
+    var circMeta = null;
+    if (isUnifiedSpellPromptAvailable()) {
+      var prompted = false;
+      openSpellCircumstancePrompt({
+        scrollName: String(preview.spellLabel || 'Spell'),
+        scrollDesc: '',
+        profile: getSpellCircumstanceProfile(String(preview.spellLabel || 'Spell'), ''),
+        onCancel: function () {
+          safeNotif('Spell cast cancelled.', 'info');
+        },
+        onResolve: function (resolved) {
+          var profile = getSpellCircumstanceProfile(String(preview.spellLabel || 'Spell'), '');
+          var circData = evaluateSpellCircumstances(profile, resolved && resolved.answers ? resolved.answers : []);
+          castCombatSpellPreviewWithContext(preview, caster, manualMode, { profile: profile, circData: circData });
+        }
+      });
+      prompted = true;
+      if (prompted) return true;
+    }
+    return castCombatSpellPreviewWithContext(preview, caster, manualMode, circMeta);
+  }
+
+  function castCombatSpellPreviewWithContext(preview, caster, manualMode, spellMeta) {
+    var state = store.getState();
+    var meta = spellMeta && typeof spellMeta === 'object' ? spellMeta : null;
     var castTotal = 0;
     var resistTotal = 0;
     var mindDie = Math.max(4, Number(getWayfarerEffectiveDie('mind', 6) || 6));
     var valorDie = Math.max(4, Number(window.S && window.S.stats && (window.S.stats.valor || window.S.stats.adventure) || 6));
+    var finalValorDie = valorDie;
+    if (meta && meta.circData) {
+      var steps = Number(meta.circData.valorStep || 0);
+      while (steps !== 0) {
+        finalValorDie = stepSpellDieLocal(finalValorDie, steps > 0 ? 1 : -1);
+        steps += steps > 0 ? -1 : 1;
+      }
+    }
     if (manualMode) {
-      var manualCast = promptManualDieTotal('Manual Mind total for ' + String(preview.spellLabel || 'Spell') + ' (1+):', 10, 1, 9999);
+      var manualCast = promptManualDieTotal('Manual Mind total for ' + String(preview.spellLabel || 'Spell') + ' (after circumstance modifiers):', 10, 1, 9999);
       if (manualCast === null) {
         safeNotif('Spell cast cancelled.', 'info');
         return false;
       }
-      var manualResist = promptManualDieTotal('Manual Valor total (resistance) (1+):', 8, 1, 9999);
+      var manualResist = promptManualDieTotal('Manual Valor total (resistance, after modifiers) (1+):', 8, 1, 9999);
       if (manualResist === null) {
         safeNotif('Spell cast cancelled.', 'info');
         return false;
@@ -4600,7 +4820,24 @@
       resistTotal = Math.max(1, Number(manualResist || 1));
     } else {
       castTotal = rollCombatDieTotal(mindDie, 'action', String(caster.name || 'Caster') + ' Mind d' + mindDie);
-      resistTotal = rollCombatDieTotal(valorDie, 'dread', 'Valor resistance d' + valorDie);
+      if (meta && meta.circData) {
+        castTotal += Number(meta.circData.mindFlat || 0);
+        if (meta.circData.stepUpAdvantage) {
+          var upRoll = rollCombatDieTotal(stepSpellDieLocal(mindDie, 1), 'action', 'Spell Step Up Advantage');
+          castTotal = Math.max(castTotal, upRoll);
+        } else if (meta.circData.stepDownDisadvantage) {
+          var downRoll = rollCombatDieTotal(stepSpellDieLocal(mindDie, -1), 'action', 'Spell Step Down Disadvantage');
+          castTotal = Math.min(castTotal, downRoll);
+        }
+        if (meta.circData.addSpiritBonus || meta.circData.addSpiritPenalty) {
+          var spiritDie = Math.max(4, Number(getWayfarerEffectiveDie('spirit', 6) || 6));
+          var spiritTotal = rollCombatDieTotal(spiritDie, 'action', 'Spell Spirit d' + spiritDie);
+          if (meta.circData.addSpiritBonus) castTotal += spiritTotal;
+          if (meta.circData.addSpiritPenalty) castTotal -= spiritTotal;
+        }
+      }
+      castTotal = Math.max(1, Number(castTotal || 1));
+      resistTotal = rollCombatDieTotal(finalValorDie, 'dread', 'Valor resistance d' + finalValorDie);
     }
 
     var margin = Math.max(-99, Number(castTotal || 0) - Number(resistTotal || 0));
@@ -4627,6 +4864,10 @@
       if (preview.targetMode !== 'all' && preview.targetMode !== 'allies' && sameFaction) return false;
       return !!keyMap[toKey(Number(token.q || 0), Number(token.r || 0))];
     });
+
+    if (Number(preview.pullToCenterRadius || 0) > 0) {
+      applyCombatSpellPullToCenter(impacted, Number(preview.targetQ || 0), Number(preview.targetR || 0), Number(preview.pullToCenterRadius || 1));
+    }
 
     impacted.forEach(function (token) {
       if (burstStress > 0) {
@@ -4696,6 +4937,17 @@
     if (burstStress > 0) summary += ' Burst damage = margin (' + burstStress + ').';
     if (preview.zoneEnabled) summary += ' Zone tick ' + zoneTickStress + '/round for ' + preview.rounds + ' rounds.';
     addHistory(summary);
+    if (meta && meta.profile && typeof showUnifiedSpellResultModal === 'function') {
+      showUnifiedSpellResultModal('Spell Manifestation - ' + String(preview.spellLabel || 'Spell'), meta.profile, {
+        success: margin > 0,
+        margin: Math.max(1, Math.abs(margin)),
+        actionTotal: castTotal,
+        dreadTotal: resistTotal,
+        context: String(preview.spellLabel || 'Spell') + ' (VTT)',
+        manual: !!manualMode,
+        circData: meta.circData || null
+      });
+    }
     safeNotif(preview.spellLabel + ' cast complete' + (impacted.length ? (': ' + impacted.length + ' impacted.') : '.'), impacted.length ? 'good' : 'info');
     drawBoard();
     updateUiPanels();
@@ -11683,6 +11935,18 @@
         var behavior = entry.damageOnHit === false ? 'support' : 'damage=margin';
         return '<option value="' + String(entry.id || '') + '"' + selectedSpell + '>' + String(entry.label || 'Spell') + ' [' + shape + ', ' + behavior + ']</option>';
       }).join('');
+      var legacyPresetOptions = Array.isArray(window.AOE_SPELL_PRESETS)
+        ? window.AOE_SPELL_PRESETS.map(function (row) {
+          var key = String(row && row.key || '').trim();
+          if (!key) return '';
+          var shape = String(row && row.shape || 'line').toUpperCase();
+          var band = normalizeSpellcastBandKey(row && row.band || 'close').toUpperCase();
+          return '<option value="legacy:' + key + '">AOE: ' + String(row && row.name || key) + ' [' + shape + ', ' + band + ']</option>';
+        }).filter(Boolean).join('')
+        : '';
+      if (legacyPresetOptions) {
+        spellOptions += '<optgroup label="AOE Effect Tools Presets">' + legacyPresetOptions + '</optgroup>';
+      }
       var html = '<div style="display:grid;gap:.28rem;">'
         + '<div style="font-size:.78rem;color:var(--text2);">Apply a timed effect to any active token.</div>'
         + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;font-size:.68rem;color:var(--muted2);padding:.18rem .22rem;border:1px solid var(--combat-border);border-radius:8px;background:rgba(255,255,255,.02);">'
@@ -11693,12 +11957,18 @@
         + '<div class="combat-mini" style="color:var(--combat-accent-2);">Spellcaster Preview</div>'
         + '<label class="combat-mini">Spell Template</label>'
         + '<select id="combatSpellPreviewSelect" class="combat-select">' + spellOptions + '</select>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.24rem;">'
+        + '<label style="display:grid;gap:.14rem;"><span class="combat-mini">Override Shape</span><select id="combatSpellShape" class="combat-select"><option value="">Preset Default</option><option value="line">Line</option><option value="ring">Ring</option><option value="cone">Cone</option><option value="burst">Burst</option></select></label>'
+        + '<label style="display:grid;gap:.14rem;"><span class="combat-mini">Range Band</span><select id="combatSpellBand" class="combat-select"><option value="">Preset Default</option><option value="engaged">Engaged</option><option value="close">Close</option><option value="nearby">Nearby</option><option value="far">Far</option></select></label>'
+        + '</div>'
         + '<label class="combat-mini">Caster Token</label>'
         + '<select id="combatSpellCaster" class="combat-select">' + targetOptions + '</select>'
-        + '<div class="combat-mini" style="color:var(--muted2);">Flow: Start Preview -> move the cursor on map to measure/live-template -> Cast.</div>'
+        + '<div class="combat-mini" style="color:var(--muted2);">Flow: Start Preview -> move the cursor on map to measure/live-template -> Cast. Use Rotate for precise line/cone orientation.</div>'
         + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;">'
         + '<button class="btn btn-xs" onclick="if(window.startCombatSpellPreviewFromModal)window.startCombatSpellPreviewFromModal();">Start Preview</button>'
         + '<button class="btn btn-xs btn-primary" onclick="if(window.castCombatSpellPreviewFromModal)window.castCombatSpellPreviewFromModal();">Cast Current Preview</button>'
+        + '<button class="btn btn-xs" onclick="if(window.rotateCombatSpellPreviewDirection)window.rotateCombatSpellPreviewDirection(-1);">Rotate Left</button>'
+        + '<button class="btn btn-xs" onclick="if(window.rotateCombatSpellPreviewDirection)window.rotateCombatSpellPreviewDirection(1);">Rotate Right</button>'
         + '</div>'
         + '</div>'
         + '<label class="combat-mini">Target Token</label>'
@@ -14900,16 +15170,75 @@
   };
 
   window.startCombatSpellPreview = startCombatSpellPreview;
+  window.rotateCombatSpellPreviewDirection = rotateCombatSpellPreviewDirection;
   window.cancelCombatSpellPreview = function () {
     clearCombatSpellPreview(true);
   };
   window.castCombatSpellPreview = castCombatSpellPreview;
+  window.openVttSpellPreviewFromScroll = function (scrollName, options) {
+    var name = String(scrollName || '').trim();
+    var lower = name.toLowerCase();
+    var opts = options && typeof options === 'object' ? options : {};
+    var shape = String(opts.shape || '').toLowerCase();
+    var mode = String(opts.mode || 'standard').toLowerCase();
+    var modeBand = mode === 'focused' ? 'close' : (mode === 'expanded' ? 'far' : 'nearby');
+    var casterTokenId = String(opts.casterTokenId || store.getState().selectedTokenId || '');
+    var spellId = 'thunder-lattice';
+    var overrides = { bandKey: modeBand };
+
+    if (/thunder\s*lattice/.test(lower)) {
+      spellId = shape === 'ring' ? 'entropy-vault' : 'thunder-lattice';
+      overrides.spellLabel = 'Thunder Lattice';
+      overrides.shape = shape === 'ring' ? 'ring' : 'line';
+      overrides.zoneEnabled = true;
+      overrides.tickMode = 'margin';
+      overrides.tickAmount = 0;
+      overrides.tickCondition = '';
+    } else if (/gravit|starwell|gravity/.test(lower)) {
+      spellId = 'gravitic-fold';
+      overrides.spellLabel = name || 'Gravitic Fold';
+      overrides.shape = 'ring';
+      overrides.zoneEnabled = true;
+      overrides.tickMode = 'fixed';
+      overrides.tickAmount = 1;
+      overrides.pullToCenterRadius = 1;
+      if (mode === 'focused') overrides.bandKey = 'close';
+      else if (mode === 'expanded') overrides.bandKey = 'far';
+      else overrides.bandKey = 'nearby';
+    } else {
+      if (shape === 'ring') {
+        spellId = 'entropy-vault';
+        overrides.shape = 'ring';
+      } else if (shape === 'cone') {
+        spellId = 'mind-shear-cone';
+        overrides.shape = 'cone';
+      } else if (shape === 'burst') {
+        spellId = 'starfall-burst';
+        overrides.shape = 'burst';
+      } else {
+        spellId = 'thunder-lattice';
+        overrides.shape = 'line';
+      }
+      overrides.spellLabel = name || 'Spell';
+    }
+
+    return startCombatSpellPreview(spellId, casterTokenId, overrides);
+  };
   window.startCombatSpellPreviewFromModal = function () {
     var spellSel = document.getElementById('combatSpellPreviewSelect');
     var casterSel = document.getElementById('combatSpellCaster');
-    var spellId = String(spellSel && spellSel.value || 'thunder-lattice');
+    var shapeSel = document.getElementById('combatSpellShape');
+    var bandSel = document.getElementById('combatSpellBand');
+    var selectedSpellValue = String(spellSel && spellSel.value || 'thunder-lattice');
+    var resolved = resolveLegacySpellPreviewSelection(selectedSpellValue);
+    var spellId = String(resolved && resolved.spellId || 'thunder-lattice');
     var casterTokenId = String(casterSel && casterSel.value || '');
-    var ok = startCombatSpellPreview(spellId, casterTokenId);
+    var overrides = Object.assign({}, resolved && resolved.overrides || {});
+    var shapeOverride = String(shapeSel && shapeSel.value || '').trim().toLowerCase();
+    var bandOverride = String(bandSel && bandSel.value || '').trim().toLowerCase();
+    if (shapeOverride) overrides.shape = shapeOverride;
+    if (bandOverride) overrides.bandKey = bandOverride;
+    var ok = startCombatSpellPreview(spellId, casterTokenId, overrides);
     if (ok && typeof window.closeModal === 'function') window.closeModal();
   };
   window.castCombatSpellPreviewFromModal = function () {

@@ -4660,6 +4660,7 @@
       zoneTickOnRoundStart: !!(tpl && tpl.zoneTickOnRoundStart),
       pullToCenterRadius: Math.max(0, Number(tpl && tpl.pullToCenterRadius || 0)),
       directionKey: String(tpl && tpl.directionKey || 'e'),
+      castMode: 'auto',
       color: String(tpl && tpl.previewColor || 'rgba(108,189,255,0.26)'),
       border: String(tpl && tpl.previewBorder || 'rgba(164,223,255,0.95)'),
       isValid: false,
@@ -4693,6 +4694,7 @@
     next.directionKey = SPELLCAST_DIRECTION_KEYS.indexOf(String(next.directionKey || '').toLowerCase()) >= 0
       ? String(next.directionKey || '').toLowerCase()
       : 'e';
+    next.castMode = String(next.castMode || 'auto').toLowerCase() === 'manual' ? 'manual' : 'auto';
     next.color = String(next.color || 'rgba(108,189,255,0.26)');
     next.border = String(next.border || 'rgba(164,223,255,0.95)');
     next.isValid = !!next.isValid;
@@ -4744,6 +4746,7 @@
       zoneTickOnRoundStart: !!tpl.zoneTickOnRoundStart,
       pullToCenterRadius: Math.max(0, Number(tpl.pullToCenterRadius || 0)),
       directionKey: String(prev && prev.directionKey || 'e'),
+      castMode: String(prev && prev.castMode || 'auto'),
       color: String(tpl.previewColor || 'rgba(108,189,255,0.26)'),
       border: String(tpl.previewBorder || 'rgba(164,223,255,0.95)')
     });
@@ -4807,6 +4810,47 @@
     });
     drawBoard();
     updateUiPanels();
+  }
+
+  function getSpellcastManualMindDie(castModePreview, circData, baseDie) {
+    var die = Math.max(4, Number(baseDie || 4));
+    if (circData && circData.stepUpAdvantage) return stepSpellDieLocal(die, 1);
+    if (circData && circData.stepDownDisadvantage) return stepSpellDieLocal(die, -1);
+    return die;
+  }
+
+  function getSpellcastManualValorDie(circData, baseDie) {
+    var die = Math.max(4, Number(baseDie || 4));
+    var steps = Number(circData && circData.valorStep || 0);
+    while (steps !== 0) {
+      die = stepSpellDieLocal(die, steps > 0 ? 1 : -1);
+      steps += steps > 0 ? -1 : 1;
+    }
+    return die;
+  }
+
+  function buildSpellcastManualPromptText(kind, preview, circData, die, modifierValue) {
+    var dieText = 'd' + Math.max(4, Number(die || 4));
+    var label = kind === 'valor' ? 'Valor' : 'Mind';
+    var lines = [
+      'Roll ' + label + ' Die ' + dieText + ' for ' + String(preview.spellLabel || 'this spell') + '.',
+      'Enter the final total after adding or subtracting the spell circumstance modifiers.'
+    ];
+    if (kind === 'mind') {
+      if (circData && circData.stepUpAdvantage) lines.push('This cast has Mind step-up: use the next larger die instead of your normal Mind Die.');
+      if (circData && circData.stepDownDisadvantage) lines.push('This cast has Mind step-down: use the next smaller die instead of your normal Mind Die.');
+    } else if (kind === 'valor' && Number(circData && circData.valorStep || 0) !== 0) {
+      lines.push('This cast changes your Valor Die by ' + (Number(circData.valorStep || 0) > 0 ? '+' : '') + Number(circData.valorStep || 0) + ' step(s).');
+    }
+    if (Number(modifierValue || 0) !== 0) {
+      lines.push('Flat circumstance modifier: ' + (Number(modifierValue || 0) > 0 ? '+' : '') + Number(modifierValue || 0) + '.');
+    } else {
+      lines.push('Flat circumstance modifier: +0.');
+    }
+    if (circData && Array.isArray(circData.modifierLines) && circData.modifierLines.length) {
+      lines.push('Answers: ' + circData.modifierLines.join(' | '));
+    }
+    return lines.join('\n');
   }
 
   function clearCombatBoardAndEffects() {
@@ -4937,7 +4981,7 @@
     }
     var tpl = getSpellcastTemplateById(preview.spellId);
 
-    var manualMode = !state.autoRoll || isManualRollModeActive();
+    var manualMode = String(preview.castMode || 'auto') === 'manual';
     var circMeta = null;
     if (isUnifiedSpellPromptAvailable()) {
       var prompted = false;
@@ -4968,20 +5012,22 @@
     var mindDie = Math.max(4, Number(getWayfarerEffectiveDie('mind', 6) || 6));
     var valorDie = Math.max(4, Number(window.S && window.S.stats && (window.S.stats.valor || window.S.stats.adventure) || 6));
     var finalValorDie = valorDie;
+    var finalMindDie = mindDie;
     if (meta && meta.circData) {
       var steps = Number(meta.circData.valorStep || 0);
       while (steps !== 0) {
         finalValorDie = stepSpellDieLocal(finalValorDie, steps > 0 ? 1 : -1);
         steps += steps > 0 ? -1 : 1;
       }
+      finalMindDie = getSpellcastManualMindDie(preview, meta.circData, mindDie);
     }
     if (manualMode) {
-      var manualCast = promptManualDieTotal('Manual Mind total for ' + String(preview.spellLabel || 'Spell') + ' (after circumstance modifiers):', 10, 1, 9999);
+      var manualCast = promptManualDieTotal(buildSpellcastManualPromptText('mind', preview, meta && meta.circData, finalMindDie, meta && meta.circData ? meta.circData.mindFlat || 0 : 0), 10, 1, 9999);
       if (manualCast === null) {
         safeNotif('Spell cast cancelled.', 'info');
         return false;
       }
-      var manualResist = promptManualDieTotal('Manual Valor total (resistance, after modifiers) (1+):', 8, 1, 9999);
+      var manualResist = promptManualDieTotal(buildSpellcastManualPromptText('valor', preview, meta && meta.circData, finalValorDie, 0), 8, 1, 9999);
       if (manualResist === null) {
         safeNotif('Spell cast cancelled.', 'info');
         return false;
@@ -7434,6 +7480,7 @@
       + '<div class="combat-label">Scene Snapshot</div>'
       + '<div id="combatSceneStatusGrid" class="combat-feed"></div>'
       + '</div>'
+      + '<div class="combat-mini" style="margin:.1rem 0 .22rem 0;color:var(--muted2);">Build View keeps the active scene readable. Core token actions stay visible; advanced prep is tucked into collapsible sections.</div>'
       + '<div id="combatSelectedSummary" class="combat-mini">Select a token.</div>'
       + '<div class="combat-action-block" style="margin-top:.2rem;">'
       + '<div class="combat-label">Token Strategy</div>'
@@ -7450,7 +7497,9 @@
       + '</div>'
       + '<div id="combatTokenActionHelp" class="combat-mini" style="margin-top:.2rem;">No combat roll yet.</div>'
       + '</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.24rem;align-items:end;margin-top:.2rem;">'
+      + '<details open style="margin-top:.22rem;padding:.24rem .28rem;border:1px solid rgba(227,188,94,.18);border-radius:10px;background:rgba(255,255,255,.02);">'
+      + '<summary class="combat-label" style="cursor:pointer;list-style:none;">Token Profile</summary>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.24rem;align-items:end;margin-top:.22rem;">'
       + '<div><div class="combat-label">Token Name</div><input class="combat-input" id="combatSelectedName" type="text" maxlength="64" placeholder="Token name"></div>'
       + '<div><div class="combat-label">Dread</div><input class="combat-input" id="combatSelectedDread" type="number" min="1" max="20"></div>'
       + '<button class="btn btn-xs" id="combatSaveTokenBtn">Save</button>'
@@ -7459,7 +7508,10 @@
       + '<button class="btn btn-xs" id="combatUploadTokenBtn">Portrait</button>'
       + '<button class="btn btn-xs btn-red" id="combatDeleteTokenBtn">Delete Selected</button>'
       + '</div>'
-      + '<div style="display:grid;grid-template-columns:1.35fr .8fr .85fr;gap:.24rem;align-items:end;margin-top:.28rem;">'
+      + '</details>'
+      + '<details style="margin-top:.22rem;padding:.24rem .28rem;border:1px solid rgba(73,201,187,.18);border-radius:10px;background:rgba(255,255,255,.02);">'
+      + '<summary class="combat-label" style="cursor:pointer;list-style:none;">Scene Prep</summary>'
+      + '<div style="display:grid;grid-template-columns:1.35fr .8fr .85fr;gap:.24rem;align-items:end;margin-top:.22rem;">'
       + '<div><div class="combat-label">Scale</div><input id="combatSelectedScale" type="range" min="25" max="200" step="5" value="100" style="width:100%;"></div>'
       + '<label class="combat-mini" style="display:flex;gap:.24rem;align-items:center;padding:.35rem .45rem;border:1px solid rgba(73,201,187,.22);border-radius:10px;background:rgba(73,201,187,.06);"><input id="combatSelectedFreeform" type="checkbox">Freeform</label>'
       + '<div><div class="combat-label">Vision</div><input class="combat-input" id="combatSelectedVisionRadius" type="number" min="0" max="12"></div>'
@@ -7469,13 +7521,14 @@
       + '<div><div class="combat-label">Aura Radius</div><input class="combat-input" id="combatSelectedAuraRadius" type="number" min="0" max="12"></div>'
       + '<div><div class="combat-label">Aura Color</div><input class="combat-input" id="combatSelectedAuraColor" type="color" value="#49c9bb"></div>'
       + '</div>'
-      + '<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:.24rem;align-items:end;margin-top:.28rem;">'
+      + '<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:.24rem;align-items:end;margin-top:.24rem;">'
       + '<div><div class="combat-label">Condition</div><input class="combat-input" id="combatRoundEffectName" type="text" maxlength="30" placeholder="Burning"></div>'
       + '<div><div class="combat-label">Color</div><input class="combat-input" id="combatRoundEffectColor" type="color" value="#e3bc5e"></div>'
       + '<div><div class="combat-label">Stress/Round</div><input class="combat-input" id="combatRoundEffectStress" type="number" min="0" max="20" value="1"></div>'
       + '<div><div class="combat-label">Rounds</div><input class="combat-input" id="combatRoundEffectRounds" type="number" min="1" max="20" value="2"></div>'
       + '<button class="btn btn-xs" id="combatApplyRoundEffectBtn">Apply Condition</button>'
       + '</div>'
+      + '</details>'
       + '<div id="combatTokenRoundEffectsList" class="combat-feed" style="margin-top:.24rem;"></div>'
       + '<div class="combat-action-block" style="margin-top:.24rem;">'
       + '<div class="combat-label">AoE Rules</div>'
@@ -12133,6 +12186,8 @@
         + '<div class="combat-mini" style="color:var(--combat-accent-2);">Spellcaster Preview</div>'
         + '<label class="combat-mini">Spell Template</label>'
         + '<select id="combatSpellPreviewSelect" class="combat-select">' + spellOptions + '</select>'
+        + '<label class="combat-mini">Cast Mode</label>'
+        + '<select id="combatSpellCastMode" class="combat-select"><option value="auto" selected>Auto Roll</option><option value="manual">Manual Roll</option></select>'
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.24rem;">'
         + '<label style="display:grid;gap:.14rem;"><span class="combat-mini">Override Shape</span><select id="combatSpellShape" class="combat-select"><option value="">Preset Default</option><option value="line">Line</option><option value="ring">Ring</option><option value="cone">Cone</option><option value="burst">Burst</option></select></label>'
         + '<label style="display:grid;gap:.14rem;"><span class="combat-mini">Range Band</span><select id="combatSpellBand" class="combat-select"><option value="">Preset Default</option><option value="engaged">Engaged</option><option value="close">Close</option><option value="nearby">Nearby</option><option value="far">Far</option></select></label>'
@@ -15420,6 +15475,7 @@
   window.startCombatSpellPreviewFromModal = function () {
     var spellSel = document.getElementById('combatSpellPreviewSelect');
     var casterSel = document.getElementById('combatSpellCaster');
+    var castModeSel = document.getElementById('combatSpellCastMode');
     var shapeSel = document.getElementById('combatSpellShape');
     var bandSel = document.getElementById('combatSpellBand');
     var selectedSpellValue = String(spellSel && spellSel.value || 'thunder-lattice');
@@ -15427,6 +15483,7 @@
     var spellId = String(resolved && resolved.spellId || 'thunder-lattice');
     var casterTokenId = String(casterSel && casterSel.value || '');
     var overrides = Object.assign({}, resolved && resolved.overrides || {});
+    overrides.castMode = String(castModeSel && castModeSel.value || 'auto').toLowerCase() === 'manual' ? 'manual' : 'auto';
     var shapeOverride = String(shapeSel && shapeSel.value || '').trim().toLowerCase();
     var bandOverride = String(bandSel && bandSel.value || '').trim().toLowerCase();
     if (shapeOverride) overrides.shape = shapeOverride;
@@ -15440,11 +15497,23 @@
     if (!preview.active) {
       var spellSel = document.getElementById('combatSpellPreviewSelect');
       var casterSel = document.getElementById('combatSpellCaster');
+      var castModeSel = document.getElementById('combatSpellCastMode');
       var spellId = String(spellSel && spellSel.value || 'thunder-lattice');
       var casterTokenId = String(casterSel && casterSel.value || '');
-      if (!startCombatSpellPreview(spellId, casterTokenId)) return;
+      var castMode = String(castModeSel && castModeSel.value || 'auto').toLowerCase() === 'manual' ? 'manual' : 'auto';
+      if (!startCombatSpellPreview(spellId, casterTokenId, { castMode: castMode })) return;
       if (typeof window.closeModal === 'function') window.closeModal();
       return;
+    }
+    var castModeActiveSel = document.getElementById('combatSpellCastMode');
+    if (castModeActiveSel) {
+      var nextMode = String(castModeActiveSel.value || 'auto').toLowerCase() === 'manual' ? 'manual' : 'auto';
+      store.setState(function (inner) {
+        var next = Object.assign({}, inner);
+        next.spellPreview = normalizeCombatSpellPreview(Object.assign({}, inner.spellPreview || {}, { castMode: nextMode }));
+        persist(next);
+        return next;
+      });
     }
     var castOk = castCombatSpellPreview();
     if (castOk && typeof window.closeModal === 'function') window.closeModal();

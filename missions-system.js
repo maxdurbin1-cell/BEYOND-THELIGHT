@@ -2054,6 +2054,7 @@
       soulBoss: opts.soulBoss || '',
       soulMission: !!opts.soulMission,
       factionContract: opts.factionContract || null,
+      guildBossLayer: opts.guildBossLayer || null,
       checkpoints: Array.isArray(opts.checkpoints) ? opts.checkpoints.slice() : [],
       step1Intro: opts.step1Intro || '',
       noFactionDelta: !!opts.noFactionDelta,
@@ -15652,6 +15653,61 @@
     startMissionStep3(missionId);
   }
 
+  function getGuildBossLayerState(mission) {
+    if (!mission || mission.missionType !== 'guild_boss_hunt' || !mission.guildBossLayer) return null;
+    var layer = mission.guildBossLayer;
+    var abilities = Array.isArray(layer.abilities) ? layer.abilities : [];
+    var locked = [];
+    var unlocked = [];
+    for (var i = 0; i < abilities.length; i++) {
+      var row = abilities[i] || {};
+      var lockPrepIds = Array.isArray(row.lockedByPrepIds) ? row.lockedByPrepIds.filter(Boolean) : [];
+      var item = {
+        id: String(row.id || ''),
+        name: String(row.name || 'Boss ability'),
+        desc: String(row.desc || ''),
+        lockedByPrepIds: lockPrepIds
+      };
+      if (lockPrepIds.length) locked.push(item);
+      else unlocked.push(item);
+    }
+    return {
+      bossId: String(layer.bossId || ''),
+      bossName: String(layer.bossName || 'Guild Boss'),
+      locked: locked,
+      unlocked: unlocked,
+      lockCount: locked.length
+    };
+  }
+
+  function buildGuildBossLayerHtml(mission) {
+    var layer = getGuildBossLayerState(mission);
+    if (!layer) return '';
+    var lockedRows = layer.locked.map(function (row) {
+      var via = row.lockedByPrepIds.join(', ');
+      return '<div style="padding:.18rem .22rem;border:1px solid rgba(46,196,182,.35);background:rgba(46,196,182,.08);margin-bottom:.14rem;">'
+        + '<div style="font-size:.72rem;color:var(--teal);font-weight:700;">' + row.name + ' <span style="font-size:.66rem;color:var(--muted2);">(LOCKED)</span></div>'
+        + '<div style="font-size:.68rem;color:var(--muted2);">' + row.desc + '</div>'
+        + '<div style="font-size:.64rem;color:var(--gold2);margin-top:.08rem;">Prep: ' + via + '</div>'
+      + '</div>';
+    }).join('');
+    var unlockedRows = layer.unlocked.map(function (row) {
+      return '<div style="padding:.18rem .22rem;border:1px solid var(--border2);background:rgba(200,50,50,.06);margin-bottom:.14rem;">'
+        + '<div style="font-size:.72rem;color:var(--red2);font-weight:700;">' + row.name + '</div>'
+        + '<div style="font-size:.68rem;color:var(--muted2);">' + row.desc + '</div>'
+      + '</div>';
+    }).join('');
+    var mitigation = layer.lockCount > 0
+      ? ('Locked abilities reduce failure damage by ' + Math.min(2, layer.lockCount) + ' and suppress one boss consequence line.')
+      : 'No ability locks active.';
+    return '<div style="background:rgba(0,0,0,.28);border:1px solid rgba(201,162,39,.35);padding:.35rem .5rem;margin-bottom:.42rem;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.18rem;">Guild Boss Layer · ' + layer.bossName + '</div>'
+      + (lockedRows || '<div style="font-size:.68rem;color:var(--muted2);margin-bottom:.14rem;">No locked abilities from prep.</div>')
+      + (unlockedRows || '')
+      + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.14rem;">' + mitigation + '</div>'
+    + '</div>';
+  }
+
   /* ── STEP 3: CONFRONTATION ── */
   function startMissionStep3(missionId) {
     ensureState();
@@ -15694,6 +15750,7 @@
       mercSection='<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.3);padding:.35rem .5rem;margin-bottom:.4rem;"><div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.1em;color:var(--red2);text-transform:uppercase;margin-bottom:.15rem;">\u26a0 Additional Danger</div><div style="font-size:.78rem;color:var(--text);font-weight:700;margin-bottom:.15rem;">Mercenary <span style="font-family:\'Rajdhani\',sans-serif;color:var(--red2);">DD10 | 20 HP | 2 Actions</span></div>'+aRows+'</div>';
     }
 
+    var guildBossLayerSection = buildGuildBossLayerHtml(mission);
     var targetRow='<div style="font-size:.78rem;margin-bottom:.45rem;padding:.25rem .35rem;border:1px solid var(--border2);"><strong style="color:var(--gold2);">Target:</strong> <span style="color:var(--text);">'+mission.target+'</span></div>';
     var rollInstr='<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .55rem;margin-bottom:.45rem;"><div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Roll Valor d'+advDie+(bonus?' + '+bonus:'')+' vs '+(revealDC?('Dread d'+dreadDie):'scene Dread')+' \u2014 then click your outcome:</div><div style="font-size:.7rem;color:var(--muted);">Use the Dice tab or physical dice. Add the +'+(bonus||0)+' bonus to your roll before comparing.</div></div>';
     var isLegacyRaidMission = mission && mission.missionType === 'legacy_raid';
@@ -15715,7 +15772,7 @@
       +'</div>';
     }
 
-    var html=buildMissionStepDialogue(mission, 'confrontation')+compBanner+featureBadge+guardsSection+mercSection+targetRow+rollInstr+gmControls
+    var html=buildMissionStepDialogue(mission, 'confrontation')+compBanner+featureBadge+guildBossLayerSection+guardsSection+mercSection+targetRow+rollInstr+gmControls
       +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
         +'<button class="btn btn-sm btn-red" onclick="openMissionFailureOutcomeModal('+missionId+')">\u2717 Failure \u2014 Roll Failed</button>'
         +'<button class="btn btn-sm btn-primary" onclick="'+successAction+'">\u2713 Success \u2014 Roll Succeeded</button>'
@@ -15781,24 +15838,42 @@
     var margin = Math.max(1, dreadTotal - actionTotal);
     var applyChanges = !cfg.preview;
     var notes = [];
+    var guildBossLayer = getGuildBossLayerState(mission);
+    if (guildBossLayer && guildBossLayer.lockCount > 0) {
+      var reduce = Math.min(2, Number(guildBossLayer.lockCount || 0));
+      margin = Math.max(1, margin - reduce);
+      notes.push('Ability lock mitigation: -' + reduce + ' failure damage');
+    }
+
+    var suppressMentalStress = false;
+    var suppressCondition = false;
+    if (guildBossLayer && guildBossLayer.lockCount > 0) {
+      suppressMentalStress = guildBossLayer.locked.some(function (row) {
+        return row && (row.id === 'sentence_of_iron' || row.id === 'choir_of_teeth');
+      });
+      suppressCondition = guildBossLayer.locked.some(function (row) {
+        return row && (row.id === 'hook_and_drag' || row.id === 'beatific_rupture' || row.id === 'radiant_molting');
+      });
+    }
+
     if (applyChanges) {
       if (typeof changeHealth === 'function') changeHealth(margin);
       else if (typeof changeStress === 'function') changeStress(margin);
     }
     notes.push((typeof changeHealth === 'function' ? 'Damage +' : 'Stress +') + margin + ' (difference)');
 
-    if (applyChanges) {
+    if (!suppressMentalStress && applyChanges) {
       if (typeof changeMentalStress === 'function') changeMentalStress(1);
       else if (typeof changeStress === 'function') changeStress(1);
     }
-    notes.push('Mental Stress +1');
+    notes.push(suppressMentalStress ? 'Mental Stress prevented by ability lock' : 'Mental Stress +1');
 
     if (applyChanges) addMissionOutcomeRadiation(1);
     notes.push('Radiation +1');
 
     var negCond = normalizeMissionConditionByStat(statKey, false);
-    if (applyChanges) applyMissionOutcomeCondition(negCond);
-    notes.push('Condition ' + negCond);
+    if (!suppressCondition && applyChanges) applyMissionOutcomeCondition(negCond);
+    notes.push(suppressCondition ? ('Condition ' + negCond + ' prevented by ability lock') : ('Condition ' + negCond));
 
     if (applyChanges) {
       if (typeof changeCounter === 'function') changeCounter('tmw', 1);

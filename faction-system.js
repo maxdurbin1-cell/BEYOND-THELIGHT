@@ -824,6 +824,36 @@
     lastOutcome: ""
   };
 
+  const GUILD_BOSS_LAYERS = {
+    military: {
+      bossId: "warrant_tyrant",
+      bossName: "The Warrant Tyrant",
+      abilities: [
+        { id: "sentence_of_iron", name: "Sentence of Iron", desc: "Command burst that spikes confrontation pressure." },
+        { id: "hook_and_drag", name: "Hook and Drag", desc: "Pulls targets into lethal close range." },
+        { id: "exemplary_violence", name: "Exemplary Violence", desc: "Bloodied state adds bonus damage pressure." }
+      ],
+      prepLocks: {
+        signal_jammer: ["sentence_of_iron"],
+        shock_manacles: ["hook_and_drag"]
+      }
+    },
+    religious: {
+      bossId: "halo_devourer",
+      bossName: "The Halo Devourer",
+      abilities: [
+        { id: "choir_of_teeth", name: "Choir of Teeth", desc: "Summons rift mouths around the arena." },
+        { id: "radiant_molting", name: "Radiant Molting", desc: "Sheds pressure effects and resets tempo." },
+        { id: "beatific_rupture", name: "Beatific Rupture", desc: "Area rupture that inflicts curse pressure." }
+      ],
+      prepLocks: {
+        grave_salt_circle: ["choir_of_teeth"],
+        moon_bloom_poultice: ["radiant_molting"],
+        null_hymnal: ["beatific_rupture"]
+      }
+    }
+  };
+
   function pick(arr) {
     if (!Array.isArray(arr) || !arr.length) return "";
     return arr[Math.floor(Math.random() * arr.length)] || "";
@@ -879,8 +909,11 @@
   }
 
   function getGuildCampaignState(factionId) {
-    ensureFactionState();
-    if (!S || !S.factionNarrative || !S.factionNarrative.guildCampaigns) return createGuildCampaignState(factionId);
+    if (typeof S === "undefined" || !S) return createGuildCampaignState(factionId);
+    if (!S.factionNarrative || typeof S.factionNarrative !== "object") S.factionNarrative = {};
+    if (!S.factionNarrative.guildCampaigns || typeof S.factionNarrative.guildCampaigns !== "object") {
+      S.factionNarrative.guildCampaigns = {};
+    }
     if (!S.factionNarrative.guildCampaigns[factionId] || typeof S.factionNarrative.guildCampaigns[factionId] !== "object") {
       S.factionNarrative.guildCampaigns[factionId] = createGuildCampaignState(factionId);
     }
@@ -902,6 +935,33 @@
     if (!state.relationshipMap || typeof state.relationshipMap !== "object") state.relationshipMap = { patron: 0, rival: 0, handler: 0 };
     if (typeof state.lastOutcome !== "string") state.lastOutcome = "";
     return state;
+  }
+
+  function buildGuildBossLayer(factionId, prepIds) {
+    const layer = GUILD_BOSS_LAYERS[String(factionId || "")];
+    if (!layer) return null;
+    const selectedPrep = Array.isArray(prepIds) ? prepIds.map((id) => String(id || "")).filter(Boolean) : [];
+    const lockedMap = {};
+    selectedPrep.forEach((prepId) => {
+      const locks = layer.prepLocks && layer.prepLocks[prepId];
+      if (!Array.isArray(locks)) return;
+      locks.forEach((abilityId) => {
+        const key = String(abilityId || "");
+        if (!key) return;
+        if (!lockedMap[key]) lockedMap[key] = [];
+        if (lockedMap[key].indexOf(prepId) < 0) lockedMap[key].push(prepId);
+      });
+    });
+    return {
+      bossId: layer.bossId,
+      bossName: layer.bossName,
+      abilities: (layer.abilities || []).map((ability) => ({
+        id: ability.id,
+        name: ability.name,
+        desc: ability.desc,
+        lockedByPrepIds: lockedMap[String(ability.id || "")] || []
+      }))
+    };
   }
 
   function getFactionRenown(factionId) {
@@ -1085,7 +1145,8 @@
           questIndex: Number(state.currentArcStage || 0),
           isBoss: !!quest.isBoss,
           prepIds: (state.activePrepIds || []).slice(0, 3)
-        }
+        },
+        guildBossLayer: quest.isBoss ? buildGuildBossLayer(factionId, state.activePrepIds || []) : null
       }
     );
 

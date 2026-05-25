@@ -404,13 +404,17 @@ function getConditionStep(key) {
   return 0;
 }
 
+function resolveValorDieKey(key) {
+  const rawKey = String(key || '').toLowerCase();
+  return rawKey === 'adventure' ? 'valor' : rawKey;
+}
+
 function getEffectiveDie(key) {
-  var rawKey = String(key || '').toLowerCase();
-  var resolvedKey = rawKey === 'adventure' ? 'valor' : rawKey;
+  var resolvedKey = resolveValorDieKey(key);
   var base = 4;
-  if (S && S.stats) {
-    if (resolvedKey === 'valor') {
-      base = Number(S.stats.valor || S.stats.adventure || 4) || 4;
+      if (S && S.stats) {
+        if (resolvedKey === 'valor') {
+          base = Number(S.stats.valor || S.stats.adventure || 4) || 4;
     } else {
       base = Number(S.stats[resolvedKey] || 4) || 4;
     }
@@ -428,20 +432,22 @@ function getEffectiveDie(key) {
 }
 
 function updateDieDisplay(key) {
-  const el = document.getElementById("die-" + key);
-  if (!el) {
+  const resolvedKey = resolveValorDieKey(key);
+  const targetKeys = resolvedKey === 'valor' ? ['valor', 'adventure'] : [resolvedKey];
+  const els = targetKeys.map(function(targetKey) { return document.getElementById('die-' + targetKey); }).filter(Boolean);
+  if (!els.length) {
     return false;
   }
-  const value = key === "valor" ? (S.stats.valor || 4) : getEffectiveDie(key);
+  const value = getEffectiveDie(resolvedKey);
   let displayText = "d" + value;
 
   // Append weapon/armor bonus hints so the player can see what will be rolled
-    if ((key === 'strike' || key === 'shoot') && typeof parseWeaponBonuses === 'function') {
-      const wb = parseWeaponBonuses(key);
-      if (wb.advDie > 0) displayText += '/Ad' + wb.advDie;
+      if ((resolvedKey === 'strike' || resolvedKey === 'shoot') && typeof parseWeaponBonuses === 'function') {
+        const wb = parseWeaponBonuses(resolvedKey);
+        if (wb.advDie > 0) displayText += '/Ad' + wb.advDie;
       else if (wb.flat > 0) displayText += '+' + wb.flat;
       if (wb.addAdvDie) displayText += '+V.D.';
-  } else if (key === 'defend') {
+  } else if (resolvedKey === 'defend') {
     const armorAdv = typeof parseArmorAdvDie === 'function' ? parseArmorAdvDie() : 0;
     const wpDef = typeof parseWeaponBonuses === 'function' ? parseWeaponBonuses('defend') : {flat:0, advDie:0, addAdvDie:false};
     const advDie = Math.max(armorAdv, wpDef.advDie);
@@ -450,26 +456,28 @@ function updateDieDisplay(key) {
     if (wpDef.addAdvDie) displayText += '+V.D.';
   }
   // Flavor / Mutation advantage hints for all stats
-  const flB = typeof getFlavorBonus === 'function' ? getFlavorBonus(key) : {advDie:0};
-  const mtB = typeof getMutationBonus === 'function' ? getMutationBonus(key) : {advDie:0};
+  const flB = typeof getFlavorBonus === 'function' ? getFlavorBonus(resolvedKey) : {advDie:0};
+  const mtB = typeof getMutationBonus === 'function' ? getMutationBonus(resolvedKey) : {advDie:0};
   const flMtAdv = Math.max(flB.advDie || 0, mtB.advDie || 0);
   if (flMtAdv > 0) displayText += '/Ad' + flMtAdv;
   // Augmentation additive bonus hint
-  const augDie = typeof getAugBonus === 'function' ? getAugBonus(key) : 0;
+  const augDie = typeof getAugBonus === 'function' ? getAugBonus(resolvedKey) : 0;
   if (augDie > 0) displayText += '+d' + augDie;
-  const gearBonus = typeof getGearRollBonuses === 'function' ? getGearRollBonuses(key, value) : {advDice:[], flat:0, addDice:[]};
+  const gearBonus = typeof getGearRollBonuses === 'function' ? getGearRollBonuses(resolvedKey, value) : {advDice:[], flat:0, addDice:[]};
   if (gearBonus.advDice && gearBonus.advDice.length) displayText += '/Ad' + Math.max.apply(null, gearBonus.advDice);
   if (gearBonus.addDice && gearBonus.addDice.length) displayText += '+d' + gearBonus.addDice.join('+d');
   if (gearBonus.flat > 0) displayText += '+' + gearBonus.flat;
   if (S && S.rollMod && Array.isArray(S.rollMod.valorDice) && S.rollMod.valorDice.length) {
     displayText += '+V.D.' + (S.rollMod.valorDice.length > 1 ? 'x' + S.rollMod.valorDice.length : '');
   }
-  const relicBonusCount = typeof getPermanentAdventureBonusCount === 'function' ? getPermanentAdventureBonusCount(key) : 0;
+    const relicBonusCount = typeof getPermanentAdventureBonusCount === 'function' ? getPermanentAdventureBonusCount(resolvedKey) : 0;
   if (relicBonusCount > 0) displayText += '+V.D.' + (relicBonusCount > 1 ? 'x' + relicBonusCount : '');
 
-  el.textContent = displayText;
-  el.className = dieClass(value);
-  el.style.cursor = "pointer";
+  els.forEach(function(el) {
+    el.textContent = displayText;
+    el.className = dieClass(value);
+    el.style.cursor = "pointer";
+  });
 }
 
 function updateMaxStressDisplay() {
@@ -528,25 +536,35 @@ function buildStatRows() {
 }
 
 function stepDie(key, delta) {
-  if (!(key in S.stats)) {
+  const resolvedKey = resolveValorDieKey(key);
+  if (resolvedKey === 'valor') {
+    const current = Number((S.stats && (S.stats.valor || S.stats.adventure)) || 4) || 4;
+    const next = delta > 0 ? stepUp(current) : stepDown(current);
+    S.stats.valor = next;
+    S.stats.adventure = next;
+    updateAllStatDisplays();
     return;
   }
-  S.stats[key] = delta > 0 ? stepUp(S.stats[key]) : stepDown(S.stats[key]);
+  if (!(resolvedKey in S.stats)) {
+    return;
+  }
+  S.stats[resolvedKey] = delta > 0 ? stepUp(S.stats[resolvedKey]) : stepDown(S.stats[resolvedKey]);
   updateAllStatDisplays();
 }
 
 function quickRollStat(key) {
-  const die = key === "valor" ? (S.stats.valor || 4) : getEffectiveDie(key);
-  const label = key.charAt(0).toUpperCase() + key.slice(1);
+  const resolvedKey = resolveValorDieKey(key);
+  const die = getEffectiveDie(resolvedKey);
+  const label = resolvedKey === 'valor' ? 'Valor' : resolvedKey.charAt(0).toUpperCase() + resolvedKey.slice(1);
 
   // Collect advantage dice from weapons/armor, flavor, mutation, and manual rollMod
   let advDiceArr = [], flatBonus = 0, addValorDie = false;
-    if ((key === 'strike' || key === 'shoot') && typeof parseWeaponBonuses === 'function') {
-      const wb = parseWeaponBonuses(key);
+    if ((resolvedKey === 'strike' || resolvedKey === 'shoot') && typeof parseWeaponBonuses === 'function') {
+      const wb = parseWeaponBonuses(resolvedKey);
       if (wb.advDie > 0) advDiceArr.push(wb.advDie);
       flatBonus = wb.flat;
       addValorDie = wb.addAdvDie;
-  } else if (key === 'defend') {
+  } else if (resolvedKey === 'defend') {
     const armorAdv = typeof parseArmorAdvDie === 'function' ? parseArmorAdvDie() : 0;
     const wpDef = typeof parseWeaponBonuses === 'function' ? parseWeaponBonuses('defend') : {flat:0, advDie:0, addAdvDie:false};
     if (armorAdv > 0) advDiceArr.push(armorAdv);
@@ -556,8 +574,8 @@ function quickRollStat(key) {
   }
 
   // Personal Flavor / Mutation bonuses — collect their advDice arrays
-  const flB = typeof getFlavorBonus === 'function' ? getFlavorBonus(key) : {flat:0, advDie:0, advDice:[], holyShield:false};
-  const mtB = typeof getMutationBonus === 'function' ? getMutationBonus(key) : {flat:0, advDie:0, advDice:[]};
+  const flB = typeof getFlavorBonus === 'function' ? getFlavorBonus(resolvedKey) : {flat:0, advDie:0, advDice:[], holyShield:false};
+  const mtB = typeof getMutationBonus === 'function' ? getMutationBonus(resolvedKey) : {flat:0, advDie:0, advDice:[]};
   advDiceArr = advDiceArr.concat(flB.advDice || []).concat(mtB.advDice || []);
   flatBonus += flB.flat + mtB.flat;
 
@@ -566,12 +584,12 @@ function quickRollStat(key) {
   if (Array.isArray(mod.advDice)) advDiceArr = advDiceArr.concat(mod.advDice);
   flatBonus += mod.flat || 0;
 
-  const gearBonus = typeof getGearRollBonuses === 'function' ? getGearRollBonuses(key, die) : {advDice:[], flat:0, addDice:[], notes:[]};
+  const gearBonus = typeof getGearRollBonuses === 'function' ? getGearRollBonuses(resolvedKey, die) : {advDice:[], flat:0, addDice:[], notes:[]};
   advDiceArr = advDiceArr.concat(gearBonus.advDice || []);
   flatBonus += gearBonus.flat || 0;
 
   // Augmentation additive bonus
-  const augDie = typeof getAugBonus === 'function' ? getAugBonus(key) : 0;
+  const augDie = typeof getAugBonus === 'function' ? getAugBonus(resolvedKey) : 0;
 
   // Roll base die + ALL advantage dice, take highest
   const ra = typeof rollWithAdvantage === 'function'
@@ -589,26 +607,26 @@ function quickRollStat(key) {
   const holyShieldRoll = flB.holyShield ? explodingRoll(S.stats.spirit || 4) : null;
   if (holyShieldRoll) withFlat += holyShieldRoll.total;
   // +V.D. additive valor die
-  const valorBonus = addValorDie ? explodingRoll(S.stats.valor || 4) : null;
+  const valorBonus = addValorDie ? explodingRoll(S.stats.valor || S.stats.adventure || 4) : null;
   const withValor = withFlat + (valorBonus ? valorBonus.total : 0);
   const gearAddRolls = (gearBonus.addDice || []).map(function(dieSize){ return explodingRoll(dieSize); });
   // Augmentation additive
   const augRoll = augDie > 0 ? explodingRoll(augDie) : null;
   const gearAddTotal = gearAddRolls.reduce(function(sum, roll){ return sum + roll.total; }, 0);
   const total = withValor + gearAddTotal + (augRoll ? augRoll.total : 0);
-  const radPenalty = (typeof getRadPenaltyForStat === 'function') ? getRadPenaltyForStat(key) : 0;
+  const radPenalty = (typeof getRadPenaltyForStat === 'function') ? getRadPenaltyForStat(resolvedKey) : 0;
   const finalTotal = Math.max(0, total - radPenalty);
 
   // Build explicit source-by-source breakdown (matching Defend transparency)
   const sourceLines = [];
   const sign = function(n){ return (Number(n) >= 0 ? '+' : '') + Number(n); };
   sourceLines.push('Base ' + label + ' roll: +' + Number(ra.total || 0));
-  if ((key === 'strike' || key === 'shoot') && typeof parseWeaponBonuses === 'function') {
-    const wb = parseWeaponBonuses(key);
+  if ((resolvedKey === 'strike' || resolvedKey === 'shoot') && typeof parseWeaponBonuses === 'function') {
+    const wb = parseWeaponBonuses(resolvedKey);
     if (Number(wb.advDie || 0) > 0) sourceLines.push('Weapon Adv Die: Ad' + Number(wb.advDie) + ' (included in base roll)');
     if (Number(wb.flat || 0) !== 0) sourceLines.push('Weapon flat: ' + sign(wb.flat));
   }
-  if (key === 'defend' && typeof parseArmorAdvDie === 'function') {
+  if (resolvedKey === 'defend' && typeof parseArmorAdvDie === 'function') {
     const armorAdv = parseArmorAdvDie();
     if (Number(armorAdv || 0) > 0) sourceLines.push('Armor Adv Die: Ad' + Number(armorAdv) + ' (included in base roll)');
   }

@@ -12012,6 +12012,9 @@
     var next = stepUp(current);
     if (next === current) { showNotif(stat + " is already at maximum (d20)!", "warn"); closeModal(); return; }
     S.stats[stat] = next;
+    if (stat === 'valor') {
+      S.stats.adventure = next;
+    }
     S.pathTokens -= 15;
     var ptEl = document.getElementById("pathTokensVal");
     if (ptEl) { ptEl.textContent = S.pathTokens; }

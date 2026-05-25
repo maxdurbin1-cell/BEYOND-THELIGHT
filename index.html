@@ -600,8 +600,8 @@ body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr 1f
 #quickPanelToggle:hover,#quickPanelToggle.open{border-color:var(--gold);background:rgba(201,162,39,.08);}
 #quickPanel{position:fixed;bottom:3.8rem;right:.85rem;width:420px;max-height:calc(100vh - 6rem);background:rgba(11,12,26,.97);border:1px solid var(--border2);z-index:999;display:none;flex-direction:column;backdrop-filter:blur(12px);box-shadow:0 4px 32px rgba(0,0,0,.6);}
 #quickPanel.open{display:flex;}
-.qp-header{display:flex;gap:0;border-bottom:1px solid var(--border);}
-.qp-tab{flex:1;background:transparent;border:none;border-right:1px solid var(--border);color:var(--muted2);font-family:'Cinzel',serif;font-size:.65rem;letter-spacing:.1em;padding:.42rem .26rem;cursor:pointer;text-transform:uppercase;transition:all .12s;}
+.qp-header{display:flex;gap:0;border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.qp-tab{flex:0 0 auto;min-width:4.4rem;background:transparent;border:none;border-right:1px solid var(--border);color:var(--muted2);font-family:'Cinzel',serif;font-size:.65rem;letter-spacing:.1em;padding:.42rem .26rem;cursor:pointer;text-transform:uppercase;transition:all .12s;}
 .qp-tab:last-child{border-right:none;}
 .qp-tab:hover{color:var(--gold);}
 .qp-tab.on{color:var(--gold);background:rgba(201,162,39,.07);}
@@ -617,13 +617,13 @@ body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr 1f
 @media (max-width: 700px){
   #quickPanelToggle{right:.55rem;bottom:.75rem;padding:.5rem .72rem;font-size:.64rem;width:7.8rem;}
   #quickPanel{right:.5rem;left:.5rem;bottom:3.45rem;width:auto;max-height:calc(100vh - 5.35rem);}
-  .qp-tab{font-size:.6rem;letter-spacing:.07em;padding:.38rem .16rem;}
+  .qp-tab{min-width:3.9rem;font-size:.6rem;letter-spacing:.07em;padding:.38rem .16rem;}
   #qpContent{padding:.6rem;}
 }
 @media (max-width: 480px){
   #quickPanelToggle{right:.45rem;bottom:.6rem;padding:.46rem .64rem;font-size:.6rem;width:7.1rem;}
   #quickPanel{right:.4rem;left:.4rem;bottom:3.2rem;max-height:calc(100vh - 4.95rem);}
-  .qp-tab{font-size:.55rem;letter-spacing:.05em;padding:.34rem .1rem;}
+  .qp-tab{min-width:3.55rem;font-size:.55rem;letter-spacing:.05em;padding:.34rem .1rem;}
   .qp-close{padding:.24rem .42rem;}
   #qpContent{padding:.52rem;}
 }
@@ -653,7 +653,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
 #main-content{padding:.66rem .44rem 1.45rem;}
 #quickPanelToggle{right:.34rem;bottom:.52rem;width:6.5rem;padding:.38rem .46rem;font-size:.55rem;letter-spacing:.08em;min-height:1.95rem;}
 #quickPanel{right:.28rem;left:.28rem;bottom:2.9rem;max-height:calc(100vh - 4.55rem);}
-.qp-tab{font-size:.52rem;padding:.28rem .08rem;letter-spacing:.04em;}
+  .qp-tab{min-width:3.2rem;font-size:.52rem;padding:.28rem .08rem;letter-spacing:.04em;}
 .dice-roll-layer{left:.34rem;right:.34rem;bottom:3.5rem;}
 }
 @media(max-width:980px){.hero-layout{grid-template-columns:1fr;}.hero-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.openworld-proof-header,.openworld-proof-grid{grid-template-columns:1fr;}.onboarding-grid{grid-template-columns:1fr;}}
@@ -3017,16 +3017,16 @@ if(typeof SHOP_DATA==='object'&&SHOP_DATA&&Array.isArray(SHOP_DATA.remedies)){
   });
 }
 const EXPANDED_SCROLL_CATALOG=[
-  {name:'Thunder Lattice',stat:'Indefinite | Close',desc:'Line AOE spell. Cast from Close (2 hexes). Margin on success equals damage to each enemy hit.',cost:110,aoe:{label:'Line burst',base:'Line 4 (Nearby)',focused:'Line 2 (Engaged-Close) for tighter control',expanded:'Line 6 (Far+) and can clip extra lanes if space allows'}},
-  {name:'Ashfall Ring',stat:'Indefinite | Self',desc:'Ring AOE spell. Center on self. Margin on success equals damage to each enemy inside the ring.',cost:95,aoe:{label:'Ring',base:'Ring 1-2 (Engaged-Close)',focused:'Ring 0-1 (self + Engaged)',expanded:'Ring 2-3 (Close-Nearby)'}},
-  {name:'Gravitic Fold',stat:'Indefinite | Nearby',desc:'Ring AOE control field. Place within Nearby (3 hexes). Margin on success equals damage to each enemy hit.',cost:120,aoe:{label:'Circle',base:'Ring 2-3 (Close-Nearby)',focused:'Ring 1-2 (Engaged-Close)',expanded:'Ring 3-5 (Nearby-Far+)'}},
-  {name:'Glass Rain',stat:'Indefinite | Far',desc:'Line AOE barrage. Place at Far (4 hexes). Margin on success equals damage to each enemy hit.',cost:130,aoe:{label:'Barrage',base:'Line 6 (Far+) along connected hex path',focused:'Line 4 (Nearby) for tighter strike lane',expanded:'Line 6 with wider lane choice at placement'}},
-  {name:'Bastion Bloom',stat:'Indefinite | Close',desc:'Support ward field for allies in the selected ring around caster (no direct damage).',cost:105,aoe:{label:'Ward field',base:'Ring 1-2 around caster (Engaged-Close allies)',focused:'Ring 0-1 for tight defensive shell',expanded:'Ring 2-3 for wider allied coverage'}},
-  {name:'Null Choir',stat:'Indefinite | Close',desc:'Silence ring that suppresses hostile tempo. Margin on success equals damage to each enemy caught inside.',cost:140,aoe:{label:'Silence dome',base:'Ring 2-3 around marked point',focused:'Ring 1-2 around marked point',expanded:'Ring 3-5 around marked point'}},
-  {name:'Hexfire Fan',stat:'Indefinite | Close',desc:'Line/fan AOE flame front from caster. Margin on success equals damage to each enemy inside the fan.',cost:115,aoe:{label:'Fan',base:'Line 4 from caster (Nearby)',focused:'Line 2 (Engaged-Close)',expanded:'Line 6 (Far+)'}},
-  {name:'Tide of Needles',stat:'Indefinite | Nearby',desc:'Lane sweep AOE through multiple lanes. Margin on success equals damage to each enemy pierced.',cost:125,aoe:{label:'Lane sweep',base:'Line 4 through selected lanes',focused:'Line 3 with tighter lane count',expanded:'Line 6 with broad lane count'}},
-  {name:'Veilstep Chorus',stat:'Indefinite | Self',desc:'Reposition field for allies around caster (no direct damage).',cost:100,aoe:{label:'Reposition field',base:'Ring 1-2 for caster + nearby allies',focused:'Ring 0-1 for short blink',expanded:'Ring 2-3 for wider blink corridor'}},
-  {name:'Starwell Collapse',stat:'Indefinite | Far',desc:'Implosion ring AOE at a distant point. Margin on success equals damage to each enemy drawn into collapse.',cost:160,aoe:{label:'Implosion circle',base:'Ring 2-3 at target point',focused:'Ring 1-2 high-control collapse',expanded:'Ring 3-5 large-field collapse'}}
+  {name:'Thunder Lattice',stat:'Indefinite | Close',desc:'Crackling bolts crawl across a geometric lane of air and stone. Line AOE spell (reaches 3 hexes). Cast from Close. Margin on success equals damage to each enemy hit.',cost:110,aoe:{label:'Line burst',base:'Line 3 from cast point',focused:'Line 2 for tighter control',expanded:'Line 4 for broader lane coverage'}},
+  {name:'Ashfall Ring',stat:'Indefinite | Self',desc:'A ring of burning ash erupts from your feet and clings to armor and cloth. Ring AOE spell. Center on self, all Targets Engaged with the Caster are set aflame. Margin on success equals damage to each enemy inside the ring.',cost:95,aoe:{label:'Ring',base:'Ring 0-1 centered on caster',focused:'Ring 0 only (self zone)',expanded:'Ring 1-2 for wider ash spread'}},
+  {name:'Gravitic Fold',stat:'Indefinite | Nearby',desc:'Gravity thickens like tar in a circular field. Ring AOE control field. Place within Nearby (3 hexes); all enemies in the Nearby Ring have gravity increased and suffer -1 Action in the Area of Effect.',cost:120,aoe:{label:'Gravity ring',base:'Ring 2-3 from cast point',focused:'Ring 1-2 for denser pull',expanded:'Ring 3-5 for large control zone'}},
+  {name:'Glass Rain',stat:'Indefinite | Far',desc:'A storm of luminous razor shards screams downward in a straight run. Line AOE barrage. Place at Far (4 hexes), reaches 3 hexes in a line from the area cast. Margin on success equals damage to each enemy hit.',cost:130,aoe:{label:'Barrage line',base:'Line 3 from cast point',focused:'Line 2 high-density shardfall',expanded:'Line 4 wide shard corridor'}},
+  {name:'Bastion Bloom',stat:'Indefinite | Close',desc:'Iron petals bloom around allies and orbit as a living shield. Support ward field for allies in Close Range. For the next Round, allies in that range have a petal of flowers around them, granting +1 Action on their turn for the round.',cost:105,aoe:{label:'Ward bloom',base:'All allies in Close range',focused:'Single ally in Close gains reinforced bloom',expanded:'All allies in Nearby range gain lighter bloom'}},
+  {name:'Null Choir',stat:'Indefinite | Far',desc:'A muted dome falls over the field and eats spoken commands and arcane rhythm. Ring of silence cast in a dome where the caster decides up to Far range, covering Engaged to Close (center plus first ring).',cost:140,aoe:{label:'Silence dome',base:'Ring 0-1 around selected center',focused:'Ring 0 only (tight silence node)',expanded:'Ring 1-2 broad silence fringe'}},
+  {name:'Hexfire Fan',stat:'Indefinite | Close',desc:'Cursed fire unfolds in a fan from the caster. Fan AOE flame front from caster. Margin on success equals damage to each enemy inside the fan. Enemies in the 3 hexes from the caster are cursed and have -3 to their next attack roll.',cost:115,aoe:{label:'Fan',base:'Line/Fan 3 from caster',focused:'Fan 2 with higher curse density',expanded:'Fan 4 with wider spread'}},
+  {name:'Tide of Needles',stat:'Indefinite | Engaged',desc:'A surge of spectral needles erupts outward in a stabbing line from the caster. Line AOE from the Caster. Enemies cannot move for a number of rounds equal to the success margin.',cost:125,aoe:{label:'Needle line',base:'Line 3 from caster',focused:'Line 2 with tighter lock',expanded:'Line 4 with thinner lock pressure'}},
+  {name:'Veilstep Chorus',stat:'Indefinite | Engaged',desc:'Ghost voices split your allies into afterimages, then reassemble them where needed. Reposition allies anywhere in the Zone of combat that you can see.',cost:100,aoe:{label:'Reposition field',base:'Caster + chosen allies in scene',focused:'Single ally precision step',expanded:'Multi-ally sweep reposition'}},
+  {name:'Starwell Collapse',stat:'Indefinite | Far',desc:'A gravity well opens at distance, drags distant targets inward, then detonates in compressed light. Implosion ring AOE at a distant point. Margin on success equals damage to each enemy drawn into collapse. Select a hex, all enemies Far from center are pulled to Engaged, where the Starwell explodes.',cost:160,aoe:{label:'Implosion circle',base:'Pull Far to Engaged, then detonate',focused:'Smaller pull zone with tighter collapse',expanded:'Wider pull radius with broad collapse'}}
 ];
 function ensureExpandedScrollCatalog(){
   if(!(typeof SHOP_DATA==='object'&&SHOP_DATA&&Array.isArray(SHOP_DATA.scrolls)))return;
@@ -14584,14 +14584,14 @@ function getScrollAoeCombatProfile(scrollName) {
   var map = {
     'thunder lattice': { damageBias: 2, status: 'distracted', statusRounds: 1 },
     'ashfall ring': { damageBias: 2, burnRounds: 2, burnStress: 2 },
-    'gravitic fold': { damageBias: 1, status: 'vulnerable', statusRounds: 2 },
+    'gravitic fold': { damageBias: 1, status: 'vulnerable', statusRounds: 2, actionDrainRounds: 1, actionDrainAmount: 1 },
     'glass rain': { damageBias: 2, status: 'weakened', statusRounds: 1 },
-    'bastion bloom': { supportOnly: true, selfCondition: 'protected', clearNegative: true },
+    'bastion bloom': { supportOnly: true, selfCondition: 'protected', clearNegative: true, actionBoostAllies: 1 },
     'null choir': { damageBias: 1, status: 'weapon glitch', statusRounds: 2, actionDrainRounds: 1, actionDrainAmount: 1 },
-    'hexfire fan': { damageBias: 2, burnRounds: 2, burnStress: 2 },
-    'tide of needles': { damageBias: 2, poisonRounds: 2, poisonStress: 2 },
+    'hexfire fan': { damageBias: 2, burnRounds: 2, burnStress: 2, status: 'cursed', statusRounds: 1 },
+    'tide of needles': { damageBias: 2, poisonRounds: 2, poisonStress: 2, status: 'immobilized', statusRounds: 1 },
     'veilstep chorus': { supportOnly: true, selfCondition: 'focused', clearNegative: true },
-    'starwell collapse': { damageBias: 3, status: 'short circuit', statusRounds: 1 }
+    'starwell collapse': { damageBias: 3, status: 'short circuit', statusRounds: 1, pullFarToEngaged: true }
   };
   return map[key] || { damageBias: 1, status: 'vulnerable', statusRounds: 1 };
 }
@@ -14673,6 +14673,21 @@ function resolvePendingScrollAoeMode(mode) {
   var statusCap = Math.max(1, Number(plan.statusCap || 1));
   var lines = [];
 
+  if (profile.pullFarToEngaged && S && S.combatMap && Array.isArray(S.combatMap.units)) {
+    var pulled = 0;
+    S.combatMap.units.forEach(function (unit) {
+      if (unit && unit.side === 'enemy' && String(unit.zone || '') === 'Far') {
+        unit.zone = 'Engaged';
+        pulled += 1;
+      }
+    });
+    if (pulled > 0) {
+      lines.push('Starwell pull: ' + pulled + ' enemy unit(s) moved from Far to Engaged');
+      if (typeof renderCombatMap === 'function') renderCombatMap();
+      if (typeof renderCombatOptions === 'function') renderCombatOptions();
+    }
+  }
+
   if (!profile.supportOnly && targets.length) {
     targets.forEach(function (enemy, idx) {
       var dmg = baseDamage;
@@ -14688,6 +14703,10 @@ function resolvePendingScrollAoeMode(mode) {
     if (profile.selfCondition && S && S.conditions && (profile.selfCondition in S.conditions)) {
       S.conditions[profile.selfCondition] = true;
       lines.push('Caster condition: ' + profile.selfCondition + ' applied');
+    }
+    if (profile.actionBoostAllies && S && S.combat && Number(profile.actionBoostAllies || 0) > 0) {
+      S.combat.actionsLeft = Math.max(0, Number(S.combat.actionsLeft || 0)) + Number(profile.actionBoostAllies || 0);
+      lines.push('Ally action boost: +' + Number(profile.actionBoostAllies || 0) + ' action this round');
     }
     if (profile.clearNegative) {
       var cleared = clearOnePlayerNegativeConditionForScrollAoe();
@@ -21701,6 +21720,7 @@ window.addEventListener('DOMContentLoaded', function() {
     <button class="qp-tab on" role="tab" aria-selected="true" onclick="switchQP('dice',this)">🎲 Dice</button>
     <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('char',this)">👤 Char</button>
     <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('combat',this)">⚔ Combat</button>
+    <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('oracle',this)">🔮 Oracle</button>
     <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('missions',this)">🗺 Missions</button>
     <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('campaign',this)">🛰 Campaign</button>
     <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('notes',this)">📝 Notes</button>
@@ -21773,6 +21793,7 @@ window.addEventListener('DOMContentLoaded', function() {
     if (tab === 'dice')    body = buildQPDice();
     else if (tab === 'char')   body = buildQPChar();
     else if (tab === 'combat') body = buildQPCombat();
+    else if (tab === 'oracle') body = buildQPOracle();
     else if (tab === 'missions') body = buildQPMissions();
     else if (tab === 'campaign') body = buildQPCampaign();
     else if (tab === 'notes') body = buildQPNotes();
@@ -22006,6 +22027,65 @@ window.addEventListener('DOMContentLoaded', function() {
       renderQP('combat');
     }
   };
+
+  window.qpOracleYesNo = function() {
+    ensureQPState();
+    var qEl = document.getElementById('qpOracleQuestion');
+    var question = String(qEl && qEl.value || '').trim() || 'Unspecified question';
+    var roll = (typeof d6 === 'function') ? d6() : (Math.floor(Math.random() * 6) + 1);
+    var table = (typeof ORACLE_YES_NO !== 'undefined' && Array.isArray(ORACLE_YES_NO) && ORACLE_YES_NO.length)
+      ? ORACLE_YES_NO
+      : [
+          { roll: 1, result: 'No, and…', detail: 'The answer is No and a new problem appears.' },
+          { roll: 2, result: 'No', detail: 'The answer is No.' },
+          { roll: 3, result: 'No, but…', detail: 'The answer is No, but you gain a clue.' },
+          { roll: 4, result: 'Yes, but…', detail: 'The answer is Yes, with a complication.' },
+          { roll: 5, result: 'Yes', detail: 'The answer is Yes.' },
+          { roll: 6, result: 'Yes, and…', detail: 'The answer is Yes and momentum improves.' }
+        ];
+    var row = table.filter(function (entry) { return Number(entry && entry.roll || 0) === Number(roll); })[0] || table[Math.max(0, Math.min(table.length - 1, roll - 1))];
+    if (!Array.isArray(S.quickPanel.oracleLog)) S.quickPanel.oracleLog = [];
+    S.quickPanel.oracleLog.unshift({
+      q: question,
+      roll: roll,
+      result: String(row && row.result || ''),
+      detail: String(row && row.detail || ''),
+      ts: Date.now()
+    });
+    if (S.quickPanel.oracleLog.length > 10) S.quickPanel.oracleLog.length = 10;
+    renderQP('oracle');
+  };
+
+  function buildQPOracle() {
+    ensureQPState();
+    if (!Array.isArray(S.quickPanel.oracleLog)) S.quickPanel.oracleLog = [];
+    var rows = S.quickPanel.oracleLog.length
+      ? S.quickPanel.oracleLog.map(function (entry, idx) {
+          return '<div style="border:1px solid var(--border2);background:rgba(255,255,255,.02);padding:.32rem .38rem;margin-top:.2rem;">'
+            + '<div style="display:flex;justify-content:space-between;gap:.2rem;align-items:center;">'
+            + '<div style="font-size:.7rem;color:var(--gold2);">' + String(entry.result || '') + '</div>'
+            + '<div style="font-size:.64rem;color:var(--muted2);">d6=' + Number(entry.roll || 0) + ' · #' + (idx + 1) + '</div>'
+            + '</div>'
+            + '<div style="font-size:.7rem;color:var(--text2);margin-top:.08rem;">Q: ' + String(entry.q || '') + '</div>'
+            + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.06rem;">' + String(entry.detail || '') + '</div>'
+            + '</div>';
+        }).join('')
+      : '<div style="font-size:.72rem;color:var(--muted2);margin-top:.2rem;">No Oracle reads yet this session.</div>';
+    return '<div style="margin-bottom:.45rem;">'
+      + '<div style="font-family:Cinzel,serif;font-size:.58rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.18rem;">Quick Oracle · Solo Spell Conditions</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);line-height:1.45;margin-bottom:.26rem;">Ask your condition question, then roll Yes/No instantly while casting. Use this when a spell asks for contextual interpretation.</div>'
+      + '<label style="font-size:.67rem;color:var(--muted2);display:block;">Question</label>'
+      + '<input id="qpOracleQuestion" type="text" placeholder="Does this target count as consecrated ground?" style="width:100%;margin-top:.08rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.38rem .48rem;font-size:.8rem;"/>'
+      + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;margin-top:.24rem;">'
+      + '<button class="btn btn-xs btn-primary" onclick="qpOracleYesNo()">Roll Oracle Yes/No (d6)</button>'
+      + '<button class="btn btn-xs" onclick="S.quickPanel.oracleLog=[];renderQP(\'oracle\')">Clear Log</button>'
+      + '</div>'
+      + '<div style="margin-top:.35rem;border-top:1px solid var(--border);padding-top:.25rem;">'
+      + '<div style="font-size:.66rem;color:var(--muted2);">Table: 1 No, and... · 2 No · 3 No, but... · 4 Yes, but... · 5 Yes · 6 Yes, and...</div>'
+      + rows
+      + '</div>'
+      + '</div>';
+  }
 
   function getCodexBestiaryMovePool(){
     var rangeOrder=['engaged','close','nearby','far'];

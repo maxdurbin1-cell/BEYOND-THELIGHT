@@ -12717,7 +12717,7 @@
           + '<span style="font-weight:700;letter-spacing:.02em;">' + escapeCombatAoeHtml(String(tpl.name || 'AOE')) + '</span>'
           + '<span style="font-size:.56rem;color:var(--muted2);">' + shapeLabel + ' · ' + escapeCombatAoeHtml(targets.band.label) + '</span>'
           + '</div>'
-          + '<div style="margin-top:.1rem;font-size:.58rem;color:var(--muted2);">Rounds ' + Number(tpl.roundsLeft || targets.band.rounds || 1) + ' · Stress +' + Number(targets.band.stress || 0)
+          + '<div style="margin-top:.1rem;font-size:.58rem;color:var(--muted2);">Duration: ' + Number(tpl.roundsLeft || targets.band.rounds || 1) + ' round(s) left · Per-round damage: ' + Number(targets.band.stress || 0)
           + (targets.band.actionLoss ? ' · Action Loss -1' : '') + '</div>'
           + '</div>';
       });
@@ -12886,7 +12886,8 @@
         + '</div>'
         + '</div>'
         + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.1rem;">Origin: ' + escapeCombatAoeHtml(targets.origin) + ' · Affects: '
-        + escapeCombatAoeHtml(targets.zones.join(', ') || 'none') + ' · Rounds left: ' + Number(tpl.roundsLeft || 0) + '</div>'
+        + escapeCombatAoeHtml(targets.zones.join(', ') || 'none') + ' · Duration left: ' + Number(tpl.roundsLeft || 0) + ' round(s)</div>'
+        + '<div style="font-size:.64rem;color:var(--muted2);margin-top:.08rem;">Per-round damage: ' + Number(targets.band.stress || 0) + (targets.band.actionLoss ? ' · Action Loss: -1 action while affected' : '') + '</div>'
         + '</div>';
     }).join('') || '<div style="font-size:.7rem;color:var(--muted2);margin-top:.18rem;">No active AOE templates placed on the map yet.</div>';
     var html = ''
@@ -12912,7 +12913,8 @@
       + '<th style="text-align:left;padding:.16rem .22rem;color:var(--muted2);">Stress</th>'
       + '<th style="text-align:left;padding:.16rem .22rem;color:var(--muted2);">Action Loss</th>'
       + '</tr></thead><tbody>' + rulesRows + '</tbody></table>'
-      + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.18rem;">Damage rule for spell AOE packets: success margin equals damage per enemy hit. Example: margin 4 = 4 damage to each affected enemy.</div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.18rem;">How to read this box: Line and Ring show shape size at each distance band. Rounds is duration. Stress is per-round damage while inside the effect. Action Loss means enemies lose 1 action while affected.</div>'
+      + '<div style="font-size:.66rem;color:var(--muted2);margin-top:.08rem;">Spell damage rule: success margin equals damage per enemy hit. Example: margin 4 = 4 damage to each affected enemy.</div>'
       + '</div>'
       + '<div style="margin-top:.42rem;border-top:1px solid var(--border2);padding-top:.3rem;">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;">'
@@ -12966,7 +12968,11 @@
           + '<span>\uD83D\uDFE6 ' + u.name + '</span>'
           + (isPlayer
             ? '<span style="font-size:.62rem;color:var(--gold2);">(You)</span>'
-            : '<select style="background:transparent;border:none;color:var(--teal);font-size:.62rem;cursor:pointer;" onchange="moveCombatUnit(' + u.id + ',this.value)">' + zoneOptions + '</select>'
+            : '<div style="display:inline-flex;align-items:center;gap:.12rem;">'
+              + '<button class="btn btn-xs" style="padding:.08rem .22rem;min-width:1.45rem;" onclick="shiftCombatUnitZone(' + u.id + ',-1)">◀</button>'
+              + '<select style="background:transparent;border:none;color:var(--teal);font-size:.62rem;cursor:pointer;min-width:4.35rem;" onchange="moveCombatUnit(' + u.id + ',this.value)">' + zoneOptions + '</select>'
+              + '<button class="btn btn-xs" style="padding:.08rem .22rem;min-width:1.45rem;" onclick="shiftCombatUnitZone(' + u.id + ',1)">▶</button>'
+              + '</div>'
           )
           + (isPlayer
             ? ''
@@ -12977,7 +12983,11 @@
       var enemyTags = enemies.map(function(u) {
         return '<div style="background:rgba(201,64,64,.13);border:1px solid var(--red);padding:.14rem .32rem;font-size:.7rem;color:var(--red2);display:inline-flex;align-items:center;gap:.2rem;margin:.1rem;">'
           + '<span>\uD83D\uDD34 ' + u.name + '</span>'
-          + '<select style="background:transparent;border:none;color:var(--red2);font-size:.62rem;cursor:pointer;" onchange="moveCombatUnit(' + u.id + ',this.value)">' + zoneOptions + '</select>'
+          + '<div style="display:inline-flex;align-items:center;gap:.12rem;">'
+          + '<button class="btn btn-xs" style="padding:.08rem .22rem;min-width:1.45rem;" onclick="shiftCombatUnitZone(' + u.id + ',-1)">◀</button>'
+          + '<select style="background:transparent;border:none;color:var(--red2);font-size:.62rem;cursor:pointer;min-width:4.35rem;" onchange="moveCombatUnit(' + u.id + ',this.value)">' + zoneOptions + '</select>'
+          + '<button class="btn btn-xs" style="padding:.08rem .22rem;min-width:1.45rem;" onclick="shiftCombatUnitZone(' + u.id + ',1)">▶</button>'
+          + '</div>'
           + '<button style="background:transparent;border:none;color:var(--muted);cursor:pointer;padding:0;font-size:.68rem;line-height:1;" onclick="removeCombatUnit(' + u.id + ')">✕</button>'
           + '</div>';
       }).join("");
@@ -13014,6 +13024,19 @@
     renderCombatMap();
     renderCombatOptions();
     if (typeof syncStarsUnitsFromCombatMap === 'function') { syncStarsUnitsFromCombatMap(); }
+  }
+
+  function shiftCombatUnitZone(id, direction) {
+    ensureNewFeatureState();
+    var zones = ['Engaged', 'Close', 'Nearby', 'Far'];
+    var unit = S.combatMap.units.filter(function (u) { return u && u.id === id; })[0];
+    if (!unit) return;
+    var idx = zones.indexOf(String(unit.zone || 'Engaged'));
+    if (idx < 0) idx = 0;
+    var next = idx + Number(direction || 0);
+    if (next < 0) next = 0;
+    if (next > zones.length - 1) next = zones.length - 1;
+    moveCombatUnit(id, zones[next]);
   }
 
   function moveCombatUnit(id, zone) {
@@ -13423,6 +13446,7 @@
   window.renderExtraTraits        = renderExtraTraits;
   window.removeExtraTrait         = removeExtraTrait;
   window.addCombatUnit            = addCombatUnit;
+  window.shiftCombatUnitZone      = shiftCombatUnitZone;
   window.moveCombatUnit           = moveCombatUnit;
   window.removeCombatUnit         = removeCombatUnit;
   window.clearCombatMap           = clearCombatMap;

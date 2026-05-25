@@ -9644,6 +9644,7 @@
     canvas.style.touchAction = 'none';
     var pingHoldTimer = null;
     var touchGesture = { active: false, panX: 0, panY: 0, centerX: 0, centerY: 0, distance: 0, zoom: 1 };
+    var touchTapState = { active: false, moved: false, startedAt: 0, x: 0, y: 0 };
 
     if (!window.__combatResizeAdaptiveBound) {
       window.__combatResizeAdaptiveBound = true;
@@ -10051,11 +10052,21 @@
     }, { passive: false });
 
     canvas.addEventListener('touchstart', function (ev) {
-      if (!ev.touches || ev.touches.length < 2) return;
+      if (!ev.touches || !ev.touches.length) return;
+      if (ev.touches.length === 1) {
+        var solo = ev.touches[0];
+        touchTapState.active = true;
+        touchTapState.moved = false;
+        touchTapState.startedAt = Date.now();
+        touchTapState.x = Number(solo.clientX || 0);
+        touchTapState.y = Number(solo.clientY || 0);
+        return;
+      }
       var t0 = ev.touches[0];
       var t1 = ev.touches[1];
       var state = store.getState();
       touchGesture.active = true;
+      touchTapState.active = false;
       touchGesture.panX = Number(state.board && state.board.panX || 0);
       touchGesture.panY = Number(state.board && state.board.panY || 0);
       touchGesture.zoom = Number(state.board && state.board.zoom || 1);
@@ -10066,6 +10077,12 @@
     }, { passive: false });
 
     canvas.addEventListener('touchmove', function (ev) {
+      if (touchTapState.active && ev.touches && ev.touches.length === 1) {
+        var moveT = ev.touches[0];
+        var dxTap = Number(moveT.clientX || 0) - Number(touchTapState.x || 0);
+        var dyTap = Number(moveT.clientY || 0) - Number(touchTapState.y || 0);
+        if (Math.hypot(dxTap, dyTap) > 12) touchTapState.moved = true;
+      }
       if (!touchGesture.active || !ev.touches || ev.touches.length < 2) return;
       var t0 = ev.touches[0];
       var t1 = ev.touches[1];
@@ -10089,7 +10106,58 @@
 
     canvas.addEventListener('touchend', function (ev) {
       if (ev.touches && ev.touches.length >= 2) return;
+
+      var wasGesture = !!touchGesture.active;
       touchGesture.active = false;
+
+      var shouldHandleTap = touchTapState.active && !touchTapState.moved && !wasGesture
+        && (Date.now() - Number(touchTapState.startedAt || 0) <= 320)
+        && ev.changedTouches && ev.changedTouches.length;
+      if (!shouldHandleTap) {
+        touchTapState.active = false;
+        return;
+      }
+
+      var t = ev.changedTouches[0];
+      var state = store.getState();
+      var rect = canvas.getBoundingClientRect();
+      var board = state.board || {};
+      var size = Number(board.size || 42) * Number(board.zoom || 1);
+      var canvasX = Number(t.clientX || 0) - rect.left;
+      var canvasY = Number(t.clientY || 0) - rect.top;
+      var ax = pixelToAxial(canvasX, canvasY, size, Number(board.panX || 0), Number(board.panY || 0));
+      lastCombatBoardHex = { q: Number(ax.q || 0), r: Number(ax.r || 0), at: Date.now() };
+
+      var clickedToken = findTokenAtCanvasPoint(state, canvasX, canvasY) || nearestTokenAt(ax.q, ax.r);
+      var clickedMapItem = !clickedToken ? findSelectableMapItemAt(state, ax.q, ax.r) : null;
+
+      if (clickedToken) {
+        normalizeSelection(clickedToken.id, [String(clickedToken.id || '')]);
+        updateUiPanels();
+        drawBoard();
+        touchTapState.active = false;
+        return;
+      }
+
+      if (state.activeTool === 'select' && state.selectedMapItem && state.draggingMapItem) {
+        moveMapItemTo(state.draggingMapItem.layer, state.draggingMapItem.key, ax.q, ax.r);
+        store.setState({ draggingMapItem: null });
+        updateUiPanels();
+        drawBoard();
+        touchTapState.active = false;
+        return;
+      }
+
+      if (state.activeTool === 'select') {
+        var selected = byId(state.selectedTokenId);
+        if (selected) {
+          moveToken(selected.id, ax.q, ax.r);
+          updateUiPanels();
+          drawBoard();
+        }
+      }
+
+      touchTapState.active = false;
     }, { passive: true });
 
     canvas.addEventListener('dragover', function (ev) {

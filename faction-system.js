@@ -3592,7 +3592,7 @@
           loseName: (FACTIONS[rival] && FACTIONS[rival].name) ? FACTIONS[rival].name : toTitle(rival),
         },
         {
-          missionType: "guild_contract",
+          missionType: "faction_contract",
           contractPathway: pathLabel,
           templateId: gm.templateId,
           checkpoints: gm.checkpoints,

@@ -427,7 +427,7 @@
       boardLabel: "Choir Board",
       shopLabel: "Reliquary Quartermaster",
       contractLabel: "Guild Contracts",
-      campaignTag: "Campaign planning underway"
+      campaignTag: "Pilot campaign live"
     },
     military: {
       displayName: "The Iron Cohort",
@@ -633,6 +633,178 @@
     ]
   };
 
+  const SACRED_CHOIR_GUILD_CAMPAIGN = {
+    factionId: "religious",
+    questLabel: "Sacred Choir Campaign",
+    contractFlavor: "Monster hunts, shrine cleansings, relic recoveries, and portal seal orders.",
+    shopFlavor: "Spell scrolls, sanctified reagents, and ritual wards.",
+    quests: [
+      {
+        id: "choir_1",
+        title: "Oath at the Ashen Nave",
+        difficulty: "medium",
+        region: "province",
+        location: "Ashen Nave Trial Chapel",
+        templateLabel: "Guild Campaign I",
+        stepNames: { 1: "Receive the Oath", 2: "Endure the Haunting", 3: "Sanctify the Nave" },
+        checkpoints: [
+          "Swear the choir oath before a divided clergy panel.",
+          "Survive a controlled haunting in the trial nave.",
+          "Choose doctrine or compassion to complete initiation."
+        ],
+        lore: "The Choir tests whether your faith can hold under fear and whether mercy still survives in ritual law.",
+        prepUnlockId: "blessed_ash"
+      },
+      {
+        id: "choir_2",
+        title: "Flowers for the Hollowing",
+        difficulty: "hard",
+        region: "province",
+        location: "Moon-Bloom Marsh Ruin",
+        templateLabel: "Guild Campaign II",
+        stepNames: { 1: "Map Bloom Sites", 2: "Harvest Under Threat", 3: "Distill the Poultice" },
+        checkpoints: [
+          "Trace where the moon-bloom still grows in plague marshes.",
+          "Hold the harvest route against rift fauna.",
+          "Distill anti-curse reagents before they spoil."
+        ],
+        lore: "The flowers that neutralize monster venom only bloom where the old wards failed.",
+        prepUnlockId: "moon_bloom_poultice"
+      },
+      {
+        id: "choir_3",
+        title: "Bells Beneath the Tides",
+        difficulty: "hard",
+        region: "sea",
+        location: "Drowned Bell Anchorage",
+        templateLabel: "Guild Campaign III",
+        stepNames: { 1: "Read Pilgrim Logs", 2: "Dive the Bell Chamber", 3: "Silence the Call" },
+        checkpoints: [
+          "Gather survivor testimony from drowned-pier pilgrims.",
+          "Enter a flooded bell vault beneath storm docks.",
+          "Stop the signal drawing monsters ashore."
+        ],
+        lore: "A buried bell array has become a hunting horn for things that should not answer prayer.",
+        prepUnlockId: "grave_salt_circle"
+      },
+      {
+        id: "choir_4",
+        title: "Choir of Red Stars",
+        difficulty: "challenging",
+        region: "galaxy",
+        location: "Orbital Shrine Relay",
+        templateLabel: "Guild Campaign IV",
+        stepNames: { 1: "Decode the Broadcast", 2: "Breach the Shrine Ring", 3: "Burn the False Miracle" },
+        checkpoints: [
+          "Identify who seeded the miracle transmission.",
+          "Cross a shrine station overrun by echo entities.",
+          "Sever the source before the signal cascades planetside."
+        ],
+        lore: "A counterfeit miracle broadcast is opening doors the Choir spent generations keeping shut.",
+        prepUnlockId: "null_hymnal"
+      },
+      {
+        id: "choir_5",
+        title: "The Child and the Gate",
+        difficulty: "challenging",
+        region: "galaxy",
+        location: "Planetfall: Scarred Gate Basin",
+        templateLabel: "Guild Campaign V",
+        stepNames: { 1: "Escort the Marked Child", 2: "Stabilize the Basin", 3: "Seal the Gate" },
+        checkpoints: [
+          "Protect Ivo across hostile approach lines.",
+          "Contain a widening portal basin before collapse.",
+          "Use the marked resonance to lock the gate."
+        ],
+        lore: "A child marked by portal light may be the only living key to close the basin without mass loss.",
+        prepUnlockId: "gate_salt"
+      },
+      {
+        id: "choir_6",
+        title: "Hunt of the Reliquary Beast",
+        difficulty: "very_hard",
+        region: "province",
+        location: "World That Was Chapel-City",
+        templateLabel: "Guild Campaign VI",
+        stepNames: { 1: "Track the Feeding Rite", 2: "Cross Bone-Glass Streets", 3: "Defeat the Reliquary Beast" },
+        checkpoints: [
+          "Follow ritual traces through the dead chapel district.",
+          "Secure enough relic ash to survive the beast's aura.",
+          "Drop the lieutenant before it reaches the flesh vault."
+        ],
+        lore: "The Reliquary Beast guards the path to a deeper sanctum where faith has turned predatory.",
+        prepUnlockId: "saintsbane_oil"
+      },
+      {
+        id: "choir_7",
+        title: "The Choir Below Flesh",
+        difficulty: "impossible",
+        region: "province",
+        location: "World That Was Flesh Reliquary",
+        templateLabel: "Guild Boss Hunt",
+        stepNames: { 1: "Break the Reliquary Seal", 2: "Survive the Halo Chamber", 3: "Defeat the Halo Devourer" },
+        checkpoints: [
+          "Spend gathered prep to breach the flesh reliquary.",
+          "Disrupt the active portal halo before full incarnation.",
+          "End the saint-beast choir before the city falls silent."
+        ],
+        lore: "Something below the old basilica has been feeding on hymn, blood, and portal light long enough to become divine in all the wrong ways.",
+        prepUnlockId: "",
+        isBoss: true
+      }
+    ],
+    prepOptions: [
+      {
+        id: "blessed_ash",
+        name: "Blessed Ash",
+        source: "Quest I reward",
+        summary: "+5 bonus from sanctified ward markings.",
+        effectType: "bonus",
+        bonus: 5
+      },
+      {
+        id: "moon_bloom_poultice",
+        name: "Moon-Bloom Poultice",
+        source: "Quest II reward",
+        summary: "Step down one toxic or curse-linked dread die once.",
+        effectType: "dread_down",
+        dreadSteps: 1
+      },
+      {
+        id: "grave_salt_circle",
+        name: "Grave Salt Circle",
+        source: "Quest III reward",
+        summary: "+5 bonus from sealed summon lanes.",
+        effectType: "bonus",
+        bonus: 5
+      },
+      {
+        id: "null_hymnal",
+        name: "Null Hymnal",
+        source: "Quest IV reward",
+        summary: "Step down one portal-echo dread die once.",
+        effectType: "dread_down",
+        dreadSteps: 1
+      },
+      {
+        id: "gate_salt",
+        name: "Gate Salt",
+        source: "Quest V reward",
+        summary: "+5 bonus from anti-summon seal prep.",
+        effectType: "bonus",
+        bonus: 5
+      },
+      {
+        id: "saintsbane_oil",
+        name: "Saintsbane Oil",
+        source: "Quest VI reward",
+        summary: "+5 bonus from anti-relic strike oil.",
+        effectType: "bonus",
+        bonus: 5
+      }
+    ]
+  };
+
   const GUILD_CAMPAIGN_DEFAULT_STATE = {
     joined: false,
     guildName: "",
@@ -677,6 +849,7 @@
 
   function getGuildCampaignConfig(factionId) {
     if (String(factionId) === "military") return MILITARY_GUILD_CAMPAIGN;
+    if (String(factionId) === "religious") return SACRED_CHOIR_GUILD_CAMPAIGN;
     return null;
   }
 
@@ -2287,17 +2460,31 @@
     return 8;
   }
 
-  function buildMerchantStock() {
-    if (typeof buildGalaxyMerchantOffers === "function") {
-      const offers = buildGalaxyMerchantOffers("Faction Base Merchant");
-      return Array.isArray(offers) ? offers.slice(0, 6) : [];
-    }
+  function buildMerchantStock(factionId) {
     const out = [];
-    const cats = (typeof SHOP_DATA === "object" && SHOP_DATA) ? ["items", "toolkits", "tradegoods", "weapons", "armor"] : [];
-    cats.forEach((cat) => {
-      const list = SHOP_DATA[cat] || [];
+    const pilotCategoryMap = {
+      military: ["weapon_mods", "weapons", "armor", "toolkits", "items"],
+      religious: ["scrolls", "remedies", "items", "essentials", "toolkits"]
+    };
+    const hasShopData = (typeof SHOP_DATA === "object" && SHOP_DATA);
+    const selectedCats = hasShopData
+      ? (pilotCategoryMap[String(factionId || "")] || ["items", "toolkits", "tradegoods", "weapons", "armor"])
+      : [];
+
+    selectedCats.forEach((cat) => {
+      const list = (hasShopData && Array.isArray(SHOP_DATA[cat])) ? SHOP_DATA[cat] : [];
       if (list.length) out.push(list[Math.floor(Math.random() * list.length)]);
     });
+
+    if (out.length < 6 && typeof buildGalaxyMerchantOffers === "function") {
+      const offers = buildGalaxyMerchantOffers("Guild Base Merchant");
+      if (Array.isArray(offers) && offers.length) {
+        for (let i = 0; i < offers.length && out.length < 6; i++) {
+          out.push(offers[i]);
+        }
+      }
+    }
+
     return out.slice(0, 6);
   }
 
@@ -2345,7 +2532,7 @@
       base.npcs = generateBaseNPCs(factionId);
     }
     if (!Array.isArray(base.merchantStock) || !base.merchantStock.length) {
-      base.merchantStock = buildMerchantStock();
+      base.merchantStock = buildMerchantStock(factionId);
     }
     if (!Array.isArray(base.generatedRooms) || !base.generatedRooms.length) {
       base.generatedRooms = generateBaseRooms(factionId);
@@ -2656,7 +2843,7 @@
       const name = offer && offer.name ? offer.name : "Trade Item";
       const cost = Number(offer && offer.cost ? offer.cost : 120);
       const cat = offer && offer.cat ? offer.cat : "items";
-      const desc = offer && offer.desc ? offer.desc : "Faction quartermaster stock.";
+      const desc = offer && offer.desc ? offer.desc : "Guild quartermaster stock.";
       return `<div style='padding:.25rem .35rem;border:1px solid var(--border2);margin-bottom:.24rem;'><strong style='color:var(--gold2);'>${name}</strong> (${cat})<br>${desc}<br><button class='btn btn-xs btn-teal' onclick="factionSystem.buyMerchantItem('${factionId}',${idx})">Buy ${cost}₵</button></div>`;
     }).join("")}</div>`;
     openFactionModal(guildView.shopLabel, "<div style='font-size:.83rem;color:var(--text2);line-height:1.6;'>" + guildTag + html + "</div>");

@@ -414,6 +414,244 @@
     },
   };
 
+  const GUILD_PRESENTATION = {
+    corporations: {
+      displayName: "The Gilded Ledger",
+      boardLabel: "Ledger Board",
+      shopLabel: "Market Quartermaster",
+      contractLabel: "Guild Contracts",
+      campaignTag: "Campaign planning underway"
+    },
+    religious: {
+      displayName: "The Sacred Choir",
+      boardLabel: "Choir Board",
+      shopLabel: "Reliquary Quartermaster",
+      contractLabel: "Guild Contracts",
+      campaignTag: "Campaign planning underway"
+    },
+    military: {
+      displayName: "The Iron Cohort",
+      boardLabel: "War Table",
+      shopLabel: "Armory Quartermaster",
+      contractLabel: "Bounty Board",
+      campaignTag: "Pilot campaign live"
+    },
+    underworld: {
+      displayName: "The Underground Crown",
+      boardLabel: "Whisper Board",
+      shopLabel: "Crown Quartermaster",
+      contractLabel: "Guild Contracts",
+      campaignTag: "Campaign planning underway"
+    },
+    rebels: {
+      displayName: "The Ember Union",
+      boardLabel: "Union Board",
+      shopLabel: "Union Quartermaster",
+      contractLabel: "Guild Contracts",
+      campaignTag: "Campaign planning underway"
+    },
+    scholars: {
+      displayName: "The Archive Keepers",
+      boardLabel: "Archive Board",
+      shopLabel: "Archive Quartermaster",
+      contractLabel: "Guild Contracts",
+      campaignTag: "Campaign planning underway"
+    }
+  };
+
+  const GUILD_DREAD_DICE = [4, 6, 8, 10, 12, 20];
+
+  const MILITARY_GUILD_CAMPAIGN = {
+    factionId: "military",
+    questLabel: "Iron Cohort Campaign",
+    contractFlavor: "Bounties, deserter dragnets, raids, and security orders.",
+    shopFlavor: "Weapon mods, armor kits, and tactical tools.",
+    quests: [
+      {
+        id: "cohort_1",
+        title: "Take the Cohort Oath",
+        difficulty: "medium",
+        region: "province",
+        location: "Bastion Nine Tribunal",
+        templateLabel: "Guild Campaign I",
+        stepNames: { 1: "Review the Warrant", 2: "Track the First Lead", 3: "Make the Arrest" },
+        checkpoints: [
+          "Hear the case against the first marked target.",
+          "Follow provincial testimony to a safehouse.",
+          "Decide whether the Cohort's version of justice holds."
+        ],
+        lore: "The Cohort tests whether you can carry a warrant without mistaking cruelty for discipline.",
+        prepUnlockId: "suspect_dossier"
+      },
+      {
+        id: "cohort_2",
+        title: "Board of the Wanted",
+        difficulty: "hard",
+        region: "province",
+        location: "Three-Lead Provincial Circuit",
+        templateLabel: "Guild Campaign II",
+        stepNames: { 1: "Collect Bounty Leads", 2: "Pressure the Route", 3: "Take the Mark" },
+        checkpoints: [
+          "Question three bounty-board witnesses.",
+          "Cut off the target's route through the province.",
+          "Secure proof that the board is not lying to you."
+        ],
+        lore: "Every bounty poster hides a politics problem. The Cohort wants obedience; the field wants truth.",
+        prepUnlockId: "shock_manacles"
+      },
+      {
+        id: "cohort_3",
+        title: "Dead or Breathing",
+        difficulty: "hard",
+        region: "sea",
+        location: "Storm Pier Extradition Route",
+        templateLabel: "Guild Campaign III",
+        stepNames: { 1: "Read the Harbor Brief", 2: "Board the Storm Route", 3: "Capture or Kill" },
+        checkpoints: [
+          "Determine why the alive payout suddenly doubled.",
+          "Run the pier pursuit through storm traffic.",
+          "Stop the deserter before they reach open water."
+        ],
+        lore: "A pirate deserter knows too much about who profits from the Cohort's bounty office.",
+        prepUnlockId: "breach_load"
+      },
+      {
+        id: "cohort_4",
+        title: "The Planetary Redlist",
+        difficulty: "challenging",
+        region: "galaxy",
+        location: "Planetfall: Redlist Frontier Colony",
+        templateLabel: "Guild Campaign IV",
+        stepNames: { 1: "Review War Records", 2: "Hunt the Colony Grid", 3: "Break the Armor Line" },
+        checkpoints: [
+          "Search a battle-scarred colony for the listed war criminal.",
+          "Harvest old munitions from wrecked armor.",
+          "Push through fortified resistance before the target slips orbit."
+        ],
+        lore: "The Redlist proves the Cohort's enemies learned to survive by stealing its own doctrine.",
+        prepUnlockId: "signal_jammer"
+      },
+      {
+        id: "cohort_5",
+        title: "Orbit of the Hunted",
+        difficulty: "challenging",
+        region: "galaxy",
+        location: "Outer Relay Warrant Spine",
+        templateLabel: "Guild Campaign V",
+        stepNames: { 1: "Map the Leak", 2: "Crack the Relay", 3: "Seize the Data" },
+        checkpoints: [
+          "Find who is selling bounty data to mercenaries.",
+          "Infiltrate the orbital relay under live command pressure.",
+          "Pull the leak list before the relay wipes itself."
+        ],
+        lore: "Someone inside the Cohort has weaponized warrants into a private war economy.",
+        prepUnlockId: "killbox_blueprint"
+      },
+      {
+        id: "cohort_6",
+        title: "Bring Down the Iron Hound",
+        difficulty: "very_hard",
+        region: "province",
+        location: "World That Was Siege District",
+        templateLabel: "Guild Campaign VI",
+        stepNames: { 1: "Read the Kill Corridors", 2: "Cross the Siege Grid", 3: "Defeat Captain Veyr" },
+        checkpoints: [
+          "Study mine maps and false surrender sites.",
+          "Advance through a district built to punish hesitation.",
+          "Drop the lieutenant before the war table collapses."
+        ],
+        lore: "Captain Veyr, the Iron Hound, turned pursuit doctrine into an art of public terror.",
+        prepUnlockId: "wakeleaf_stimulant"
+      },
+      {
+        id: "cohort_7",
+        title: "The Gallows Engine",
+        difficulty: "impossible",
+        region: "province",
+        location: "World That Was Blacksite Gallows",
+        templateLabel: "Guild Boss Hunt",
+        stepNames: { 1: "Break the Blacksite Route", 2: "Storm the Gallows Core", 3: "Defeat the Warrant Tyrant" },
+        checkpoints: [
+          "Use your gathered prep to cut into the execution engine.",
+          "Disable the command spine before the tyrant takes the field.",
+          "End the doctrine that turned warrants into mechanized slaughter."
+        ],
+        lore: "The rogue warlord behind the Cohort leak has fused the bounty office into a living execution machine.",
+        prepUnlockId: "",
+        isBoss: true
+      }
+    ],
+    prepOptions: [
+      {
+        id: "suspect_dossier",
+        name: "Suspect Dossier",
+        source: "Quest I reward",
+        summary: "+5 bonus on your next guild campaign mission.",
+        effectType: "bonus",
+        bonus: 5
+      },
+      {
+        id: "shock_manacles",
+        name: "Shock Manacles",
+        source: "Quest II reward",
+        summary: "Step down one mission dread die once.",
+        effectType: "dread_down",
+        dreadSteps: 1
+      },
+      {
+        id: "breach_load",
+        name: "Breach Load",
+        source: "Quest III reward",
+        summary: "+5 bonus from armor-breaking munitions.",
+        effectType: "bonus",
+        bonus: 5
+      },
+      {
+        id: "signal_jammer",
+        name: "Signal Jammer",
+        source: "Quest IV reward",
+        summary: "Step down one command-linked dread die once.",
+        effectType: "dread_down",
+        dreadSteps: 1
+      },
+      {
+        id: "killbox_blueprint",
+        name: "Killbox Blueprint",
+        source: "Quest V reward",
+        summary: "+5 bonus from mapped ambush lanes.",
+        effectType: "bonus",
+        bonus: 5
+      },
+      {
+        id: "wakeleaf_stimulant",
+        name: "Wakeleaf Stimulant",
+        source: "Quest VI reward",
+        summary: "+5 bonus from a sharpened opening push.",
+        effectType: "bonus",
+        bonus: 5
+      }
+    ]
+  };
+
+  const GUILD_CAMPAIGN_DEFAULT_STATE = {
+    joined: false,
+    guildName: "",
+    currentArcStage: 0,
+    activeCampaignMissionId: null,
+    completedQuestIds: [],
+    knownWeaknesses: [],
+    earnedPrepOptions: [],
+    purchasedPrepOptions: [],
+    activePrepIds: [],
+    bossUnlocked: false,
+    bossDefeated: false,
+    contractBoardSeed: "",
+    shopTier: 0,
+    notableChoices: [],
+    relationshipMap: { patron: 0, rival: 0, handler: 0 },
+    lastOutcome: ""
+  };
+
   function pick(arr) {
     if (!Array.isArray(arr) || !arr.length) return "";
     return arr[Math.floor(Math.random() * arr.length)] || "";
@@ -421,6 +659,76 @@
 
   function toTitle(text) {
     return String(text || "").charAt(0).toUpperCase() + String(text || "").slice(1);
+  }
+
+  function getGuildPresentation(factionId) {
+    return GUILD_PRESENTATION[factionId] || {
+      displayName: (FACTIONS[factionId] && FACTIONS[factionId].name) || "Guild",
+      boardLabel: "Guild Board",
+      shopLabel: "Guild Quartermaster",
+      contractLabel: "Guild Contracts",
+      campaignTag: "Campaign planning underway"
+    };
+  }
+
+  function getGuildName(factionId) {
+    return getGuildPresentation(factionId).displayName;
+  }
+
+  function getGuildCampaignConfig(factionId) {
+    if (String(factionId) === "military") return MILITARY_GUILD_CAMPAIGN;
+    return null;
+  }
+
+  function createGuildCampaignState(factionId) {
+    const out = Object.assign({}, GUILD_CAMPAIGN_DEFAULT_STATE);
+    out.guildName = getGuildName(factionId);
+    out.relationshipMap = { patron: 0, rival: 0, handler: 0 };
+    out.completedQuestIds = [];
+    out.knownWeaknesses = [];
+    out.earnedPrepOptions = [];
+    out.purchasedPrepOptions = [];
+    out.activePrepIds = [];
+    out.notableChoices = [];
+    return out;
+  }
+
+  function stepGuildDreadDieDown(value, steps) {
+    let die = Number(value || 8);
+    let count = Math.max(0, Number(steps || 0));
+    while (count > 0) {
+      let idx = GUILD_DREAD_DICE.indexOf(die);
+      if (idx < 0) idx = 2;
+      die = GUILD_DREAD_DICE[Math.max(0, idx - 1)];
+      count -= 1;
+    }
+    return die;
+  }
+
+  function getGuildCampaignState(factionId) {
+    ensureFactionState();
+    if (!S || !S.factionNarrative || !S.factionNarrative.guildCampaigns) return createGuildCampaignState(factionId);
+    if (!S.factionNarrative.guildCampaigns[factionId] || typeof S.factionNarrative.guildCampaigns[factionId] !== "object") {
+      S.factionNarrative.guildCampaigns[factionId] = createGuildCampaignState(factionId);
+    }
+    const state = S.factionNarrative.guildCampaigns[factionId];
+    if (typeof state.joined !== "boolean") state.joined = false;
+    if (typeof state.guildName !== "string" || !state.guildName) state.guildName = getGuildName(factionId);
+    if (typeof state.currentArcStage !== "number") state.currentArcStage = 0;
+    if (typeof state.activeCampaignMissionId !== "number" && typeof state.activeCampaignMissionId !== "string") state.activeCampaignMissionId = null;
+    if (!Array.isArray(state.completedQuestIds)) state.completedQuestIds = [];
+    if (!Array.isArray(state.knownWeaknesses)) state.knownWeaknesses = [];
+    if (!Array.isArray(state.earnedPrepOptions)) state.earnedPrepOptions = [];
+    if (!Array.isArray(state.purchasedPrepOptions)) state.purchasedPrepOptions = [];
+    if (!Array.isArray(state.activePrepIds)) state.activePrepIds = [];
+    if (typeof state.bossUnlocked !== "boolean") state.bossUnlocked = false;
+    if (typeof state.bossDefeated !== "boolean") state.bossDefeated = false;
+    if (typeof state.contractBoardSeed !== "string") state.contractBoardSeed = "";
+    if (typeof state.shopTier !== "number") state.shopTier = 0;
+    if (!Array.isArray(state.notableChoices)) state.notableChoices = [];
+    if (!state.relationshipMap || typeof state.relationshipMap !== "object") state.relationshipMap = { patron: 0, rival: 0, handler: 0 };
+    if (typeof state.lastOutcome !== "string") state.lastOutcome = "";
+    return state;
   }
 
   function getFactionRenown(factionId) {
@@ -460,9 +768,13 @@
     if (!S.factionNarrative.finale || typeof S.factionNarrative.finale !== "object") {
       S.factionNarrative.finale = { unlocked: false, key: "", revealed: false, unlockedAt: 0 };
     }
+    if (!S.factionNarrative.guildCampaigns || typeof S.factionNarrative.guildCampaigns !== "object") {
+      S.factionNarrative.guildCampaigns = {};
+    }
 
     Object.keys(FACTIONS).forEach((id) => {
       if (typeof S.factionRenown[id] !== "number") S.factionRenown[id] = 0;
+      getGuildCampaignState(id);
       if (!S.factionBases[id]) {
         const theme = BASE_FLAVOR[id] || BASE_FLAVOR.scholars;
         const regionType = pick(BASE_REGION_TYPES);
@@ -481,6 +793,222 @@
         };
       }
     });
+  }
+
+  function getGuildCampaignQuestByStage(factionId, stageIndex) {
+    const cfg = getGuildCampaignConfig(factionId);
+    if (!cfg || !Array.isArray(cfg.quests)) return null;
+    const idx = Math.max(0, Number(stageIndex || 0));
+    return cfg.quests[idx] || null;
+  }
+
+  function getGuildPrepById(factionId, prepId) {
+    const cfg = getGuildCampaignConfig(factionId);
+    if (!cfg || !Array.isArray(cfg.prepOptions)) return null;
+    const id = String(prepId || "");
+    for (let i = 0; i < cfg.prepOptions.length; i++) {
+      const row = cfg.prepOptions[i];
+      if (row && String(row.id || "") === id) return row;
+    }
+    return null;
+  }
+
+  function listGuildPrepOptionsForState(factionId, state) {
+    const ids = [];
+    const add = function (value) {
+      const id = String(value || "");
+      if (!id || ids.indexOf(id) >= 0) return;
+      ids.push(id);
+    };
+    (state && state.earnedPrepOptions || []).forEach(add);
+    (state && state.purchasedPrepOptions || []).forEach(add);
+    return ids.map((id) => getGuildPrepById(factionId, id)).filter(Boolean);
+  }
+
+  function getGuildCampaignMissionById(state, missionId) {
+    if (!S || !Array.isArray(S.activeMissions)) return null;
+    const id = String(missionId || "");
+    if (!id) return null;
+    return S.activeMissions.find((m) => m && String(m.id) === id) || null;
+  }
+
+  function addGuildPrepOption(factionId, prepId) {
+    const state = getGuildCampaignState(factionId);
+    const id = String(prepId || "");
+    if (!id) return;
+    if (state.earnedPrepOptions.indexOf(id) < 0) state.earnedPrepOptions.push(id);
+  }
+
+  function applyGuildPrepToMission(factionId, mission, prepIds) {
+    if (!mission || !Array.isArray(prepIds) || !prepIds.length) return;
+    let bonus = Number(mission.bonus || 0);
+    let dread = Number(mission.gmDreadOverride || mission.dread || 8);
+    prepIds.forEach((prepId) => {
+      const prep = getGuildPrepById(factionId, prepId);
+      if (!prep) return;
+      if (prep.effectType === "bonus") {
+        bonus += Number(prep.bonus || 0);
+      } else if (prep.effectType === "dread_down") {
+        dread = stepGuildDreadDieDown(dread, Number(prep.dreadSteps || 1));
+      }
+    });
+    mission.bonus = Math.max(0, Math.min(20, bonus));
+    mission.gmDreadOverride = Math.max(4, dread);
+  }
+
+  function startGuildCampaignQuest(factionId) {
+    const cfg = getGuildCampaignConfig(factionId);
+    if (!cfg || !Array.isArray(cfg.quests) || !cfg.quests.length) {
+      if (typeof showNotif === "function") showNotif("This guild campaign is not configured yet.", "warn");
+      return;
+    }
+    const state = getGuildCampaignState(factionId);
+    if (!state.joined) {
+      if (typeof showNotif === "function") showNotif("Join the guild first.", "warn");
+      return;
+    }
+
+    const existing = getGuildCampaignMissionById(state, state.activeCampaignMissionId);
+    if (existing) {
+      if (typeof showNotif === "function") showNotif("Guild campaign mission already active in Missions tab.", "warn");
+      return;
+    }
+
+    const quest = getGuildCampaignQuestByStage(factionId, state.currentArcStage);
+    if (!quest) {
+      if (typeof showNotif === "function") showNotif("Guild campaign complete.", "good");
+      return;
+    }
+
+    const faction = FACTIONS[factionId] || { name: getGuildName(factionId) };
+    const rival = getRivalFaction(factionId);
+    if (typeof createMission !== "function") {
+      if (typeof showNotif === "function") showNotif("Mission system unavailable for guild campaign posting.", "warn");
+      return;
+    }
+
+    const created = createMission(
+      "Guild Command",
+      "[Campaign] " + quest.title,
+      quest.difficulty || "medium",
+      quest.location || "Guild Frontier",
+      quest.region || "province",
+      {
+        gain: factionId,
+        lose: rival,
+        gainName: faction.name,
+        loseName: (FACTIONS[rival] && FACTIONS[rival].name) ? FACTIONS[rival].name : toTitle(rival)
+      },
+      {
+        missionType: quest.isBoss ? "guild_boss_hunt" : "guild_campaign",
+        templateLabel: quest.templateLabel || (cfg.questLabel || "Guild Campaign"),
+        stepNames: quest.stepNames || null,
+        checkpoints: quest.checkpoints || null,
+        lore: quest.lore || "Guild campaign mission.",
+        guildCampaign: {
+          factionId,
+          guildName: getGuildName(factionId),
+          questId: quest.id,
+          questIndex: Number(state.currentArcStage || 0),
+          isBoss: !!quest.isBoss,
+          prepIds: (state.activePrepIds || []).slice(0, 3)
+        }
+      }
+    );
+
+    if (!created || !created.id) return;
+
+    applyGuildPrepToMission(factionId, created, state.activePrepIds || []);
+
+    state.activeCampaignMissionId = created.id;
+    state.lastOutcome = "posted:" + String(quest.id || "quest");
+    if (typeof showNotif === "function") showNotif("Guild campaign mission posted: " + quest.title, "good");
+    if (typeof renderMissionBoard === "function") renderMissionBoard();
+    if (typeof renderMissionTracker === "function") renderMissionTracker();
+    setupFactionTab();
+  }
+
+  function joinGuildCampaign(factionId) {
+    const state = getGuildCampaignState(factionId);
+    if (state.joined) {
+      if (typeof showNotif === "function") showNotif(getGuildName(factionId) + " already joined.", "warn");
+      return;
+    }
+    state.joined = true;
+    state.guildName = getGuildName(factionId);
+    state.currentArcStage = 0;
+    state.activeCampaignMissionId = null;
+    state.completedQuestIds = [];
+    state.earnedPrepOptions = [];
+    state.activePrepIds = [];
+    state.bossUnlocked = false;
+    state.bossDefeated = false;
+    state.lastOutcome = "joined";
+    if (typeof showNotif === "function") showNotif("Joined guild campaign: " + state.guildName + ".", "good");
+    setupFactionTab();
+  }
+
+  function toggleGuildPrep(factionId, prepId) {
+    const state = getGuildCampaignState(factionId);
+    const id = String(prepId || "");
+    if (!id) return;
+    const owned = listGuildPrepOptionsForState(factionId, state).some((row) => String(row.id || "") === id);
+    if (!owned) {
+      if (typeof showNotif === "function") showNotif("Prep option not unlocked yet.", "warn");
+      return;
+    }
+    const idx = state.activePrepIds.indexOf(id);
+    if (idx >= 0) {
+      state.activePrepIds.splice(idx, 1);
+      setupFactionTab();
+      return;
+    }
+    if (state.activePrepIds.length >= 3) {
+      if (typeof showNotif === "function") showNotif("Maximum 3 active prep options.", "warn");
+      return;
+    }
+    state.activePrepIds.push(id);
+    setupFactionTab();
+  }
+
+  function resolveGuildCampaignProgress(mission, success) {
+    const info = mission && mission.guildCampaign;
+    if (!info || !info.factionId) return;
+    const factionId = String(info.factionId || "");
+    if (!factionId) return;
+    const state = getGuildCampaignState(factionId);
+    if (String(state.activeCampaignMissionId || "") !== String(mission.id || "")) return;
+
+    const quest = getGuildCampaignQuestByStage(factionId, Number(info.questIndex || state.currentArcStage || 0));
+
+    if (!success) {
+      state.activeCampaignMissionId = null;
+      state.lastOutcome = "failed:" + String((quest && quest.id) || "quest");
+      if (typeof showNotif === "function") showNotif("Guild campaign setback. Repost the mission when ready.", "warn");
+      setupFactionTab();
+      return;
+    }
+
+    const questId = String((quest && quest.id) || (info && info.questId) || "");
+    if (questId && state.completedQuestIds.indexOf(questId) < 0) state.completedQuestIds.push(questId);
+    state.activeCampaignMissionId = null;
+    state.currentArcStage = Math.max(state.currentArcStage, Number(info.questIndex || state.currentArcStage) + 1);
+    state.lastOutcome = "completed:" + questId;
+
+    if (quest && quest.prepUnlockId) addGuildPrepOption(factionId, quest.prepUnlockId);
+    if (quest && quest.isBoss) state.bossDefeated = true;
+
+    const cfg = getGuildCampaignConfig(factionId);
+    const total = cfg && Array.isArray(cfg.quests) ? cfg.quests.length : 0;
+    if (state.currentArcStage >= Math.max(0, total - 1)) {
+      state.bossUnlocked = true;
+    }
+
+    if (typeof showNotif === "function") {
+      if (quest && quest.isBoss) showNotif(getGuildName(factionId) + " campaign complete. Boss defeated.", "good");
+      else showNotif(getGuildName(factionId) + " campaign advanced to stage " + (state.currentArcStage + 1) + ".", "good");
+    }
+    setupFactionTab();
   }
 
   const WAYFARER_SECRET_POOL = [
@@ -1544,8 +2072,8 @@
     let html = `
       <div class="faction-container">
         <div class="faction-intro">
-          <h2>FACTION SYSTEM</h2>
-          <p>The world is divided. Six factions compete, cooperate, and conspire. Your loyalty shapes endings, and each Renown rank grants a roll bonus to that faction's signature Action Die during its story pressure.</p>
+          <h2>GUILD SYSTEM</h2>
+          <p>The world is divided into six major guild powers. Join one, take contracts, and push long-form campaigns while your Renown still drives the same signature Action Die bonuses.</p>
           <p style="margin-top:.45rem;color:var(--muted2);font-size:.82rem;line-height:1.6;">
             Lore Focus Mapping:
             <strong style="color:var(--gold2);">Mages = Mind</strong>,
@@ -1564,13 +2092,17 @@
       const actionDie = FACTION_ACTION_DIE_MAP[faction.id] || "mind";
       const loreRole = FACTION_LORE_ROLE_MAP[faction.id] || "Specialists";
       const base = (S && S.factionBases && S.factionBases[faction.id]) ? S.factionBases[faction.id] : null;
+      const guildView = getGuildPresentation(faction.id);
+      const guildState = getGuildCampaignState(faction.id);
+      const cfg = getGuildCampaignConfig(faction.id);
+      const stageDisplay = cfg && Array.isArray(cfg.quests) ? (Math.min(Number(guildState.currentArcStage || 0), cfg.quests.length) + " / " + cfg.quests.length) : "Not configured";
       html += `
         <div class="faction-card" data-faction="${faction.id}">
           <div class="faction-header">
             <span class="faction-emoji">${faction.emoji}</span>
-            <h3>${faction.name}</h3>
+            <h3>${guildView.displayName}</h3>
           </div>
-          <div class="faction-essence">${faction.essence}</div>
+          <div class="faction-essence">${faction.essence} · ${guildView.campaignTag}</div>
           <p class="faction-lore">${faction.lore}</p>
           <p class="faction-motto"><em>"${faction.motto}"</em></p>
           <div class="faction-stats">
@@ -1595,15 +2127,23 @@
               <span>+${Math.max(0, renown)} ${toTitle(actionDie)} (${loreRole} story)</span>
             </div>
             <div class="stat">
-              <label>Faction Base:</label>
+              <label>Guild Base:</label>
               <span>${base ? base.regionType : "Uncharted"}</span>
+            </div>
+            <div class="stat">
+              <label>Campaign Stage:</label>
+              <span>${stageDisplay}</span>
+            </div>
+            <div class="stat">
+              <label>Membership:</label>
+              <span>${guildState.joined ? "Joined" : "Not joined"}</span>
             </div>
           </div>
           <button class="btn btn-sm" onclick="factionSystem.visitBase('${faction.id}')" style="margin-bottom:.4rem;">
-            Visit Faction Base
+            Visit Guild Base
           </button>
           <button class="btn btn-primary faction-expand" onclick="factionSystem.expandFaction('${faction.id}')">
-            View Missions & Pathways
+            View Contracts & Campaign
           </button>
         </div>
       `;
@@ -1618,7 +2158,7 @@
           <div style="border:1px solid var(--border2);padding:.5rem .6rem;margin:.45rem 0 .65rem 0;font-size:.8rem;color:var(--text2);line-height:1.6;">
             <div><strong style="color:var(--gold2);">Path Points:</strong> Heroic ${Number((S.factionNarrative && S.factionNarrative.pathPoints && S.factionNarrative.pathPoints.heroic) || 0)} · Tyrant ${Number((S.factionNarrative && S.factionNarrative.pathPoints && S.factionNarrative.pathPoints.tyrant) || 0)} · Martyr ${Number((S.factionNarrative && S.factionNarrative.pathPoints && S.factionNarrative.pathPoints.martyr) || 0)}</div>
             <div style="margin-top:.22rem;"><strong style="color:var(--teal);">Ending Trajectory:</strong> ${(computeFactionEndingFromPoints().title || 'Unwritten Fate')}</div>
-            <div style="margin-top:.12rem;color:var(--muted2);">${computeFactionEndingFromPoints().vibe || 'Complete faction contracts to shape your ending.'}</div>
+            <div style="margin-top:.12rem;color:var(--muted2);">${computeFactionEndingFromPoints().vibe || 'Complete guild contracts to shape your ending.'}</div>
           </div>
           <div class="pathway-grid">
     `;
@@ -1650,10 +2190,10 @@
         ${renderAdaptiveChoicesHtml()}
 
         <div class="faction-dynamics">
-          <h2>FACTION DYNAMICS</h2>
+          <h2>GUILD DYNAMICS</h2>
           <div class="dynamics-section">
             <h3>Natural Allies</h3>
-            <p>These factions work together:</p>
+            <p>These guild powers often align:</p>
             ${FACTION_DYNAMICS.allies.map(pair => `
               <div class="dynamic-pair">
                 <span>${FACTIONS[pair.f1].emoji} ${FACTIONS[pair.f1].name}</span>
@@ -1664,7 +2204,7 @@
           </div>
           <div class="dynamics-section">
             <h3>Natural Enemies</h3>
-            <p>These factions fight each other:</p>
+            <p>These guild powers usually clash:</p>
             ${FACTION_DYNAMICS.enemies.map(pair => `
               <div class="dynamic-pair enemy">
                 <span>${FACTIONS[pair.f1].emoji} ${FACTIONS[pair.f1].name}</span>
@@ -1677,7 +2217,7 @@
 
         <div class="faction-trust">
           <h2>TRUST & BETRAYAL</h2>
-          <p>Building trust with a faction opens exclusive missions and deep relationships. But trust can be shattered.</p>
+          <p>Building trust with a guild opens exclusive contracts, campaign access, and deeper relationships. But trust can still shatter fast.</p>
           <div class="trust-levels">
     `;
 
@@ -1825,6 +2365,14 @@
     const faction = FACTIONS[factionId];
     const base = ensureBaseActivity(factionId);
     if (!faction || !base) return;
+    const guildView = getGuildPresentation(factionId);
+    const guildName = getGuildName(factionId);
+    const guildState = getGuildCampaignState(factionId);
+    const guildCfg = getGuildCampaignConfig(factionId);
+    const activeGuildMission = getGuildCampaignMissionById(guildState, guildState.activeCampaignMissionId);
+    const nextGuildQuest = getGuildCampaignQuestByStage(factionId, guildState.currentArcStage);
+    const availablePrep = listGuildPrepOptionsForState(factionId, guildState);
+
     const anchor = resolveFactionBaseAnchor(base);
     const mission = base.activeMission;
     const renown = getFactionRenown(factionId);
@@ -1846,6 +2394,43 @@
       ? `<div style="color:var(--teal);font-size:.78rem;">Linked Mission Contract #${mission.linkedMissionId} is active in the Missions tab.</div>`
       : "";
 
+    const guildCampaignSummary = guildCfg
+      ? `<div style="border-left:3px solid var(--gold2);background:rgba(201,162,39,.05);border-radius:0 3px 3px 0;padding:.48rem .55rem;margin-bottom:.45rem;">
+          <div style="font-family:'Cinzel',serif;color:var(--gold2);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.18rem;">🏹 Guild Campaign</div>
+          <div style="font-size:.74rem;color:var(--muted2);margin-bottom:.18rem;">${guildCfg.questLabel} · Stage ${Math.min(Number(guildState.currentArcStage || 0) + 1, guildCfg.quests.length)} / ${guildCfg.quests.length}</div>
+          <div style="font-size:.74rem;color:var(--muted2);margin-bottom:.22rem;">${guildCfg.contractFlavor}</div>
+          ${guildState.joined
+            ? `<div style="font-size:.76rem;color:var(--text2);margin-bottom:.22rem;">${activeGuildMission
+                ? ('Active in Missions tab: <strong style="color:var(--teal);">#' + activeGuildMission.id + '</strong>')
+                : (nextGuildQuest ? ('Next campaign quest: <strong style="color:var(--gold2);">' + nextGuildQuest.title + '</strong>') : '<span style="color:var(--green2);">Campaign completed</span>')}</div>
+               <div style="display:flex;gap:.25rem;flex-wrap:wrap;">
+                 ${activeGuildMission ? `<button class="btn btn-xs" disabled>Campaign Active</button>` : (nextGuildQuest ? `<button class="btn btn-xs btn-primary" onclick="factionSystem.startGuildCampaign('${factionId}')">Post Campaign Quest</button>` : `<button class="btn btn-xs" disabled>Campaign Complete</button>`)}
+               </div>`
+            : `<div style="display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-primary" onclick="factionSystem.joinGuild('${factionId}')">Join ${guildName}</button></div>`}
+        </div>`
+      : `<div style="border-left:3px solid var(--border2);background:rgba(255,255,255,.03);border-radius:0 3px 3px 0;padding:.48rem .55rem;margin-bottom:.45rem;">
+          <div style="font-family:'Cinzel',serif;color:var(--muted2);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.18rem;">🏹 Guild Campaign</div>
+          <div style="font-size:.74rem;color:var(--muted2);">Campaign content for this guild is not configured yet.</div>
+        </div>`;
+
+    const guildPrepBlock = guildCfg
+      ? `<div style="border-left:3px solid var(--teal);background:rgba(46,196,182,.06);border-radius:0 3px 3px 0;padding:.48rem .55rem;margin-bottom:.45rem;">
+          <div style="font-family:'Cinzel',serif;color:var(--teal);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.18rem;">🧪 Preparation Board</div>
+          <div style="font-size:.74rem;color:var(--muted2);margin-bottom:.2rem;">Active prep slots: ${Number((guildState.activePrepIds || []).length)} / 3</div>
+          ${availablePrep.length
+            ? availablePrep.map((prep) => {
+                const active = (guildState.activePrepIds || []).indexOf(String(prep.id || '')) >= 0;
+                return `<div style='padding:.24rem .32rem;border:1px solid var(--border2);margin-top:.22rem;background:${active ? 'rgba(46,196,182,.09)' : 'var(--surface)'};'>
+                  <div style='display:flex;justify-content:space-between;gap:.3rem;align-items:flex-start;'>
+                    <div><strong>${prep.name}</strong><div style='font-size:.72rem;color:var(--muted2);'>${prep.summary}</div></div>
+                    <button class='btn btn-xs ${active ? '' : 'btn-primary'}' onclick="factionSystem.toggleGuildPrep('${factionId}','${prep.id}')">${active ? 'Unset' : 'Set Prep'}</button>
+                  </div>
+                </div>`;
+              }).join('')
+            : `<div style="font-size:.74rem;color:var(--muted2);">No prep unlocked yet. Advance the guild campaign to unlock counters and tactical edges.</div>`}
+        </div>`
+      : "";
+
     const html = `
       <div style="font-size:.83rem;color:var(--text2);line-height:1.6;">
 
@@ -1854,7 +2439,7 @@
           <div style="font-size:1.6rem;line-height:1;">${faction.emoji}</div>
           <div>
             <div style="font-family:'Cinzel',serif;color:var(--gold2);font-size:.96rem;letter-spacing:.1em;">${base.baseName}</div>
-            <div style="font-size:.74rem;color:var(--muted2);">${faction.name} · ${base.regionType} · ${anchor}</div>
+            <div style="font-size:.74rem;color:var(--muted2);">${guildName} · ${base.regionType} · ${anchor}</div>
           </div>
           <div style="margin-left:auto;text-align:right;">
             <div style="font-size:.7rem;color:var(--teal);">Rumor Clock</div>
@@ -1863,9 +2448,9 @@
         </div>
         <div style="font-size:.76rem;color:var(--muted2);margin-bottom:.45rem;font-style:italic;">${base.ambientDetail}</div>
 
-        <!-- FACTION MISSION -->
+        <!-- GUILD MISSION -->
         <div style="border-left:3px solid var(--teal);background:rgba(46,196,182,.06);border-radius:0 3px 3px 0;padding:.48rem .55rem;margin-bottom:.45rem;">
-          <div style="font-family:'Cinzel',serif;color:var(--teal);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.25rem;">⚔ Faction Mission</div>
+          <div style="font-family:'Cinzel',serif;color:var(--teal);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.25rem;">⚔ ${guildView.contractLabel}</div>
           <div style="font-weight:700;color:var(--text2);">${mission.title}</div>
           <div style="font-size:.74rem;color:var(--muted2);">Difficulty: ${mission.difficulty} · Payout: ${mission.payout}</div>
           ${linkedMissionText}
@@ -1876,12 +2461,16 @@
           </div>
         </div>
 
+        ${guildCampaignSummary}
+
         <!-- PATH CONTRACTS -->
         <div style="border-left:3px solid var(--gold2);background:rgba(201,162,39,.05);border-radius:0 3px 3px 0;padding:.48rem .55rem;margin-bottom:.45rem;">
-          <div style="font-family:'Cinzel',serif;color:var(--gold2);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.18rem;">📋 Path Contracts</div>
+          <div style="font-family:'Cinzel',serif;color:var(--gold2);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.18rem;">📋 Story Path Contracts</div>
           <div style="font-size:.74rem;color:var(--muted2);margin-bottom:.22rem;">Heroic, Tyrant, and Martyr paths available here. Your choices shape faction alignment.</div>
           ${contracts}
         </div>
+
+        ${guildPrepBlock}
 
         <!-- PEOPLE TO TALK TO -->
         <div style="border-left:3px solid var(--purple);background:rgba(176,96,208,.05);border-radius:0 3px 3px 0;padding:.48rem .55rem;margin-bottom:.45rem;">
@@ -1909,14 +2498,14 @@
 
         <!-- ACTIONS -->
         <div style="display:flex;gap:.3rem;flex-wrap:wrap;padding-top:.2rem;">
-          <button class="btn btn-xs btn-primary" onclick="factionSystem.openMerchant('${factionId}')">🛒 Base Merchant</button>
+          <button class="btn btn-xs btn-primary" onclick="factionSystem.openMerchant('${factionId}')">🛒 ${guildView.shopLabel}</button>
           <button class="btn btn-xs" onclick="factionSystem.generateRooms('${factionId}')">🗘 Generate Rooms</button>
         </div>
 
       </div>
     `;
 
-    openFactionModal("Faction Base: " + faction.name, html);
+    openFactionModal("Guild Base: " + guildName, html);
   }
 
   function recordFactionConsequence(entry) {
@@ -1945,7 +2534,7 @@
         ? S.activeMissions.find((m) => String(m.id) === String(base.activeMission.linkedMissionId))
         : null;
       if (active) {
-        if (typeof showNotif === "function") showNotif("Resolve this faction mission through the Missions tab contract.", "warn");
+        if (typeof showNotif === "function") showNotif("Resolve this guild mission through the Missions tab contract.", "warn");
         return;
       }
     }
@@ -2013,7 +2602,7 @@
       );
       if (created && created.id) base.activeMission.linkedMissionId = created.id;
     }
-    if (typeof showNotif === "function") showNotif("Faction mission accepted.", "good");
+    if (typeof showNotif === "function") showNotif("Guild mission accepted.", "good");
     openFactionBaseHub(factionId);
   }
 
@@ -2060,6 +2649,9 @@
   function openFactionMerchant(factionId) {
     const base = ensureBaseActivity(factionId);
     if (!base) return;
+    const guildView = getGuildPresentation(factionId);
+    const guildCfg = getGuildCampaignConfig(factionId);
+    const guildTag = guildCfg ? ("<div style='font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;'>" + guildCfg.shopFlavor + "</div>") : "";
     const html = `<div style='font-size:.83rem;color:var(--text2);line-height:1.6;'>${(base.merchantStock || []).map((offer, idx) => {
       const name = offer && offer.name ? offer.name : "Trade Item";
       const cost = Number(offer && offer.cost ? offer.cost : 120);
@@ -2067,7 +2659,7 @@
       const desc = offer && offer.desc ? offer.desc : "Faction quartermaster stock.";
       return `<div style='padding:.25rem .35rem;border:1px solid var(--border2);margin-bottom:.24rem;'><strong style='color:var(--gold2);'>${name}</strong> (${cat})<br>${desc}<br><button class='btn btn-xs btn-teal' onclick="factionSystem.buyMerchantItem('${factionId}',${idx})">Buy ${cost}₵</button></div>`;
     }).join("")}</div>`;
-    openFactionModal("Faction Merchant", html);
+    openFactionModal(guildView.shopLabel, "<div style='font-size:.83rem;color:var(--text2);line-height:1.6;'>" + guildTag + html + "</div>");
   }
 
   function buyFactionMerchantItem(factionId, idx) {
@@ -2101,7 +2693,7 @@
   function openFactionBaseFromMarker(region, key, secondary) {
     const found = findBaseByMarker(region, key, secondary);
     if (!found) {
-      if (typeof showNotif === "function") showNotif("No faction base marker in this location.", "warn");
+      if (typeof showNotif === "function") showNotif("No guild base marker in this location.", "warn");
       return;
     }
     openFactionBaseHub(found.factionId);
@@ -2421,7 +3013,7 @@
       return;
     }
     if (state && state.status === "completed") {
-      if (typeof showNotif === "function") showNotif("This faction contract is already completed and has advanced the narrative.", "warn");
+      if (typeof showNotif === "function") showNotif("This guild contract is already completed and has advanced the narrative.", "warn");
       return;
     }
     const idx = (faction.factionMissions || []).findIndex((m) => String(m.id) === String(missionId));
@@ -2438,7 +3030,7 @@
     const rival = getRivalFaction(factionId);
     if (typeof createMission === "function") {
       const created = createMission(
-        "Faction Command",
+        "Guild Command",
         contractTitle,
         mission.difficulty || "medium",
         contractLocation,
@@ -2473,7 +3065,7 @@
           acceptedAt: Date.now()
         });
         if (typeof showNotif === "function") {
-          showNotif("Faction contract posted to Missions: " + contractTitle, "good");
+          showNotif("Guild contract posted to Missions: " + contractTitle, "good");
         }
       }
       if (typeof renderMissionBoard === "function") renderMissionBoard();
@@ -2490,13 +3082,28 @@
     const renown = getFactionRenown(factionId);
     const actionDie = FACTION_ACTION_DIE_MAP[factionId] || "mind";
     const loreRole = FACTION_LORE_ROLE_MAP[factionId] || "Specialists";
+    const guildName = getGuildName(factionId);
+    const guildView = getGuildPresentation(factionId);
+    const guildState = getGuildCampaignState(factionId);
+    const guildCfg = getGuildCampaignConfig(factionId);
+    const nextQuest = getGuildCampaignQuestByStage(factionId, guildState.currentArcStage);
     let html = `
       <div class="faction-detail">
-        <h3>${faction.emoji} ${faction.name}</h3>
+        <h3>${faction.emoji} ${guildName}</h3>
         <div style="font-size:.82rem;color:var(--text2);margin-bottom:.55rem;">
           Lore Focus: <strong style="color:var(--gold2);">${loreRole} = ${toTitle(actionDie)}</strong> · Storyline Bonus: <strong style="color:var(--teal);">+${Math.max(0, renown)}</strong>
         </div>
-        <h4>Faction Missions</h4>
+        <div style="border:1px solid var(--border2);padding:.45rem .5rem;margin-bottom:.55rem;background:var(--surface);font-size:.78rem;color:var(--text2);line-height:1.55;">
+          <div style="font-family:'Cinzel',serif;color:var(--gold2);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.16rem;">Guild Campaign</div>
+          ${guildCfg
+            ? (guildState.joined
+              ? (nextQuest
+                ? ('Next mission: <strong style="color:var(--gold2);">' + nextQuest.title + '</strong><div style="margin-top:.2rem;"><button class="btn btn-xs btn-primary" onclick="factionSystem.startGuildCampaign(\'' + factionId + '\')">Post Campaign Quest</button></div>')
+                : '<span style="color:var(--green2);">Campaign complete</span>')
+              : ('Join to unlock the authored campaign arc.<div style="margin-top:.2rem;"><button class="btn btn-xs btn-primary" onclick="factionSystem.joinGuild(\'' + factionId + '\')">Join Guild Campaign</button></div>'))
+            : 'Campaign content not configured for this guild yet.'}
+        </div>
+        <h4>${guildView.contractLabel}</h4>
     `;
 
     faction.factionMissions.forEach((mission, idx) => {
@@ -2530,12 +3137,15 @@
       `;
     });
 
-    html += `<div style="margin-top:.6rem;"><button class="btn btn-sm btn-primary" onclick="factionSystem.visitBase('${factionId}')">Visit ${faction.name} Base</button></div></div>`;
-    openFactionModal(faction.name, html);
+    html += `<div style="margin-top:.6rem;"><button class="btn btn-sm btn-primary" onclick="factionSystem.visitBase('${factionId}')">Visit ${guildName} Base</button></div></div>`;
+    openFactionModal(guildName, html);
   }
 
   function onMissionResolved(mission, success) {
     ensureFactionState();
+    if (mission && mission.guildCampaign && mission.missionType && (mission.missionType === "guild_campaign" || mission.missionType === "guild_boss_hunt")) {
+      resolveGuildCampaignProgress(mission, !!success);
+    }
     if (!mission || mission.missionType !== "faction_contract" || !mission.factionContract) return;
     const info = mission.factionContract;
     const factionId = info.factionId;
@@ -2703,6 +3313,9 @@
     resolveMapTask: resolveWayfarerTaskRoll,
     startMonsterTask: startMonsterTaskEncounter,
     finalizeMonsterTask: finalizeMonsterTaskEncounter,
+    joinGuild: joinGuildCampaign,
+    startGuildCampaign: startGuildCampaignQuest,
+    toggleGuildPrep,
     getFactionStoryRollBonus,
     generateAdaptiveChoices,
     onMissionResolved

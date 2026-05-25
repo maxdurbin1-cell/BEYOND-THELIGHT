@@ -4142,6 +4142,89 @@
     return out;
   }
 
+  function buildAoeZoneBurstHexes(state, center, radius) {
+    return buildAoeZoneRingHexes(state, center, 0, Math.max(0, Number(radius || 1)));
+  }
+
+  function getAxialDirectionKeyFromDelta(dq, dr) {
+    var q = Number(dq || 0);
+    var r = Number(dr || 0);
+    if (q === 1 && r === 0) return 'e';
+    if (q === 1 && r === -1) return 'ne';
+    if (q === 0 && r === -1) return 'nw';
+    if (q === -1 && r === 0) return 'w';
+    if (q === -1 && r === 1) return 'sw';
+    if (q === 0 && r === 1) return 'se';
+    return 'e';
+  }
+
+  function stepAxialByDirection(origin, dirKey, stepCount) {
+    var amount = Math.max(0, Number(stepCount || 0));
+    var lookup = {
+      e: { dq: 1, dr: 0 },
+      ne: { dq: 1, dr: -1 },
+      nw: { dq: 0, dr: -1 },
+      w: { dq: -1, dr: 0 },
+      sw: { dq: -1, dr: 1 },
+      se: { dq: 0, dr: 1 }
+    };
+    var vec = lookup[String(dirKey || '').toLowerCase()] || lookup.e;
+    return {
+      q: Number(origin && origin.q || 0) + Number(vec.dq || 0) * amount,
+      r: Number(origin && origin.r || 0) + Number(vec.dr || 0) * amount
+    };
+  }
+
+  function buildAoeZoneConeHexes(state, actor, center, length, width) {
+    var out = [];
+    var keyMap = {};
+    var start = { q: Number(actor && actor.q || 0), r: Number(actor && actor.r || 0) };
+    var target = { q: Number(center && center.q || 0), r: Number(center && center.r || 0) };
+    var line = axialLine(start, target);
+    var nextHex = line.length > 1 ? line[1] : target;
+    var dq = Number(nextHex && nextHex.q || target.q) - Number(start.q || 0);
+    var dr = Number(nextHex && nextHex.r || target.r) - Number(start.r || 0);
+    if (!dq && !dr) {
+      dq = 1;
+      dr = 0;
+    }
+    var dirKey = getAxialDirectionKeyFromDelta(dq, dr);
+    var sideDirections = {
+      e: ['ne', 'se'],
+      ne: ['e', 'nw'],
+      nw: ['ne', 'w'],
+      w: ['nw', 'sw'],
+      sw: ['w', 'se'],
+      se: ['e', 'sw']
+    };
+    var sides = sideDirections[dirKey] || ['ne', 'se'];
+    var maxLen = Math.max(1, Number(length || 4));
+    var maxWidth = Math.max(0, Number(width || 2));
+
+    function pushIfInBounds(hex) {
+      if (!hex) return;
+      var qNow = Number(hex.q || 0);
+      var rNow = Number(hex.r || 0);
+      if (Math.abs(qNow) > Number(state && state.board && state.board.cols || 22)) return;
+      if (Math.abs(rNow) > Number(state && state.board && state.board.rows || 16)) return;
+      var key = toKey(qNow, rNow);
+      if (keyMap[key]) return;
+      keyMap[key] = true;
+      out.push({ q: qNow, r: rNow });
+    }
+
+    for (var i = 1; i <= maxLen; i++) {
+      var core = { q: Number(start.q || 0) + dq * i, r: Number(start.r || 0) + dr * i };
+      pushIfInBounds(core);
+      var spread = Math.min(maxWidth, Math.max(0, Math.floor((i - 1) / 2) + 1));
+      for (var w = 1; w <= spread; w++) {
+        pushIfInBounds(stepAxialByDirection(core, sides[0], w));
+        pushIfInBounds(stepAxialByDirection(core, sides[1], w));
+      }
+    }
+    return out;
+  }
+
   var SPELLCAST_PREVIEW_LIBRARY = [
     {
       id: 'thunder-lattice',
@@ -4150,8 +4233,17 @@
       range: 5,
       length: 5,
       rounds: 2,
-      burstBonus: 0,
-      tickBonus: 0,
+      width: 0,
+      targetMode: 'enemies',
+      damageOnHit: true,
+      onHitCondition: 'shaken',
+      onHitActionDown: false,
+      zoneEnabled: true,
+      tickMode: 'margin',
+      tickAmount: 0,
+      tickCondition: '',
+      zoneTickOnEnter: false,
+      zoneTickOnRoundStart: false,
       previewColor: 'rgba(108,189,255,0.26)',
       previewBorder: 'rgba(164,223,255,0.95)'
     },
@@ -4163,10 +4255,83 @@
       innerRadius: 1,
       outerRadius: 2,
       rounds: 2,
-      burstBonus: 0,
-      tickBonus: 1,
+      width: 0,
+      targetMode: 'enemies',
+      damageOnHit: true,
+      onHitCondition: 'vulnerable',
+      onHitActionDown: false,
+      zoneEnabled: true,
+      tickMode: 'fixed',
+      tickAmount: 1,
+      tickCondition: 'weakened',
+      zoneTickOnEnter: true,
+      zoneTickOnRoundStart: true,
       previewColor: 'rgba(255,160,109,0.24)',
       previewBorder: 'rgba(255,214,168,0.9)'
+    },
+    {
+      id: 'mind-shear-cone',
+      label: 'Mind Shear Cone',
+      shape: 'cone',
+      range: 4,
+      length: 4,
+      width: 2,
+      rounds: 1,
+      targetMode: 'enemies',
+      damageOnHit: true,
+      onHitCondition: 'distracted',
+      onHitActionDown: true,
+      zoneEnabled: false,
+      tickMode: 'none',
+      tickAmount: 0,
+      tickCondition: '',
+      zoneTickOnEnter: false,
+      zoneTickOnRoundStart: false,
+      previewColor: 'rgba(244,138,255,0.23)',
+      previewBorder: 'rgba(252,195,255,0.93)'
+    },
+    {
+      id: 'starfall-burst',
+      label: 'Starfall Burst',
+      shape: 'burst',
+      range: 6,
+      radius: 2,
+      rounds: 1,
+      width: 0,
+      targetMode: 'enemies',
+      damageOnHit: true,
+      onHitCondition: '',
+      onHitActionDown: false,
+      zoneEnabled: false,
+      tickMode: 'none',
+      tickAmount: 0,
+      tickCondition: '',
+      zoneTickOnEnter: false,
+      zoneTickOnRoundStart: false,
+      previewColor: 'rgba(255,228,120,0.24)',
+      previewBorder: 'rgba(255,243,178,0.95)'
+    },
+    {
+      id: 'aegis-halo',
+      label: 'Aegis Halo',
+      shape: 'ring',
+      range: 4,
+      innerRadius: 0,
+      outerRadius: 1,
+      rounds: 2,
+      width: 0,
+      targetMode: 'allies',
+      damageOnHit: false,
+      onHitCondition: 'protected',
+      onHitActionDown: false,
+      zoneEnabled: false,
+      tickMode: 'none',
+      tickAmount: 0,
+      tickCondition: '',
+      zoneTickOnEnter: false,
+      zoneTickOnRoundStart: false,
+      previewColor: 'rgba(73,201,187,0.22)',
+      previewBorder: 'rgba(139,239,224,0.94)'
     }
   ];
 
@@ -4195,8 +4360,17 @@
       shape: String(tpl && tpl.shape || 'line'),
       hexKeys: [],
       rounds: Math.max(1, Number(tpl && tpl.rounds || 2)),
-      burstBonus: Math.max(0, Number(tpl && tpl.burstBonus || 0)),
-      tickBonus: Math.max(0, Number(tpl && tpl.tickBonus || 0)),
+      width: Math.max(0, Number(tpl && tpl.width || 0)),
+      targetMode: String(tpl && tpl.targetMode || 'enemies'),
+      damageOnHit: tpl && tpl.damageOnHit !== false,
+      onHitCondition: String(tpl && tpl.onHitCondition || ''),
+      onHitActionDown: !!(tpl && tpl.onHitActionDown),
+      zoneEnabled: !!(tpl && tpl.zoneEnabled),
+      tickMode: String(tpl && tpl.tickMode || 'none'),
+      tickAmount: Math.max(0, Number(tpl && tpl.tickAmount || 0)),
+      tickCondition: String(tpl && tpl.tickCondition || ''),
+      zoneTickOnEnter: !!(tpl && tpl.zoneTickOnEnter),
+      zoneTickOnRoundStart: !!(tpl && tpl.zoneTickOnRoundStart),
       color: String(tpl && tpl.previewColor || 'rgba(108,189,255,0.26)'),
       border: String(tpl && tpl.previewBorder || 'rgba(164,223,255,0.95)'),
       isValid: false,
@@ -4215,8 +4389,17 @@
     next.shape = String(next.shape || 'line');
     next.hexKeys = Array.isArray(next.hexKeys) ? next.hexKeys.map(function (key) { return String(key || ''); }).filter(Boolean) : [];
     next.rounds = Math.max(1, Number(next.rounds || 2));
-    next.burstBonus = Math.max(0, Number(next.burstBonus || 0));
-    next.tickBonus = Math.max(0, Number(next.tickBonus || 0));
+    next.width = Math.max(0, Number(next.width || 0));
+    next.targetMode = String(next.targetMode || 'enemies');
+    next.damageOnHit = next.damageOnHit !== false;
+    next.onHitCondition = String(next.onHitCondition || '').trim().toLowerCase();
+    next.onHitActionDown = !!next.onHitActionDown;
+    next.zoneEnabled = !!next.zoneEnabled;
+    next.tickMode = String(next.tickMode || 'none').toLowerCase();
+    next.tickAmount = Math.max(0, Number(next.tickAmount || 0));
+    next.tickCondition = String(next.tickCondition || '').trim().toLowerCase();
+    next.zoneTickOnEnter = !!next.zoneTickOnEnter;
+    next.zoneTickOnRoundStart = !!next.zoneTickOnRoundStart;
     next.color = String(next.color || 'rgba(108,189,255,0.26)');
     next.border = String(next.border || 'rgba(164,223,255,0.95)');
     next.isValid = !!next.isValid;
@@ -4254,8 +4437,17 @@
       shape: String(tpl.shape || 'line'),
       rangeLimit: Math.max(1, Number(tpl.range || 4)),
       rounds: Math.max(1, Number(tpl.rounds || 2)),
-      burstBonus: Math.max(0, Number(tpl.burstBonus || 0)),
-      tickBonus: Math.max(0, Number(tpl.tickBonus || 0)),
+      width: Math.max(0, Number(tpl.width || 0)),
+      targetMode: String(tpl.targetMode || 'enemies'),
+      damageOnHit: tpl.damageOnHit !== false,
+      onHitCondition: String(tpl.onHitCondition || ''),
+      onHitActionDown: !!tpl.onHitActionDown,
+      zoneEnabled: !!tpl.zoneEnabled,
+      tickMode: String(tpl.tickMode || 'none'),
+      tickAmount: Math.max(0, Number(tpl.tickAmount || 0)),
+      tickCondition: String(tpl.tickCondition || ''),
+      zoneTickOnEnter: !!tpl.zoneTickOnEnter,
+      zoneTickOnRoundStart: !!tpl.zoneTickOnRoundStart,
       color: String(tpl.previewColor || 'rgba(108,189,255,0.26)'),
       border: String(tpl.previewBorder || 'rgba(164,223,255,0.95)')
     });
@@ -4273,6 +4465,10 @@
     var hexes = [];
     if (String(tpl.shape || '') === 'ring') {
       hexes = buildAoeZoneRingHexes(state, target, Number(tpl.innerRadius || 1), Number(tpl.outerRadius || 2));
+    } else if (String(tpl.shape || '') === 'burst') {
+      hexes = buildAoeZoneBurstHexes(state, target, Number(tpl.radius || 1));
+    } else if (String(tpl.shape || '') === 'cone') {
+      hexes = buildAoeZoneConeHexes(state, casterToken, target, Math.max(1, Number(tpl.length || 4)), Math.max(0, Number(tpl.width || 2)));
     } else {
       hexes = buildAoeZoneLineHexes(state, casterToken, target, Math.max(1, Number(tpl.length || 4)));
     }
@@ -4335,7 +4531,6 @@
     var preview = normalizeCombatSpellPreview(state.spellPreview);
     if (!preview.active) return;
     var caster = pickSpellcastCasterToken(state, preview.casterTokenId);
-    var tpl = getSpellcastTemplateById(preview.spellId);
     if (!caster) return;
     var nextPreview = computeSpellPreviewState(state, caster, Number(q || caster.q || 0), Number(r || caster.r || 0), tpl);
     store.setState({ spellPreview: nextPreview });
@@ -4359,17 +4554,20 @@
       safeNotif('Caster is unavailable.', 'warn');
       return false;
     }
+    var tpl = getSpellcastTemplateById(preview.spellId);
 
     var manualMode = !state.autoRoll || isManualRollModeActive();
     var castTotal = 0;
     var resistTotal = 0;
+    var mindDie = Math.max(4, Number(getWayfarerEffectiveDie('mind', 6) || 6));
+    var valorDie = Math.max(4, Number(window.S && window.S.stats && (window.S.stats.valor || window.S.stats.adventure) || 6));
     if (manualMode) {
-      var manualCast = promptManualDieTotal('Manual spellcasting total for ' + String(preview.spellLabel || 'Spell') + ' (1+):', 10, 1, 9999);
+      var manualCast = promptManualDieTotal('Manual Mind total for ' + String(preview.spellLabel || 'Spell') + ' (1+):', 10, 1, 9999);
       if (manualCast === null) {
         safeNotif('Spell cast cancelled.', 'info');
         return false;
       }
-      var manualResist = promptManualDieTotal('Manual resistance total (Defend/Valor equivalent) (1+):', 8, 1, 9999);
+      var manualResist = promptManualDieTotal('Manual Valor total (resistance) (1+):', 8, 1, 9999);
       if (manualResist === null) {
         safeNotif('Spell cast cancelled.', 'info');
         return false;
@@ -4377,60 +4575,91 @@
       castTotal = Math.max(1, Number(manualCast || 1));
       resistTotal = Math.max(1, Number(manualResist || 1));
     } else {
-      var mindDie = Math.max(4, Number(getWayfarerEffectiveDie('mind', 6) || 6));
-      var valorDie = Math.max(4, Number(window.S && window.S.stats && (window.S.stats.valor || window.S.stats.adventure) || 6));
-      castTotal = rollCombatDieTotal(mindDie, 'action', String(caster.name || 'Caster') + ' spellcast d' + mindDie);
-      resistTotal = rollCombatDieTotal(valorDie, 'dread', 'Area resistance d' + valorDie);
+      castTotal = rollCombatDieTotal(mindDie, 'action', String(caster.name || 'Caster') + ' Mind d' + mindDie);
+      resistTotal = rollCombatDieTotal(valorDie, 'dread', 'Valor resistance d' + valorDie);
     }
 
     var margin = Math.max(-99, Number(castTotal || 0) - Number(resistTotal || 0));
-    addHistory((caster.name || 'Caster') + ' casts ' + preview.spellLabel + ': ' + castTotal + ' vs resist ' + resistTotal + ' (' + (margin >= 0 ? '+' : '') + margin + ').');
+    addHistory((caster.name || 'Caster') + ' casts ' + preview.spellLabel + ': Mind ' + castTotal + ' vs Valor ' + resistTotal + ' (' + (margin >= 0 ? '+' : '') + margin + ').');
     if (margin <= 0) {
       safeNotif(preview.spellLabel + ' fizzles.', 'warn');
       clearCombatSpellPreview(true);
       return false;
     }
 
-    var zoneTickStress = Math.max(1, margin + Math.max(0, Number(preview.tickBonus || 0)));
-    var burstStress = Math.max(1, margin + Math.max(0, Number(preview.burstBonus || 0)));
+    var burstStress = preview.damageOnHit ? Math.max(1, margin) : 0;
+    var zoneTickStress = 0;
+    if (preview.zoneEnabled) {
+      if (String(preview.tickMode || 'none') === 'margin') zoneTickStress = Math.max(1, margin + Math.max(0, Number(preview.tickAmount || 0)));
+      else if (String(preview.tickMode || 'none') === 'fixed') zoneTickStress = Math.max(0, Number(preview.tickAmount || 0));
+    }
     var keyMap = {};
     preview.hexKeys.forEach(function (key) { if (key) keyMap[key] = true; });
     var impacted = (state.tokens || []).filter(function (token) {
       if (!token || isTokenDead(token)) return false;
       if (String(token.id || '') === String(caster.id || '')) return false;
-      if (String(token.faction || '') === String(caster.faction || '')) return false;
+      var sameFaction = String(token.faction || '') === String(caster.faction || '');
+      if (preview.targetMode === 'allies' && !sameFaction) return false;
+      if (preview.targetMode !== 'all' && preview.targetMode !== 'allies' && sameFaction) return false;
       return !!keyMap[toKey(Number(token.q || 0), Number(token.r || 0))];
     });
 
     impacted.forEach(function (token) {
-      applyDamageToToken(token.id, burstStress, preview.spellLabel);
-      addTokenRoundEffect(token.id, preview.spellLabel, zoneTickStress, Math.max(1, Number(preview.rounds || 2)), String(preview.border || '#a4dfff'));
+      if (burstStress > 0) {
+        applyDamageToToken(token.id, burstStress, preview.spellLabel);
+      }
+      if (preview.onHitCondition) {
+        if (token.isPlayer && window.S) {
+          if (!window.S.conditions || typeof window.S.conditions !== 'object') window.S.conditions = {};
+          window.S.conditions[String(preview.onHitCondition)] = true;
+          if (typeof window.updateConditionButtons === 'function') {
+            try { window.updateConditionButtons(); } catch (_spellCondErr) {}
+          }
+        } else {
+          setTokenStatusFlag(token.id, preview.onHitCondition);
+        }
+      }
+      if (preview.onHitActionDown) {
+        if (token.isPlayer && window.S && window.S.combat) {
+          window.S.combat.actionsLeft = Math.max(0, Number(window.S.combat.actionsLeft || 0) - 1);
+          if (typeof window.updateCombatUI === 'function') {
+            try { window.updateCombatUI(); } catch (_spellActErr) {}
+          }
+        } else {
+          setTokenStatusFlag(token.id, 'action-down');
+        }
+      }
+      if (preview.zoneEnabled && zoneTickStress > 0) {
+        addTokenRoundEffect(token.id, preview.spellLabel, zoneTickStress, Math.max(1, Number(preview.rounds || 2)), String(preview.border || '#a4dfff'));
+      }
     });
 
     store.setState(function (inner) {
       var next = Object.assign({}, inner);
       var rules = ensureCombatSceneRulesExtensions(inner.sceneRules || {});
       var zones = Array.isArray(rules.aoeZones) ? rules.aoeZones.slice() : [];
-      zones.push({
-        id: uid('aoe'),
-        label: preview.spellLabel + ' Zone',
-        shape: String(preview.shape || 'line'),
-        sourceTokenId: String(caster.id || ''),
-        sourceName: String(caster.name || 'Caster'),
-        centerQ: Number(preview.targetQ || caster.q || 0),
-        centerR: Number(preview.targetR || caster.r || 0),
-        hexKeys: preview.hexKeys.slice(),
-        save: 'defend',
-        dreadDie: Math.max(4, Number(window.S && window.S.stats && (window.S.stats.valor || window.S.stats.adventure) || 6)),
-        tickStress: zoneTickStress,
-        tickActionDown: false,
-        tickCondition: '',
-        roundsLeft: Math.max(1, Number(preview.rounds || 2)),
-        tickOnEnter: false,
-        tickOnRoundStart: false,
-        color: String(preview.color || 'rgba(108,189,255,0.26)'),
-        border: String(preview.border || 'rgba(164,223,255,0.95)')
-      });
+      if (preview.zoneEnabled) {
+        zones.push({
+          id: uid('aoe'),
+          label: preview.spellLabel + ' Zone',
+          shape: String(preview.shape || 'line'),
+          sourceTokenId: String(caster.id || ''),
+          sourceName: String(caster.name || 'Caster'),
+          centerQ: Number(preview.targetQ || caster.q || 0),
+          centerR: Number(preview.targetR || caster.r || 0),
+          hexKeys: preview.hexKeys.slice(),
+          save: 'defend',
+          dreadDie: valorDie,
+          tickStress: Math.max(0, Number(zoneTickStress || 0)),
+          tickActionDown: !!preview.onHitActionDown,
+          tickCondition: String(preview.tickCondition || ''),
+          roundsLeft: Math.max(1, Number(preview.rounds || 2)),
+          tickOnEnter: !!preview.zoneTickOnEnter,
+          tickOnRoundStart: !!preview.zoneTickOnRoundStart,
+          color: String(preview.color || 'rgba(108,189,255,0.26)'),
+          border: String(preview.border || 'rgba(164,223,255,0.95)')
+        });
+      }
       rules.aoeZones = zones.slice(-24);
       next.sceneRules = rules;
       next.spellPreview = normalizeCombatSpellPreview({ active: false });
@@ -4439,7 +4668,10 @@
       return next;
     });
 
-    addHistory(preview.spellLabel + ' hits ' + impacted.length + ' target' + (impacted.length === 1 ? '' : 's') + ' (' + burstStress + ' burst, ' + zoneTickStress + ' stress/round for ' + preview.rounds + ' rounds).');
+    var summary = preview.spellLabel + ' hits ' + impacted.length + ' target' + (impacted.length === 1 ? '' : 's') + '.';
+    if (burstStress > 0) summary += ' Burst damage = margin (' + burstStress + ').';
+    if (preview.zoneEnabled) summary += ' Zone tick ' + zoneTickStress + '/round for ' + preview.rounds + ' rounds.';
+    addHistory(summary);
     safeNotif(preview.spellLabel + ' cast complete' + (impacted.length ? (': ' + impacted.length + ' impacted.') : '.'), impacted.length ? 'good' : 'info');
     drawBoard();
     updateUiPanels();
@@ -11423,7 +11655,9 @@
       }).join('');
       var spellOptions = SPELLCAST_PREVIEW_LIBRARY.map(function (entry) {
         var selectedSpell = String(entry.id || '') === 'thunder-lattice' ? ' selected' : '';
-        return '<option value="' + String(entry.id || '') + '"' + selectedSpell + '>' + String(entry.label || 'Spell') + '</option>';
+        var shape = String(entry.shape || 'line').toUpperCase();
+        var behavior = entry.damageOnHit === false ? 'support' : 'damage=margin';
+        return '<option value="' + String(entry.id || '') + '"' + selectedSpell + '>' + String(entry.label || 'Spell') + ' [' + shape + ', ' + behavior + ']</option>';
       }).join('');
       var html = '<div style="display:grid;gap:.28rem;">'
         + '<div style="font-size:.78rem;color:var(--text2);">Apply a timed effect to any active token.</div>'

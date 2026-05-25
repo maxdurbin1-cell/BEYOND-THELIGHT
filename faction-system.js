@@ -420,7 +420,7 @@
       boardLabel: "Ledger Board",
       shopLabel: "Market Quartermaster",
       contractLabel: "Guild Contracts",
-      campaignTag: "Campaign planning underway"
+      campaignTag: "Campaign live"
     },
     religious: {
       displayName: "The Sacred Choir",
@@ -441,21 +441,21 @@
       boardLabel: "Whisper Board",
       shopLabel: "Crown Quartermaster",
       contractLabel: "Guild Contracts",
-      campaignTag: "Campaign planning underway"
+      campaignTag: "Campaign live"
     },
     rebels: {
       displayName: "The Ember Union",
       boardLabel: "Union Board",
       shopLabel: "Union Quartermaster",
       contractLabel: "Guild Contracts",
-      campaignTag: "Campaign planning underway"
+      campaignTag: "Campaign live"
     },
     scholars: {
       displayName: "The Archive Keepers",
       boardLabel: "Archive Board",
       shopLabel: "Archive Quartermaster",
       contractLabel: "Guild Contracts",
-      campaignTag: "Campaign planning underway"
+      campaignTag: "Campaign live"
     }
   };
 
@@ -805,6 +805,111 @@
     ]
   };
 
+  const GILDED_LEDGER_GUILD_CAMPAIGN = {
+    factionId: "corporations",
+    questLabel: "Gilded Ledger Campaign",
+    contractFlavor: "Asset seizures, debt enforcement, and warrant recoveries.",
+    shopFlavor: "Contract tools, market tech, and executive defenses.",
+    quests: [
+      { id: "ledger_1", title: "Sign the Golden Writ", difficulty: "medium", region: "province", location: "Red Ink Exchange", templateLabel: "Guild Campaign I", stepNames: { 1: "Audit the Petition", 2: "Inspect the Claim", 3: "Issue the Writ" }, checkpoints: ["Review debt claims and forged counterclaims.", "Follow the writ trail to a contested district.", "Choose who receives legal force and who loses protection."], lore: "The Ledger initiates you by proving value can be weaponized faster than guns.", prepUnlockId: "debt_dossier" },
+      { id: "ledger_2", title: "Harbor of Red Ink", difficulty: "hard", region: "sea", location: "Storm Ledger Anchorage", templateLabel: "Guild Campaign II", stepNames: { 1: "Trace Cargo Bonds", 2: "Board the Debt Ship", 3: "Secure the Registry" }, checkpoints: ["Decode bonded cargo manifests.", "Cross storm security and private guards.", "Capture the live registry before it is scuttled."], lore: "A smuggled debt ship carries proof that famine routes were auctioned in secret.", prepUnlockId: "counterfeit_warrant" },
+      { id: "ledger_3", title: "Witness Against the Balance", difficulty: "hard", region: "province", location: "Quarry Tribunal Fringe", templateLabel: "Guild Campaign III", stepNames: { 1: "Find the Witness", 2: "Break the Cover-Up", 3: "Extract Testimony" }, checkpoints: ["Locate Tamsin before rival brokers do.", "Defeat hired silence teams.", "Get testimony to a neutral court node."], lore: "A single witness can collapse an executive board if she survives one night.", prepUnlockId: "dock_bribe_network" },
+      { id: "ledger_4", title: "Dead Planet, Live Assets", difficulty: "challenging", region: "planet", location: "Trade Moon Vaultfall", templateLabel: "Guild Campaign IV", stepNames: { 1: "Survey the Derelict", 2: "Break Salvager Claims", 3: "Extract the Core" }, checkpoints: ["Map surviving vault corridors.", "Defeat mercenary salvage teams.", "Recover the asset core without meltdown."], lore: "The moon's old vault still prices people as collateral.", prepUnlockId: "asset_tracker_pin" },
+      { id: "ledger_5", title: "The Quiet Auction", difficulty: "challenging", region: "galaxy", location: "Orbital Exchange Nine", templateLabel: "Guild Campaign V", stepNames: { 1: "Enter the Auction", 2: "Spoof the Bids", 3: "Crash the Sale" }, checkpoints: ["Infiltrate a permit-only exchange.", "Hijack bid telemetry without exposure.", "Stop sale of famine route rights."], lore: "The market has begun selling shortages as a premium commodity.", prepUnlockId: "market_sabotage" },
+      { id: "ledger_6", title: "Bite of the Reclamation Hound", difficulty: "very_hard", region: "wtw", location: "World That Was Credit Ruin", templateLabel: "Guild Campaign VI", stepNames: { 1: "Track Repossession Strikes", 2: "Cut the Kill Corridor", 3: "Defeat the Hound" }, checkpoints: ["Map forced-eviction kill routes.", "Disable seizure drones and trackers.", "Drop the lieutenant before it broadcasts your debt mark."], lore: "The Reclamation Hound enforces contracts by turning neighborhoods into examples.", prepUnlockId: "bondbreaker_charge" },
+      { id: "ledger_7", title: "The Counting House Below", difficulty: "impossible", region: "wtw", location: "Subterranean Counting Engine", templateLabel: "Guild Boss Hunt", stepNames: { 1: "Breach the Debt Core", 2: "Shatter the Margin Rings", 3: "Defeat the Golden Comptroller" }, checkpoints: ["Use gathered prep to break into the engine floor.", "Disable margin rings that feed defense swarms.", "Destroy the comptroller before liquidation protocol completes."], lore: "An ancient profit engine fused with flesh has become the city\'s true sovereign.", prepUnlockId: "", isBoss: true }
+    ],
+    prepOptions: [
+      { id: "debt_dossier", name: "Debt Dossier", source: "Quest I reward", summary: "+5 bonus on your next guild operation.", effectType: "bonus", bonus: 5 },
+      { id: "counterfeit_warrant", name: "Counterfeit Warrant", source: "Quest II reward", summary: "Step down one security-linked dread die once.", effectType: "dread_down", dreadSteps: 1 },
+      { id: "dock_bribe_network", name: "Dock Bribe Network", source: "Quest III reward", summary: "+5 bonus from insider route access.", effectType: "bonus", bonus: 5 },
+      { id: "asset_tracker_pin", name: "Asset Tracker Pin", source: "Quest IV reward", summary: "Step down one pursuit-linked dread die once.", effectType: "dread_down", dreadSteps: 1 },
+      { id: "market_sabotage", name: "Market Sabotage", source: "Quest V reward", summary: "+5 bonus from auction disruption timing.", effectType: "bonus", bonus: 5 },
+      { id: "bondbreaker_charge", name: "Bondbreaker Charge", source: "Quest VI reward", summary: "+5 bonus from anti-armor breach load.", effectType: "bonus", bonus: 5 }
+    ]
+  };
+
+  const UNDERGROUND_CROWN_GUILD_CAMPAIGN = {
+    factionId: "underworld",
+    questLabel: "Underground Crown Campaign",
+    contractFlavor: "Smuggling runs, extraction jobs, forgeries, and blackmail operations.",
+    shopFlavor: "Toxins, stealth kits, lock tools, and silent route tags.",
+    quests: [
+      { id: "crown_1", title: "Whisper Oath", difficulty: "medium", region: "province", location: "Night Market Undergate", templateLabel: "Guild Campaign I", stepNames: { 1: "Meet the Broker", 2: "Pass the Test", 3: "Take the Mark" }, checkpoints: ["Find the correct broker among decoys.", "Run a live forgery test.", "Accept the Crown\'s code or walk away marked."], lore: "The Crown recruits by testing whether you can keep secrets under pressure.", prepUnlockId: "ghost_manifest" },
+      { id: "crown_2", title: "Black Ferry Route", difficulty: "hard", region: "sea", location: "Fog Ferry Lattice", templateLabel: "Guild Campaign II", stepNames: { 1: "Decode Cargo Ciphers", 2: "Escort the Ferry", 3: "Silence the Patrol" }, checkpoints: ["Read hidden marks in false manifests.", "Move contraband through blockade waters.", "Stop patrol logs from reaching command."], lore: "A ferry lane that should not exist has become the Crown\'s lifeline.", prepUnlockId: "smoke_pass" },
+      { id: "crown_3", title: "The Broker Who Sold a Name", difficulty: "hard", region: "province", location: "Ash Alley Dockets", templateLabel: "Guild Campaign III", stepNames: { 1: "Track the Leak", 2: "Break Safehouses", 3: "Recover the Ledger" }, checkpoints: ["Identify who sold witness identities.", "Hit rotating safehouse cells.", "Recover the red ledger before copies spread."], lore: "Someone sold the Crown\'s protected names to bounty offices.", prepUnlockId: "forged_sigil" },
+      { id: "crown_4", title: "Cold Planet Dead Drop", difficulty: "challenging", region: "planet", location: "Ice Silo Relay-3", templateLabel: "Guild Campaign IV", stepNames: { 1: "Find the Drop", 2: "Lift the Vault", 3: "Escape Orbit" }, checkpoints: ["Locate a dead drop beneath frozen turbines.", "Lift encrypted vault canisters.", "Escape orbital customs with zero signatures."], lore: "The Crown\'s oldest blackmail archive is frozen on a forgotten world.", prepUnlockId: "viper_filament" },
+      { id: "crown_5", title: "The Quiet Tribunal", difficulty: "challenging", region: "galaxy", location: "Hidden Ring Court", templateLabel: "Guild Campaign V", stepNames: { 1: "Infiltrate Court", 2: "Turn Witnesses", 3: "Seal the Verdict" }, checkpoints: ["Enter a court that exists off-ledger.", "Flip two protected witnesses.", "Force a verdict without open war."], lore: "The Crown settles wars where law cannot reach.", prepUnlockId: "deadman_switch" },
+      { id: "crown_6", title: "Break the Silence Broker", difficulty: "very_hard", region: "wtw", location: "World That Was Echo Vault", templateLabel: "Guild Campaign VI", stepNames: { 1: "Read Kill Contracts", 2: "Cross the Echo Vault", 3: "Defeat Khar Voss" }, checkpoints: ["Decode active assassination chains.", "Survive vault acoustics that reveal movement.", "Drop the lieutenant before the purge call fires."], lore: "Khar Voss sells silence as a weapon and memory as currency.", prepUnlockId: "traitor_index" },
+      { id: "crown_7", title: "Throne of Mute Teeth", difficulty: "impossible", region: "wtw", location: "Sub-Choir Black Chamber", templateLabel: "Guild Boss Hunt", stepNames: { 1: "Breach the Black Chamber", 2: "Cut the Whisper Grid", 3: "Defeat the Whisper-King" }, checkpoints: ["Use prep to enter the sealed chamber.", "Disable the whisper grid before it strips your options.", "Kill the parasite throne before it migrates hosts."], lore: "The Whisper-King is an information parasite that feeds on fear and oaths.", prepUnlockId: "", isBoss: true }
+    ],
+    prepOptions: [
+      { id: "ghost_manifest", name: "Ghost Manifest", source: "Quest I reward", summary: "+5 bonus from hidden cargo routes.", effectType: "bonus", bonus: 5 },
+      { id: "smoke_pass", name: "Smoke Pass", source: "Quest II reward", summary: "Step down one pursuit dread die once.", effectType: "dread_down", dreadSteps: 1 },
+      { id: "forged_sigil", name: "Forged Sigil", source: "Quest III reward", summary: "+5 bonus from forged authority access.", effectType: "bonus", bonus: 5 },
+      { id: "viper_filament", name: "Viper Filament", source: "Quest IV reward", summary: "Step down one detection dread die once.", effectType: "dread_down", dreadSteps: 1 },
+      { id: "deadman_switch", name: "Deadman Switch", source: "Quest V reward", summary: "+5 bonus from fallback route failsafe.", effectType: "bonus", bonus: 5 },
+      { id: "traitor_index", name: "Traitor Index", source: "Quest VI reward", summary: "+5 bonus from blackmail leverage.", effectType: "bonus", bonus: 5 }
+    ]
+  };
+
+  const EMBER_UNION_GUILD_CAMPAIGN = {
+    factionId: "rebels",
+    questLabel: "Ember Union Campaign",
+    contractFlavor: "Sabotage runs, liberation strikes, convoy hits, and jailbreak operations.",
+    shopFlavor: "Explosives, field aid, insurgent tech, and signal disruptors.",
+    quests: [
+      { id: "ember_1", title: "Spark Oath", difficulty: "medium", region: "province", location: "Switchyard Assembly", templateLabel: "Guild Campaign I", stepNames: { 1: "Hear Grievances", 2: "Mark the First Target", 3: "Light the Spark" }, checkpoints: ["Listen to three district delegates.", "Choose first strike infrastructure.", "Execute a controlled opening action."], lore: "The Union starts by asking who pays the cost when empires call it order.", prepUnlockId: "union_intel_packet" },
+      { id: "ember_2", title: "Convoy of Ash", difficulty: "hard", region: "province", location: "Ration Highway Delta", templateLabel: "Guild Campaign II", stepNames: { 1: "Track Convoys", 2: "Set the Ambush", 3: "Break the Escort" }, checkpoints: ["Map convoy schedules and decoys.", "Position strike teams undetected.", "Capture supply crates intact."], lore: "Every ration convoy feeds one district and starves another.", prepUnlockId: "shock_web" },
+      { id: "ember_3", title: "Jailbreak Broadcast", difficulty: "hard", region: "sea", location: "Prison Barge Chain", templateLabel: "Guild Campaign III", stepNames: { 1: "Inject the Signal", 2: "Board the Barge", 3: "Extract Prisoners" }, checkpoints: ["Seed a fake transfer order.", "Board during storm blackouts.", "Extract key prisoners before lock reset."], lore: "A failed jailbreak would kill the Union\'s public momentum.", prepUnlockId: "medic_cache" },
+      { id: "ember_4", title: "Planet of Quiet Sirens", difficulty: "challenging", region: "planet", location: "Factory Moon Belt", templateLabel: "Guild Campaign IV", stepNames: { 1: "Map Siren Grid", 2: "Disable Relays", 3: "Evacuate Civilians" }, checkpoints: ["Map automated suppression sirens.", "Destroy relay towers in sequence.", "Evacuate workers through tunnel exits."], lore: "The regime silences protests by turning alarms into shock weapons.", prepUnlockId: "pulse_scrambler" },
+      { id: "ember_5", title: "Orbitwide Strike Vote", difficulty: "challenging", region: "galaxy", location: "Railhub Parliament", templateLabel: "Guild Campaign V", stepNames: { 1: "Win Delegates", 2: "Secure Communications", 3: "Trigger the Strike" }, checkpoints: ["Convince neutral unions to join.", "Protect comm relays from sabotage.", "Trigger synchronized strike windows."], lore: "A strike across systems could break supply tyranny in one night.", prepUnlockId: "panic_tunnel_map" },
+      { id: "ember_6", title: "Break the Iron Bailiff", difficulty: "very_hard", region: "wtw", location: "World That Was Foundry Ward", templateLabel: "Guild Campaign VI", stepNames: { 1: "Read Occupation Orders", 2: "Cross the Foundry", 3: "Defeat Marshal Cend" }, checkpoints: ["Steal occupation deployment orders.", "Cross foundry kill-zones and drones.", "Drop the lieutenant controlling city curfew kills."], lore: "Marshal Cend turned public safety law into industrial terror.", prepUnlockId: "liberation_charge" },
+      { id: "ember_7", title: "The Regime Breaker", difficulty: "impossible", region: "wtw", location: "Cathedral Reactor Spine", templateLabel: "Guild Boss Hunt", stepNames: { 1: "Breach the Reactor Spine", 2: "Shut the Command Choir", 3: "Defeat the Regime Breaker" }, checkpoints: ["Use prep to enter reactor command.", "Sever authoritarian command channels.", "Destroy the mech-tyrant before it reboots district lockdown."], lore: "The Regime Breaker is a command mech built to end dissent in one activation.", prepUnlockId: "", isBoss: true }
+    ],
+    prepOptions: [
+      { id: "union_intel_packet", name: "Union Intel Packet", source: "Quest I reward", summary: "+5 bonus from worker route intel.", effectType: "bonus", bonus: 5 },
+      { id: "shock_web", name: "Shock Web", source: "Quest II reward", summary: "Step down one suppression dread die once.", effectType: "dread_down", dreadSteps: 1 },
+      { id: "medic_cache", name: "Medic Cache", source: "Quest III reward", summary: "+5 bonus from field triage prep.", effectType: "bonus", bonus: 5 },
+      { id: "pulse_scrambler", name: "Pulse Scrambler", source: "Quest IV reward", summary: "Step down one signal-linked dread die once.", effectType: "dread_down", dreadSteps: 1 },
+      { id: "panic_tunnel_map", name: "Panic Tunnel Map", source: "Quest V reward", summary: "+5 bonus from emergency ingress routes.", effectType: "bonus", bonus: 5 },
+      { id: "liberation_charge", name: "Liberation Charge", source: "Quest VI reward", summary: "+5 bonus from anti-armor breaching gel.", effectType: "bonus", bonus: 5 }
+    ]
+  };
+
+  const ARCHIVE_KEEPERS_GUILD_CAMPAIGN = {
+    factionId: "scholars",
+    questLabel: "Archive Keepers Campaign",
+    contractFlavor: "Investigations, relic recovery, and truth-raids against sealed records.",
+    shopFlavor: "Codices, analyzers, mnemonic tools, and lens arrays.",
+    quests: [
+      { id: "archive_1", title: "Seal of Entry", difficulty: "medium", region: "province", location: "Lantern Athenaeum", templateLabel: "Guild Campaign I", stepNames: { 1: "Review the Codex", 2: "Verify the Lead", 3: "Issue Retrieval Writ" }, checkpoints: ["Audit a disputed codex entry.", "Verify whether the source is bait.", "Authorize a truth-recovery operation."], lore: "The Keepers test whether you protect truth or weaponize it.", prepUnlockId: "truth_lens" },
+      { id: "archive_2", title: "Ruin Transcript", difficulty: "hard", region: "province", location: "Collapsed Court Archive", templateLabel: "Guild Campaign II", stepNames: { 1: "Decode Fragments", 2: "Traverse the Ruin", 3: "Recover the Record" }, checkpoints: ["Reassemble scorched transcript shards.", "Cross trap-lined archive halls.", "Recover the surviving tribunal record."], lore: "A burned transcript could rewrite who started the war.", prepUnlockId: "cipher_spool" },
+      { id: "archive_3", title: "Drowned Codex Hunt", difficulty: "hard", region: "sea", location: "Sunken Library Spire", templateLabel: "Guild Campaign III", stepNames: { 1: "Chart the Sink", 2: "Dive the Stack", 3: "Extract the Codex" }, checkpoints: ["Map safe dive windows.", "Reach submerged stacks before collapse.", "Extract codex pages without salt loss."], lore: "The sea swallowed a volume everyone pretended never existed.", prepUnlockId: "saltproof_case" },
+      { id: "archive_4", title: "Planetary Null Archive", difficulty: "challenging", region: "planet", location: "Dustglass Research Moon", templateLabel: "Guild Campaign IV", stepNames: { 1: "Bypass Quarantine", 2: "Stabilize the Core", 3: "Copy the Black Vault" }, checkpoints: ["Bypass bio-lock quarantine.", "Stabilize archival memory cores.", "Copy black-vault records under pursuit."], lore: "A sealed moon archive contains evidence that can topple entire orders.", prepUnlockId: "mnemonic_patch" },
+      { id: "archive_5", title: "The Redaction Market", difficulty: "challenging", region: "galaxy", location: "Silent Data Exchange", templateLabel: "Guild Campaign V", stepNames: { 1: "Infiltrate the Exchange", 2: "Outbid the Erasers", 3: "Escape with Proof" }, checkpoints: ["Enter a market trading altered history.", "Outmaneuver redaction brokers.", "Escape with unedited records."], lore: "Someone is buying history and selling myth at scale.", prepUnlockId: "forensic_torque" },
+      { id: "archive_6", title: "Break the Vault Curator", difficulty: "very_hard", region: "wtw", location: "World That Was Quiet Stack", templateLabel: "Guild Campaign VI", stepNames: { 1: "Map Stack Defenses", 2: "Cross the Null Galleries", 3: "Defeat Curator Nhal" }, checkpoints: ["Map rotating null fields.", "Navigate galleries that erase memory trails.", "Drop the lieutenant before the lock cascade."], lore: "Curator Nhal keeps truth buried by making memory itself unreliable.", prepUnlockId: "deletion_checksum" },
+      { id: "archive_7", title: "The Devouring Index", difficulty: "impossible", region: "wtw", location: "Core Index Catacomb", templateLabel: "Guild Boss Hunt", stepNames: { 1: "Breach the Index", 2: "Stabilize Memory Spine", 3: "Defeat the Null Index" }, checkpoints: ["Use prep to enter the core archive.", "Stabilize memory spine before collapse.", "Destroy the archive horror before it rewrites witnesses."], lore: "The Null Index consumes memory, then republishes compliant truth.", prepUnlockId: "", isBoss: true }
+    ],
+    prepOptions: [
+      { id: "truth_lens", name: "Truth Lens", source: "Quest I reward", summary: "+5 bonus from forensic sighting.", effectType: "bonus", bonus: 5 },
+      { id: "cipher_spool", name: "Cipher Spool", source: "Quest II reward", summary: "Step down one code-linked dread die once.", effectType: "dread_down", dreadSteps: 1 },
+      { id: "saltproof_case", name: "Saltproof Case", source: "Quest III reward", summary: "+5 bonus from secure codex extraction.", effectType: "bonus", bonus: 5 },
+      { id: "mnemonic_patch", name: "Mnemonic Patch", source: "Quest IV reward", summary: "Step down one memory-shock dread die once.", effectType: "dread_down", dreadSteps: 1 },
+      { id: "forensic_torque", name: "Forensic Torque", source: "Quest V reward", summary: "+5 bonus from redaction-counter toolkit.", effectType: "bonus", bonus: 5 },
+      { id: "deletion_checksum", name: "Deletion Checksum", source: "Quest VI reward", summary: "+5 bonus from anti-erasure failsafe.", effectType: "bonus", bonus: 5 }
+    ]
+  };
+
+  const GUILD_CAMPAIGN_CONFIGS = {
+    corporations: GILDED_LEDGER_GUILD_CAMPAIGN,
+    religious: SACRED_CHOIR_GUILD_CAMPAIGN,
+    military: MILITARY_GUILD_CAMPAIGN,
+    underworld: UNDERGROUND_CROWN_GUILD_CAMPAIGN,
+    rebels: EMBER_UNION_GUILD_CAMPAIGN,
+    scholars: ARCHIVE_KEEPERS_GUILD_CAMPAIGN
+  };
+
   const GUILD_CAMPAIGN_DEFAULT_STATE = {
     joined: false,
     guildName: "",
@@ -818,6 +923,10 @@
     bossUnlocked: false,
     bossDefeated: false,
     contractBoardSeed: "",
+    guildContracts: [],
+    activeContractMissionId: null,
+    contractRuns: 0,
+    contractRefreshAt: 0,
     shopTier: 0,
     notableChoices: [],
     relationshipMap: { patron: 0, rival: 0, handler: 0 },
@@ -851,6 +960,62 @@
         moon_bloom_poultice: ["radiant_molting"],
         null_hymnal: ["beatific_rupture"]
       }
+    },
+    corporations: {
+      bossId: "golden_comptroller",
+      bossName: "The Golden Comptroller",
+      abilities: [
+        { id: "margin_call", name: "Margin Call", desc: "Forces control checks or suppresses item use." },
+        { id: "asset_seizure", name: "Asset Seizure", desc: "Steals an active positive condition." },
+        { id: "liquidation_swarm", name: "Liquidation Swarm", desc: "Summons debt drones into the scene." }
+      ],
+      prepLocks: {
+        counterfeit_warrant: ["asset_seizure"],
+        asset_tracker_pin: ["margin_call"],
+        market_sabotage: ["liquidation_swarm"]
+      }
+    },
+    underworld: {
+      bossId: "whisper_king",
+      bossName: "The Whisper-King",
+      abilities: [
+        { id: "oath_leech", name: "Oath Leech", desc: "Consumes active buffs into self-heal pressure." },
+        { id: "silence_tax", name: "Silence Tax", desc: "Increases cost of tactical choices." },
+        { id: "parasite_transfer", name: "Parasite Transfer", desc: "Attempts to jump host and reset tempo." }
+      ],
+      prepLocks: {
+        forged_sigil: ["silence_tax"],
+        viper_filament: ["parasite_transfer"],
+        traitor_index: ["oath_leech"]
+      }
+    },
+    rebels: {
+      bossId: "regime_breaker",
+      bossName: "The Regime Breaker",
+      abilities: [
+        { id: "martial_lockdown", name: "Martial Lockdown", desc: "Cuts escape and reposition options." },
+        { id: "punitive_barrage", name: "Punitive Barrage", desc: "Adds escalating pressure damage." },
+        { id: "curfew_overclock", name: "Curfew Overclock", desc: "Reboots control loops and clears debuffs." }
+      ],
+      prepLocks: {
+        shock_web: ["martial_lockdown"],
+        pulse_scrambler: ["curfew_overclock"],
+        liberation_charge: ["punitive_barrage"]
+      }
+    },
+    scholars: {
+      bossId: "null_index",
+      bossName: "The Null Index",
+      abilities: [
+        { id: "memory_shear", name: "Memory Shear", desc: "Applies confusion pressure to outcomes." },
+        { id: "redaction_wave", name: "Redaction Wave", desc: "Suppresses one positive resolution line." },
+        { id: "archive_hunger", name: "Archive Hunger", desc: "Consumes clues to heal and spike dread." }
+      ],
+      prepLocks: {
+        cipher_spool: ["memory_shear"],
+        mnemonic_patch: ["redaction_wave"],
+        deletion_checksum: ["archive_hunger"]
+      }
     }
   };
 
@@ -878,9 +1043,7 @@
   }
 
   function getGuildCampaignConfig(factionId) {
-    if (String(factionId) === "military") return MILITARY_GUILD_CAMPAIGN;
-    if (String(factionId) === "religious") return SACRED_CHOIR_GUILD_CAMPAIGN;
-    return null;
+    return GUILD_CAMPAIGN_CONFIGS[String(factionId || "")] || null;
   }
 
   function createGuildCampaignState(factionId) {
@@ -930,6 +1093,10 @@
     if (typeof state.bossUnlocked !== "boolean") state.bossUnlocked = false;
     if (typeof state.bossDefeated !== "boolean") state.bossDefeated = false;
     if (typeof state.contractBoardSeed !== "string") state.contractBoardSeed = "";
+    if (!Array.isArray(state.guildContracts)) state.guildContracts = [];
+    if (typeof state.activeContractMissionId !== "number" && typeof state.activeContractMissionId !== "string") state.activeContractMissionId = null;
+    if (typeof state.contractRuns !== "number") state.contractRuns = 0;
+    if (typeof state.contractRefreshAt !== "number") state.contractRefreshAt = 0;
     if (typeof state.shopTier !== "number") state.shopTier = 0;
     if (!Array.isArray(state.notableChoices)) state.notableChoices = [];
     if (!state.relationshipMap || typeof state.relationshipMap !== "object") state.relationshipMap = { patron: 0, rival: 0, handler: 0 };
@@ -972,6 +1139,23 @@
   function ensureFactionState() {
     if (typeof S === "undefined" || !S) return;
     if (!S.factionRenown || typeof S.factionRenown !== "object") S.factionRenown = {};
+    if (S.factionStanding && typeof S.factionStanding === "object") {
+      const legacyMap = {
+        corporations: "corporations",
+        religious: "religious",
+        military: "military",
+        underworld: "underworld",
+        rebels: "rebels",
+        scholars: "scholars",
+        political: "rebels"
+      };
+      Object.keys(legacyMap).forEach((legacyKey) => {
+        const nextKey = legacyMap[legacyKey];
+        if (typeof S.factionRenown[nextKey] === "number") return;
+        const legacyVal = Number(S.factionStanding[legacyKey] || 0);
+        S.factionRenown[nextKey] = Math.max(0, legacyVal);
+      });
+    }
     if (!S.factionBases || typeof S.factionBases !== "object") S.factionBases = {};
     if (!Array.isArray(S.factionWayfarerTasks)) S.factionWayfarerTasks = [];
     if (!S.factionNarrative || typeof S.factionNarrative !== "object") {
@@ -1087,6 +1271,102 @@
     });
     mission.bonus = Math.max(0, Math.min(20, bonus));
     mission.gmDreadOverride = Math.max(4, dread);
+  }
+
+  function ensureGuildContractBoard(factionId, forceRefresh) {
+    const state = getGuildCampaignState(factionId);
+    const refresh = !!forceRefresh;
+    const now = Date.now();
+    if (!refresh && Array.isArray(state.guildContracts) && state.guildContracts.length >= 3) {
+      return state.guildContracts;
+    }
+    const flavor = BASE_FLAVOR[factionId] || BASE_FLAVOR.scholars;
+    const regions = ["province", "sea", "galaxy", "wtw", "planet"];
+    const difficulties = ["medium", "hard", "challenging", "very_hard"];
+    const templates = [];
+    for (let i = 0; i < 3; i++) {
+      const verb = pick(flavor.taskVerbs) || "secure";
+      const target = pick(flavor.taskTargets) || "a critical lane";
+      const hook = pick(flavor.missionHooks) || "stabilize the route";
+      const region = regions[(i + Math.floor(Math.random() * regions.length)) % regions.length];
+      templates.push({
+        id: "contract_" + (i + 1) + "_" + Math.floor(Math.random() * 9999),
+        title: toTitle(verb) + " " + target,
+        lore: toTitle(hook) + ".",
+        difficulty: difficulties[Math.min(i, difficulties.length - 1)],
+        region: region,
+        location: (region === "planet" ? "Planetfall Guild Theater" : (region === "wtw" ? "World That Was" : toTitle(region))) + " " + toTitle(target),
+        prepHintId: ((state.earnedPrepOptions || [])[i] || "")
+      });
+    }
+    state.guildContracts = templates;
+    state.contractBoardSeed = String(now);
+    state.contractRefreshAt = now;
+    return state.guildContracts;
+  }
+
+  function getGuildContractMissionById(state, missionId) {
+    if (!S || !Array.isArray(S.activeMissions)) return null;
+    const id = String(missionId || "");
+    if (!id) return null;
+    return S.activeMissions.find((m) => m && String(m.id) === id) || null;
+  }
+
+  function postGuildContract(factionId, contractId) {
+    const state = getGuildCampaignState(factionId);
+    const list = ensureGuildContractBoard(factionId, false);
+    if (!Array.isArray(list) || !list.length) return;
+    const active = getGuildContractMissionById(state, state.activeContractMissionId);
+    if (active) {
+      if (typeof showNotif === "function") showNotif("Guild contract already active in Missions tab.", "warn");
+      return;
+    }
+    const contract = list.find((row) => String(row.id || "") === String(contractId || ""));
+    if (!contract) {
+      if (typeof showNotif === "function") showNotif("Guild contract not found. Refresh the board.", "warn");
+      return;
+    }
+    const faction = FACTIONS[factionId] || { name: getGuildName(factionId) };
+    const rival = getRivalFaction(factionId);
+    const prepRows = (state.activePrepIds || []).map((id) => getGuildPrepById(factionId, id)).filter(Boolean);
+    const created = createMission(
+      "Guild Board",
+      "[Contract] " + String(contract.title || "Guild Operation"),
+      contract.difficulty || "medium",
+      contract.location || "Guild Frontier",
+      contract.region || "province",
+      {
+        gain: factionId,
+        lose: rival,
+        gainName: faction.name,
+        loseName: (FACTIONS[rival] && FACTIONS[rival].name) ? FACTIONS[rival].name : toTitle(rival)
+      },
+      {
+        missionType: "guild_contract",
+        templateLabel: "Guild Contract",
+        lore: contract.lore || "Repeatable guild contract.",
+        guildContract: {
+          factionId: factionId,
+          guildName: getGuildName(factionId),
+          contractId: String(contract.id || ""),
+          prepIds: (state.activePrepIds || []).slice(0, 3),
+          prepSummary: prepRows.map((prep) => ({ id: prep.id, name: prep.name, summary: prep.summary }))
+        }
+      }
+    );
+    if (!created || !created.id) return;
+    applyGuildPrepToMission(factionId, created, state.activePrepIds || []);
+    state.activeContractMissionId = created.id;
+    state.lastOutcome = "contract-posted:" + String(contract.id || "");
+    if (typeof showNotif === "function") showNotif("Guild contract posted: " + String(contract.title || "Contract"), "good");
+    if (typeof renderMissionBoard === "function") renderMissionBoard();
+    if (typeof renderMissionTracker === "function") renderMissionTracker();
+    setupFactionTab();
+  }
+
+  function refreshGuildContracts(factionId) {
+    ensureGuildContractBoard(factionId, true);
+    setupFactionTab();
   }
 
   function startGuildCampaignQuest(factionId) {
@@ -2618,8 +2898,10 @@
     const guildState = getGuildCampaignState(factionId);
     const guildCfg = getGuildCampaignConfig(factionId);
     const activeGuildMission = getGuildCampaignMissionById(guildState, guildState.activeCampaignMissionId);
+    const activeGuildContract = getGuildContractMissionById(guildState, guildState.activeContractMissionId);
     const nextGuildQuest = getGuildCampaignQuestByStage(factionId, guildState.currentArcStage);
     const availablePrep = listGuildPrepOptionsForState(factionId, guildState);
+    const guildContractBoard = ensureGuildContractBoard(factionId, false);
 
     const anchor = resolveFactionBaseAnchor(base);
     const mission = base.activeMission;
@@ -2679,6 +2961,24 @@
         </div>`
       : "";
 
+    const guildContractSummary = `<div style="border-left:3px solid var(--purple);background:rgba(176,96,208,.06);border-radius:0 3px 3px 0;padding:.48rem .55rem;margin-bottom:.45rem;">
+          <div style="font-family:'Cinzel',serif;color:var(--purple);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.18rem;">🧾 Guild Contract Board</div>
+          <div style="font-size:.74rem;color:var(--muted2);margin-bottom:.18rem;">Repeatable contracts separate from campaign progression.</div>
+          ${activeGuildContract ? `<div style="font-size:.76rem;color:var(--gold2);margin-bottom:.2rem;">Active contract in Missions tab: #${activeGuildContract.id}</div>` : ""}
+          ${(guildContractBoard || []).map((row) => {
+            const isActive = activeGuildContract && String(activeGuildContract.guildContract && activeGuildContract.guildContract.contractId || "") === String(row.id || "");
+            return `<div style='padding:.24rem .32rem;border:1px solid var(--border2);margin-top:.22rem;background:var(--surface);'>
+              <div style='display:flex;justify-content:space-between;gap:.3rem;align-items:flex-start;'>
+                <div><strong>${row.title}</strong><div style='font-size:.72rem;color:var(--muted2);'>${row.difficulty} · ${row.region} · ${row.lore}</div></div>
+                <button class='btn btn-xs btn-primary' ${activeGuildContract ? "disabled" : ""} onclick="factionSystem.postGuildContract('${factionId}','${row.id}')">${isActive ? "Active" : "Post"}</button>
+              </div>
+            </div>`;
+          }).join("")}
+          <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.28rem;">
+            <button class="btn btn-xs" onclick="factionSystem.refreshGuildContracts('${factionId}')">Refresh Board</button>
+          </div>
+        </div>`;
+
     const html = `
       <div style="font-size:.83rem;color:var(--text2);line-height:1.6;">
 
@@ -2710,6 +3010,8 @@
         </div>
 
         ${guildCampaignSummary}
+
+        ${guildContractSummary}
 
         <!-- PATH CONTRACTS -->
         <div style="border-left:3px solid var(--gold2);background:rgba(201,162,39,.05);border-radius:0 3px 3px 0;padding:.48rem .55rem;margin-bottom:.45rem;">
@@ -3290,7 +3592,7 @@
           loseName: (FACTIONS[rival] && FACTIONS[rival].name) ? FACTIONS[rival].name : toTitle(rival),
         },
         {
-          missionType: "faction_contract",
+          missionType: "guild_contract",
           contractPathway: pathLabel,
           templateId: gm.templateId,
           checkpoints: gm.checkpoints,
@@ -3394,7 +3696,23 @@
     if (mission && mission.guildCampaign && mission.missionType && (mission.missionType === "guild_campaign" || mission.missionType === "guild_boss_hunt")) {
       resolveGuildCampaignProgress(mission, !!success);
     }
-    if (!mission || mission.missionType !== "faction_contract" || !mission.factionContract) return;
+    if (mission && mission.missionType === "guild_contract" && mission.guildContract && mission.guildContract.factionId) {
+      const gid = String(mission.guildContract.factionId || "");
+      if (gid) {
+        const state = getGuildCampaignState(gid);
+        if (String(state.activeContractMissionId || "") === String(mission.id || "")) {
+          state.activeContractMissionId = null;
+          state.contractRuns = Math.max(0, Number(state.contractRuns || 0)) + (success ? 1 : 0);
+          state.lastOutcome = (success ? "contract-completed:" : "contract-failed:") + String(mission.guildContract.contractId || "");
+          if (success) ensureGuildContractBoard(gid, true);
+          if (typeof showNotif === "function") {
+            showNotif(success ? (getGuildName(gid) + " contract completed.") : (getGuildName(gid) + " contract failed. Repost when ready."), success ? "good" : "warn");
+          }
+          setupFactionTab();
+        }
+      }
+    }
+    if (!mission || (mission.missionType !== "faction_contract" && mission.missionType !== "guild_contract") || !mission.factionContract) return;
     const info = mission.factionContract;
     const factionId = info.factionId;
     const missionId = info.missionId;
@@ -3411,7 +3729,7 @@
         templateId: current.templateId || mission.templateId || "",
         failedAt: Date.now()
       });
-      if (typeof showNotif === "function") showNotif("Faction contract failed. You can accept it again to recover the arc.", "warn");
+      if (typeof showNotif === "function") showNotif("Guild story contract failed. You can accept it again to recover the arc.", "warn");
       recordFactionConsequence({
         system: 'faction',
         title: 'Faction contract failed',
@@ -3457,7 +3775,7 @@
     S.factionNarrative.endingResult = ending;
     if (typeof showNotif === "function") {
       showNotif(
-        "Faction narrative advanced: " + toTitle(pathway) + " +1 (Heroic "
+        "Guild narrative advanced: " + toTitle(pathway) + " +1 (Heroic "
         + Number(points.heroic || 0) + " / Tyrant " + Number(points.tyrant || 0)
         + " / Martyr " + Number(points.martyr || 0) + ")",
         "good"
@@ -3563,6 +3881,8 @@
     finalizeMonsterTask: finalizeMonsterTaskEncounter,
     joinGuild: joinGuildCampaign,
     startGuildCampaign: startGuildCampaignQuest,
+    postGuildContract,
+    refreshGuildContracts,
     toggleGuildPrep,
     getFactionStoryRollBonus,
     generateAdaptiveChoices,

@@ -17,15 +17,23 @@
     very_hard:   { name:'Very Hard',   dread:12, reward:400 },
     impossible:  { name:'Impossible',  dread:20, reward:700 }
   };
-  var FACTION_PAIRS = [
-    { gain:'corporations', lose:'underworld',  gainName:'Corporations',       loseName:'The Underworld' },
-    { gain:'religious',    lose:'corporations',gainName:'Religious Entities',  loseName:'Corporations' },
-    { gain:'political',    lose:'military',    gainName:'Political Groups',    loseName:'Military Orders' },
-    { gain:'military',     lose:'religious',   gainName:'Military Orders',     loseName:'Religious Entities' },
-    { gain:'underworld',   lose:'political',   gainName:'The Underworld',      loseName:'Political Groups' }
+  var GUILD_PAIRS = [
+    { gain:'corporations', lose:'underworld',  gainName:'The Gilded Ledger',   loseName:'The Underground Crown' },
+    { gain:'religious',    lose:'military',    gainName:'The Sacred Choir',     loseName:'The Iron Cohort' },
+    { gain:'military',     lose:'rebels',      gainName:'The Iron Cohort',      loseName:'The Ember Union' },
+    { gain:'rebels',       lose:'corporations',gainName:'The Ember Union',      loseName:'The Gilded Ledger' },
+    { gain:'underworld',   lose:'scholars',    gainName:'The Underground Crown',loseName:'The Archive Keepers' },
+    { gain:'scholars',     lose:'religious',   gainName:'The Archive Keepers',  loseName:'The Sacred Choir' }
   ];
-  var FACTIONS = ['corporations','underworld','religious','political','military'];
-  var FACTION_LABELS = { corporations:'Corporations', underworld:'Underworld', religious:'Religious', political:'Political', military:'Military' };
+  var GUILD_IDS = ['corporations','underworld','religious','military','rebels','scholars'];
+  var GUILD_LABELS = {
+    corporations:'The Gilded Ledger',
+    underworld:'The Underground Crown',
+    religious:'The Sacred Choir',
+    military:'The Iron Cohort',
+    rebels:'The Ember Union',
+    scholars:'The Archive Keepers'
+  };
 
   /* ── STATE ── */
   var _activeTab = 'reference';
@@ -75,7 +83,7 @@
   <li><strong>Backpack / Inventory:</strong> Items carried during missions. Some items grant bonuses to specific rolls.</li>
   <li><strong>Origin / Reason:</strong> The character's narrative motivation. Drives the origin mission.</li>
 </ul>
-<p><strong>GM Tip:</strong> Use Character Controls (tab above) to add/remove items, adjust credits, set stress, or modify faction standing mid-session without asking the player to do it manually.</p>`
+<p><strong>GM Tip:</strong> Use Character Controls (tab above) to add/remove items, adjust credits, set stress, or modify guild renown mid-session without asking the player to do it manually.</p>`
     },
     {
       id: 'missions',
@@ -96,20 +104,20 @@
 <ul>
   <li>Each scene presents 2–4 options. Each option has its own Dread die and a stat to roll against it.</li>
   <li>Success and failure both advance the story — just in different directions.</li>
-  <li>Faction outcomes: some options shift faction standing up or down for specific groups.</li>
+  <li>Guild outcomes: some options shift guild renown up or down for specific groups.</li>
 </ul>
 <p><strong>GM Tip:</strong> In the storyline roll modal, use the GM Controls section to adjust the Dread die per option, hide the total from the player, or force a specific outcome when the narrative needs it.</p>`
     },
     {
       id: 'factions',
-      title: '⚖️ Factions',
-      body: `<p>Five factions compete for influence: Corporations, Underworld, Religious Entities, Political Groups, Military Orders.</p>
+      title: '⚖️ Guilds',
+      body: `<p>Six guild powers compete for influence: The Gilded Ledger, The Underground Crown, The Sacred Choir, The Iron Cohort, The Ember Union, and The Archive Keepers.</p>
 <ul>
-  <li>Completing missions gains standing with one faction and loses it with another (see mission faction pair).</li>
-  <li>High/low standing unlocks narrative flavors in encounters and storyline choices.</li>
-  <li>Faction standing is shown on the character sheet and tracked in the Faction tab.</li>
+  <li>Completing missions gains renown with one guild and can reduce it with another (see mission conflict pair).</li>
+  <li>High/low guild renown unlocks narrative flavors in encounters and storyline choices.</li>
+  <li>Guild renown is shown on the character sheet and tracked in the Guild tab.</li>
 </ul>
-<p><strong>GM Tip:</strong> Character Controls let you directly bump faction standing – useful for rewarding or penalizing out-of-session decisions.</p>`
+<p><strong>GM Tip:</strong> Character Controls let you directly bump guild renown – useful for rewarding or penalizing out-of-session decisions.</p>`
     },
     {
       id: 'worldthatwas',
@@ -131,7 +139,7 @@
   <li><strong>Reveal Hidden Info toggle:</strong> Settings → GM Visibility → hides/shows loot badges, checkpoints, and roll totals.</li>
   <li><strong>Dread −/+:</strong> Appears in Mission Step 3 modal and Storyline roll modal when in GM mode. Steps through d4→d6→d8→d10→d12→d20.</li>
   <li><strong>Force Success / Force Failure:</strong> Bypasses the dice roll entirely for missions, storylines, and World That Was encounters.</li>
-  <li><strong>Character Controls tab:</strong> Adjust credits, stress, inventory, and faction standing.</li>
+  <li><strong>Character Controls tab:</strong> Adjust credits, stress, inventory, and guild renown.</li>
   <li><strong>Mission Creator tab:</strong> Build and deploy custom missions with randomizer support.</li>
 </ul>`
     }
@@ -189,14 +197,14 @@
 
     var backpack = Array.isArray(s.backpack) ? s.backpack.filter(Boolean) : [];
     var maxStress = (typeof getMaxStress === 'function') ? getMaxStress() : 10;
-    var factionHTML = FACTIONS.map(function(f) {
-      var val = (s.factionStanding && s.factionStanding[f]) || 0;
+    var factionHTML = GUILD_IDS.map(function(f) {
+      var val = (s.factionRenown && s.factionRenown[f]) || (s.factionStanding && s.factionStanding[f]) || 0;
       return `<div class="gmd-ctrl-row">
-        <span class="gmd-ctrl-label">${FACTION_LABELS[f]}</span>
+        <span class="gmd-ctrl-label">${GUILD_LABELS[f]}</span>
         <div class="gmd-ctrl-stepper">
-          <button class="btn btn-xs" onclick="window.gmDashboard.adjustFaction('${f}',-1)">−</button>
+          <button class="btn btn-xs" onclick="window.gmDashboard.adjustGuildRenown('${f}',-1)">−</button>
           <span class="gmd-ctrl-val">${val}</span>
-          <button class="btn btn-xs" onclick="window.gmDashboard.adjustFaction('${f}',1)">+</button>
+          <button class="btn btn-xs" onclick="window.gmDashboard.adjustGuildRenown('${f}',1)">+</button>
         </div>
       </div>`;
     }).join('');
@@ -252,10 +260,10 @@
       </div>
 
       <div class="gmd-ctrl-section">
-        <div class="gmd-ctrl-heading">⚖️ Faction Standing</div>
+        <div class="gmd-ctrl-heading">⚖️ Guild Renown</div>
         ${factionHTML}
         <div class="gmd-ctrl-row" style="margin-top:.4rem">
-          <button class="btn btn-xs" onclick="window.gmDashboard.resetFactions()">Reset All Factions to 0</button>
+          <button class="btn btn-xs" onclick="window.gmDashboard.resetGuildRenown()">Reset All Guild Renown to 0</button>
         </div>
       </div>
 
@@ -283,7 +291,7 @@
     var region = _missionDraft.region || 'province';
     var loc    = _missionDraft.loc    || pick(MISSION_LOCS);
     var fp     = _missionDraft.fp !== undefined ? _missionDraft.fp : 0;
-    var fPair  = FACTION_PAIRS[Math.min(fp, FACTION_PAIRS.length - 1)];
+    var fPair  = GUILD_PAIRS[Math.min(fp, GUILD_PAIRS.length - 1)];
 
     _missionDraft = { title, diff, region, loc, fp };
 
@@ -297,7 +305,7 @@
       return `<button class="gmd-region-btn ${region===r?'active':''}" onclick="window.gmDashboard.setRegion('${r}')">${labels[r]}</button>`;
     }).join('');
 
-    var fpHTML = FACTION_PAIRS.map(function(p, i) {
+    var fpHTML = GUILD_PAIRS.map(function(p, i) {
       return `<option value="${i}" ${i===fp?'selected':''}>${p.gainName} gain / ${p.loseName} lose</option>`;
     }).join('');
 
@@ -332,7 +340,7 @@
       </div>
 
       <div class="gmd-ctrl-section">
-        <div class="gmd-ctrl-heading">⚖️ Faction Conflict</div>
+        <div class="gmd-ctrl-heading">⚖️ Guild Conflict</div>
         <select id="gmdFactionPair" class="gmd-select" onchange="window.gmDashboard.setFP(this.value)">${fpHTML}</select>
       </div>
 
@@ -433,22 +441,28 @@
     if (typeof showNotif === 'function') showNotif('Stress set to ' + val, val === 0 ? 'good' : 'bad');
   }
 
-  function adjustFaction(f, delta) {
+  function adjustGuildRenown(f, delta) {
     var s = getS();
     if (!s) return;
+    s.factionRenown = s.factionRenown || {};
+    var current = Number(s.factionRenown[f] || 0) + Number(delta || 0);
+    s.factionRenown[f] = Math.max(-10, Math.min(12, current));
     s.factionStanding = s.factionStanding || {};
-    var current = (s.factionStanding[f] || 0) + delta;
-    s.factionStanding[f] = Math.max(-10, Math.min(10, current));
+    s.factionStanding[f] = s.factionRenown[f];
     if (typeof saveState === 'function') saveState();
     if (typeof renderFactionPanel === 'function') renderFactionPanel();
     switchTab('controls');
   }
 
-  function resetFactions() {
+  function resetGuildRenown() {
     var s = getS();
     if (!s) return;
+    s.factionRenown = {};
     s.factionStanding = {};
-    FACTIONS.forEach(function(f) { s.factionStanding[f] = 0; });
+    GUILD_IDS.forEach(function(f) {
+      s.factionRenown[f] = 0;
+      s.factionStanding[f] = 0;
+    });
     if (typeof saveState === 'function') saveState();
     if (typeof renderFactionPanel === 'function') renderFactionPanel();
     switchTab('controls');
@@ -524,7 +538,7 @@
     _missionDraft.diff   = pick(Object.keys(DIFFICULTIES));
     _missionDraft.region = pick(['province','province','province','sea','galaxy','wtw']);
     _missionDraft.loc    = _randomLoc(_missionDraft.region);
-    _missionDraft.fp     = Math.floor(Math.random() * FACTION_PAIRS.length);
+    _missionDraft.fp     = Math.floor(Math.random() * GUILD_PAIRS.length);
     renderDashboard();
   }
 
@@ -538,7 +552,7 @@
     var diff   = _missionDraft.diff || 'medium';
     var region = _missionDraft.region || 'province';
     var fp     = fpSel ? parseInt(fpSel.value, 10) : (_missionDraft.fp || 0);
-    var fPair  = FACTION_PAIRS[Math.min(fp, FACTION_PAIRS.length - 1)];
+    var fPair  = GUILD_PAIRS[Math.min(fp, GUILD_PAIRS.length - 1)];
     var d      = DIFFICULTIES[diff] || DIFFICULTIES.medium;
 
     return {
@@ -640,8 +654,10 @@
     setCreditsExact,
     adjustStress,
     setStressTo,
-    adjustFaction,
-    resetFactions,
+    adjustGuildRenown,
+    resetGuildRenown,
+    adjustFaction: adjustGuildRenown,
+    resetFactions: resetGuildRenown,
     addItem,
     addItemQuick,
     removeItem,

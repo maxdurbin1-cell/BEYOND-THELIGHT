@@ -2054,6 +2054,8 @@
       soulBoss: opts.soulBoss || '',
       soulMission: !!opts.soulMission,
       factionContract: opts.factionContract || null,
+      guildCampaign: opts.guildCampaign || null,
+      guildContract: opts.guildContract || null,
       guildBossLayer: opts.guildBossLayer || null,
       checkpoints: Array.isArray(opts.checkpoints) ? opts.checkpoints.slice() : [],
       step1Intro: opts.step1Intro || '',
@@ -15708,6 +15710,27 @@
     + '</div>';
   }
 
+  function buildGuildContractPrepHtml(mission) {
+    if (!mission || mission.missionType !== 'guild_contract' || !mission.guildContract) return '';
+    var prepRows = Array.isArray(mission.guildContract.prepSummary) ? mission.guildContract.prepSummary : [];
+    if (!prepRows.length) {
+      return '<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.3);padding:.35rem .5rem;margin-bottom:.42rem;">'
+        + '<div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;margin-bottom:.12rem;">Guild Contract Prep</div>'
+        + '<div style="font-size:.68rem;color:var(--muted2);">No active prep selected for this contract.</div>'
+      + '</div>';
+    }
+    var rows = prepRows.map(function (row) {
+      return '<div style="padding:.18rem .22rem;border:1px solid var(--border2);background:rgba(46,196,182,.08);margin-bottom:.14rem;">'
+        + '<div style="font-size:.72rem;color:var(--teal);font-weight:700;">' + String(row && row.name || 'Prep') + '</div>'
+        + '<div style="font-size:.68rem;color:var(--muted2);">' + String(row && row.summary || '') + '</div>'
+      + '</div>';
+    }).join('');
+    return '<div style="background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.3);padding:.35rem .5rem;margin-bottom:.42rem;">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.1em;color:var(--teal);text-transform:uppercase;margin-bottom:.12rem;">Guild Contract Prep</div>'
+      + rows
+    + '</div>';
+  }
+
   /* ── STEP 3: CONFRONTATION ── */
   function startMissionStep3(missionId) {
     ensureState();
@@ -15751,6 +15774,7 @@
     }
 
     var guildBossLayerSection = buildGuildBossLayerHtml(mission);
+    var guildContractPrepSection = buildGuildContractPrepHtml(mission);
     var targetRow='<div style="font-size:.78rem;margin-bottom:.45rem;padding:.25rem .35rem;border:1px solid var(--border2);"><strong style="color:var(--gold2);">Target:</strong> <span style="color:var(--text);">'+mission.target+'</span></div>';
     var rollInstr='<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .55rem;margin-bottom:.45rem;"><div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Roll Valor d'+advDie+(bonus?' + '+bonus:'')+' vs '+(revealDC?('Dread d'+dreadDie):'scene Dread')+' \u2014 then click your outcome:</div><div style="font-size:.7rem;color:var(--muted);">Use the Dice tab or physical dice. Add the +'+(bonus||0)+' bonus to your roll before comparing.</div></div>';
     var isLegacyRaidMission = mission && mission.missionType === 'legacy_raid';
@@ -15772,7 +15796,7 @@
       +'</div>';
     }
 
-    var html=buildMissionStepDialogue(mission, 'confrontation')+compBanner+featureBadge+guildBossLayerSection+guardsSection+mercSection+targetRow+rollInstr+gmControls
+    var html=buildMissionStepDialogue(mission, 'confrontation')+compBanner+featureBadge+guildBossLayerSection+guildContractPrepSection+guardsSection+mercSection+targetRow+rollInstr+gmControls
       +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
         +'<button class="btn btn-sm btn-red" onclick="openMissionFailureOutcomeModal('+missionId+')">\u2717 Failure \u2014 Roll Failed</button>'
         +'<button class="btn btn-sm btn-primary" onclick="'+successAction+'">\u2713 Success \u2014 Roll Succeeded</button>'

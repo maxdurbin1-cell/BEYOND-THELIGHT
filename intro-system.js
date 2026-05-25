@@ -10,7 +10,7 @@
       {
         id: "welcome",
         title: "BEYOND: The Light",
-        subtitle: "A Game of Choices, Factions, and Consequences",
+        subtitle: "A Game of Choices, Guilds, and Consequences",
         content: `
 In a world where civilization has fractured into competing powers, you are nobody—
 yet, a catalyst. The decisions you make ripple outward, changing lives, toppling empires, 
@@ -43,7 +43,7 @@ The UPRISING fights for revolution, willing to burn everything down for a chance
 
 The ARCHIVE KEEPERS preserve knowledge, neutral yet choosing sides where it matters most.
 
-Each faction is not evil or good. Each simply believes their way is the only way forward.
+Each guild is not evil or good. Each simply believes their way is the only way forward.
         `,
         background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
         next: "your_role"
@@ -54,17 +54,17 @@ Each faction is not evil or good. Each simply believes their way is the only way
         title: "Your Role",
         subtitle: "The Wayfarer",
         content: `
-You arrived when the tensions were highest—a traveler, a outsider, unclaimed by any faction. 
+You arrived when the tensions were highest—a traveler, a outsider, unclaimed by any guild. 
 For the first time in generations, it's possible for one person to build lasting bridges between 
 the fractured groups... or burn them all to ash.
 
 Every person you meet will remember you.
 Every choice you make will have consequences that extend far beyond the immediate.
-Every faction will try to claim you, corrupt you, or eliminate you.
+Every guild will try to claim you, corrupt you, or eliminate you.
 
 You can:
 • Build genuine alliances across enemy lines
-• Play factions against each other for personal gain
+• Play guilds against each other for personal gain
 • Sacrifice everything for a single cause
 • Walk a middle path and try to hold it all together
 • Become a legendary hero, a feared tyrant, or a tragic martyr
@@ -115,7 +115,7 @@ You don't choose your path at the start. Your path emerges from what you DO.
         title: "How It Works",
         subtitle: "Meaningful Choices",
         content: `
-Every mission from every faction has multiple approaches:
+Every mission from every guild has multiple approaches:
 
 When defending against assassins, you could:
 → Heroic: Protect innocents at risk to yourself
@@ -125,16 +125,16 @@ When defending against assassins, you could:
 YOUR REPUTATION MATTERS
 Work with the Corporations enough, and they offer exclusive missions.
 Build reputation with the Rebels, and you might participate in a coup.
-Trust spreads across allied factions, but reaches rivals too.
+Trust spreads across allied guilds, but reaches rivals too.
 
 BETRAYAL HAS TEETH
 Accept a mission from enemies of your allies? 
-Your trusted faction learns of it. They'll demand loyalty or exile you.
+Your trusted guild learns of it. They'll demand loyalty or exile you.
 You can escape the consequences temporarily, but not forever.
 
 CHOICE CASCADES
 A decision early in the game might not matter until 10 hours later,
-when a faction suddenly references your past and adjusts their strategy.
+when a guild suddenly references your past and adjusts their strategy.
 Nothing is forgotten. Nothing is forgiven. Everything compounds.
 
 NO SAVE SCUMMING
@@ -156,11 +156,11 @@ This is your story, told only once.
 This is a game of:
 
 CONSEQUENCE
-Every choice has weight. NPC deaths matter. Faction wars change the world.
+Every choice has weight. NPC deaths matter. Guild wars change the world.
 You will feel the burden of your decisions.
 
 MORAL AMBIGUITY
-There are no truly good factions. Each has valid points and terrible methods.
+There are no truly good guilds. Each has valid points and terrible methods.
 You build your own moral philosophy through play.
 
 DARK AESTHETICS
@@ -168,16 +168,16 @@ Noir frontier gothic. Decay and beauty intertwined.
 Cinematic music, environmental storytelling, and a world that feels lived-in.
 
 PLAYER AGENCY
-You shape the world. The factions adapt to you.
+You shape the world. The guilds adapt to you.
 No railroad. No "correct" path. Your story is yours to tell.
 
 HIGH STAKES
-Alliances rise and fall. Characters die. Factions war.
+Alliances rise and fall. Characters die. Guilds wage war.
 The world changes because of what you do.
 
 But also:
 MOMENTS OF GENUINE CONNECTION
-NPCs you help remember you. Factions you preserve evolve.
+NPCs you help remember you. Guilds you preserve evolve.
 The world is dark, but not nihilistic. Meaning exists in what you choose.
         `,
         background: "linear-gradient(135deg, #2a1a3e 0%, #16213e 50%, #0a1a4e 100%)",
@@ -191,7 +191,7 @@ The world is dark, but not nihilistic. Meaning exists in what you choose.
         content: `
 Everything that follows is your story.
 
-The factions are waiting.
+The guilds are waiting.
 The world is changing.
 Your choices will echo through history.
 

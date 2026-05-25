@@ -2105,7 +2105,7 @@
               ? '📋 Quest is <strong style="color:var(--teal);">in progress</strong>. Return to the <strong>Missions</strong> tab to continue.'
                 : (renown >= 9
                   ? '✅ You have sufficient Renown. Start the quest from the <strong>Missions</strong> tab.'
-                  : '🔒 Requires <strong style="color:var(--gold2);">Renown 9</strong> in any Faction Standing. Current highest: <strong style="color:var(--teal);">' + renown + '</strong>.'))
+                  : '🔒 Requires <strong style="color:var(--gold2);">Renown 9</strong> in any Guild Renown track. Current highest: <strong style="color:var(--teal);">' + renown + '</strong>.'))
           + '</div>'
           + gateProgress
           + '</div>';
@@ -2277,7 +2277,7 @@
           + '<button class="btn btn-sm btn-primary" onclick="advanceHoldingQuest();" style="width:100%;">⚄ Roll Current Step</button>';
       } else if (!(h.established || questDone)) {
         if (renown < 9) {
-          questEl.innerHTML = '<div style="font-size:.75rem;color:var(--muted2);">You need <strong style="color:var(--gold2);">Renown 9</strong> in any Faction Standing to establish a Holding. Current highest: ' + renown + '</div>';
+          questEl.innerHTML = '<div style="font-size:.75rem;color:var(--muted2);">You need <strong style="color:var(--gold2);">Renown 9</strong> in any Guild Renown track to establish a Holding. Current highest: ' + renown + '</div>';
         } else {
           questEl.innerHTML = '<div style="display:flex;gap:.3rem;align-items:center;">'
             + '<div style="flex:1;font-size:.75rem;color:var(--text2);">You are ready to establish your own Holding!' + (qh.failed ? ' Previous attempt failed — you can retry.' : '') + '</div>'
@@ -10679,7 +10679,7 @@
         + '<div style="font-size:.66rem;color:var(--muted2);">Economy: ' + String(active.economy || 'mixed') + ' · Scarcity: ' + String(active.scarcity || 'balanced') + '</div>'
         + '<div style="font-size:.66rem;color:var(--muted2);">Interactable: ' + active.interactable + ' · Hidden: ' + active.hiddenThing + '</div>'
         + '<div style="font-size:.66rem;color:var(--text2);margin-top:.06rem;">District Landmark: <strong style="color:var(--gold2);">' + String(active.districtLandmark || 'Ward landmark pending') + '</strong></div>'
-        + '<div style="font-size:.66rem;color:var(--muted2);">Faction Headline: ' + String(active.factionHeadline || 'No headline filed') + '</div>'
+        + '<div style="font-size:.66rem;color:var(--muted2);">Guild Headline: ' + String(active.factionHeadline || 'No headline filed') + '</div>'
         + (Array.isArray(active.npcRoster) && active.npcRoster.length ? ('<div style="font-size:.66rem;color:var(--teal);margin-top:.08rem;">District NPC Roster</div>' + active.npcRoster.map(function (npc) {
           return '<div style="font-size:.66rem;color:var(--muted2);">• ' + String(npc.name || 'Local') + ' (' + String(npc.role || 'Resident') + ') · Relation ' + (Number(npc.relation || 0) >= 0 ? '+' : '') + Number(npc.relation || 0) + '</div>';
         }).join('')) : '')
@@ -10752,7 +10752,7 @@
       + '<details style="margin-top:.1rem;">'
       + '<summary style="cursor:pointer;font-size:.65rem;color:var(--muted2);">Rumors And Signals</summary>'
       + '<div style="font-size:.66rem;color:var(--muted2);line-height:1.44;margin-top:.06rem;">'
-      + 'Headline: <strong style="color:var(--gold2);">' + String(ambient.factionHeadline || 'No faction headline.') + '</strong><br>'
+      + 'Headline: <strong style="color:var(--gold2);">' + String(ambient.factionHeadline || 'No guild headline.') + '</strong><br>'
       + 'District Landmark: ' + String(ambient.districtLandmark || 'No landmark surfaced.') + '<br>'
       + 'Scenic Encounter: ' + String(ambient.scenicEncounter || 'No scenic encounter.') + '<br>'
       + 'Rumor: ' + String(ambient.rumor || 'No rumor yet.') + '<br>'
@@ -11281,7 +11281,7 @@
   function startHoldingQuest() {
     ensureNewFeatureState();
     if (getHoldingGateRenown() < 9) {
-      showNotif("Need Renown 9 in any Faction Standing to begin the Holding quest.", "warn");
+      showNotif("Need Renown 9 in any Guild Renown track to begin the Holding quest.", "warn");
       return;
     }
     var spots = getRandomWildernessHexes(2);

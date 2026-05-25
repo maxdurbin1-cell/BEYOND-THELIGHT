@@ -22094,7 +22094,7 @@ function buildStarsCharacterPanels() {
 
   if (factionTarget) {
     factionTarget.innerHTML = `
-<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.35rem;">Faction Standings</div>
+<div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.35rem;">Guild Renown</div>
 <div style="font-size:.73rem;color:var(--muted2);margin-bottom:.4rem;">Completing quests grants +1 with one faction and −1 with another. Range: −10 to +12.</div>
 <div id="factionRenownDisplay"></div>`;
   }

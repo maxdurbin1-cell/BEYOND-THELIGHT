@@ -56,6 +56,7 @@
     at: 0
   };
   var lastCombatBoardHex = null;
+  var SPELLCAST_DIRECTION_KEYS = ['e', 'ne', 'nw', 'w', 'sw', 'se'];
 
   function currentCombatDragPayloadSnapshot() {
     if (window.__combatAssetDragPayload && typeof window.__combatAssetDragPayload === 'object') {
@@ -4357,8 +4358,6 @@
       previewBorder: 'rgba(139,239,224,0.94)'
     }
   ];
-
-  var SPELLCAST_DIRECTION_KEYS = ['e', 'ne', 'nw', 'w', 'sw', 'se'];
 
   function getSpellcastBandSpec(bandKey) {
     var map = {

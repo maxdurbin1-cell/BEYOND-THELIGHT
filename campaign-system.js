@@ -3240,9 +3240,13 @@
     }
     var stats = c && c.stats && typeof c.stats === "object" ? c.stats : {};
     var backpack = Array.isArray(c.backpack) ? c.backpack.filter(Boolean) : [];
+    var loadout = c && c.loadout && typeof c.loadout === "object" ? c.loadout : {};
+    var hacks = Array.isArray(c.hacks) ? c.hacks.filter(Boolean) : [];
     var updatedAt = c && c.updatedAt ? Number(c.updatedAt) : Number(member && member.lastSeenAt || 0);
     var stress = Math.max(0, Number(c.stress != null ? c.stress : c.mentalStress || 0));
+    var maxStress = Math.max(1, Number(c.maxMentalStress || c.mentalStressCap || c.stressCap || 20));
     var health = Math.max(0, Number(c.health || 0));
+    var maxHealth = Math.max(1, Number(c.maxHealth || c.maxStress || resolveCharacterMaxHealth(c)));
     var statRows = [
       ["Body", stats.body],
       ["Mind", stats.mind],
@@ -3264,8 +3268,14 @@
         }).join('')
       + '</div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem;">'
-      + '<div class="info-cell"><span class="ic-label">Health</span>' + health + '</div>'
-      + '<div class="info-cell"><span class="ic-label">Mental Stress</span>' + stress + '</div>'
+      + '<div class="info-cell"><span class="ic-label">Health</span>' + health + '/' + maxHealth + '</div>'
+      + '<div class="info-cell"><span class="ic-label">Mental Stress</span>' + stress + '/' + maxStress + '</div>'
+      + '</div>'
+      + '<div class="info-cell"><span class="ic-label">Loadout</span>'
+      + escapeHtml([loadout.weapon1, loadout.weapon2, loadout.armor, loadout.readied].filter(Boolean).join(' | ') || 'No loadout synced')
+      + '</div>'
+      + '<div class="info-cell"><span class="ic-label">OS Hacks</span>'
+      + (hacks.length ? hacks.map(function (hack) { return '<span class="campaign-look-tag" style="margin:0 .2rem .2rem 0;display:inline-block;">' + escapeHtml(String(hack)) + '</span>'; }).join('') : '<span class="campaign-muted">No hacks synced.</span>')
       + '</div>'
       + '<div class="info-cell"><span class="ic-label">Look / Flavor</span>' + escapeHtml(c.look || 'No look shared') + '</div>'
       + '<div class="info-cell"><span class="ic-label">Backpack</span>'

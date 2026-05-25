@@ -1417,8 +1417,27 @@
     ensureState();
     if (!S || !forceCreate && S.originMissionInitialized) return null;
 
-    var existingActive = (S.activeMissions || []).some(function(m){ return m && m.missionType === 'origin_story'; });
-    var existingDone = (S.completedMissions || []).some(function(m){ return m && m.missionType === 'origin_story'; });
+    var campaignState = null;
+    if (typeof window !== 'undefined' && window.campaignSystem && typeof window.campaignSystem.getState === 'function') {
+      try { campaignState = window.campaignSystem.getState() || null; } catch (_campErr) { campaignState = null; }
+    }
+    var ownerToken = campaignState && campaignState.code ? String(campaignState.token || '') : '';
+    var ownerName = String((S && S.name) || '').trim();
+
+    function isCurrentOwnerMission(mission) {
+      if (!mission || mission.missionType !== 'origin_story') return false;
+      var missionOwnerToken = String(mission.originOwnerToken || '').trim();
+      var missionOwnerName = String(mission.originOwnerName || '').trim();
+      if (ownerToken) {
+        if (missionOwnerToken && missionOwnerToken === ownerToken) return true;
+        if (!missionOwnerToken && ownerName && missionOwnerName && missionOwnerName === ownerName) return true;
+        return false;
+      }
+      return !missionOwnerToken;
+    }
+
+    var existingActive = (S.activeMissions || []).some(function(m){ return isCurrentOwnerMission(m); });
+    var existingDone = (S.completedMissions || []).some(function(m){ return isCurrentOwnerMission(m); });
     if (existingActive || existingDone) {
       S.originMissionInitialized = true;
       return null;
@@ -1460,6 +1479,8 @@
 
     if (!mission) return null;
     mission.originReason = reasonLine;
+    mission.originOwnerToken = ownerToken;
+    mission.originOwnerName = ownerName || ensureName();
     mission.templateLabel = missionOpts.templateLabel;
     mission.lore = missionOpts.lore;
     S.originMissionInitialized = true;

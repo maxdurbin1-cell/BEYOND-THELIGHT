@@ -152,10 +152,69 @@ function mergeAllowedPlayerState(existingState, incoming, requesterToken, confli
   const incomingState = incoming && typeof incoming === "object" ? incoming : {};
   const conflictList = Array.isArray(conflicts) ? conflicts : [];
 
+  function getMissionMergeKey(mission) {
+    if (!mission || typeof mission !== "object") return "";
+    const missionId = mission.id;
+    if (missionId !== undefined && missionId !== null && String(missionId).trim()) {
+      return `id:${String(missionId).trim()}`;
+    }
+    return [
+      String(mission.missionType || ""),
+      String(mission.title || ""),
+      String(mission.location || ""),
+      String(mission.templateId || mission.templateLabel || ""),
+      String(mission.originOwnerToken || ""),
+      String(mission.originOwnerName || ""),
+      String(mission.originReason || "")
+    ].join("|");
+  }
+
+  function mergeMissionLists(existingList, incomingList) {
+    const out = [];
+    const indexByKey = new Map();
+
+    const addOrReplace = (mission) => {
+      if (!mission || typeof mission !== "object") return;
+      const key = getMissionMergeKey(mission);
+      if (!key) return;
+      const row = safeClone(mission);
+      if (indexByKey.has(key)) {
+        out[indexByKey.get(key)] = row;
+      } else {
+        indexByKey.set(key, out.length);
+        out.push(row);
+      }
+    };
+
+    const existing = Array.isArray(existingList) ? existingList : [];
+    const incomingRows = Array.isArray(incomingList) ? incomingList : [];
+    existing.forEach(addOrReplace);
+    incomingRows.forEach(addOrReplace);
+    return out;
+  }
+
   Object.keys(incomingState).forEach((key) => {
     if (key === "provinceSelections" || key === "economyLedger" || key === "characterInventories" || key === "actionQueue" || key === "readyCheck") return;
     if (!PLAYER_PATCH_ALLOWED_KEYS[key]) {
       conflictList.push(key);
+      return;
+    }
+    if (key === "activeMissions") {
+      merged.activeMissions = mergeMissionLists(existingState && existingState.activeMissions, incomingState.activeMissions);
+      return;
+    }
+    if (key === "completedMissions") {
+      merged.completedMissions = mergeMissionLists(existingState && existingState.completedMissions, incomingState.completedMissions);
+      return;
+    }
+    if (key === "missionTokens") {
+      const existingTokens = existingState && existingState.missionTokens && typeof existingState.missionTokens === "object"
+        ? safeClone(existingState.missionTokens) || {}
+        : {};
+      const incomingTokens = incomingState.missionTokens && typeof incomingState.missionTokens === "object"
+        ? safeClone(incomingState.missionTokens) || {}
+        : {};
+      merged.missionTokens = Object.assign({}, existingTokens, incomingTokens);
       return;
     }
     merged[key] = safeClone(incomingState[key]);
@@ -584,10 +643,14 @@ function ensureCampaignShape(raw) {
         ? {
             name: String(p.character.name || p.name || "Wayfarer").slice(0, 48),
             health: Math.max(0, Number(p.character.health || 0)),
+            maxHealth: Math.max(1, Number(p.character.maxHealth || p.character.maxStress || 1)),
             mentalStress: Math.max(0, Number((typeof p.character.mentalStress === "number" ? p.character.mentalStress : p.character.stress) || 0)),
+            maxMentalStress: Math.max(1, Number(p.character.maxMentalStress || p.character.mentalStressCap || p.character.stressCap || 20)),
             stress: Math.max(0, Number((typeof p.character.mentalStress === "number" ? p.character.mentalStress : p.character.stress) || 0)),
             look: String(p.character.look || "").slice(0, 180),
             stats: p.character.stats && typeof p.character.stats === "object" ? p.character.stats : {},
+            loadout: p.character.loadout && typeof p.character.loadout === "object" ? p.character.loadout : {},
+            hacks: Array.isArray(p.character.hacks) ? p.character.hacks : [],
             backpack: Array.isArray(p.character.backpack)
               ? p.character.backpack.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 20)
               : [],
@@ -657,10 +720,14 @@ function serializeCampaign(campaign) {
         ? {
             name: String(p.character.name || p.name || "Wayfarer").slice(0, 48),
             health: Math.max(0, Number(p.character.health || 0)),
+            maxHealth: Math.max(1, Number(p.character.maxHealth || p.character.maxStress || 1)),
             mentalStress: Math.max(0, Number((typeof p.character.mentalStress === "number" ? p.character.mentalStress : p.character.stress) || 0)),
+            maxMentalStress: Math.max(1, Number(p.character.maxMentalStress || p.character.mentalStressCap || p.character.stressCap || 20)),
             stress: Math.max(0, Number((typeof p.character.mentalStress === "number" ? p.character.mentalStress : p.character.stress) || 0)),
             look: String(p.character.look || "").slice(0, 180),
             stats: p.character.stats && typeof p.character.stats === "object" ? p.character.stats : {},
+            loadout: p.character.loadout && typeof p.character.loadout === "object" ? p.character.loadout : {},
+            hacks: Array.isArray(p.character.hacks) ? p.character.hacks : [],
             backpack: Array.isArray(p.character.backpack)
               ? p.character.backpack.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 20)
               : [],
@@ -762,10 +829,14 @@ function snapshotCampaign(campaign, requesterToken) {
         ? {
             name: String(member.character.name || member.name || "Wayfarer").slice(0, 48),
             health: Math.max(0, Number(member.character.health || 0)),
+            maxHealth: Math.max(1, Number(member.character.maxHealth || member.character.maxStress || 1)),
             mentalStress: Math.max(0, Number((typeof member.character.mentalStress === "number" ? member.character.mentalStress : member.character.stress) || 0)),
+            maxMentalStress: Math.max(1, Number(member.character.maxMentalStress || member.character.mentalStressCap || member.character.stressCap || 20)),
             stress: Math.max(0, Number((typeof member.character.mentalStress === "number" ? member.character.mentalStress : member.character.stress) || 0)),
             look: String(member.character.look || "").slice(0, 180),
             stats: member.character.stats && typeof member.character.stats === "object" ? member.character.stats : {},
+            loadout: member.character.loadout && typeof member.character.loadout === "object" ? member.character.loadout : {},
+            hacks: Array.isArray(member.character.hacks) ? member.character.hacks : [],
             backpack: Array.isArray(member.character.backpack)
               ? member.character.backpack.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 20)
               : [],

@@ -4461,18 +4461,136 @@
   function applyCombatSpellPullToCenter(tokens, centerQ, centerR, targetRadius) {
     var radius = Math.max(0, Number(targetRadius || 0));
     if (!radius || !Array.isArray(tokens) || !tokens.length) return;
-    var reserved = {};
-    tokens.forEach(function (token) {
+    var center = { q: Number(centerQ || 0), r: Number(centerR || 0) };
+    var state = store.getState();
+    var tokenList = Array.isArray(state && state.tokens) ? state.tokens : [];
+    var moverIds = {};
+    var movers = tokens.map(function (token) {
+      var id = String(token && token.id || '');
+      if (!id || moverIds[id]) return null;
+      var live = tokenList.find(function (row) { return row && String(row.id || '') === id; }) || token;
+      if (!live) return null;
+      moverIds[id] = true;
+      return {
+        id: id,
+        q: Number(live.q || 0),
+        r: Number(live.r || 0),
+        key: toKey(Number(live.q || 0), Number(live.r || 0))
+      };
+    }).filter(Boolean);
+    if (!movers.length) return;
+
+    var staticOccupied = {};
+    tokenList.forEach(function (token) {
       if (!token) return;
-      var ray = axialLine({ q: Number(centerQ || 0), r: Number(centerR || 0) }, { q: Number(token.q || 0), r: Number(token.r || 0) });
-      if (!ray || !ray.length) return;
-      var desired = ray[Math.min(ray.length - 1, radius)] || null;
-      if (!desired) return;
-      var key = toKey(Number(desired.q || 0), Number(desired.r || 0));
-      if (reserved[key]) return;
-      reserved[key] = true;
-      moveToken(String(token.id || ''), Number(desired.q || 0), Number(desired.r || 0));
+      var id = String(token.id || '');
+      if (moverIds[id]) return;
+      staticOccupied[toKey(Number(token.q || 0), Number(token.r || 0))] = true;
     });
+
+    var maxDistance = movers.reduce(function (best, token) {
+      return Math.max(best, hexDistance(center, { q: token.q, r: token.r }));
+    }, radius);
+    var maxSearch = Math.max(radius + 4, maxDistance + 1);
+    var reserved = {};
+    var assignments = {};
+
+    function isHexFree(q, r) {
+      var key = toKey(Number(q || 0), Number(r || 0));
+      if (reserved[key]) return false;
+      if (staticOccupied[key]) return false;
+      if (isBlocked(Number(q || 0), Number(r || 0))) return false;
+      return true;
+    }
+
+    function sortCandidates(candidates, preferred, origin) {
+      return candidates.sort(function (a, b) {
+        var ap = hexDistance(a, preferred);
+        var bp = hexDistance(b, preferred);
+        if (ap !== bp) return ap - bp;
+        var ao = hexDistance(a, origin);
+        var bo = hexDistance(b, origin);
+        if (ao !== bo) return ao - bo;
+        return toKey(a.q, a.r) < toKey(b.q, b.r) ? -1 : 1;
+      });
+    }
+
+    function findFallbackHex(origin, preferred) {
+      var wantedDistance = Math.max(radius, 1);
+      for (var ring = wantedDistance; ring <= maxSearch; ring++) {
+        var candidates = [];
+        for (var q = center.q - ring; q <= center.q + ring; q++) {
+          for (var r = center.r - ring; r <= center.r + ring; r++) {
+            if (hexDistance(center, { q: q, r: r }) !== ring) continue;
+            if (!isHexFree(q, r)) continue;
+            candidates.push({ q: q, r: r });
+          }
+        }
+        if (!candidates.length) continue;
+        return sortCandidates(candidates, preferred, origin)[0];
+      }
+      return null;
+    }
+
+    // Pull the farthest targets first so distant enemies cannot block each other in tight rings.
+    movers.sort(function (a, b) {
+      var da = hexDistance(center, { q: a.q, r: a.r });
+      var db = hexDistance(center, { q: b.q, r: b.r });
+      if (da !== db) return db - da;
+      return String(a.id || '') < String(b.id || '') ? -1 : 1;
+    });
+
+    movers.forEach(function (token) {
+      var origin = { q: Number(token.q || 0), r: Number(token.r || 0) };
+      var distance = hexDistance(center, origin);
+      if (distance <= radius) return;
+      var ray = axialLine(center, origin);
+      if (!ray || !ray.length) return;
+
+      var preferred = ray[Math.min(ray.length - 1, Math.max(1, radius))] || origin;
+      var picked = null;
+      if (isHexFree(preferred.q, preferred.r)) {
+        picked = { q: Number(preferred.q || 0), r: Number(preferred.r || 0) };
+      }
+
+      if (!picked) {
+        for (var i = Math.max(2, radius + 1); i < ray.length; i++) {
+          var candidate = ray[i];
+          if (!candidate) continue;
+          if (!isHexFree(candidate.q, candidate.r)) continue;
+          picked = { q: Number(candidate.q || 0), r: Number(candidate.r || 0) };
+          break;
+        }
+      }
+
+      if (!picked) {
+        picked = findFallbackHex(origin, { q: Number(preferred.q || 0), r: Number(preferred.r || 0) });
+      }
+
+      if (!picked) return;
+      var targetKey = toKey(picked.q, picked.r);
+      reserved[targetKey] = true;
+      assignments[token.id] = picked;
+    });
+
+    var movedIds = Object.keys(assignments);
+    if (!movedIds.length) return;
+
+    store.setState(function (inner) {
+      var next = Object.assign({}, inner);
+      next.tokens = (inner.tokens || []).map(function (token) {
+        if (!token) return token;
+        var id = String(token.id || '');
+        var target = assignments[id];
+        if (!target) return token;
+        return Object.assign({}, token, { q: Number(target.q || 0), r: Number(target.r || 0) });
+      });
+      next = syncFogExplorerMemory(next);
+      persist(next);
+      return next;
+    });
+
+    addHistory('Gravitic pull repositions ' + movedIds.length + ' target' + (movedIds.length === 1 ? '' : 's') + ' around ' + toKey(center.q, center.r) + '.');
   }
 
   function isUnifiedSpellPromptAvailable() {

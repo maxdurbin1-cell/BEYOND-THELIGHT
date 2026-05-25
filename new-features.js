@@ -3663,11 +3663,93 @@
     }
     var circData = evaluateSpellCircumstances(profile, answers);
     circData.modifierLines = (circData.modifierLines || []).concat(['Pre-selected circumstance packet locked at queue time.']);
+    var aoeModes = ['focused', 'standard', 'expanded'];
+    var aoeMode = aoeModes[Math.abs(Number(seed || 0)) % aoeModes.length];
     return {
       profile: profile,
       circData: circData,
       answers: answers,
-      source: 'queued-auto'
+      source: 'queued-auto',
+      aoeMode: aoeMode,
+      aoeModeLocked: true
+    };
+  }
+
+  function normalizeCrucibleQueuedAoeMode(value, fallback) {
+    var raw = String(value || fallback || 'standard').trim().toLowerCase();
+    if (raw === 'focus' || raw === 'f') raw = 'focused';
+    if (raw === 'std' || raw === 's') raw = 'standard';
+    if (raw === 'expand' || raw === 'e') raw = 'expanded';
+    if (raw !== 'focused' && raw !== 'standard' && raw !== 'expanded') raw = String(fallback || 'standard');
+    return raw;
+  }
+
+  function chooseCrucibleQueuedAoeModeInteractive(defaultMode) {
+    var seed = normalizeCrucibleQueuedAoeMode(defaultMode, 'standard');
+    if (typeof prompt !== 'function') return seed;
+    var input = prompt('Queue AOE mode for delayed spell/hack resolution: focused, standard, or expanded.', seed);
+    if (input === null) return null;
+    return normalizeCrucibleQueuedAoeMode(input, seed);
+  }
+
+  function getCrucibleSpellAoePlan(mode, margin) {
+    var m = Math.max(1, Number(margin || 1));
+    var picked = normalizeCrucibleQueuedAoeMode(mode, 'standard');
+    if (picked === 'focused') {
+      return { mode: 'focused', targetCap: 1, damageAdjust: 2, statusCap: 1, valid: true };
+    }
+    if (picked === 'expanded') {
+      return {
+        mode: 'expanded',
+        targetCap: 3,
+        damageAdjust: -1,
+        statusCap: 3,
+        valid: m >= 4,
+        fallback: 'standard',
+        reason: 'Expanded mode requires margin 4+.'
+      };
+    }
+    return { mode: 'standard', targetCap: 2, damageAdjust: 0, statusCap: 2, valid: true };
+  }
+
+  function applyCrucibleQueuedAoePacket(match, actor, primaryTarget, actionKind, margin, aoeMode, logs) {
+    if (!match || !primaryTarget || Number(primaryTarget.hp || 0) <= 0) return null;
+    var pool = getLivingTeamUnits(match.enemies || []);
+    if (!pool.length) return null;
+    var ordered = [primaryTarget];
+    pool.forEach(function (entry) {
+      if (entry && entry !== primaryTarget) ordered.push(entry);
+    });
+
+    var plan = getCrucibleSpellAoePlan(aoeMode, margin);
+    if (!plan.valid && plan.fallback) {
+      plan = getCrucibleSpellAoePlan(plan.fallback, margin);
+      if (logs) logs.push((actor && actor.name ? actor.name : 'Caster') + ' AOE fallback: ' + (aoeMode || 'expanded') + ' -> ' + plan.mode + ' (' + (getCrucibleSpellAoePlan(aoeMode, margin).reason || 'unlock gate') + ').');
+    }
+
+    var baseDamage = Math.max(1, Math.max(1, Number(margin || 1)) + (String(actionKind || 'spell') === 'spell' ? 1 : 0) + Number(plan.damageAdjust || 0));
+    var cap = Math.max(1, Number(plan.targetCap || 1));
+    var statusCap = Math.max(1, Number(plan.statusCap || 1));
+    var hits = [];
+
+    for (var i = 0; i < ordered.length && hits.length < cap; i++) {
+      var enemy = ordered[i];
+      if (!enemy || Number(enemy.hp || 0) <= 0) continue;
+      var falloff = plan.mode === 'expanded' ? i : 0;
+      var dmg = Math.max(1, baseDamage - falloff);
+      enemy.hp = Math.max(0, Number(enemy.hp || 0) - dmg);
+      enemy.conditions = enemy.conditions || {};
+      if (hits.length < statusCap) {
+        enemy.ap = Math.max(0, Number(enemy.ap || 0) - 1);
+        enemy.conditions[String(actionKind || 'spell') === 'hack' ? 'distracted' : 'vulnerable'] = Math.max(1, Number(enemy.conditions[String(actionKind || 'spell') === 'hack' ? 'distracted' : 'vulnerable'] || 0) + 1);
+      }
+      hits.push({ unit: enemy, damage: dmg, downed: Number(enemy.hp || 0) <= 0 });
+    }
+
+    return {
+      mode: plan.mode,
+      hits: hits,
+      primaryDamage: hits.length ? Number(hits[0].damage || 0) : 0
     };
   }
 
@@ -3705,10 +3787,17 @@
       + ': ' + String(actor && actor.name || 'Caster')
       + ' -> ' + String(target && target.name || 'Target');
     evaluateUnifiedSpellCircumstances(spellName, 'Queued Crucible action (locked at queue time).', function (resolved) {
+      var chosenAoeMode = chooseCrucibleQueuedAoeModeInteractive('standard');
+      if (chosenAoeMode === null) {
+        if (typeof showNotif === 'function') showNotif('Queued spell/hack cancelled.', 'warn');
+        return;
+      }
       var spellMeta = {
         profile: resolved && resolved.profile,
         circData: resolved && resolved.circData ? resolved.circData : null,
-        source: 'queued-manual'
+        source: 'queued-manual',
+        aoeMode: normalizeCrucibleQueuedAoeMode(chosenAoeMode, 'standard'),
+        aoeModeLocked: true
       };
       queueWithMeta(spellMeta);
     }, function () {
@@ -3777,7 +3866,11 @@
         return false;
       }
       packet.spellMeta = spellMetaOverride || buildAutoCrucibleQueuedSpellMeta(actionKey, actor, target, packet.seq);
+      if (packet.spellMeta && !packet.spellMeta.aoeMode) packet.spellMeta.aoeMode = 'standard';
       packet.summary = actor.name + ' queued ' + (actionKey === 'hack' ? 'Hack' : 'Spell') + ' on ' + target.name + '.';
+      if (packet.spellMeta && packet.spellMeta.aoeMode) {
+        packet.summary += ' [AOE: ' + String(packet.spellMeta.aoeMode) + ']';
+      }
     } else {
       packet.summary = actor.name + ' queued ' + actionKey + '.';
     }
@@ -5274,15 +5367,30 @@
 
     var success = actionTotal >= dreadTotal;
     var margin = Math.max(1, Math.abs(actionTotal - dreadTotal));
+    var lockedAoeMode = normalizeCrucibleQueuedAoeMode(spellMeta && spellMeta.aoeMode, 'standard');
     if (success) {
-      var dmg = Math.max(1, margin + (actionKind === 'spell' ? 1 : 0));
-      target.hp = Math.max(0, Number(target.hp || 0) - dmg);
-      logs.push(actor.name + ' ' + (actionKind === 'hack' ? 'hacked' : 'cast a spell on') + ' ' + target.name + ': ' + actionTotal + ' vs ' + dreadTotal + ' for ' + dmg + ' dmg.');
-      if (target.hp <= 0) {
-        logs.push('☠ ' + target.name + ' is down.');
-        var mode = getCrucibleModeSpec(match.mode);
-        awardCruciblePoints(match, String(actor.side || 'ally'), Number(mode.killPoints || 1), 'Takedown');
-        maybeRespawnCrucibleControlUnit(match, target, logs);
+      var aoeResult = applyCrucibleQueuedAoePacket(match, actor, target, actionKind, margin, lockedAoeMode, logs);
+      if (aoeResult && Array.isArray(aoeResult.hits) && aoeResult.hits.length) {
+        logs.push(actor.name + ' ' + (actionKind === 'hack' ? 'hacked' : 'cast a spell on') + ' ' + target.name + ': ' + actionTotal + ' vs ' + dreadTotal + ' [' + aoeResult.mode + ' AOE].');
+        aoeResult.hits.forEach(function (hit) {
+          if (!hit || !hit.unit) return;
+          logs.push(' - ' + hit.unit.name + ' took ' + Number(hit.damage || 0) + ' dmg.' + (hit.downed ? ' ☠ down.' : ''));
+          if (hit.downed) {
+            var modeAoe = getCrucibleModeSpec(match.mode);
+            awardCruciblePoints(match, String(actor.side || 'ally'), Number(modeAoe.killPoints || 1), 'Takedown');
+            maybeRespawnCrucibleControlUnit(match, hit.unit, logs);
+          }
+        });
+      } else {
+        var dmg = Math.max(1, margin + (actionKind === 'spell' ? 1 : 0));
+        target.hp = Math.max(0, Number(target.hp || 0) - dmg);
+        logs.push(actor.name + ' ' + (actionKind === 'hack' ? 'hacked' : 'cast a spell on') + ' ' + target.name + ': ' + actionTotal + ' vs ' + dreadTotal + ' for ' + dmg + ' dmg.');
+        if (target.hp <= 0) {
+          logs.push('☠ ' + target.name + ' is down.');
+          var mode = getCrucibleModeSpec(match.mode);
+          awardCruciblePoints(match, String(actor.side || 'ally'), Number(mode.killPoints || 1), 'Takedown');
+          maybeRespawnCrucibleControlUnit(match, target, logs);
+        }
       }
       if (typeof showDccSuccessOutcome === 'function') {
         showDccSuccessOutcome('spell', margin, {
@@ -5314,7 +5422,8 @@
           dreadTotal: dreadTotal,
           context: (actionKind === 'hack' ? 'Hack' : 'Spell') + ' vs ' + target.name + ' (Crucible)',
           manual: !!manualTotals,
-          circData: spellMeta.circData
+          circData: spellMeta.circData,
+          aoeMode: lockedAoeMode
         }
       );
     }

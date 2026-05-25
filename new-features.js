@@ -13458,6 +13458,7 @@
   window.removeCombatAoeTemplate = removeCombatAoeTemplate;
   window.clearCombatAoeTemplates = clearCombatAoeTemplates;
   window.applyActiveCombatAoeTick = applyActiveCombatAoeTick;
+  window.AOE_SPELL_PRESETS = Array.isArray(AOE_SPELL_PRESETS) ? AOE_SPELL_PRESETS.slice() : [];
 
   // ── SHOP: SMART BUY ───────────────────────────────────────────────────────────
   function capFirst(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }

@@ -4809,6 +4809,59 @@
     updateUiPanels();
   }
 
+  function clearCombatBoardAndEffects() {
+    var state = store.getState();
+    var removedTokens = Array.isArray(state.tokens) ? state.tokens.length : 0;
+    var removedEffects = Array.isArray(state.tokenRoundEffects) ? state.tokenRoundEffects.length : 0;
+    var removedZones = Array.isArray(state.sceneRules && state.sceneRules.aoeZones) ? state.sceneRules.aoeZones.length : 0;
+    store.setState(function (inner) {
+      var next = Object.assign({}, inner);
+      next.layers = createEmptySceneLayers();
+      next.tokens = [];
+      next.selectedTokenId = '';
+      next.selectedTokenIds = [];
+      next.selectedMapItem = null;
+      next.draggingTokenId = '';
+      next.draggingGroupIds = [];
+      next.dragTokenOrigins = {};
+      next.initiative = [];
+      next.initiativeIndex = 0;
+      next.teamActions = {};
+      next.tokenRoundEffects = [];
+      next.lootDrops = [];
+      next.ruler = { active: false, start: null, end: null, distance: 0, label: '' };
+      next.rulerSegments = [];
+      next.pings = [];
+      next.mouse = { panning: false, lastX: 0, lastY: 0 };
+      next.spellPreview = normalizeCombatSpellPreview({ active: false });
+      next.activeTool = 'select';
+      var fog = Object.assign({
+        enabled: false,
+        showMask: true,
+        revealMode: 'manual',
+        visionRadius: 3,
+        revealed: {},
+        revealOrder: {},
+        revealSeq: 0,
+        revealStep: 0
+      }, inner.fog || {});
+      fog.revealed = {};
+      fog.revealOrder = {};
+      fog.revealSeq = 0;
+      fog.revealStep = 0;
+      next.fog = fog;
+      var rules = ensureCombatSceneRulesExtensions(inner.sceneRules || {});
+      rules.aoeZones = [];
+      next.sceneRules = rules;
+      persist(next);
+      return next;
+    });
+    addHistory('Board cleared: ' + removedTokens + ' token(s), ' + removedEffects + ' effect(s), ' + removedZones + ' zone(s) removed.');
+    safeNotif('Board cleared for current scene. Scene card remains available.', 'good');
+    drawBoard();
+    updateUiPanels();
+  }
+
   function startCombatSpellPreview(spellId, casterTokenId, options) {
     var state = store.getState();
     var caster = pickSpellcastCasterToken(state, casterTokenId);
@@ -4826,7 +4879,7 @@
       spellPreview: built
     });
     addHistory((caster.name || 'Caster') + ' prepares ' + built.spellLabel + '. Aim on the board, then cast.');
-    safeNotif('Spell preview active: ' + built.spellLabel + '.', 'info');
+    safeNotif('Spell preview active: ' + built.spellLabel + '. Aim, then cast via toolbar Cast, C, or Shift+Click.', 'info');
     drawBoard();
     updateUiPanels();
     return true;
@@ -7208,6 +7261,7 @@
       + '<button class="btn btn-xs" id="combatAddWayfarerBtn" title="Add Wayfarer to board">+ Wayfarer</button>'
       + '<button class="btn btn-xs combat-editor-only" id="combatUploadMapBtn">Upload Battlemap</button>'
       + '<button class="btn btn-xs combat-editor-only" id="combatClearMapBtn">Remove Battlemap</button>'
+      + '<button class="btn btn-xs combat-editor-only" id="combatClearBoardBtn" title="Clear tokens, placements, fog reveals, and active effects in this scene">Clear Board</button>'
       + '<button class="btn btn-xs combat-editor-only" id="combatAddTokenBtn">+ Add Enemy</button>'
       + '<select class="combat-select combat-editor-only" id="combatPageSelect" style="max-width:180px;"></select>'
       + '<button class="btn btn-xs combat-editor-only" id="combatCreatePageBtn" title="Create new map page">+ Create Page</button>'
@@ -10852,6 +10906,11 @@
           startCombatSpellPreview(preview.spellId || 'thunder-lattice', state.selectedTokenId);
         }
         updateCombatSpellPreviewTarget(ax.q, ax.r);
+        if (ev.shiftKey) {
+          var castPreview = normalizeCombatSpellPreview(store.getState().spellPreview);
+          if (castPreview.active && castPreview.isValid) castCombatSpellPreview();
+          else safeNotif((castPreview && castPreview.reason) || 'Aim to a valid target first.', 'warn');
+        }
         return;
       }
 
@@ -12080,9 +12139,9 @@
         + '</div>'
         + '<label class="combat-mini">Caster Token</label>'
         + '<select id="combatSpellCaster" class="combat-select">' + targetOptions + '</select>'
-        + '<div class="combat-mini" style="color:var(--muted2);">Flow: Start Preview -> move the cursor on map to measure/live-template -> Cast. Use Rotate for precise line/cone orientation.</div>'
+        + '<div class="combat-mini" style="color:var(--muted2);">Flow: Start Preview -> move cursor on map -> cast directly via toolbar Cast, C key, or Shift+Click. Use Rotate for precise line/cone orientation.</div>'
         + '<div style="display:flex;gap:.24rem;flex-wrap:wrap;">'
-        + '<button class="btn btn-xs" onclick="if(window.startCombatSpellPreviewFromModal)window.startCombatSpellPreviewFromModal();">Start Preview</button>'
+        + '<button class="btn btn-xs" onclick="if(window.startCombatSpellPreviewFromModal)window.startCombatSpellPreviewFromModal();">Start Preview (Map Cast)</button>'
         + '<button class="btn btn-xs btn-primary" onclick="if(window.castCombatSpellPreviewFromModal)window.castCombatSpellPreviewFromModal();">Cast Current Preview</button>'
         + '<button class="btn btn-xs" onclick="if(window.rotateCombatSpellPreviewDirection)window.rotateCombatSpellPreviewDirection(-1);">Rotate Left</button>'
         + '<button class="btn btn-xs" onclick="if(window.rotateCombatSpellPreviewDirection)window.rotateCombatSpellPreviewDirection(1);">Rotate Right</button>'
@@ -13655,6 +13714,7 @@
 
     var uploadMapBtn = document.getElementById('combatUploadMapBtn');
     var clearMapBtn = document.getElementById('combatClearMapBtn');
+    var clearBoardBtn = document.getElementById('combatClearBoardBtn');
     var uploadMapInput = document.getElementById('combatMapImageInput');
     var uploadHexAssetInput = document.getElementById('combatHexAssetImageInput');
     var assetDockUploadBtn = document.getElementById('combatAssetDockUploadBtn');
@@ -13720,6 +13780,14 @@
         safeNotif('Battlemap removed.', 'good');
         drawBoard();
         updateUiPanels();
+      };
+    }
+
+    if (clearBoardBtn && !clearBoardBtn._bound) {
+      clearBoardBtn._bound = true;
+      clearBoardBtn.onclick = function () {
+        if (!window.confirm('Clear this board now? This removes tokens, map placements, fog reveals, and active effects in the current scene.')) return;
+        clearCombatBoardAndEffects();
       };
     }
 
@@ -13843,6 +13911,14 @@
             if (selectedId) openTokenSheetQuickView(selectedId);
             ev.preventDefault();
             return;
+          }
+          if (key === 'c') {
+            var previewCast = normalizeCombatSpellPreview(stLocal.spellPreview);
+            if (previewCast.active) {
+              castCombatSpellPreview();
+              ev.preventDefault();
+              return;
+            }
           }
           if (key === 'arrowup' || key === 'arrowdown' || key === 'arrowleft' || key === 'arrowright') {
             var activeToken = byId(selectedId);

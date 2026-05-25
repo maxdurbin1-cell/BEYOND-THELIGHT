@@ -3642,7 +3642,82 @@
     return next;
   }
 
-  function queueCrucibleExpeditionCombatAction(match, actor, action, targetRef, logs) {
+  function buildAutoCrucibleQueuedSpellMeta(actionKey, actor, target, seq) {
+    if (!hasUnifiedSpellEngine || typeof hasUnifiedSpellEngine !== 'function' || !hasUnifiedSpellEngine()) return null;
+    var kind = String(actionKey || 'spell').toLowerCase();
+    var spellName = (kind === 'hack' ? 'Crucible Hack' : 'Crucible Spell')
+      + ': ' + String(actor && actor.name || 'Caster')
+      + ' -> ' + String(target && target.name || 'Target');
+    var profile = getSpellCircumstanceProfile(spellName, 'Queued/AI Crucible action');
+    var seedSource = spellName + '|' + String(actor && actor.id || '') + '|' + String(target && target.id || '') + '|' + String(seq || 0);
+    var seed = (typeof hashSpellSeed === 'function')
+      ? hashSpellSeed(seedSource)
+      : Math.abs((function () {
+          var acc = 0;
+          for (var i = 0; i < seedSource.length; i++) acc = ((acc << 5) - acc) + seedSource.charCodeAt(i);
+          return acc | 0;
+        })());
+    var answers = [];
+    for (var idx = 0; idx < 4; idx++) {
+      answers.push(((seed >> idx) & 1) ? 'yes' : 'no');
+    }
+    var circData = evaluateSpellCircumstances(profile, answers);
+    circData.modifierLines = (circData.modifierLines || []).concat(['Pre-selected circumstance packet locked at queue time.']);
+    return {
+      profile: profile,
+      circData: circData,
+      answers: answers,
+      source: 'queued-auto'
+    };
+  }
+
+  function queueCrucibleExpeditionSpellHackWithPrompt(match, actor, action, targetRef) {
+    var logs = [];
+    var parsed = resolveCrucibleTargetUnit(match, String(targetRef || ''));
+    var target = parsed && parsed.target ? parsed.target : null;
+    if (!target || Number(target.hp || 0) <= 0) {
+      target = getSelectedCrucibleTarget(match);
+      if (target) {
+        targetRef = 'enemy:' + String(target.id || '');
+      }
+    }
+    if (!target) {
+      if (typeof showNotif === 'function') showNotif('Select a valid spell/hack target first.', 'warn');
+      return false;
+    }
+
+    var queueWithMeta = function (spellMeta) {
+      var queuedLogs = [];
+      if (!queueCrucibleExpeditionCombatAction(match, actor, action, targetRef, queuedLogs, spellMeta || null)) return false;
+      match.log = (match.log || []).concat(queuedLogs).slice(-120);
+      maybeSyncCrucibleSelection(match);
+      renderHoldingCruciblePopup();
+      renderHoldingUI();
+      return true;
+    };
+
+    if (!hasUnifiedSpellEngine || typeof hasUnifiedSpellEngine !== 'function' || !hasUnifiedSpellEngine()) {
+      return queueWithMeta(null);
+    }
+
+    var actionKey = String(action || 'spell').toLowerCase();
+    var spellName = (actionKey === 'hack' ? 'Queued Crucible Hack' : 'Queued Crucible Spell')
+      + ': ' + String(actor && actor.name || 'Caster')
+      + ' -> ' + String(target && target.name || 'Target');
+    evaluateUnifiedSpellCircumstances(spellName, 'Queued Crucible action (locked at queue time).', function (resolved) {
+      var spellMeta = {
+        profile: resolved && resolved.profile,
+        circData: resolved && resolved.circData ? resolved.circData : null,
+        source: 'queued-manual'
+      };
+      queueWithMeta(spellMeta);
+    }, function () {
+      if (typeof showNotif === 'function') showNotif('Queued spell/hack cancelled.', 'warn');
+    });
+    return true;
+  }
+
+  function queueCrucibleExpeditionCombatAction(match, actor, action, targetRef, logs, spellMetaOverride) {
     if (!match || String(match.mode || '') !== 'expedition' || !match.expedition || String(match.expedition.phase || '') !== 'combat') return false;
     if (!actor || Number(actor.hp || 0) <= 0) return false;
     if (Number(actor.ap || 0) <= 0) {
@@ -3656,7 +3731,8 @@
       action: actionKey,
       targetSide: '',
       targetId: '',
-      summary: ''
+      summary: '',
+      spellMeta: null
     };
     var target = null;
     var resolvedTargetRef = String(targetRef || '');
@@ -3700,6 +3776,7 @@
         if (typeof showNotif === 'function') showNotif('Pick a valid spell or hack target first.', 'warn');
         return false;
       }
+      packet.spellMeta = spellMetaOverride || buildAutoCrucibleQueuedSpellMeta(actionKey, actor, target, packet.seq);
       packet.summary = actor.name + ' queued ' + (actionKey === 'hack' ? 'Hack' : 'Spell') + ' on ' + target.name + '.';
     } else {
       packet.summary = actor.name + ' queued ' + actionKey + '.';
@@ -3769,7 +3846,7 @@
         if (logs) logs.push(actor.name + ' lost the ' + actionKey + ' target before resolution.');
         return false;
       }
-      resolveCrucibleSpellHackAction(actor, target, actionKey, match, logs, null);
+      resolveCrucibleSpellHackAction(actor, target, actionKey, match, logs, null, packet.spellMeta || null);
       return true;
     }
 
@@ -8364,6 +8441,9 @@
 
     var targetRef = targetEl ? String(targetEl.value || '') : '';
     if (String(match.mode || '') === 'expedition' && match.expedition && String(match.expedition.phase || '') === 'combat' && isCrucibleExpeditionCampaignPartyMode()) {
+      if (action === 'spell' || action === 'hack') {
+        return queueCrucibleExpeditionSpellHackWithPrompt(match, actor, action, targetRef);
+      }
       var queuedLogs = [];
       if (!queueCrucibleExpeditionCombatAction(match, actor, action, targetRef, queuedLogs)) return false;
       match.log = (match.log || []).concat(queuedLogs).slice(-120);

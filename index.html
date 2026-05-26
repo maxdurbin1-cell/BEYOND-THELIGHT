@@ -14324,6 +14324,62 @@ function stepSpellDie(die, dir) {
   return ladder[next];
 }
 
+function getSpellSteppedDieInfo(baseDie, steps) {
+  var die = Math.max(4, Number(baseDie || 4));
+  var pending = Number(steps || 0);
+  var floorStepDowns = 0;
+  while (pending !== 0) {
+    if (pending > 0) {
+      die = stepSpellDie(die, 1);
+      pending -= 1;
+    } else {
+      if (die <= 4) {
+        floorStepDowns += 1;
+      } else {
+        die = stepSpellDie(die, -1);
+      }
+      pending += 1;
+    }
+  }
+  return {
+    die: Math.max(4, Number(die || 4)),
+    floorStepDowns: Math.max(0, Number(floorStepDowns || 0))
+  };
+}
+
+function rollSpellSteppedDie(baseDie, steps, metaFactory) {
+  var info = getSpellSteppedDieInfo(baseDie, steps);
+  var rollsNeeded = Math.max(1, 1 + Number(info.floorStepDowns || 0));
+  var picks = [];
+  for (var i = 0; i < rollsNeeded; i++) {
+    var meta = (typeof metaFactory === 'function') ? (metaFactory(i, info) || {}) : {};
+    picks.push(explodingRoll(info.die, meta));
+  }
+  var chosen = picks[0] || { total: 1 };
+  for (var j = 1; j < picks.length; j++) {
+    if (Number(picks[j].total || 0) < Number(chosen.total || 0)) chosen = picks[j];
+  }
+  return {
+    die: info.die,
+    floorStepDowns: info.floorStepDowns,
+    rolls: picks,
+    chosen: chosen,
+    total: Math.max(1, Number(chosen.total || 1))
+  };
+}
+
+function getSpellSpiritRollCounts(circData) {
+  var circ = circData || {};
+  var add = Number(circ.addSpiritBonusCount || 0);
+  var sub = Number(circ.addSpiritPenaltyCount || 0);
+  if (!add && circ.addSpiritBonus) add = 1;
+  if (!sub && circ.addSpiritPenalty) sub = 1;
+  return {
+    add: Math.max(0, Math.floor(add)),
+    sub: Math.max(0, Math.floor(sub))
+  };
+}
+
 function ensureSpellCircumstanceState() {
   if (!S.spellcasting || typeof S.spellcasting !== 'object') {
     S.spellcasting = {};
@@ -14350,8 +14406,9 @@ function describeSpellCircumstanceEffect(effect, answerLabel) {
   if (Number(e.valorStep || 0) !== 0) bits.push('Valor die ' + (e.valorStep > 0 ? 'step up' : 'step down'));
   if (e.stepUpAdvantage) bits.push('Mind Step Up Advantage');
   if (e.stepDownDisadvantage) bits.push('Mind Step Down Disadvantage');
-  if (e.addSpiritBonus) bits.push('add Spirit die to Mind');
-  if (e.addSpiritPenalty) bits.push('subtract Spirit die from Mind');
+  var spiritCounts = getSpellSpiritRollCounts(e);
+  if (spiritCounts.add > 0) bits.push('add Spirit die to Mind x' + spiritCounts.add);
+  if (spiritCounts.sub > 0) bits.push('subtract Spirit die from Mind x' + spiritCounts.sub);
   if (e.note) bits.push(String(e.note));
   return answerLabel + ': ' + (bits.join(' | ') || 'no numeric change (narrative trigger)');
 }
@@ -14506,6 +14563,8 @@ function evaluateSpellCircumstances(profile, answers) {
     valorStep: 0,
     stepUpAdvantage: false,
     stepDownDisadvantage: false,
+    addSpiritBonusCount: 0,
+    addSpiritPenaltyCount: 0,
     addSpiritBonus: false,
     addSpiritPenalty: false,
     modifierLines: [],
@@ -14520,8 +14579,8 @@ function evaluateSpellCircumstances(profile, answers) {
     result.valorStep += Number(fx.valorStep || 0);
     if (fx.stepUpAdvantage) result.stepUpAdvantage = true;
     if (fx.stepDownDisadvantage) result.stepDownDisadvantage = true;
-    if (fx.addSpiritBonus) result.addSpiritBonus = true;
-    if (fx.addSpiritPenalty) result.addSpiritPenalty = true;
+    if (fx.addSpiritBonus) result.addSpiritBonusCount += 1;
+    if (fx.addSpiritPenalty) result.addSpiritPenaltyCount += 1;
     var line = q.q + ' -> ' + (ans === 'yes' ? 'Yes' : 'No') + ' (' + describeSpellCircumstanceEffect(fx, '') + ')';
     result.modifierLines.push(line.replace(/^:\s*/, ''));
     result.resolved.push({ question: q.q, answer: ans, effect: fx });
@@ -14531,6 +14590,8 @@ function evaluateSpellCircumstances(profile, answers) {
     result.stepUpAdvantage = false;
     result.stepDownDisadvantage = false;
   }
+  result.addSpiritBonus = result.addSpiritBonusCount > 0;
+  result.addSpiritPenalty = result.addSpiritPenaltyCount > 0;
   return result;
 }
 
@@ -14985,14 +15046,19 @@ function castScrollFromBackpack(index) {
       }
 
       if (openManual) {
+        var manualValorInfo = getSpellSteppedDieInfo(advDie, circ.valorStep);
+        var manualCircLines = Array.isArray(circ.modifierLines) ? circ.modifierLines.slice() : [];
+        if (manualValorInfo.floorStepDowns > 0) {
+          manualCircLines.push('Valor step-down reached d4: roll d4 ' + (manualValorInfo.floorStepDowns + 1) + 'x and keep the lowest total.');
+        }
         openProvinceManualCheckPrompt({
           title: 'Manual Roll - Spell Cast',
           context: 'Cast ' + scrollName,
           statKey: 'mind',
           statLabel: 'Mind',
           actionDie: mindDie,
-          dreadDie: Math.max(4, stepSpellDie(advDie, circ.valorStep)),
-          modifierLines: circ.modifierLines,
+          dreadDie: manualValorInfo.die,
+          modifierLines: manualCircLines,
           cancelLabel: 'Go Back',
           onCancel: function () { showBackpackItem(index); },
           onResolve: function (outcome) {
@@ -15008,7 +15074,7 @@ function castScrollFromBackpack(index) {
         return;
       }
 
-      var finalValorDie = Math.max(4, stepSpellDie(advDie, circ.valorStep));
+      var finalValorInfo = getSpellSteppedDieInfo(advDie, circ.valorStep);
       var baseMindRoll = explodingRoll(mindDie, { type: 'action', major: true, label: 'Spell Mind d' + mindDie });
       var mindTotal = Number(baseMindRoll.total || 0);
 
@@ -15022,16 +15088,23 @@ function castScrollFromBackpack(index) {
         mindTotal = Math.min(mindTotal, Number(stepDownRoll.total || 0));
       }
 
-      var spiritRoll = null;
-      if (circ.addSpiritBonus || circ.addSpiritPenalty) {
-        spiritRoll = explodingRoll(spiritDie, { type: 'action', major: true, label: 'Spell Spirit d' + spiritDie });
+      var spiritCounts = getSpellSpiritRollCounts(circ);
+      for (var si = 0; si < spiritCounts.add; si++) {
+        var spiritAddRoll = explodingRoll(spiritDie, { type: 'action', major: true, label: 'Spell Spirit Bonus d' + spiritDie + ' #' + (si + 1) });
+        mindTotal += Number(spiritAddRoll.total || 0);
       }
-      if (circ.addSpiritBonus && spiritRoll) mindTotal += Number(spiritRoll.total || 0);
-      if (circ.addSpiritPenalty && spiritRoll) mindTotal -= Number(spiritRoll.total || 0);
+      for (var sj = 0; sj < spiritCounts.sub; sj++) {
+        var spiritSubRoll = explodingRoll(spiritDie, { type: 'action', major: true, label: 'Spell Spirit Penalty d' + spiritDie + ' #' + (sj + 1) });
+        mindTotal -= Number(spiritSubRoll.total || 0);
+      }
       mindTotal += Number(circ.mindFlat || 0);
       if (mindTotal < 1) mindTotal = 1;
 
-      var valorRoll = explodingRoll(finalValorDie, { type: 'dread', major: true, label: 'Spell Valor d' + finalValorDie });
+      var valorRoll = rollSpellSteppedDie(advDie, circ.valorStep, function (attemptIdx, info) {
+        var label = 'Spell Valor d' + info.die;
+        if (info.floorStepDowns > 0) label += ' Step-Down ' + (attemptIdx + 1) + '/' + (info.floorStepDowns + 1);
+        return { type: 'dread', major: true, label: label };
+      });
       var castSuccess = mindTotal >= Number(valorRoll.total || 0);
       finalizeCastFromTotals(
         { total: mindTotal },

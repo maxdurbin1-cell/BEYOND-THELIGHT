@@ -4822,11 +4822,18 @@
   function getSpellcastManualValorDie(circData, baseDie) {
     var die = Math.max(4, Number(baseDie || 4));
     var steps = Number(circData && circData.valorStep || 0);
+    var floorStepDowns = 0;
     while (steps !== 0) {
-      die = stepSpellDieLocal(die, steps > 0 ? 1 : -1);
-      steps += steps > 0 ? -1 : 1;
+      if (steps > 0) {
+        die = stepSpellDieLocal(die, 1);
+        steps -= 1;
+      } else {
+        if (die <= 4) floorStepDowns += 1;
+        else die = stepSpellDieLocal(die, -1);
+        steps += 1;
+      }
     }
-    return die;
+    return { die: die, floorStepDowns: Math.max(0, floorStepDowns) };
   }
 
   function buildSpellcastManualPromptText(kind, preview, circData, die, modifierValue) {
@@ -4841,6 +4848,10 @@
       if (circData && circData.stepDownDisadvantage) lines.push('This cast has Mind step-down: use the next smaller die instead of your normal Mind Die.');
     } else if (kind === 'valor' && Number(circData && circData.valorStep || 0) !== 0) {
       lines.push('This cast changes your Valor Die by ' + (Number(circData.valorStep || 0) > 0 ? '+' : '') + Number(circData.valorStep || 0) + ' step(s).');
+      var vInfo = getSpellcastManualValorDie(circData, die);
+      if (vInfo.floorStepDowns > 0) {
+        lines.push('Valor step-down reached d4: roll d4 ' + (vInfo.floorStepDowns + 1) + 'x and keep the lowest.');
+      }
     }
     if (Number(modifierValue || 0) !== 0) {
       lines.push('Flat circumstance modifier: ' + (Number(modifierValue || 0) > 0 ? '+' : '') + Number(modifierValue || 0) + '.');
@@ -5012,13 +5023,12 @@
     var mindDie = Math.max(4, Number(getWayfarerEffectiveDie('mind', 6) || 6));
     var valorDie = Math.max(4, Number(window.S && window.S.stats && (window.S.stats.valor || window.S.stats.adventure) || 6));
     var finalValorDie = valorDie;
+    var finalValorFloorStepDowns = 0;
     var finalMindDie = mindDie;
     if (meta && meta.circData) {
-      var steps = Number(meta.circData.valorStep || 0);
-      while (steps !== 0) {
-        finalValorDie = stepSpellDieLocal(finalValorDie, steps > 0 ? 1 : -1);
-        steps += steps > 0 ? -1 : 1;
-      }
+      var vAdjust = getSpellcastManualValorDie(meta.circData, finalValorDie);
+      finalValorDie = Math.max(4, Number(vAdjust.die || finalValorDie));
+      finalValorFloorStepDowns = Math.max(0, Number(vAdjust.floorStepDowns || 0));
       finalMindDie = getSpellcastManualMindDie(preview, meta.circData, mindDie);
     }
     if (manualMode) {
@@ -5045,15 +5055,31 @@
           var downRoll = rollCombatDieTotal(stepSpellDieLocal(mindDie, -1), 'action', 'Spell Step Down Disadvantage');
           castTotal = Math.min(castTotal, downRoll);
         }
-        if (meta.circData.addSpiritBonus || meta.circData.addSpiritPenalty) {
+        var spiritCounts = (typeof getSpellSpiritRollCounts === 'function')
+          ? getSpellSpiritRollCounts(meta.circData)
+          : { add: meta.circData.addSpiritBonus ? 1 : 0, sub: meta.circData.addSpiritPenalty ? 1 : 0 };
+        if (Number(spiritCounts.add || 0) > 0 || Number(spiritCounts.sub || 0) > 0) {
           var spiritDie = Math.max(4, Number(getWayfarerEffectiveDie('spirit', 6) || 6));
-          var spiritTotal = rollCombatDieTotal(spiritDie, 'action', 'Spell Spirit d' + spiritDie);
-          if (meta.circData.addSpiritBonus) castTotal += spiritTotal;
-          if (meta.circData.addSpiritPenalty) castTotal -= spiritTotal;
+          for (var spi = 0; spi < Number(spiritCounts.add || 0); spi++) {
+            castTotal += rollCombatDieTotal(spiritDie, 'action', 'Spell Spirit Bonus d' + spiritDie + ' #' + (spi + 1));
+          }
+          for (var spj = 0; spj < Number(spiritCounts.sub || 0); spj++) {
+            castTotal -= rollCombatDieTotal(spiritDie, 'action', 'Spell Spirit Penalty d' + spiritDie + ' #' + (spj + 1));
+          }
         }
       }
       castTotal = Math.max(1, Number(castTotal || 1));
-      resistTotal = rollCombatDieTotal(finalValorDie, 'dread', 'Valor resistance d' + finalValorDie);
+      if (finalValorFloorStepDowns > 0) {
+        var resistRollsNeeded = Math.max(2, 1 + finalValorFloorStepDowns);
+        var resistPick = null;
+        for (var vr = 0; vr < resistRollsNeeded; vr++) {
+          var attempt = rollCombatDieTotal(finalValorDie, 'dread', 'Valor resistance d' + finalValorDie + ' Step-Down ' + (vr + 1) + '/' + resistRollsNeeded);
+          if (resistPick === null || attempt < resistPick) resistPick = attempt;
+        }
+        resistTotal = Math.max(1, Number(resistPick || 1));
+      } else {
+        resistTotal = rollCombatDieTotal(finalValorDie, 'dread', 'Valor resistance d' + finalValorDie);
+      }
     }
 
     var margin = Math.max(-99, Number(castTotal || 0) - Number(resistTotal || 0));

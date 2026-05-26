@@ -5337,10 +5337,16 @@
     if (!manualTotals && circData) {
       var spiritDie = getCrucibleStatDie('spirit', 8);
       actionTotal += Number(circData.mindFlat || 0);
-      if (circData.addSpiritBonus || circData.addSpiritPenalty) {
-        var spiritRoll = (typeof explodingRoll === 'function') ? explodingRoll(spiritDie, { type: 'action', major: true, label: 'Circumstance Spirit d' + spiritDie }) : { total: (Math.floor(Math.random() * spiritDie) + 1) };
-        actionTotal += circData.addSpiritBonus ? Number(spiritRoll.total || 0) : 0;
-        actionTotal -= circData.addSpiritPenalty ? Number(spiritRoll.total || 0) : 0;
+      var spiritCounts = (typeof getSpellSpiritRollCounts === 'function')
+        ? getSpellSpiritRollCounts(circData)
+        : { add: circData.addSpiritBonus ? 1 : 0, sub: circData.addSpiritPenalty ? 1 : 0 };
+      for (var spiritAddIdx = 0; spiritAddIdx < Number(spiritCounts.add || 0); spiritAddIdx++) {
+        var spiritAddRoll = (typeof explodingRoll === 'function') ? explodingRoll(spiritDie, { type: 'action', major: true, label: 'Circumstance Spirit Bonus d' + spiritDie + ' #' + (spiritAddIdx + 1) }) : { total: (Math.floor(Math.random() * spiritDie) + 1) };
+        actionTotal += Number(spiritAddRoll.total || 0);
+      }
+      for (var spiritSubIdx = 0; spiritSubIdx < Number(spiritCounts.sub || 0); spiritSubIdx++) {
+        var spiritSubRoll = (typeof explodingRoll === 'function') ? explodingRoll(spiritDie, { type: 'action', major: true, label: 'Circumstance Spirit Penalty d' + spiritDie + ' #' + (spiritSubIdx + 1) }) : { total: (Math.floor(Math.random() * spiritDie) + 1) };
+        actionTotal -= Number(spiritSubRoll.total || 0);
       }
       if (circData.stepUpAdvantage || circData.stepDownDisadvantage) {
         var auxDie = circData.stepUpAdvantage
@@ -5351,17 +5357,15 @@
           ? Math.max(actionTotal, Number(auxRoll.total || 0))
           : Math.min(actionTotal, Number(auxRoll.total || 0));
       }
-      var steppedDread = dreadDie;
-      var steps = Number(circData.valorStep || 0);
-      while (steps !== 0) {
-        steppedDread = (typeof stepSpellDie === 'function')
-          ? stepSpellDie(steppedDread, steps > 0 ? 1 : -1)
-          : Math.max(4, steppedDread + (steps > 0 ? 2 : -2));
-        steps += steps > 0 ? -1 : 1;
-      }
-      if (Number(steppedDread || dreadDie) !== Number(dreadDie)) {
-        var dreadRoll2 = (typeof explodingRoll === 'function') ? explodingRoll(steppedDread, { type: 'dread', major: true, label: 'Crucible Circumstance DD' + steppedDread }) : { total: (Math.floor(Math.random() * steppedDread) + 1) };
-        dreadTotal = Math.max(1, Number(dreadRoll2.total || 1));
+      if (Number(circData.valorStep || 0) !== 0) {
+        var steppedDreadRoll = (typeof rollSpellSteppedDie === 'function')
+          ? rollSpellSteppedDie(dreadDie, Number(circData.valorStep || 0), function (attemptIdx, info) {
+              var lbl = 'Crucible Circumstance DD' + info.die;
+              if (info.floorStepDowns > 0) lbl += ' Step-Down ' + (attemptIdx + 1) + '/' + (info.floorStepDowns + 1);
+              return { type: 'dread', major: true, label: lbl };
+            })
+          : { total: (typeof explodingRoll === 'function') ? explodingRoll(Math.max(4, Number(dreadDie || 4))).total : (Math.floor(Math.random() * Math.max(4, Number(dreadDie || 4))) + 1) };
+        dreadTotal = Math.max(1, Number(steppedDreadRoll.total || 1));
       }
       actionTotal = Math.max(1, Number(actionTotal || 1));
     }
@@ -14069,17 +14073,26 @@
       }
 
       var circ = spellMeta.circData || {};
-      var dreadDieEff = Math.max(4, Number(dreadDie || 6));
-      var steps = Number(circ.valorStep || 0);
-      while (steps !== 0) {
-        dreadDieEff = (typeof stepSpellDie === 'function')
-          ? stepSpellDie(dreadDieEff, steps > 0 ? 1 : -1)
-          : Math.max(4, dreadDieEff + (steps > 0 ? 2 : -2));
-        steps += steps > 0 ? -1 : 1;
+      var dreadInfo = (typeof getSpellSteppedDieInfo === 'function')
+        ? getSpellSteppedDieInfo(Math.max(4, Number(dreadDie || 6)), Number(circ.valorStep || 0))
+        : { die: Math.max(4, Number(dreadDie || 6)), floorStepDowns: 0 };
+      var dreadDieEff = Math.max(4, Number(dreadInfo.die || dreadDie || 6));
+
+      function rollHackDreadPairTotal(pairIdx) {
+        var rollsNeeded = Math.max(1, 1 + Number(dreadInfo.floorStepDowns || 0));
+        var lowPick = null;
+        for (var ridx = 0; ridx < rollsNeeded; ridx++) {
+          var r = (typeof explodingRoll === 'function')
+            ? explodingRoll(dreadDieEff, { type: 'dread', major: true, label: 'Hack DD' + dreadDieEff + ' Pair ' + pairIdx + ' Roll ' + (ridx + 1) })
+            : { total: roll(dreadDieEff) };
+          var total = Math.max(1, Number(r.total || 1));
+          if (lowPick === null || total < lowPick) lowPick = total;
+        }
+        return Math.max(1, Number(lowPick || 1));
       }
 
-      var d1 = roll(dreadDieEff);
-      var d2 = roll(dreadDieEff);
+      var d1 = rollHackDreadPairTotal(1);
+      var d2 = rollHackDreadPairTotal(2);
       var low = Math.min(d1, d2);
       var high = Math.max(d1, d2);
       var valorDie = Math.max(4, Number((S.stats && (S.stats.valor || S.stats.control)) || 4));
@@ -14088,11 +14101,17 @@
       var augRoll = augBonusDie > 0 ? explodingRoll(augBonusDie) : null;
       var valorVal = Number(valorRoll.total || 0) + Number(augRoll ? augRoll.total : 0);
       valorVal += Number(circ.mindFlat || 0);
-      if (circ.addSpiritBonus || circ.addSpiritPenalty) {
-        var spiritDie = Math.max(4, Number((S.stats && S.stats.spirit) || 4));
-        var spiritRoll = explodingRoll(spiritDie);
-        if (circ.addSpiritBonus) valorVal += Number(spiritRoll.total || 0);
-        if (circ.addSpiritPenalty) valorVal -= Number(spiritRoll.total || 0);
+      var circSpiritCounts = (typeof getSpellSpiritRollCounts === 'function')
+        ? getSpellSpiritRollCounts(circ)
+        : { add: circ.addSpiritBonus ? 1 : 0, sub: circ.addSpiritPenalty ? 1 : 0 };
+      var spiritDie = Math.max(4, Number((S.stats && S.stats.spirit) || 4));
+      for (var hsAdd = 0; hsAdd < Number(circSpiritCounts.add || 0); hsAdd++) {
+        var hsSpiritAdd = explodingRoll(spiritDie);
+        valorVal += Number(hsSpiritAdd.total || 0);
+      }
+      for (var hsSub = 0; hsSub < Number(circSpiritCounts.sub || 0); hsSub++) {
+        var hsSpiritSub = explodingRoll(spiritDie);
+        valorVal -= Number(hsSpiritSub.total || 0);
       }
       if (circ.stepUpAdvantage || circ.stepDownDisadvantage) {
         var auxDie = circ.stepUpAdvantage

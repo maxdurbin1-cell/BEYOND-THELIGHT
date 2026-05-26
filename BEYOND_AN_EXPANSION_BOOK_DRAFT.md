@@ -1379,6 +1379,34 @@ Spoken pacing script for running casts cleanly under pressure.
 > [CODE-TRUTH NOTE]
 > Lock answers before rolling; do not retroactively edit circumstance inputs after dice are cast.
 
+#### Procedure
+
+1. "State spell name, intended target, and range context."
+2. "Ask exactly four questions in order: Major, Minor, Tertiary, Quaternary."
+3. "Lock answers and read every modifier aloud before dice."
+4. "Roll Mind side and Valor side using full modifier math."
+5. "Declare success/failure and exact margin."
+6. "Apply manifestation tier or failure band immediately."
+7. "If AOE succeeded, choose mode and resolve targets/status caps now."
+
+#### Roll Tables
+
+| Prompt | Use |
+|---|---|
+| "What changed in the field?" | Before question phase |
+| "What is your final math?" | Before result declaration |
+| "What does the spell leave behind?" | After resolution |
+
+#### Read Aloud
+
+> [READ ALOUD]
+> "Major. Minor. Tertiary. Quaternary. Then the cast. Then the cost."
+
+#### Margin Notes
+
+> [SIDEBAR]
+> If players debate after answers are locked, do not reopen circumstance answers mid-cast.
+
 ---
 
 ### X. Spell Scroll Question Index (Website Deterministic)
@@ -1431,34 +1459,6 @@ Each row below is generated from website logic in `getSpellCircumstanceProfile(s
 | Tide of Needles | Is the spell cast under a sky your tradition reveres? | Are you near iron structures or dense machinery? | Is the caster emotionally steady for this cast? | Was a lie spoken in earshot moments before casting? |
 | Veilstep Chorus | Did a cosmic event begin this same scene? | Is it raining right now? | Did the caster speak in their ritual language? | Did anyone speak a true name tied to this threshold/object? |
 | Starwell Collapse | Is a major omen active (eclipse, blood moon, solstice, ley surge)? | Is there fog, smoke, or dust in the air? | Are you facing your tradition's favored direction? | Is copper touching the caster's skin right now? |
-
-#### Procedure
-
-1. "State the spell and target context."
-2. "Ask Major, then Minor, then Tertiary, then Quaternary."
-3. "Apply all modifiers aloud."
-4. "Roll Mind and Valor."
-5. "Announce success/failure and margin."
-6. "Read manifestation or failure band text."
-7. "Resolve AOE mode if applicable."
-
-#### Roll Tables
-
-| Prompt | Use |
-|---|---|
-| "What changed in the field?" | Before question phase |
-| "What is your final math?" | Before result declaration |
-| "What does the spell leave behind?" | After resolution |
-
-#### Read Aloud
-
-> [READ ALOUD]
-> "Major. Minor. Tertiary. Quaternary. Then the cast. Then the cost."
-
-#### Margin Notes
-
-> [SIDEBAR]
-> If players debate after answers are locked, do not reopen questions mid-cast.
 
 ---
 

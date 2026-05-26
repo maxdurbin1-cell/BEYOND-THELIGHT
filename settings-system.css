@@ -543,15 +543,27 @@ nav {
 }
 
 body.colorblind-mode {
-  --teal: #2f9fd3;
-  --teal2: #5ab8e4;
-  --gold: #ff9f1c;
-  --gold2: #ffd166;
-  --green2: #3fa34d;
-  --red: #d1495b;
-  --red2: #e76f51;
-  --purple: #5e548e;
-  --muted2: #b8c2d1;
+  --bg: #07131f;
+  --surface: #0d1d2c;
+  --card: #132539;
+  --card2: #1a2f47;
+  --border: #27435f;
+  --border2: #35597b;
+  --teal: #0072b2;
+  --teal2: #56b4e9;
+  --gold: #e69f00;
+  --gold2: #f0c447;
+  --gold3: #ffe08a;
+  --green: #009e73;
+  --green2: #22b38a;
+  --red: #d55e00;
+  --red2: #cc79a7;
+  --purple: #7b6fd6;
+  --text: #eaf3ff;
+  --text2: #d5e3f4;
+  --muted: #9cb6d0;
+  --muted2: #bfd0e2;
+  --muted3: #d5e3f4;
 }
 
 body.colorblind-mode .campaign-badge.online,
@@ -561,6 +573,40 @@ body.colorblind-mode .campaign-pill.online {
 
 body.colorblind-mode .campaign-badge.offline {
   box-shadow: inset 0 0 0 1px rgba(209, 73, 91, 0.35);
+}
+
+body.colorblind-mode .btn-teal,
+body.colorblind-mode .btn-green,
+body.colorblind-mode .btn-red,
+body.colorblind-mode .campaign-badge,
+body.colorblind-mode .campaign-pill {
+  border-width: 2px;
+}
+
+body.colorblind-mode .btn-teal { border-style: dotted; }
+body.colorblind-mode .btn-green { border-style: dashed; }
+body.colorblind-mode .btn-red { border-style: solid; }
+
+body.colorblind-mode .tab-btn.active,
+body.colorblind-mode .qp-tab.on,
+body.colorblind-mode .settings-tab-btn.active {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.18rem;
+}
+
+body.colorblind-mode .stat-die.d4 { color: #9ea7b4; }
+body.colorblind-mode .stat-die.d6 { color: #56b4e9; }
+body.colorblind-mode .stat-die.d8 { color: #009e73; }
+body.colorblind-mode .stat-die.d10 { color: #e69f00; }
+body.colorblind-mode .stat-die.d12 { color: #d55e00; }
+body.colorblind-mode .stat-die.d20 { color: #cc79a7; }
+
+body.colorblind-mode #quickPanel,
+body.colorblind-mode #quickPanelToggle,
+body.colorblind-mode .settings-panel,
+body.colorblind-mode .card {
+  box-shadow: 0 0 0 1px rgba(86, 180, 233, 0.24), 0 12px 32px rgba(0, 0, 0, 0.42);
 }
 
 body.lowcolor-mode {

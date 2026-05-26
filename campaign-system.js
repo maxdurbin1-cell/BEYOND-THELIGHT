@@ -1118,6 +1118,106 @@
     return out;
   }
 
+  function getRollPromptTargets() {
+    var out = [];
+    var seen = {};
+    var roster = state.campaign && Array.isArray(state.campaign.roster) ? state.campaign.roster : [];
+    var members = state.campaign && Array.isArray(state.campaign.members) ? state.campaign.members : [];
+
+    function pushToken(token, name, role, online) {
+      var t = String(token || "").trim();
+      if (!t || seen[t]) return;
+      seen[t] = true;
+      out.push({
+        token: t,
+        name: String(name || "Wayfarer"),
+        role: role === "gm" ? "gm" : "player",
+        online: online !== false
+      });
+    }
+
+    roster.forEach(function (row) {
+      if (!row || String(row.role || "") !== "player") return;
+      pushToken(row.token, row.name, row.role, row.online !== false);
+    });
+
+    members.forEach(function (row) {
+      if (!row || String(row.role || "") !== "player") return;
+      pushToken(row.token, row.name, row.role, true);
+    });
+
+    return out;
+  }
+
+  function resolvePromptTargetFromMention(rawTarget) {
+    var target = String(rawTarget || "").trim();
+    if (!target) return { token: "", label: "table" };
+    if (target.charAt(0) === "@") target = target.slice(1);
+    var canonical = target.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (!canonical) return { token: "", label: "table" };
+    var targets = getRollPromptTargets();
+    for (var i = 0; i < targets.length; i += 1) {
+      var row = targets[i] || {};
+      var token = String(row.token || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      var name = String(row.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (canonical === token || canonical === name) {
+        return { token: String(row.token || ""), label: "@" + String(row.name || "Wayfarer") };
+      }
+    }
+    return { token: "", label: "table", unresolved: String(rawTarget || "") };
+  }
+
+  function parsePromptSlashCommand(input) {
+    var raw = String(input || "").trim();
+    if (!raw || raw.charAt(0) !== "/") return null;
+    var bits = raw.split(/\s+/);
+    if (!bits.length || String(bits[0] || "").toLowerCase() !== "/prompt") return { command: "unknown" };
+
+    var stat = "valor";
+    var dread = 6;
+    var targetMention = "";
+    var contextParts = [];
+    var statSeen = false;
+    var validStats = {
+      valor: true, body: true, mind: true, spirit: true, lead: true,
+      strike: true, shoot: true, defend: true, control: true, adventure: true
+    };
+
+    for (var i = 1; i < bits.length; i += 1) {
+      var token = String(bits[i] || "").trim();
+      if (!token) continue;
+      var lower = token.toLowerCase();
+      if (!statSeen && validStats[lower]) {
+        stat = lower === "adventure" ? "valor" : lower;
+        statSeen = true;
+        continue;
+      }
+      if (/^d\d+$/i.test(lower)) {
+        dread = Math.max(1, Number(lower.replace(/^d/i, "") || 6));
+        continue;
+      }
+      if (!targetMention && lower.charAt(0) === "@") {
+        targetMention = token;
+        continue;
+      }
+      contextParts.push(token);
+    }
+
+    var resolvedTarget = resolvePromptTargetFromMention(targetMention);
+    var context = contextParts.join(" ").trim();
+    var label = (resolvedTarget.token ? (resolvedTarget.label + " · ") : "") + (context || "GM Check");
+    return {
+      command: "prompt",
+      stat: stat,
+      dread: dread,
+      targetToken: resolvedTarget.token,
+      targetLabel: resolvedTarget.token ? resolvedTarget.label : "table",
+      targetUnresolved: resolvedTarget.unresolved || "",
+      context: context,
+      label: label
+    };
+  }
+
   function maybeResolveReadyCheck() {
     if (!state.code || state.role !== "gm") return;
     var shared = getMutableCampaignSharedState();
@@ -4707,16 +4807,22 @@
       if (!active) {
         roll.innerHTML = '<div class="campaign-dock-empty">No active GM roll request.</div>';
       } else {
-        var canRoll = state.role !== "gm";
+        var activeTargetToken = String(active.targetToken || "");
+        var canRoll = state.role !== "gm" && (!activeTargetToken || String(state.token || "") === activeTargetToken);
+        var targetSuffix = activeTargetToken
+          ? (' · Target ' + escapeHtml(String(active.targetName || activeTargetToken)))
+          : "";
         var responseCount = Array.isArray(active.responses) ? active.responses.length : 0;
         roll.innerHTML = ""
           + '<div class="campaign-dock-roll-line">'
-          + '<span><strong>' + escapeHtml(active.label || "Dread Check") + '</strong> · ' + escapeHtml(String(active.stat || "valor").toUpperCase()) + ' vs d' + Number(active.dread || 8) + '</span>'
+          + '<span><strong>' + escapeHtml(active.label || "Dread Check") + '</strong> · ' + escapeHtml(String(active.stat || "valor").toUpperCase()) + ' vs d' + Number(active.dread || 8) + targetSuffix + '</span>'
           + '<span>' + responseCount + ' response' + (responseCount === 1 ? "" : "s") + '</span>'
           + "</div>"
           + (canRoll
             ? '<div class="campaign-dock-roll-actions"><button class="btn btn-xs btn-teal" onclick="window.campaignSystem.submitActiveRoll()">Roll Now</button></div>'
-            : '<div class="campaign-dock-roll-actions"><button class="btn btn-xs" onclick="window.campaignSystem.closeActiveRoll()">Close Active</button></div>');
+            : (state.role === "gm"
+              ? '<div class="campaign-dock-roll-actions"><button class="btn btn-xs" onclick="window.campaignSystem.closeActiveRoll()">Close Active</button></div>'
+              : '<div class="campaign-dock-roll-actions"><span class="campaign-dock-empty">Waiting on target.</span></div>'));
       }
     }
 
@@ -5050,6 +5156,8 @@
   function maybePromptActiveRoll(activeRequest) {
     if (!activeRequest || !activeRequest.id) return;
     if (state.role === "gm") return;
+    var targetToken = String(activeRequest.targetToken || "");
+    if (targetToken && String(state.token || "") !== targetToken) return;
     if (state.activePromptId === activeRequest.id) return;
     state.activePromptId = activeRequest.id;
 
@@ -5607,6 +5715,12 @@
       return;
     }
 
+    var targetToken = String(req.targetToken || "");
+    if (targetToken && String(state.token || "") !== targetToken) {
+      safeNotif("This roll request targets another player.", "warn");
+      return;
+    }
+
     var stat = String(req.stat || "valor").toLowerCase();
     var actionDie = resolveActionDie(stat);
     var action = (typeof window.explodingRoll === "function")
@@ -5679,6 +5793,32 @@
     var payload = { message: msg };
     if (opts && opts.channel) payload.channel = String(opts.channel || "").trim().toLowerCase();
     if (opts && opts.targetToken) payload.targetToken = String(opts.targetToken || "").trim();
+
+    var slash = parsePromptSlashCommand(msg);
+    if (slash) {
+      if (slash.command !== "prompt") {
+        safeNotif("Unknown command. Try /prompt <stat> d6 @name <context>", "warn");
+        return;
+      }
+      if (state.role !== "gm") {
+        safeNotif("Only GM can use /prompt.", "warn");
+        return;
+      }
+      if (slash.targetUnresolved) {
+        safeNotif("Could not find target " + slash.targetUnresolved + ". Use a listed player name.", "warn");
+        return;
+      }
+      var promptRes = await requestRollPrompt(slash.label, slash.stat, slash.dread, slash.targetToken);
+      if (!promptRes || !promptRes.ok) {
+        return;
+      }
+      var chatNotice = "🎲 Prompt " + String(slash.targetLabel || "table") + " · "
+        + String(slash.stat || "valor").toUpperCase() + " vs d" + Number(slash.dread || 6)
+        + (slash.context ? (" · " + String(slash.context)) : "");
+      await emitWithAck("campaign:chat", { message: chatNotice });
+      if (input && (!opts || (opts && !opts.message))) input.value = "";
+      return;
+    }
 
     var res = await emitWithAck("campaign:chat", payload);
     if (!res.ok) {
@@ -6127,6 +6267,7 @@
     showOnboarding: showOnboarding,
     requestResync: requestResync,
     requestRollPrompt: requestRollPrompt,
+    getRollPromptTargets: getRollPromptTargets,
     exportSnapshot: exportSnapshot,
     importSnapshotPrompt: importSnapshotPrompt,
     importSnapshotFromModal: importSnapshotFromModal,

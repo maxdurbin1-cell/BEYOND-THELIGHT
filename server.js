@@ -750,6 +750,8 @@ function serializeCampaign(campaign) {
           stat: campaign.activeRollRequest.stat,
           dread: campaign.activeRollRequest.dread,
           label: campaign.activeRollRequest.label,
+          targetToken: String(campaign.activeRollRequest.targetToken || ""),
+          targetName: String(campaign.activeRollRequest.targetName || ""),
           createdAt: campaign.activeRollRequest.createdAt,
           responses: Array.isArray(campaign.activeRollRequest.responses)
             ? campaign.activeRollRequest.responses
@@ -920,6 +922,8 @@ function snapshotCampaign(campaign, requesterToken) {
           stat: campaign.activeRollRequest.stat,
           dread: campaign.activeRollRequest.dread,
           label: campaign.activeRollRequest.label,
+          targetToken: String(campaign.activeRollRequest.targetToken || ""),
+          targetName: String(campaign.activeRollRequest.targetName || ""),
           createdAt: campaign.activeRollRequest.createdAt,
           responses: Array.isArray(campaign.activeRollRequest.responses)
             ? campaign.activeRollRequest.responses
@@ -1221,6 +1225,8 @@ function applyCampaignImportSnapshot(campaign, rawSnapshot) {
         stat: String(roll.stat || "valor"),
         dread: Math.max(1, Number(roll.dread || 8)),
         label: String(roll.label || "GM Check").slice(0, 80),
+        targetToken: String(roll.targetToken || "").trim(),
+        targetName: String(roll.targetName || "").trim().slice(0, 48),
         createdAt: Number(roll.createdAt || Date.now()),
         responses: Array.isArray(roll.responses) ? roll.responses : []
       }
@@ -2369,21 +2375,31 @@ io.on("connection", (socket) => {
     const dread = Math.max(1, Number((payload && payload.dread) || 8));
     const stat = String((payload && payload.stat) || "valor").trim().slice(0, 32) || "valor";
     const label = String((payload && payload.label) || "GM Check").trim().slice(0, 80) || "GM Check";
+    const targetToken = String((payload && payload.targetToken) || "").trim();
+    const targetMember = targetToken ? campaign.participants.get(targetToken) : null;
+    if (targetToken && (!targetMember || targetMember.role !== "player")) {
+      if (typeof ack === "function") ack({ ok: false, error: "Prompt target must be an active player token." });
+      return;
+    }
 
     campaign.activeRollRequest = {
       id: `${Date.now()}-${Math.floor(Math.random() * 100000)}`,
       stat,
       dread,
       label,
+      targetToken: targetToken || "",
+      targetName: targetMember ? String(targetMember.name || "") : "",
       createdAt: Date.now(),
       responses: []
     };
 
     const gm = campaign.participants.get(token);
-    addLog(campaign, "roll", `${gm ? gm.name : "GM"} called ${label}: ${stat.toUpperCase()} vs Dread d${dread}.`, {
+    addLog(campaign, "roll", `${gm ? gm.name : "GM"} called ${label}: ${stat.toUpperCase()} vs Dread d${dread}${targetMember ? ` for ${targetMember.name}` : ""}.`, {
       stat,
       dread,
-      label
+      label,
+      targetToken: targetToken || "",
+      targetName: targetMember ? String(targetMember.name || "") : ""
     });
 
     emitCampaignState(campaign.code);
@@ -2408,6 +2424,11 @@ io.on("connection", (socket) => {
     const die = Math.max(1, Number((payload && payload.die) || 4));
 
     const token = socket.data.token || "";
+    const rollTargetToken = String((campaign.activeRollRequest && campaign.activeRollRequest.targetToken) || "");
+    if (rollTargetToken && token !== rollTargetToken) {
+      if (typeof ack === "function") ack({ ok: false, error: "This roll request targets another player." });
+      return;
+    }
     const member = token ? campaign.participants.get(token) : null;
     const response = {
       token,

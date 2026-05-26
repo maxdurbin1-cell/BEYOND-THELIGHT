@@ -78,7 +78,10 @@
     lastCombatSceneHash: "",
     lastPlayerDockSeed: "",
     lastDockActorKey: "",
-    dockActorFlashUntil: 0
+    dockActorFlashUntil: 0,
+    tableSceneMode: "auto",
+    effectiveTableSceneMode: "exploration",
+    timelineFilterManual: false
   };
 
   var readyCheckCallbacks = {};
@@ -304,6 +307,103 @@
     if (key === "reconnecting") return "stale";
     if (key === "combat") return "syncing";
     return "online";
+  }
+
+  function normalizeTableSceneMode(value) {
+    var key = String(value || "auto").toLowerCase();
+    if (["auto", "narrative", "exploration", "combat"].indexOf(key) === -1) return "auto";
+    return key;
+  }
+
+  function deriveAutoTableSceneMode(sharedState, tableState, campaignState) {
+    var tableKey = String(tableState && tableState.key || "exploration");
+    if (tableKey === "combat") return "combat";
+    if (tableKey === "travel" || tableKey === "reconnecting") return "exploration";
+
+    var ready = sharedState && sharedState.readyCheck && typeof sharedState.readyCheck === "object"
+      ? sharedState.readyCheck
+      : null;
+    if (ready && ready.id && String(ready.status || "") === "pending" && String(ready.type || "") !== "combat-start") {
+      return "narrative";
+    }
+
+    var combinedTimeline = buildDockTimelineSource(
+      campaignState && Array.isArray(campaignState.log) ? campaignState.log : [],
+      sharedState && Array.isArray(sharedState.sessionTimeline) ? sharedState.sessionTimeline : []
+    );
+    var recent = combinedTimeline.slice(-10);
+    var chatCount = 0;
+    var rollCount = 0;
+    recent.forEach(function (entry) {
+      var kind = String(entry && entry.kind || "");
+      if (kind === "chat") chatCount += 1;
+      if (kind === "roll" || kind === "roll-result") rollCount += 1;
+    });
+    if (recent.length >= 4 && chatCount >= Math.max(3, rollCount + 2)) {
+      return "narrative";
+    }
+    return "exploration";
+  }
+
+  function getTableSceneDescriptor(sceneMode) {
+    var key = normalizeTableSceneMode(sceneMode === "auto" ? "exploration" : sceneMode);
+    if (key === "combat") {
+      return {
+        label: "Combat",
+        shortLabel: "Combat",
+        copy: "Tactical focus active. Structure and read clarity take priority.",
+        spotlight: "Initiative, roll requests, and outcome-critical state"
+      };
+    }
+    if (key === "narrative") {
+      return {
+        label: "Narrative",
+        shortLabel: "Story",
+        copy: "Character conversation is in the foreground. Mechanics stay out of the way until called.",
+        spotlight: "Dialogue, table cues, and roleplay pacing"
+      };
+    }
+    return {
+      label: "Exploration",
+      shortLabel: "Explore",
+      copy: "Low-clutter travel posture. The table can roam and discover with cinematic breathing room.",
+      spotlight: "Travel context, discoveries, and lightweight updates"
+    };
+  }
+
+  function resolveTableSceneState(sharedState, tableState, campaignState) {
+    var preferred = normalizeTableSceneMode(state.tableSceneMode);
+    var autoMode = deriveAutoTableSceneMode(sharedState, tableState, campaignState);
+    var effective = preferred === "auto" ? autoMode : preferred;
+    return {
+      preferred: preferred,
+      auto: autoMode,
+      effective: effective,
+      descriptor: getTableSceneDescriptor(effective)
+    };
+  }
+
+  function applySceneTimelinePreset(mode, force) {
+    if (state.role !== "gm") return;
+    if (!force && state.timelineFilterManual) return;
+    var desired = "all";
+    if (mode === "combat") desired = "roll";
+    if (mode === "narrative") desired = "chat";
+    setTimelineFilter(desired, { systemPreset: true });
+  }
+
+  function setTableSceneMode(mode, options) {
+    var opts = options || {};
+    var next = normalizeTableSceneMode(mode);
+    state.tableSceneMode = next;
+    if (!opts.skipTimelinePreset) {
+      if (next === "auto") {
+        applySceneTimelinePreset(state.effectiveTableSceneMode || "exploration", false);
+      } else {
+        applySceneTimelinePreset(next, true);
+      }
+    }
+    renderDockPanel();
   }
 
   function guardRiskySharedAction(actionLabel, callback) {
@@ -4341,11 +4441,12 @@
       + '<div id="campaignDockBadge" class="campaign-dock-badge offline">Offline</div>'
       + "</div>"
       + '<div id="campaignDockMeta" class="campaign-dock-meta">No campaign connected.</div>'
-      + '<div id="campaignDockLiveStatus" class="campaign-dock-roll"></div>'
-      + '<div id="campaignDockRoll" class="campaign-dock-roll"></div>'
-      + '<div id="campaignDockLock" class="campaign-dock-roll"></div>'
+      + '<div id="campaignDockScene" class="campaign-dock-scene"></div>'
+      + '<div id="campaignDockLiveStatus" class="campaign-dock-roll campaign-dock-live"></div>'
+      + '<div id="campaignDockRoll" class="campaign-dock-roll campaign-dock-mechanics"></div>'
+      + '<div id="campaignDockLock" class="campaign-dock-roll campaign-dock-lock"></div>'
       + '<div id="campaignDockFilters" class="campaign-dock-filters"></div>'
-      + '<div id="campaignDockTrigger" class="campaign-dock-roll"></div>'
+      + '<div id="campaignDockTrigger" class="campaign-dock-roll campaign-dock-trigger"></div>'
       + '<div id="campaignDockTimeline" class="campaign-dock-timeline"></div>'
       + '<div class="campaign-dock-chat">'
       + '<input id="campaignDockChatInput" class="campaign-dock-input" type="text" maxlength="500" placeholder="Type campaign chat...">'
@@ -4412,6 +4513,7 @@
     syncDockOffset(root);
 
     var badge = document.getElementById("campaignDockBadge");
+    var scene = document.getElementById("campaignDockScene");
     var meta = document.getElementById("campaignDockMeta");
     var liveStatus = document.getElementById("campaignDockLiveStatus");
     var timeline = document.getElementById("campaignDockTimeline");
@@ -4430,6 +4532,48 @@
     var combatState = shared && shared.campaignCombat && typeof shared.campaignCombat === "object"
       ? shared.campaignCombat
       : ensureCampaignCombatState(shared);
+    var sceneState = resolveTableSceneState(shared, tableState, campaign);
+    var sceneMode = String(sceneState && sceneState.effective || "exploration");
+    var sceneDescriptor = sceneState && sceneState.descriptor ? sceneState.descriptor : getTableSceneDescriptor(sceneMode);
+
+    root.classList.toggle("campaign-scene-narrative", sceneMode === "narrative");
+    root.classList.toggle("campaign-scene-exploration", sceneMode === "exploration");
+    root.classList.toggle("campaign-scene-combat", sceneMode === "combat");
+    state.effectiveTableSceneMode = sceneMode;
+    if (state.tableSceneMode === "auto") {
+      applySceneTimelinePreset(sceneMode, false);
+    }
+
+    var dockToggle = document.getElementById("campaignDockToggle");
+    if (dockToggle) {
+      dockToggle.textContent = "Campaign · " + String(sceneDescriptor.shortLabel || "Table");
+      dockToggle.title = "Table focus: " + String(sceneDescriptor.label || sceneMode);
+    }
+
+    if (scene) {
+      var sceneButtons = [
+        { id: "auto", label: "Auto" },
+        { id: "narrative", label: "Narrative" },
+        { id: "exploration", label: "Explore" },
+        { id: "combat", label: "Combat" }
+      ].map(function (item) {
+        var on = normalizeTableSceneMode(state.tableSceneMode) === item.id;
+        return '<button class="btn btn-xs ' + (on ? 'btn-teal' : '') + '" onclick="window.campaignSystem.setTableSceneMode(\'' + item.id + '\')">' + item.label + '</button>';
+      }).join("");
+      var modeLine = sceneState.preferred === "auto"
+        ? ('Auto from state · ' + String(tableState && tableState.label || "Exploration"))
+        : ('Manual override · ' + String(sceneDescriptor.label || "Exploration"));
+
+      scene.innerHTML = ''
+        + '<div class="campaign-dock-scene-top">'
+        + '<div class="campaign-dock-scene-title">Table Focus</div>'
+        + '<div class="campaign-dock-scene-badge">' + escapeHtml(String(sceneDescriptor.label || "Exploration")) + '</div>'
+        + '</div>'
+        + '<div class="campaign-dock-scene-copy">' + escapeHtml(String(sceneDescriptor.copy || "")) + '</div>'
+        + '<div class="campaign-dock-scene-spotlight">Spotlight: <strong style="color:var(--gold2);">' + escapeHtml(String(sceneDescriptor.spotlight || "")) + '</strong></div>'
+        + '<div class="campaign-dock-scene-muted">' + escapeHtml(modeLine) + '</div>'
+        + '<div class="campaign-dock-scene-modes">' + sceneButtons + '</div>';
+    }
 
     if (badge) {
       var dockMode = getTableBadgeTone(tableState);
@@ -4536,6 +4680,27 @@
           { id: "system", label: "System" },
           { id: "recap", label: "Recap" }
         ];
+        if (sceneMode === "narrative") {
+          modes = [
+            { id: "all", label: "All" },
+            { id: "chat", label: "Chat" },
+            { id: "system", label: "System" }
+          ];
+        } else if (sceneMode === "exploration") {
+          modes = [
+            { id: "all", label: "All" },
+            { id: "chat", label: "Chat" },
+            { id: "system", label: "System" },
+            { id: "recap", label: "Recap" }
+          ];
+        } else if (sceneMode === "combat") {
+          modes = [
+            { id: "all", label: "All" },
+            { id: "roll", label: "Rolls" },
+            { id: "chat", label: "Chat" },
+            { id: "system", label: "System" }
+          ];
+        }
         filters.innerHTML = modes.map(function (m) {
           var on = state.timelineFilter === m.id;
           return '<button class="btn btn-xs ' + (on ? 'btn-teal' : '') + '" onclick="window.campaignSystem.setTimelineFilter(\'' + m.id + '\')">' + m.label + '</button>';
@@ -5249,10 +5414,18 @@
     renderDockPanel();
   }
 
-  function setTimelineFilter(mode) {
+  function setTimelineFilter(mode, options) {
+    var opts = options || {};
     var next = String(mode || "all");
-    if (["all", "chat", "roll", "system"].indexOf(next) === -1) next = "all";
+    if (["all", "chat", "roll", "system", "recap"].indexOf(next) === -1) next = "all";
+    if (state.timelineFilter === next) {
+      if (!opts.systemPreset) state.timelineFilterManual = true;
+      return;
+    }
     state.timelineFilter = next;
+    if (!opts.systemPreset) {
+      state.timelineFilterManual = true;
+    }
     renderDockPanel();
   }
 
@@ -5826,6 +5999,7 @@
     toggleArchive: toggleArchive,
     deleteCampaign: deleteCampaign,
     setTimelineFilter: setTimelineFilter,
+    setTableSceneMode: setTableSceneMode,
     requestSharedConsent: requestSharedConsent,
     syncProvinceEncounterResult: syncProvinceEncounterResult,
     respondReadyCheck: respondReadyCheck,

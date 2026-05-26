@@ -885,7 +885,7 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
 
 .campaign-dock.open .campaign-dock-panel {
   display: grid;
-  grid-template-rows: auto auto auto auto auto auto auto 1fr auto;
+  grid-template-rows: auto auto auto auto auto auto auto auto 1fr auto;
 }
 
 .campaign-dock-head {
@@ -939,6 +939,67 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
   border-bottom: 1px solid var(--border);
   font-size: 0.72rem;
   color: var(--muted2);
+}
+
+.campaign-dock-scene {
+  padding: 0.4rem 0.58rem;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+}
+
+.campaign-dock-scene-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-bottom: 0.2rem;
+}
+
+.campaign-dock-scene-title {
+  font-family: 'Cinzel', serif;
+  font-size: 0.52rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--teal2);
+}
+
+.campaign-dock-scene-badge {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  border: 1px solid rgba(80, 221, 208, 0.45);
+  color: var(--teal2);
+  border-radius: 999px;
+  padding: 0.04rem 0.34rem;
+}
+
+.campaign-dock-scene-copy {
+  font-size: 0.73rem;
+  color: var(--text2);
+  line-height: 1.45;
+}
+
+.campaign-dock-scene-spotlight {
+  margin-top: 0.16rem;
+  font-size: 0.7rem;
+  color: var(--muted2);
+}
+
+.campaign-dock-scene-muted {
+  margin-top: 0.16rem;
+  font-size: 0.66rem;
+  color: var(--muted);
+}
+
+.campaign-dock-scene-modes {
+  margin-top: 0.28rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.campaign-dock-scene-modes .btn {
+  min-width: 64px;
 }
 
 .campaign-dock-roll {
@@ -1096,6 +1157,56 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
   border-radius: 3px;
   padding: 0.33rem 0.4rem;
   font-size: 0.77rem;
+}
+
+.campaign-dock-panel {
+  transition: border-color 0.28s, box-shadow 0.28s, background 0.28s;
+}
+
+#campaignDock.campaign-scene-narrative .campaign-dock-panel {
+  border-color: rgba(70, 196, 182, 0.45);
+  background:
+    radial-gradient(circle at 14% 16%, rgba(70, 196, 182, 0.09), transparent 45%),
+    radial-gradient(circle at 88% 86%, rgba(201, 162, 39, 0.08), transparent 50%),
+    rgba(8, 10, 13, 0.96);
+  animation: campaignDockBreathe 7.5s ease-in-out infinite;
+}
+
+#campaignDock.campaign-scene-narrative .campaign-dock-mechanics,
+#campaignDock.campaign-scene-narrative .campaign-dock-trigger,
+#campaignDock.campaign-scene-narrative .campaign-dock-filters {
+  display: none;
+}
+
+#campaignDock.campaign-scene-narrative .campaign-dock-status-grid {
+  grid-template-columns: 1fr;
+}
+
+#campaignDock.campaign-scene-exploration .campaign-dock-panel {
+  border-color: rgba(201, 162, 39, 0.42);
+  background:
+    radial-gradient(circle at 22% 10%, rgba(201, 162, 39, 0.08), transparent 40%),
+    radial-gradient(circle at 76% 88%, rgba(80, 221, 208, 0.07), transparent 50%),
+    rgba(8, 10, 13, 0.95);
+}
+
+#campaignDock.campaign-scene-exploration .campaign-dock-mechanics,
+#campaignDock.campaign-scene-exploration .campaign-dock-trigger {
+  display: none;
+}
+
+#campaignDock.campaign-scene-combat .campaign-dock-panel {
+  border-color: rgba(224, 96, 96, 0.5);
+  background:
+    linear-gradient(180deg, rgba(224, 96, 96, 0.06), transparent 36%),
+    linear-gradient(180deg, rgba(8, 10, 13, 0.96), rgba(8, 10, 13, 0.96));
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(224, 96, 96, 0.12);
+}
+
+@keyframes campaignDockBreathe {
+  0% { box-shadow: 0 12px 34px rgba(0, 0, 0, 0.52); }
+  50% { box-shadow: 0 14px 38px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(70, 196, 182, 0.15); }
+  100% { box-shadow: 0 12px 34px rgba(0, 0, 0, 0.52); }
 }
 
 /* GM Mode Styles */

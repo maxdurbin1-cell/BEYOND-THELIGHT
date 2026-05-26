@@ -9,15 +9,102 @@
 
 ## Build Order (Editorial)
 
-This draft is still written in production stages, but Step 1 has now been expanded for publication depth.
+This draft is written in production stages. Steps 1-3 are now codified in manuscript form from live website behavior.
 
-- Step 1 (expanded in this file): Expedition Raids, encounter tables, loot architecture, and printable reference packets.
-- Step 2 (next): Spellcasting overhaul and GM Circumstance Questions.
-- Step 3: Monster Hunting and Bounty Protocols (Witcher-style prep loop).
-- Step 4: Gate Wars (Mephisto/Azrael lanes), puzzle population, and realm escalation.
-- Step 5: Colosseum mode, Soul Forge progression, and affix economy.
-- Step 6: Solo Challenge frame: 100 Days until the Old Sun Dies.
-- Step 7: Character generator and progression updates (professions, subclass roots, hunt specializations).
+- Step 1 (complete): Expedition Raids, encounter tables, loot architecture, and printable reference packets.
+- Step 2 (complete): Spellcasting overhaul and GM Circumstance Questions.
+- Step 3 (complete): Monster Hunting and Bounty Protocols with zero-ambiguity rule blocks.
+- Step 4 (pending transfer): Gate Wars (Mephisto/Azrael lanes), puzzle population, and realm escalation.
+- Step 5 (pending transfer): Colosseum mode, Soul Forge progression, and affix economy.
+- Step 6 (pending transfer): Solo Challenge frame: 100 Days until the Old Sun Dies.
+- Step 7 (pending transfer): Character generator and progression updates (professions, subclass roots, hunt specializations).
+
+---
+
+## Expansion Purpose and Transfer Charter
+
+Purpose of this expansion:
+
+- Translate website systems into print-ready, table-executable rules without mechanical drift.
+- Expand play space by adding operational depth, not replacing core identity.
+- Preserve the base tone: grim, high-pressure, consequence-led progression.
+
+Scope law:
+
+- New content: classes/profession paths, hunt/gate/colosseum encounters, spell scroll catalogs, affix economies.
+- New rules: optional and advanced procedures must remain module-safe with core play.
+- Setting material: regions, factions, gate lanes, world-state consequences, and campaign hooks.
+- Campaign continuity: each new chapter must chain to prior systems with explicit state handoffs.
+
+---
+
+## Completeness Audit (Website -> Book)
+
+Current status:
+
+- Complete in manuscript: Step 1, Step 2, Step 3.
+- Remaining for full transfer: Step 4, Step 5, Step 6, Step 7.
+
+Remaining transfer queue by system source:
+
+- Step 4 source cluster: gate war and pinnacle portal mission tracks, gate closure counters, teleporter/puzzle escalation, world consequence pressure propagation.
+- Step 5 source cluster: colosseum endless tiers, Soul Forge mission unlocks, affix rewards, raid-colosseum-soul progression coupling.
+- Step 6 source cluster: solo save flow, solo GM state prompts, day-stamp pressure loops, and solo reference procedures.
+- Step 7 source cluster: character generation/state bootstrap, backstory/faction hooks, profession/subclass progression wiring, and onboarding prompts.
+
+Definition of complete:
+
+- Every major website loop has a chapter procedure, reference sheet, and read-aloud support.
+- Every chapter includes code-truth notes for deterministic mechanics.
+- Every new rule has trigger, inputs, resolution, and consequences in print language.
+
+---
+
+## Seven-Layer Production Framework (Applied to This Book)
+
+### 1) Define Expansion Purpose
+
+- Treat this expansion as a full systems translation plus advanced play continuation.
+- Add possibility space while keeping core action economy, dread math, and consequence cadence intact.
+
+### 2) Align Tone and Mechanics
+
+- Keep balance parity with base game dice ladders and stress/condition throughput.
+- Preserve archival grim voice and avoid tonal genre break unless chapter fiction justifies it.
+- Keep naming and formatting consistent with established terminology.
+
+### 3) Build Content in Layers
+
+- Lore first: why each system exists in-world and what faction pressure it represents.
+- Mechanics second: explicit procedure blocks and deterministic mappings.
+- Play examples third: short table examples for each advanced subsystem.
+
+### 4) Keep It Playable and Tested
+
+- Validate each chapter with short scenario loops (fast pass, stress pass, edge-case pass).
+- Trim complexity where procedure count exceeds table utility.
+
+### 5) Structure the Book Clearly
+
+- Introduction: what this expansion adds and integration boundaries.
+- Lore and setting: region/faction/gate-state context.
+- Player options: professions, subclass roots, spells, gear.
+- GM tools: monsters, hazards, random tables, contract engines.
+- Campaign content: hunt arcs, gate wars, colosseum/soul forge tracks.
+- Appendices: one-page packets, token standards, quick references.
+
+### 6) Presentation and Layout
+
+- Keep production tags consistent: boxed callout, sidebar, read aloud, printer note.
+- Use table-first formatting for at-table speed and grayscale-safe print.
+
+### 7) Publishing and Distribution
+
+- Prepare both digital and print-safe layout versions.
+- Include a short free sample packet with one complete loop from each major mode.
+
+> [SIDEBAR]
+> North-star rule for this manuscript: unlock new possibilities without displacing core play.
 
 ---
 

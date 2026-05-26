@@ -13567,7 +13567,7 @@ function showEquippedItem(slot) {
   if (item) {
     btnHtml = '<button class="btn btn-sm btn-gold" style="margin-top:.6rem;" onclick="sellEquippedItem(' + "'" + slot + "'" + ');closeModal();">💰 Sell for ' + (item.cost || 0) + '₵</button> ';
     if (slot === 'readied') {
-      btnHtml += '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="useEquippedReadiedItem();closeModal();">⚑ Use</button> ';
+      btnHtml += '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="closeModal();useEquippedReadiedItem();">⚑ Use</button> ';
     }
     btnHtml += '<button class="btn btn-sm btn-primary" onclick="unequipItem(' + "'" + slot + "'" + ');closeModal();">↙ Unequip</button>';
     btnHtml += storageOptions;
@@ -13599,7 +13599,7 @@ function showEquippedItem(slot) {
     // Custom item without shop data
     btnHtml = '<button class="btn btn-sm btn-gold" style="margin-top:.6rem;" onclick="sellEquippedCustomItem(' + "'" + slot + "'" + ');closeModal();">💰 Sell</button> ';
     if (slot === 'readied') {
-      btnHtml += '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="useEquippedReadiedItem();closeModal();">⚑ Use</button> ';
+      btnHtml += '<button class="btn btn-sm btn-teal" style="margin-top:.6rem;" onclick="closeModal();useEquippedReadiedItem();">⚑ Use</button> ';
     }
     btnHtml += '<button class="btn btn-sm btn-primary" onclick="unequipItem(' + "'" + slot + "'" + ');closeModal();">↙ Unequip</button>';
     btnHtml += storageOptions;

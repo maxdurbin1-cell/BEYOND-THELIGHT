@@ -1462,12 +1462,289 @@ Each row below is generated from website logic in `getSpellCircumstanceProfile(s
 
 ---
 
-## Next Writing Target (Step 3)
+## STEP 3 - MONSTER HUNTING AND BOUNTY PROTOCOLS (ZERO AMBIGUITY PASS)
 
-Step 3 will convert monster-hunting and bounty loops into full hunt protocol text:
+This chapter is the executable hunt loop for guild contracts and guild campaign boss hunts.
+Every rule block uses this schema:
 
-- Contract intake and prey profiling.
-- Investigation clues and weakness discovery.
-- Prep phase loadouts, oils, wards, and bait logic.
-- Hunt escalation tracks, trophy extraction, and bounty payout procedures.
+- Trigger
+- Input Dice
+- Resolution
+- Consequence
+- Log Line format
+
+> [CODE-TRUTH NOTE]
+> Hunt posting and progression here are mapped to guild systems in faction and mission logic: `ensureGuildContractBoard`, `postGuildContract`, `startGuildCampaignQuest`, `applyGuildPrepToMission`, `resolveGuildCampaignProgress`, `onMissionResolved`, and mission Step 3 confrontation handling.
+
+---
+
+### I. Hunt Board Lifecycle
+
+#### Rule Block S3-1: Generate Contract Board
+
+- Trigger: The table opens a faction base hub and no valid 3-row contract board exists, or the board is refreshed.
+- Input Dice: None (state gate and procedural generation).
+- Resolution:
+   1. Build exactly 3 contract rows.
+   2. Assign row difficulty in order: `medium`, `hard`, `challenging/very_hard` track.
+   3. Generate title, lore hook, region, and location from guild flavor pools.
+   4. Persist board to guild state with new seed and refresh timestamp.
+- Consequence:
+   1. A new hunting slate exists for posting.
+   2. Old board identity is replaced when refresh is forced.
+- Log Line format: `contract-board-generated:<factionId>:<seed>`
+
+#### Rule Block S3-2: Refresh Contract Board
+
+- Trigger: Players press `Refresh Board` in guild contract UI.
+- Input Dice: None.
+- Resolution: Force board regeneration regardless of existing rows.
+- Consequence: Available prey contracts rotate; unposted rows are lost.
+- Log Line format: `contract-board-refreshed:<factionId>`
+
+#### Rule Block S3-3: Post Contract
+
+- Trigger: Players press `Post` on one contract row.
+- Input Dice: None.
+- Resolution:
+   1. Abort if another guild contract mission is already active.
+   2. Abort if chosen contract id is missing.
+   3. Create mission packet with `missionType='guild_contract'` and embedded `guildContract` metadata.
+   4. Copy up to 3 active prep ids into mission packet.
+   5. Apply prep effects to mission bonus and/or dread override.
+   6. Bind mission id as active contract mission id.
+- Consequence:
+   1. Contract enters Missions tab as live hunt.
+   2. Guild state marks contract as posted.
+- Log Line format: `contract-posted:<contractId>`
+
+---
+
+### II. Campaign Hunt Arc (Story Hunts and Boss Hunt)
+
+#### Rule Block S3-4: Join Guild Campaign
+
+- Trigger: Player selects `Join <GuildName>`.
+- Input Dice: None.
+- Resolution:
+   1. Initialize or reset campaign progression fields.
+   2. Set `joined=true`, stage index to 0, clear active campaign mission id.
+   3. Reset completion flags and prep selection state.
+- Consequence: Campaign hunt chain is unlocked for posting.
+- Log Line format: `joined`
+
+#### Rule Block S3-5: Post Campaign Hunt Quest
+
+- Trigger: Player selects `Post Campaign Quest`.
+- Input Dice: None.
+- Resolution:
+   1. Abort if campaign config missing.
+   2. Abort if guild not joined.
+   3. Abort if another campaign mission is already active.
+   4. Pull quest by current stage index.
+   5. Create mission with `missionType='guild_campaign'` or `guild_boss_hunt` when `isBoss=true`.
+   6. Attach quest metadata, step labels, checkpoint text, lore, prep ids, and optional boss-layer lock map.
+   7. Apply prep modifiers to mission bonus and dread.
+- Consequence: Campaign prey objective becomes a live mission contract.
+- Log Line format: `posted:<questId>`
+
+#### Rule Block S3-6: Resolve Campaign Hunt Progress
+
+- Trigger: Mission system resolves a guild campaign or guild boss hunt mission.
+- Input Dice: Mission resolution dice from Step 3 confrontation (see Section IV).
+- Resolution:
+   1. Ignore if mission id does not match active campaign mission id.
+   2. On failure: clear active campaign mission id and keep stage unchanged.
+   3. On success: append quest id to completed list, increment stage, clear active mission id.
+   4. If quest grants prep unlock id, add it to earned prep options.
+   5. If quest is boss hunt, set boss defeated flag.
+   6. If stage reaches final threshold (`>= total quests - 1`), set boss unlocked flag.
+- Consequence:
+   1. Failure creates repost loop with no stage advance.
+   2. Success advances hunt arc and expands prep toolkit.
+- Log Line format:
+   1. Failure: `failed:<questId>`
+   2. Success: `completed:<questId>`
+
+---
+
+### III. Weakness and Prep Discovery Loop
+
+#### Rule Block S3-7: Unlock Prep Countermeasure
+
+- Trigger: Campaign quest with `prepUnlockId` is completed successfully.
+- Input Dice: None (already resolved by mission success).
+- Resolution: Add prep id to guild state `earnedPrepOptions` if not already present.
+- Consequence: New weakness countermeasure can be slotted into active prep loadout.
+- Log Line format: `prep-unlocked:<factionId>:<prepId>`
+
+#### Rule Block S3-8: Toggle Active Prep Loadout
+
+- Trigger: Player presses `Set Prep` or `Unset` on prep board.
+- Input Dice: None.
+- Resolution:
+   1. Validate prep is owned (earned or purchased).
+   2. If already active, remove it.
+   3. If inactive, add it only when active count is below 3.
+   4. Reject activation when active count is already 3.
+- Consequence:
+   1. Active prep loadout updates immediately.
+   2. Future posted hunts inherit this loadout snapshot.
+- Log Line format: `prep-active:<factionId>:[prepId1,prepId2,prepId3]`
+
+#### Rule Block S3-9: Apply Prep to Posted Hunt
+
+- Trigger: A guild contract or campaign quest is posted while active prep ids exist.
+- Input Dice: None.
+- Resolution:
+   1. For each prep with `effectType='bonus'`, add prep bonus to mission `bonus`.
+   2. For each prep with `effectType='dread_down'`, step mission dread die downward by configured steps.
+   3. Clamp mission bonus to [0..20] and dread floor to d4.
+- Consequence: Hunt confrontation math is materially changed before first roll.
+- Log Line format: `prep-applied:<missionId>:bonus+<n>:dread->d<die>`
+
+> [SIDEBAR]
+> In fiction, treat prep as known weakness exploitation. In mechanics, it is explicit bonus and/or dread suppression.
+
+---
+
+### IV. Confrontation Roll Law (Mission Step 3)
+
+#### Rule Block S3-10: Core Hunt Confrontation Check
+
+- Trigger: Players enter Step 3 Confrontation for posted hunt mission.
+- Input Dice:
+   1. Action side: Valor die (`d<Valor>`), plus mission bonus.
+   2. Opposition side: mission dread die, or GM override dread die.
+- Resolution:
+   1. Roll action total and dread total.
+   2. Compare `action + bonus` against `dread`.
+   3. If action total is greater than or equal to dread total, mark success path.
+   4. Otherwise open failure consequence modal (accept failure or push luck).
+- Consequence:
+   1. Success path can resolve mission as completed.
+   2. Failure path applies consequence package before mission fail resolution.
+- Log Line format: `hunt-check:<missionId>:A<actionPlusBonus>-D<dread>=<success|failure>`
+
+#### Rule Block S3-11: Failure Consequence Package
+
+- Trigger: Confrontation check fails and players accept failure (or fail push-luck reroll).
+- Input Dice:
+   1. Action total and dread total from check pair.
+   2. Margin = `max(1, dread - action)`.
+- Resolution:
+   1. Compute margin.
+   2. Apply margin as damage/stress.
+   3. Apply +1 Mental Stress.
+   4. Apply Radiation +1.
+   5. Apply one negative condition keyed to failed stat axis (Valor defaults to `distracted`).
+   6. Add +1 Teamwork meter.
+   7. If boss-layer ability locks are active, reduce margin and suppress specific lines per lock map.
+- Consequence: Hunt failure has guaranteed attrition even before mission outcome renown/faction fallout.
+- Log Line format: `hunt-fail-consequence:<missionId>:margin<k>:mental+1:rad+1:cond=<key>:tmw+1`
+
+#### Rule Block S3-12: Push Luck Protocol
+
+- Trigger: Failure modal appears and players choose `Push Luck`.
+- Input Dice:
+   1. Spend gate: 2 Teamwork required.
+   2. Reroll at stepped-up dread die (`next dread tier`).
+- Resolution:
+   1. Spend 2 Teamwork immediately.
+   2. Reroll confrontation at higher dread.
+   3. On reroll success: grant positive condition mapped from Valor axis and resolve mission as success.
+   4. On reroll failure: apply failure consequence package and resolve mission as failure.
+- Consequence: High-risk recovery lane that can flip a lost hunt into success.
+- Log Line format: `hunt-push-luck:<missionId>:spent2tmw:d<newDread>:<success|failure>`
+
+---
+
+### V. Boss Hunt Layering (Known Weakness Enforcement)
+
+#### Rule Block S3-13: Build Boss Ability Lock Layer
+
+- Trigger: Posting a quest flagged `isBoss=true`.
+- Input Dice: None.
+- Resolution:
+   1. Load boss profile for faction (`bossId`, `bossName`, ability list).
+   2. Cross-reference selected prep ids against boss `prepLocks` map.
+   3. Mark each matching ability with `lockedByPrepIds`.
+- Consequence: Prepared weaknesses hard-disable or soften named boss abilities.
+- Log Line format: `boss-layer:<missionId>:locked=[abilityId...]`
+
+#### Rule Block S3-14: Boss Lock Mitigation in Failure Math
+
+- Trigger: Failure consequence package executes for boss-hunt mission with locked abilities.
+- Input Dice: Margin from failed confrontation.
+- Resolution:
+   1. Reduce margin by up to 2 based on lock count.
+   2. Suppress Mental Stress line when specific locked ability ids match mitigation map.
+   3. Suppress Condition line when specific locked ability ids match mitigation map.
+- Consequence: Proper weakness prep converts lethal boss attrition into survivable failure.
+- Log Line format: `boss-mitigation:<missionId>:margin-<n>:suppress=[mental|condition|none]`
+
+---
+
+### VI. Contract and Campaign Outcome Settlement
+
+#### Rule Block S3-15: Guild Contract Resolution Hook
+
+- Trigger: Mission system resolves `missionType='guild_contract'`.
+- Input Dice: Upstream confrontation and mission success boolean.
+- Resolution:
+   1. If resolved mission id matches active contract mission id, clear active id.
+   2. On success, increment contract run count.
+   3. Write last outcome as completed or failed contract token.
+   4. On success, force contract board refresh for new work.
+- Consequence:
+   1. Contract slot reopens for repost.
+   2. Success increments repeat-hunt progress metric.
+- Log Line format:
+   1. Success: `contract-completed:<contractId>`
+   2. Failure: `contract-failed:<contractId>`
+
+#### Rule Block S3-16: Mission Reward and Penalty Settlement
+
+- Trigger: Any hunt mission resolves through mission resolver.
+- Input Dice: None at settlement stage.
+- Resolution:
+   1. On success: +credits, +1 renown, loot roll, faction delta gain/lose update.
+   2. On failure: -1 renown, inverse faction pressure delta.
+   3. Record completed mission entry with mission type, success flag, timestamps, and loot.
+   4. Fire faction hook `onMissionResolved(mission, success)`.
+- Consequence:
+   1. Hunt outcomes alter economy, standing, and world pressure.
+   2. Guild campaign and contract state machines advance or stall from same hook.
+- Log Line format: `hunt-settlement:<missionId>:<success|failure>:renown<delta>:credits<delta>`
+
+---
+
+### VII. One-Page Reference Frame - Step 3 Hunt Sheet
+
+> [REFERENCE SHEET: S3-A HUNT LOOP]
+
+| Phase | Trigger | Input Dice | Resolution | Consequence | Log Line format |
+|---|---|---|---|---|---|
+| Board Generate | Open guild base or refresh | None | Build 3-row contract board | New bounty slate exists | `contract-board-generated:<factionId>:<seed>` |
+| Contract Post | Press `Post` | None | Create guild contract mission; apply active prep | Active contract mission id set | `contract-posted:<contractId>` |
+| Campaign Post | Press `Post Campaign Quest` | None | Create campaign/boss mission from stage | Active campaign mission id set | `posted:<questId>` |
+| Prep Toggle | Press `Set Prep` / `Unset` | None | Validate owned prep; max 3 active | Loadout snapshot changes | `prep-active:<factionId>:[...]` |
+| Confrontation | Enter Step 3 | Valor + bonus vs Dread | Compare totals; success/failure branch | Mission success path or failure modal | `hunt-check:<missionId>:A-D=<result>` |
+| Failure Accept | Choose failure | Margin from failed check | Apply damage/stress, mental, radiation, condition, teamwork | Attrition package applied | `hunt-fail-consequence:<missionId>:...` |
+| Push Luck | Spend 2 Teamwork | Reroll at higher dread | Success flips to win; failure applies package | Salvage or collapse | `hunt-push-luck:<missionId>:...` |
+| Contract Resolve | Mission resolves | Upstream success bool | Clear active contract; update runs/outcome | Board reopens; runs advance on success | `contract-completed|contract-failed:<id>` |
+| Campaign Resolve | Mission resolves | Upstream success bool | Advance stage on success; stall on failure | Prep unlocks, boss gating progression | `completed|failed:<questId>` |
+
+#### Read Aloud
+
+> [READ ALOUD]
+> "Name the prey. Mark the weakness. Spend the prep. Roll the confrontation. Pay the blood cost if you fail."
+
+#### Margin Notes
+
+> [SIDEBAR]
+> If players ask whether a hunt failed "softly," answer from the failure package first. In this system, failure always writes attrition before mission-level penalties.
+
+> [CODE-TRUTH NOTE]
+> Guild state fields to track in campaign journals: `currentArcStage`, `activeCampaignMissionId`, `activeContractMissionId`, `completedQuestIds`, `earnedPrepOptions`, `activePrepIds`, `contractRuns`, `bossUnlocked`, `bossDefeated`, `lastOutcome`.
 

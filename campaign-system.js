@@ -406,6 +406,22 @@
     renderDockPanel();
   }
 
+  function applyGlobalSceneFocus(sceneMode) {
+    var body = document.body;
+    if (!body) return;
+    var active = !!state.code && (body.classList.contains("campaign-mode") || body.classList.contains("gm-mode"));
+    var modes = ["narrative", "exploration", "combat"];
+    modes.forEach(function (key) {
+      body.classList.toggle("table-scene-" + key, !!(active && sceneMode === key));
+    });
+    body.classList.toggle("table-scene-active", !!active);
+    if (active && sceneMode) {
+      body.setAttribute("data-table-scene", String(sceneMode));
+    } else {
+      body.removeAttribute("data-table-scene");
+    }
+  }
+
   function guardRiskySharedAction(actionLabel, callback) {
     var tableState = getCampaignTableState();
     if (!tableState || !tableState.recoveryOnly) return true;
@@ -4508,7 +4524,10 @@
 
   function renderDockPanel() {
     var root = document.getElementById("campaignDock");
-    if (!root) return;
+    if (!root) {
+      applyGlobalSceneFocus("");
+      return;
+    }
     root.classList.toggle("open", !!state.dockOpen);
     syncDockOffset(root);
 
@@ -4539,6 +4558,7 @@
     root.classList.toggle("campaign-scene-narrative", sceneMode === "narrative");
     root.classList.toggle("campaign-scene-exploration", sceneMode === "exploration");
     root.classList.toggle("campaign-scene-combat", sceneMode === "combat");
+    applyGlobalSceneFocus(sceneMode);
     state.effectiveTableSceneMode = sceneMode;
     if (state.tableSceneMode === "auto") {
       applySceneTimelinePreset(sceneMode, false);

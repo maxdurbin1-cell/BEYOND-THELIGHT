@@ -891,6 +891,9 @@ Use this exact sequence for every scroll cast in Step 2 play.
 > [BOXED CALLOUT]
 > Core spell comparison: Final Mind total >= Final Valor total succeeds.
 
+> [CODE-TRUTH NOTE]
+> Runtime path: circumstance prompt -> evaluate modifiers -> consume stored backlash step -> roll Mind/Spirit math -> stepped Valor roll -> compare -> resolve manifestation/failure band.
+
 ---
 
 ### III. Four-Tier Circumstance Architecture
@@ -934,6 +937,9 @@ Spirit modifiers are counted.
 - If two separate answers grant Add Spirit, you roll/add Spirit twice.
 - If two separate answers grant Subtract Spirit, you roll/subtract Spirit twice.
 
+> [CODE-TRUTH NOTE]
+> Advantage and disadvantage hard-cancel when both are present. Spirit add/subtract effects are counted, not boolean.
+
 ---
 
 ### IV. Dice Ladder and Step Rules (Exact)
@@ -957,6 +963,9 @@ Special floor rule at d4:
 - Rolls required = 1 + number of extra floor step-downs.
 
 This floor rule is critical for severe spell instability.
+
+> [CODE-TRUTH NOTE]
+> At d4 floor with extra step-downs, runtime rolls d4 multiple times and keeps the lowest result.
 
 ---
 
@@ -996,6 +1005,9 @@ This floor rule is critical for severe spell instability.
 - Failure: Mind total < Valor total
 - Margin: |Mind total - Valor total| (minimum 1)
 
+> [CODE-TRUTH NOTE]
+> Mind total is clamped to minimum 1 after all additions/subtractions.
+
 ---
 
 ### VI. Manifestation Tier Mapping (Margin Bands)
@@ -1023,6 +1035,9 @@ Each tier provides:
 - Effect description,
 - Cast look,
 - Field look.
+
+> [CODE-TRUTH NOTE]
+> Tier index mapping is fixed at 8 bands: margin 1..7 map to index 0..6, margin 8+ maps to index 7.
 
 ---
 
@@ -1052,6 +1067,9 @@ Backlash effects by margin:
 
 > [SIDEBAR]
 > Stored backlash is consumed on the next cast before rolling and then removed.
+
+> [CODE-TRUTH NOTE]
+> Backlash outcomes are margin-gated at 1-2, 3-4, 5-6, 7-8, 9-10, and 11+ with explicit effects in code (including Shaken, stress, and possible trauma).
 
 ---
 
@@ -1089,6 +1107,9 @@ Support-oriented spells can skip direct enemy damage and instead:
 
 Starwell-type pull effects move Far enemies to Engaged before detonation resolution.
 
+> [CODE-TRUTH NOTE]
+> Expanded AOE is locked unless success margin is 4+. Target/status caps are fixed: Focused 1/1, Standard 2/2, Expanded 3/3.
+
 ---
 
 ### IX. Manual Mode Translation
@@ -1107,6 +1128,9 @@ Manual mode still uses:
 - step logic,
 - margin tiering,
 - AOE gating.
+
+> [CODE-TRUTH NOTE]
+> Manual mode preserves the same modifier engine and outcome mapping; only dice entry method changes.
 
 ---
 
@@ -1127,6 +1151,9 @@ Player-facing spell sequence sheet.
 - Ask four questions before every cast.
 - Apply all modifiers before rolling final totals.
 - Tie succeeds.
+
+> [CODE-TRUTH NOTE]
+> Cast success is computed as final Mind total >= final Valor total.
 
 #### Procedure
 
@@ -1166,6 +1193,9 @@ Quick sheet for translating Yes/No answers into math.
 - Every answer applies its listed effect.
 - Advantage and disadvantage can cancel.
 - Spirit add/subtract counts stack.
+
+> [CODE-TRUTH NOTE]
+> Modifier aggregation is additive for Mind flat/Valor step and counted for Spirit add/subtract.
 
 #### Procedure
 
@@ -1210,6 +1240,9 @@ Failure severity and automatic backlash outcomes.
 - Backlash severity tracks failure margin.
 - Stored backlash carries to next cast and is consumed.
 
+> [CODE-TRUTH NOTE]
+> Stored backlash applies as +1 Valor step pressure on the next cast before rolling, then decrements.
+
 #### Procedure
 
 1. Determine failure margin.
@@ -1252,6 +1285,9 @@ Combat resolution sheet for successful AOE casts.
 - Mode sets target and status caps.
 - Expanded mode requires margin 4+.
 
+> [CODE-TRUTH NOTE]
+> AOE resolution consumes pending spell state and marks it resolved after a single mode choice.
+
 #### Procedure
 
 1. Confirm successful cast and margin.
@@ -1290,6 +1326,9 @@ Fill-in worksheet for table use.
 
 - Always calculate final Mind and final Valor explicitly.
 - Do not skip Spirit add/subtract rolls.
+
+> [CODE-TRUTH NOTE]
+> Keep worksheet numbers in order to preserve deterministic replay of cast outcomes.
 
 #### Procedure
 
@@ -1336,6 +1375,62 @@ Spoken pacing script for running casts cleanly under pressure.
 - One question per tier.
 - One resolution pass.
 - One consequence pass.
+
+> [CODE-TRUTH NOTE]
+> Lock answers before rolling; do not retroactively edit circumstance inputs after dice are cast.
+
+---
+
+### X. Spell Scroll Question Index (Website Deterministic)
+
+Each row below is generated from website logic in `getSpellCircumstanceProfile(scrollName, scrollDesc)`.
+
+> [CODE-TRUTH NOTE]
+> Question selection is deterministic by hash seed of `lowercase(scroll name) + '|' + scroll description`, then one pick from each pool at offsets 1, 3, 5, and 7.
+
+#### Base Scroll Questions
+
+| Spell Scroll | Major | Minor | Tertiary | Quaternary |
+|---|---|---|---|---|
+| Speak with Animals | Is a major omen active (eclipse, blood moon, solstice, ley surge)? | Is there fog, smoke, or dust in the air? | Are you facing your tradition's favored direction? | Is copper touching the caster's skin right now? |
+| Invisibility | Is the spell cast under a sky your tradition reveres? | Are you near iron structures or dense machinery? | Is the caster emotionally steady for this cast? | Was a lie spoken in earshot moments before casting? |
+| Levitate Object | Did a cosmic event begin this same scene? | Is it raining right now? | Did the caster speak in their ritual language? | Did anyone speak a true name tied to this threshold/object? |
+| Reveal Traps | Is a major omen active (eclipse, blood moon, solstice, ley surge)? | Is there fog, smoke, or dust in the air? | Are you facing your tradition's favored direction? | Is copper touching the caster's skin right now? |
+| Night Vision | Is a major omen active (eclipse, blood moon, solstice, ley surge)? | Is there fog, smoke, or dust in the air? | Are you facing your tradition's favored direction? | Is copper touching the caster's skin right now? |
+| Create Light | Did a cosmic event begin this same scene? | Is it raining right now? | Did the caster speak in their ritual language? | Did anyone speak a true name tied to this threshold/object? |
+| Silent Steps | Is this cast near funeral grounds, divine festival ground, or cataclysm weather? | Are you standing on grave soil, salt air, or charged earth? | Is the moon phase favorable for this spell family? | Did a witness omen occur (crow, bells, child present, shoes removed)? |
+| Create Portal | Is a major omen active (eclipse, blood moon, solstice, ley surge)? | Is there fog, smoke, or dust in the air? | Are you facing your tradition's favored direction? | Is copper touching the caster's skin right now? |
+| Fly | Is a major omen active (eclipse, blood moon, solstice, ley surge)? | Is there fog, smoke, or dust in the air? | Are you facing your tradition's favored direction? | Is copper touching the caster's skin right now? |
+| Repair Object | Did a cosmic event begin this same scene? | Is it raining right now? | Did the caster speak in their ritual language? | Did anyone speak a true name tied to this threshold/object? |
+| Plant Growth | Is this cast near funeral grounds, divine festival ground, or cataclysm weather? | Are you standing on grave soil, salt air, or charged earth? | Is the moon phase favorable for this spell family? | Did a witness omen occur (crow, bells, child present, shoes removed)? |
+| None Can Lie | Is this cast near funeral grounds, divine festival ground, or cataclysm weather? | Are you standing on grave soil, salt air, or charged earth? | Is the moon phase favorable for this spell family? | Did a witness omen occur (crow, bells, child present, shoes removed)? |
+| Empower | Is the spell cast under a sky your tradition reveres? | Are you near iron structures or dense machinery? | Is the caster emotionally steady for this cast? | Was a lie spoken in earshot moments before casting? |
+| Ward of Steel | Is the spell cast under a sky your tradition reveres? | Are you near iron structures or dense machinery? | Is the caster emotionally steady for this cast? | Was a lie spoken in earshot moments before casting? |
+| Sight Beyond | Is a major omen active (eclipse, blood moon, solstice, ley surge)? | Is there fog, smoke, or dust in the air? | Are you facing your tradition's favored direction? | Is copper touching the caster's skin right now? |
+| Battle Hymn | Is the spell cast under a sky your tradition reveres? | Are you near iron structures or dense machinery? | Is the caster emotionally steady for this cast? | Was a lie spoken in earshot moments before casting? |
+| Speak with the Dead | Is a major omen active (eclipse, blood moon, solstice, ley surge)? | Is there fog, smoke, or dust in the air? | Are you facing your tradition's favored direction? | Is copper touching the caster's skin right now? |
+| Mark of Passage | Is the spell cast under a sky your tradition reveres? | Are you near iron structures or dense machinery? | Is the caster emotionally steady for this cast? | Was a lie spoken in earshot moments before casting? |
+| Memory of Stone | Is the spell cast under a sky your tradition reveres? | Are you near iron structures or dense machinery? | Is the caster emotionally steady for this cast? | Was a lie spoken in earshot moments before casting? |
+| Warding Sigil | Is a major omen active (eclipse, blood moon, solstice, ley surge)? | Is there fog, smoke, or dust in the air? | Are you facing your tradition's favored direction? | Is copper touching the caster's skin right now? |
+| Bind Oath | Is this cast near funeral grounds, divine festival ground, or cataclysm weather? | Are you standing on grave soil, salt air, or charged earth? | Is the moon phase favorable for this spell family? | Did a witness omen occur (crow, bells, child present, shoes removed)? |
+| Shroud of Forgetting | Did a cosmic event begin this same scene? | Is it raining right now? | Did the caster speak in their ritual language? | Did anyone speak a true name tied to this threshold/object? |
+| Summon Familiar | Did a cosmic event begin this same scene? | Is it raining right now? | Did the caster speak in their ritual language? | Did anyone speak a true name tied to this threshold/object? |
+| True Name Revealed | Is a major omen active (eclipse, blood moon, solstice, ley surge)? | Is there fog, smoke, or dust in the air? | Are you facing your tradition's favored direction? | Is copper touching the caster's skin right now? |
+
+#### Expanded Scroll Questions
+
+| Spell Scroll | Major | Minor | Tertiary | Quaternary |
+|---|---|---|---|---|
+| Thunder Lattice | Is a major omen active (eclipse, blood moon, solstice, ley surge)? | Is there fog, smoke, or dust in the air? | Are you facing your tradition's favored direction? | Is copper touching the caster's skin right now? |
+| Ashfall Ring | Is the spell cast under a sky your tradition reveres? | Are you near iron structures or dense machinery? | Is the caster emotionally steady for this cast? | Was a lie spoken in earshot moments before casting? |
+| Gravitic Fold | Did a cosmic event begin this same scene? | Is it raining right now? | Did the caster speak in their ritual language? | Did anyone speak a true name tied to this threshold/object? |
+| Glass Rain | Is a major omen active (eclipse, blood moon, solstice, ley surge)? | Is there fog, smoke, or dust in the air? | Are you facing your tradition's favored direction? | Is copper touching the caster's skin right now? |
+| Bastion Bloom | Is the spell cast under a sky your tradition reveres? | Are you near iron structures or dense machinery? | Is the caster emotionally steady for this cast? | Was a lie spoken in earshot moments before casting? |
+| Null Choir | Is this cast near funeral grounds, divine festival ground, or cataclysm weather? | Are you standing on grave soil, salt air, or charged earth? | Is the moon phase favorable for this spell family? | Did a witness omen occur (crow, bells, child present, shoes removed)? |
+| Hexfire Fan | Is a major omen active (eclipse, blood moon, solstice, ley surge)? | Is there fog, smoke, or dust in the air? | Are you facing your tradition's favored direction? | Is copper touching the caster's skin right now? |
+| Tide of Needles | Is the spell cast under a sky your tradition reveres? | Are you near iron structures or dense machinery? | Is the caster emotionally steady for this cast? | Was a lie spoken in earshot moments before casting? |
+| Veilstep Chorus | Did a cosmic event begin this same scene? | Is it raining right now? | Did the caster speak in their ritual language? | Did anyone speak a true name tied to this threshold/object? |
+| Starwell Collapse | Is a major omen active (eclipse, blood moon, solstice, ley surge)? | Is there fog, smoke, or dust in the air? | Are you facing your tradition's favored direction? | Is copper touching the caster's skin right now? |
 
 #### Procedure
 

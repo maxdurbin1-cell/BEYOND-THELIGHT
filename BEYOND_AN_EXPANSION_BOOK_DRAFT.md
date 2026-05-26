@@ -17,7 +17,7 @@ This draft is written in production stages. Steps 1-3 are now codified in manusc
 - Step 4 (complete): Gate Wars (Mephisto/Azrael lanes), puzzle population, and realm escalation.
 - Step 5 (complete): Colosseum mode, Soul Forge progression, and affix economy.
 - Step 6 (complete): Solo Challenge frame: 100 Days until the Old Sun Dies.
-- Step 7 (pending transfer): Character generator and progression updates (professions, subclass roots, hunt specializations).
+- Step 7 (complete): Character generator and progression updates (professions, subclass roots, hunt specializations).
 
 ---
 
@@ -42,12 +42,12 @@ Scope law:
 
 Current status:
 
-- Complete in manuscript: Step 1, Step 2, Step 3, Step 4, Step 5, Step 6.
-- Remaining for full transfer: Step 7.
+- Complete in manuscript: Step 1, Step 2, Step 3, Step 4, Step 5, Step 6, Step 7.
+- Remaining for full transfer: none.
 
 Remaining transfer queue by system source:
 
-- Step 7 source cluster: character generation/state bootstrap, backstory/faction hooks, profession/subclass progression wiring, and onboarding prompts.
+- No remaining transfer queue. All seven production steps are now codified from runtime behavior.
 
 Definition of complete:
 
@@ -2724,4 +2724,342 @@ Every rule block uses this schema:
 
 > [CODE-TRUTH NOTE]
 > Canonical Step 6 keys for campaign journals: `solarCycle.storyModeEnabled`, `solarCycle.enabled`, `solarCycle.daysElapsed`, `solarCycle.daysRemaining`, `solarCycle.worldTilt`, `solarCycle.currentTier`, `solarCycle.currentOmen`, `solarCycle.thresholdNotifs[]`, `solarCycle.endingFlags`, `solarCycle.timeFracture`, `solarCycle.arcProgress`, `solarCycle.questScheduler`, `soloGM.*`, and solo save envelope/checkpoint metadata keys.
+
+---
+
+## STEP 7 - CHARACTER BOOTSTRAP, ORIGIN HOOKS, AND PROFESSION WEB (ZERO AMBIGUITY PASS)
+
+This chapter codifies the first-session character pipeline and progression web exactly as runtime executes.
+Every rule block uses this schema:
+
+- Trigger
+- Input Dice
+- Resolution
+- Consequence
+- Log Line format
+
+> [BOXED CALLOUT]
+> Step 7 journal token standard follows Step 3 and Step 4 grammar: lowercase event token + colon segments.
+> Runtime-authentic anchors include: `S.characterBuildGuide`, `S.originMissionInitialized`, `S.backstory.*`, `S.backstory.mapMarkers`, `S.backstory.anchorPlacement`, `S.solarCycleLegacy.raidPoints`, `S.solarCycleLegacy.raidMedals`, and `S.solarCycleLegacy.raidTreeRanks`.
+
+> [CODE-TRUTH NOTE]
+> Core Step 7 code path: `generateCharacter` -> `generateBackstory` -> `createOriginMissionFromReason` -> guided steps via `runCharacterBuildStep` -> progression buys via `buyTitanRaidNode` and `buyLegacyRaidTreeNode`.
+
+---
+
+### I. Character Bootstrap Pipeline
+
+#### Rule Block S7-1: Full Wayfarer Generation Sequence
+
+- Trigger: Player presses `Start New Wayfarer` or `Generate Wayfarer`.
+- Input Dice:
+   1. Random picks for identity, motive, flavor, mutation, and age band.
+   2. Soul array and stat assignment rolls.
+   3. Credits roll `2d6 * 10`.
+- Resolution:
+   1. Reset run progress state.
+   2. Roll identity fields in order: name, career, background.
+   3. Roll age band and set character years from band mapping.
+   4. Roll omen, reason, flavor, mutation, random item, soul array, backpack, and full traits.
+   5. Auto-assign stat array.
+   6. Set `Valor` to one of `4/6/8` by random pick.
+   7. Initialize economy and pressure counters (`credits`, `health`, `renown`, `stress`, `trauma`, `pathTokens`, `tmw`, `successRolls`).
+   8. Clear all conditions and trauma-condition booleans.
+   9. Sync all UI/stat panels.
+   10. Attempt backstory generation as non-blocking best effort.
+   11. Attempt origin mission creation after state is fully initialized.
+- Consequence:
+   1. A legal fresh character exists with synchronized sheet state.
+   2. Backstory and origin mission hooks are immediately eligible.
+- Log Line format: `wayfarer-generated:full:auto-origin:<yes|no>`
+
+#### Rule Block S7-2: Character Clear and Hard Reset
+
+- Trigger: Player presses `Clear` or guided build starts with force clear.
+- Input Dice: None.
+- Resolution:
+   1. If unsaved changes exist and clear is not forced, open confirm gate.
+   2. On clear, reset run progress and erase core sheet fields.
+   3. Zero resources and pressure tracks.
+   4. Reset equipment/backpack and immediate combat-facing values.
+- Consequence:
+   1. Prior run state is removed from active sheet context.
+   2. Guided build may begin from a clean state.
+- Log Line format: `wayfarer-cleared:<forced|confirmed>`
+
+---
+
+### II. Guided Build and Onboarding Law
+
+#### Rule Block S7-3: Guided Build Initialization
+
+- Trigger: Player presses `Guided Build` or `First-Time Guided Path`.
+- Input Dice: None.
+- Resolution:
+   1. Force clear character.
+   2. Initialize `S.characterBuildGuide={startedAt,steps:{}}`.
+   3. Sync character fields.
+   4. Set status line to guided-start message.
+   5. Emit guided-start notification.
+- Consequence:
+   1. Step-by-step builder becomes canonical entry flow.
+   2. Onboarding handoff to how-to tab is valid.
+- Log Line format: `guided-build:start:<timestamp>`
+
+#### Rule Block S7-4: Guided Step 1-5 Execution
+
+- Trigger: Player presses one of guided buttons: `identity`, `origin`, `persona`, `loadout`, `stats`.
+- Input Dice:
+   1. Identity step: random identity rolls.
+   2. Origin step: age band + omen/reason rolls.
+   3. Persona step: flavor + mutation rolls.
+   4. Loadout step: random item + backpack roll.
+   5. Stats step: soul array + auto-assign + random `Valor` in `4/6/8`.
+- Resolution:
+   1. Execute only requested step payload.
+   2. Stamp `S.characterBuildGuide.steps[stepId]=timestamp`.
+   3. Update guided status line with step-complete text.
+   4. Re-sync all displays/counters after step.
+- Consequence:
+   1. Builder supports deterministic staged generation with manual edits between steps.
+   2. Partial completion state is persisted in guide metadata.
+- Log Line format: `guided-build:step:<stepId>:done`
+
+#### Rule Block S7-5: Guided Finalize Execution
+
+- Trigger: Player presses guided button `finalize`.
+- Input Dice:
+   1. Trait roll package.
+   2. Credits fallback roll when credits are non-positive (`2d6 * 10`).
+- Resolution:
+   1. Roll all traits.
+   2. Normalize baseline counters (`health`, `renown`, `stress`, `trauma`, `pathTokens`, `tmw`, `successRolls`).
+   3. Rebuild trauma-condition object and clear active conditions.
+   4. Stamp finalize completion timestamp.
+   5. Trigger backstory generation.
+   6. Trigger origin mission creation with focus suppression.
+- Consequence:
+   1. Guided character exits in fully playable state.
+   2. Narrative hooks are auto-attached at finalize.
+- Log Line format: `guided-build:finalize:ready`
+
+#### Rule Block S7-6: First Session Onboarding Path
+
+- Trigger: Player follows first-session onboarding panel.
+- Input Dice: None.
+- Resolution:
+   1. Route opening to Character tab (`Begin At Character`) or direct to Missions/Map via onboarding controls.
+   2. Preserve declared first-path order: character check-in -> first objective -> travel/combat loop -> continuity save.
+   3. Permit guided build launch directly from hero panel buttons.
+- Consequence:
+   1. New players receive deterministic routing through core loops without skipping generator steps.
+   2. Campaign continuity remains anchored to save and mission handoff behavior.
+- Log Line format: `onboarding-route:<character|missions|map>`
+
+---
+
+### III. Backstory, Faction, and Map Anchor Hooks
+
+#### Rule Block S7-7: Backstory State Bootstrap
+
+- Trigger: Backstory function is called (`ensureBackstoryState` path).
+- Input Dice: None.
+- Resolution:
+   1. Ensure all `S.backstory` string fields exist.
+   2. Ensure scope marker buckets exist for `province/sea/galaxy/wtw/planet`.
+   3. Ensure anchor placement records exist for `home/connection/rival`.
+   4. Ensure anchor-state counters exist (home bond/visits, connection trust/interactions, rival sightings/movement).
+   5. Mirror legacy province markers into scoped map marker bucket when needed.
+- Consequence:
+   1. Backstory operations cannot fail due to missing nested objects.
+   2. Multi-map anchor routines are schema-safe.
+- Log Line format: `backstory-state:ensured`
+
+#### Rule Block S7-8: Generate and Apply Backstory Packet
+
+- Trigger: Player presses `Roll & Apply Backstory` or generation pipeline calls `generateBackstory`.
+- Input Dice:
+   1. Table picks for `origin`, `upbringing`, `hometown`, `faction`, `rival`, `connection`, `career`, `background`, `event`.
+- Resolution:
+   1. Roll all backstory fields.
+   2. Write default notes when notes are empty.
+   3. Apply `earlyCareer` to `S.career` and `earlyBackground` to `S.background`.
+   4. If faction value exists, attempt faction renown hook with lowercase faction key.
+   5. Populate anchor markers across all available maps.
+   6. Render backstory UI and emit completion notification.
+- Consequence:
+   1. Character sheet identity fields are rewritten from backstory output.
+   2. Faction influence receives immediate hook pressure.
+   3. Navigation world receives home/rival/connection anchors.
+- Log Line format: `backstory-generated:applied:anchors-populated`
+
+#### Rule Block S7-9: Backstory Anchor Placement and Reroll
+
+- Trigger: Anchor population routine runs or user rerolls specific anchor location.
+- Input Dice:
+   1. Candidate map scopes from currently loaded map systems.
+   2. Type-preference filter per anchor (`home`, `connection`, `rival`).
+   3. Random candidate pick within legal pool.
+- Resolution:
+   1. Build scope candidate sets from active maps.
+   2. Select legal key by anchor preference; fallback to any valid key when preferred types unavailable.
+   3. Write marker entry with icon/label/detail and update `anchorPlacement`.
+   4. For reroll, remove old anchor and assign new legal destination.
+   5. Re-render map panels and backstory panel.
+- Consequence:
+   1. Backstory anchors remain synchronized with live map availability.
+   2. Rival and connection movement stories can continue on fresh coordinates.
+- Log Line format: `backstory-anchor:<anchorId>:scope:<scope>:key:<key>`
+
+#### Rule Block S7-10: Origin Mission Creation from Reason
+
+- Trigger: Character finalize path (full generate or guided finalize) with origin creation allowed.
+- Input Dice:
+   1. Region selection from available region set (`province`, optional `galaxy`, optional `wtw`).
+   2. Region-specific location pick.
+- Resolution:
+   1. Abort when origin mission already initialized and creation is not forced.
+   2. Compute owner identity from campaign token/name and enforce owner-aware dedupe.
+   3. Abort when current owner already has active or completed origin mission.
+   4. Build mission titled `First Road: <reason>`.
+   5. Set fixed 3-step structure: `Follow the Whisper` -> `Reach the First Lead` -> `Meet the Stranger`.
+   6. Set story theme `origin`, checkpoints, and `noFactionDelta=true`.
+   7. Mark `S.originMissionInitialized=true`.
+   8. Focus to relevant region unless focus suppression is requested.
+- Consequence:
+   1. Character motive becomes a live mission contract.
+   2. Duplicate origin missions are prevented per owner profile.
+- Log Line format: `origin-mission:posted:owner:<token|local>:region:<region>`
+
+---
+
+### IV. Profession/Subclass Progression Wiring
+
+#### Rule Block S7-11: Progression Currency and Tree State Bootstrap
+
+- Trigger: Progression panel, unlock checks, or buy action touches legacy profile.
+- Input Dice: None.
+- Resolution:
+   1. Ensure `S.solarCycleLegacy` object exists.
+   2. Ensure `raidPoints`, `raidMedals`, `raidTreeRanks`, key inventories, trophy arrays, and overflow arrays exist.
+   3. Clamp points/medals/keys to non-negative values.
+- Consequence:
+   1. Profession and subclass purchases operate on normalized state.
+   2. Unlock logic can run without null-state failures.
+- Log Line format: `path-state:ensured:rp:<n>:medals:<m>`
+
+#### Rule Block S7-12: Titan Web Node Purchase Gate
+
+- Trigger: Player presses buy for a Titan-web node (`buyTitanRaidNode`).
+- Input Dice:
+   1. Currency check: `raidPoints` vs node cost (default 1).
+   2. Requirement checks: all `requires` nodes + any-of `requiresAny` gate.
+- Resolution:
+   1. Reject when node already unlocked.
+   2. Reject when point cost fails.
+   3. Reject when prerequisite gates fail.
+   4. On pass, subtract point cost and set node rank to unlocked.
+   5. Apply immediate stat/profile effects tied to node id.
+- Consequence:
+   1. Node unlock immediately alters available perks/actions and passive profile flags.
+   2. Tree panel refreshes to reflect legal next purchases.
+- Log Line format: `path-node:buy:<nodeId>:spent-rp:<n>`
+
+#### Rule Block S7-13: Root Unlock Stat Wiring
+
+- Trigger: Root-class node purchase is accepted.
+- Input Dice: None.
+- Resolution:
+   1. Apply root die upgrades and bonuses by node id:
+      - `titan_root_lead_d20` -> Lead die to d20 floor.
+      - `exile_root_control_d20` -> Control die to d20 floor.
+      - `godbound_root_defend_d20` -> Defend die to d20 floor.
+      - `voice_root` -> Spirit die to d20 floor.
+      - `keeper_root` -> Mind die to d20 floor.
+      - `titan_root_defend_plus3` -> persistent Titan defend bonus.
+   2. Stamp profile unlock flags for profession roots and subclass roots.
+   3. Refresh die displays when relevant.
+- Consequence:
+   1. Profession identity and class-floor dice become active at unlock moment.
+   2. Downstream subclass branches become legally purchasable.
+- Log Line format: `path-root:activated:<nodeId>`
+
+#### Rule Block S7-14: Hunt Specialization Unlock Hook
+
+- Trigger: Stalker hunt node purchases are accepted.
+- Input Dice: None.
+- Resolution:
+   1. On `stalker_root`, set stalker specialization unlock flag.
+   2. On `stalker_marked_prey`, set quarry specialization flag.
+   3. On `stalker_echoes_dark`, set sensory-tracking specialization flag.
+   4. On `stalker_monster_hunter`, set hunt-specialization flag for creature-type focus package.
+- Consequence:
+   1. Hunt-specialization identity is persisted in progression profile flags.
+   2. Stalker branch can be used as deterministic monster-hunt career lane.
+- Log Line format: `hunt-spec:unlock:<nodeId>`
+
+#### Rule Block S7-15: Legacy Tree Rank Purchase Gate
+
+- Trigger: Player presses buy on a legacy node (`buyLegacyRaidTreeNode`).
+- Input Dice:
+   1. Current node rank and max rank cap.
+   2. Cost packet by current rank (`points`, `medals`).
+   3. Currency check against `raidPoints` and `raidMedals`.
+- Resolution:
+   1. Reject when node is already at max rank.
+   2. Reject when required points/medals are missing.
+   3. On pass, subtract both currencies and increment rank.
+   4. Apply immediate effects:
+      - `strike_mastery` adds strike bonus by rank delta.
+      - `action_die_training` updates action-die training rank.
+      - `teamwork_feedback` sets teamwork feedback unlock flag.
+- Consequence:
+   1. Legacy progression consumes both currencies in deterministic rank steps.
+   2. Rank-based passives become immediately active.
+- Log Line format: `legacy-node:rank-up:<nodeId>:rank:<r>`
+
+#### Rule Block S7-16: Unlocked Action Projection
+
+- Trigger: Combat/raid UI requests path actions.
+- Input Dice: None.
+- Resolution:
+   1. Read Titan-web nodes with `actionId` and unlocked rank.
+   2. Project unlocked action list as selectable path actions.
+   3. Present actions in panel/select options with canonical action labels.
+- Consequence:
+   1. Purchased action nodes become usable actions rather than passive-only text.
+   2. Tables can map purchased nodes directly to legal action calls.
+- Log Line format: `path-actions:sync:<count>`
+
+---
+
+### V. One-Page Reference Frame - Step 7 Character and Progression Sheet
+
+> [REFERENCE SHEET: S7-A CHARACTER + PATH WEB LOOP]
+
+| Phase | Trigger | Input Dice | Resolution | Consequence | Log Line format |
+|---|---|---|---|---|---|
+| Full Generate | Start New Wayfarer | Identity/age/reason/stats rolls + `2d6*10` credits | Run full bootstrap sequence and sync UI | Play-ready base sheet | `wayfarer-generated:full:...` |
+| Guided Start | Guided Build button | None | Force clear + init guide metadata | Clean staged build begins | `guided-build:start:<ts>` |
+| Guided Steps | Step 1-5 buttons | Step-specific rolls | Execute single step + stamp completion | Deterministic partial build progress | `guided-build:step:<id>:done` |
+| Guided Finalize | Step 6 button | Trait + fallback credits roll | Normalize counters, clear conditions, trigger backstory + origin | Character exits ready with narrative hooks | `guided-build:finalize:ready` |
+| Backstory Apply | Roll & Apply Backstory | Backstory table rolls | Write career/background/faction and map markers | Identity + faction + map anchors linked | `backstory-generated:applied:...` |
+| Origin Mission | Finalize/generate origin hook | Region/location pick | Build owner-safe `origin_story` mission | First Road mission enters board | `origin-mission:posted:...` |
+| Titan Node Buy | Buy path node | RP + prereq gates | Spend RP, unlock node rank, apply root/profile effects | Profession/subclass lane advances | `path-node:buy:<nodeId>:...` |
+| Hunt Specialize | Unlock stalker hunt nodes | None | Set specialization profile flags | Monster-hunt branch identity active | `hunt-spec:unlock:<nodeId>` |
+| Legacy Rank Buy | Buy legacy node | RP + medal costs by rank | Spend both currencies and raise rank | Multi-rank legacy perks advance | `legacy-node:rank-up:<nodeId>:...` |
+| Action Projection | UI combat/path refresh | None | Export unlocked actionId nodes | Legal path-action list updates | `path-actions:sync:<n>` |
+
+#### Read Aloud
+
+> [READ ALOUD]
+> "You were not born into this war as a blank slate. You were rolled, scarred, anchored, and pointed at your first road. What you become after that is bought in blood, medals, and decisions."
+
+#### Margin Notes
+
+> [SIDEBAR]
+> Step 7 has three coupled loops: sheet bootstrap, narrative anchoring, and path-economy spending. If any loop is skipped, progression drift begins.
+
+> [CODE-TRUTH NOTE]
+> Canonical Step 7 keys for campaign journals: `S.characterBuildGuide.startedAt`, `S.characterBuildGuide.steps.*`, `S.originMissionInitialized`, `missionType='origin_story'`, `S.backstory.origin/upbringing/hometown/faction/rival/connection/earlyCareer/earlyBackground/lifeEvent/notes`, `S.backstory.mapMarkers.*`, `S.backstory.anchorPlacement.*`, `S.solarCycleLegacy.raidPoints`, `S.solarCycleLegacy.raidMedals`, `S.solarCycleLegacy.raidTreeRanks`, and root unlock flags such as `tactRootUnlocked`, `furyRootUnlocked`, `seekRootUnlocked`, `stalkerRootUnlocked`, `stalkerMonsterHunter`.
 

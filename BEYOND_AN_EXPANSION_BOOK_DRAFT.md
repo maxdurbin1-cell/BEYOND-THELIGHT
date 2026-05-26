@@ -16,7 +16,7 @@ This draft is written in production stages. Steps 1-3 are now codified in manusc
 - Step 3 (complete): Monster Hunting and Bounty Protocols with zero-ambiguity rule blocks.
 - Step 4 (complete): Gate Wars (Mephisto/Azrael lanes), puzzle population, and realm escalation.
 - Step 5 (complete): Colosseum mode, Soul Forge progression, and affix economy.
-- Step 6 (pending transfer): Solo Challenge frame: 100 Days until the Old Sun Dies.
+- Step 6 (complete): Solo Challenge frame: 100 Days until the Old Sun Dies.
 - Step 7 (pending transfer): Character generator and progression updates (professions, subclass roots, hunt specializations).
 
 ---
@@ -42,12 +42,11 @@ Scope law:
 
 Current status:
 
-- Complete in manuscript: Step 1, Step 2, Step 3, Step 4, Step 5.
-- Remaining for full transfer: Step 6, Step 7.
+- Complete in manuscript: Step 1, Step 2, Step 3, Step 4, Step 5, Step 6.
+- Remaining for full transfer: Step 7.
 
 Remaining transfer queue by system source:
 
-- Step 6 source cluster: solo save flow, solo GM state prompts, day-stamp pressure loops, and solo reference procedures.
 - Step 7 source cluster: character generation/state bootstrap, backstory/faction hooks, profession/subclass progression wiring, and onboarding prompts.
 
 Definition of complete:
@@ -2413,4 +2412,316 @@ Every rule block uses this schema:
 
 > [CODE-TRUTH NOTE]
 > Canonical Step 5 keys to track in campaign journals: `endgame.colosseum.history`, `endgame.colosseum.bestClearDie`, `endgame.colosseum.clears`, `soulForge.unlocked`, `soulForge.inventory[]`, `soulForge.equipped.weapon[]`, `soulForge.equipped.armor[]`, `soulForge.lastRewardAt`.
+
+---
+
+## STEP 6 - SOLO CHALLENGE: 100 DAYS UNTIL THE OLD SUN DIES (ZERO AMBIGUITY PASS)
+
+This chapter codifies solo challenge mode, New Sun day-pressure operations, solo oracle/console procedures, and solo save/recovery law.
+Every rule block uses this schema:
+
+- Trigger
+- Input Dice
+- Resolution
+- Consequence
+- Log Line format
+
+> [BOXED CALLOUT]
+> Step 6 journal token standard follows prior chapters: lowercase event token + colon segments.
+> Runtime anchors: `solarCycle`, `soloGM`, and solo save envelope/checkpoint keys.
+
+> [CODE-TRUTH NOTE]
+> Core Step 6 runtime chain: toggle solo-only New Sun mode -> start 100-day run -> day advancement hooks into `advanceDay` and starship travel -> threshold/finale pressure -> Day 100 forced ending lock; in parallel, solo GM/oracle and save recovery tools remain available.
+
+---
+
+### I. Solo Challenge Enablement and Run Bootstrap
+
+#### Rule Block S6-1: Solo-Only Mode Gate
+
+- Trigger: Player attempts to enable New Sun Solo Challenge mode.
+- Input Dice: None.
+- Resolution:
+   1. Read campaign connection state.
+   2. If active campaign room/role exists and settings are not solo, deny enable.
+   3. If solo context is legal, allow mode toggle.
+- Consequence: New Sun run cannot be activated in active campaign context unless solo mode is explicitly honored.
+- Log Line format: `new-sun-gate:<allowed|blocked>:campaign:<yes|no>`
+
+#### Rule Block S6-2: Start New Sun Run
+
+- Trigger: Solo story mode toggled ON, or explicit start command is issued.
+- Input Dice:
+   1. Arc seed pick from `relic`, `herald`, `loop` (random when auto-started).
+   2. Current game date key for run stamp.
+- Resolution:
+   1. Set `storyModeEnabled=true` and `enabled=true`.
+   2. Set `startDayKey` and reset day clock to `0/100`.
+   3. Initialize key state blocks:
+      - `worldTilt`, `prophecyTrack`, `resolvedMarkers`, `endingFlags`
+      - `timeFracture` (charges/max/scars/rewinds)
+      - `arcProgress` (stage state + marker state)
+      - `questScheduler` and playstyle counters
+   4. Seed omen/tier state and echo seed.
+   5. Sync province markers, post next arc mission, and sync scheduler.
+- Consequence: A fresh 100-day collapse run is live.
+- Log Line format: `new-sun-start:<arc>:day:0:remaining:100`
+
+#### Rule Block S6-3: Stop Run and Return to Legacy Flow
+
+- Trigger: Player disables New Sun mode.
+- Input Dice: None.
+- Resolution:
+   1. Set `enabled=false`.
+   2. Clear pending markers and active marker bindings.
+   3. Clear New Sun quest marker surfaces.
+   4. Refresh map/storyline/new-sun panels.
+- Consequence: Solo challenge pressure loop halts and legacy flow resumes.
+- Log Line format: `new-sun-stop:state-cleared`
+
+---
+
+### II. Day Pressure Engine (100-Day Doom Clock)
+
+#### Rule Block S6-4: Day Progress Hook
+
+- Trigger: Day advances through calendar systems (`advanceDay` and starship travel day registration).
+- Input Dice: Positive day delta.
+- Resolution:
+   1. Ignore if New Sun run is not active.
+   2. Add day delta to `daysElapsed` with clamp to `[0..100]`.
+   3. Compute `daysRemaining = 100 - daysElapsed`.
+   4. Recompute `worldTilt` from day quartiles, then raise by paradox strain pressure when higher.
+   5. Recompute tier band and current omen text.
+   6. If rewinds were used, replace omen text with fracture marker text.
+- Consequence: Every travel/time advancement pushes deterministic solo apocalypse pressure.
+- Log Line format: `new-sun-day:<elapsed>:remaining:<left>:tier:<tier>`
+
+#### Rule Block S6-5: Tier Band and Threshold Notifications
+
+- Trigger: Day state updates after progression.
+- Input Dice: Day count only.
+- Resolution:
+   1. Tier mapping:
+      - `early`: Day 1-34
+      - `mid`: Day 35-69
+      - `late`: Day 70-89
+      - `terminal`: Day 90-100
+   2. Push threshold notice exactly once each at days `25`, `50`, `75`, `90`, `100`.
+   3. Add prophecy log line when tier changes.
+- Consequence: Omen cadence escalates on fixed milestones with no ambiguity.
+- Log Line format: `new-sun-threshold:day:<n>:<info|warn>`
+
+#### Rule Block S6-6: Day 100 Forced Finale Lock
+
+- Trigger: `daysElapsed >= 100` during active run.
+- Input Dice: None.
+- Resolution:
+   1. If finale already forced, do nothing.
+   2. Set `endingFlags.forcedFinaleTriggered=true`.
+   3. Emit Day 100 warning notification.
+   4. Append prophecy line for auto-trigger source.
+   5. Call ending resolver with force override.
+- Consequence: Day 100 always hard-locks into ending resolution.
+- Log Line format: `new-sun-finale-lock:day:100:auto`
+
+#### Read Aloud
+
+> [READ ALOUD]
+> "The clock does not care what you meant to do tomorrow. On Day 100, intention expires."
+
+---
+
+### III. Arc Mission and Branch Control Law
+
+#### Rule Block S6-7: Arc Mission Posting Gate
+
+- Trigger: Player syncs/posts next New Sun arc mission.
+- Input Dice: None.
+- Resolution:
+   1. Abort if run inactive.
+   2. Sync completed arc missions into `arcProgress`.
+   3. Abort when pending branch choice is unresolved.
+   4. Abort when all stages are complete.
+   5. If current stage mission already active, bind to active id and return it.
+   6. Else create mission type `solar_cycle_arc` for current stage and mark posted.
+- Consequence: Arc progression posts one legal stage at a time and enforces branch order.
+- Log Line format: `new-sun-arc-posted:<stageId>:index:<n>`
+
+#### Rule Block S6-8: Branch Choice Resolution
+
+- Trigger: Player picks branch choice on pending branch point.
+- Input Dice: None.
+- Resolution:
+   1. Validate branch id and choice id.
+   2. Reject out-of-sequence branch resolution.
+   3. Persist choice in `arcProgress.branchChoices`.
+   4. Apply deltas:
+      - `worldTiltDelta`
+      - paradox strain delta
+      - optional Teamwork meter delta
+      - prophecy insertion
+   5. Emit world consequence packet tied to branch route.
+   6. Stamp irreversible tags for canonical branch outcomes.
+- Consequence: Branch decisions permanently alter pressure vectors and ending math.
+- Log Line format: `new-sun-branch:<branchId>:choice:<choiceId>`
+
+#### Rule Block S6-9: Ending Resolution Gate and Override
+
+- Trigger: Player resolves ending or forced finale state executes.
+- Input Dice: None.
+- Resolution:
+   1. Allow resolution only if:
+      - all stages complete, or
+      - forced finale lock is active.
+   2. If branch is pending and no deadline override, block resolution.
+   3. If Day 100/forced override exists, lock pending branch and continue.
+   4. Choose ending key from current profile and apply ending rewards.
+   5. Mark run ended (`enabled=false`) and persist finale fields.
+- Consequence: Endings cannot be claimed early, but Day 100 always breaks deadlocks.
+- Log Line format: `new-sun-ending:<endingKey>:forced:<yes|no>`
+
+---
+
+### IV. Time Fracture (Limited Rewind with Persistent Scars)
+
+#### Rule Block S6-10: Rewind Eligibility Gate
+
+- Trigger: Player invokes Time Fracture.
+- Input Dice: None.
+- Resolution:
+   1. Reject if no active New Sun run.
+   2. Reject if fracture charges are `<=0`.
+   3. Reject if elapsed days are below 7.
+   4. Enforce fixed rewind option: full 7 days only.
+- Consequence: Rewind is a scarce, constrained emergency tool.
+- Log Line format: `fracture-gate:<allowed|blocked>:charges:<n>:day:<d>`
+
+#### Rule Block S6-11: Rewind Execution and Scar Persistence
+
+- Trigger: Rewind gate passes.
+- Input Dice: None.
+- Resolution:
+   1. Rewind calendar state by 7 days (clamped).
+   2. Decrement fracture charges; increment rewinds used.
+   3. Add paradox scars:
+      - `paradoxStrain += 7`
+      - `lastRewindDays = 7`
+      - `tmwBurnTotal += 1`
+      - rotate fracture echo arc marker
+   4. Consume 1 Teamwork meter.
+   5. Increment storyline paradox marks.
+   6. Seed pending echo marker for near-future day.
+   7. Resync markers/UI and stamp irreversible tag `fracture_used`.
+- Consequence: Rewind reopens time but never removes meta-cost.
+- Log Line format: `fracture-used:rewind:7:strain:<n>:charges:<n>`
+
+---
+
+### V. Solo GM Console and Oracle Procedures
+
+#### Rule Block S6-12: Solo GM Console Loop
+
+- Trigger: Player opens Solo GM console.
+- Input Dice:
+   1. Choice risk check gate (risky choice or forced risky cadence).
+   2. Stat die vs dynamic dread for risky choice.
+- Resolution:
+   1. Maintain loop state: arc beat, objective, tab visit counters.
+   2. On risky choice: roll selected stat die vs dread `6 + floor(weirdness/2)` (capped by implementation math).
+   3. On success: increase rumor/weirdness track and advance beat.
+   4. On failure: apply failure consequence package and increase heat.
+   5. Rotate arc every five interactions.
+- Consequence: Solo play gets deterministic micro-scene generation with escalating tone.
+- Log Line format: `solo-gm-choice:<choiceId>:<success|failure>:weird:<n>:heat:<n>`
+
+#### Rule Block S6-13: Objective Completion and Reward
+
+- Trigger: Solo GM objective check resolves as complete.
+- Input Dice: None.
+- Resolution:
+   1. Validate objective from runtime counters/tab states.
+   2. Grant reward package:
+      - Credits `25 + (weirdness*5)`
+      - +1 renown
+   3. Rotate objective.
+   4. Every fourth interaction threshold, allow arc rotation behavior.
+- Consequence: Solo objective loop gives steady economy/renown pressure relief.
+- Log Line format: `solo-objective-complete:<objectiveId>:credits:<n>:renown:+1`
+
+#### Rule Block S6-14: Oracle Query Procedure
+
+- Trigger: Player runs oracle action (`yesno`, `twist`, `prompt`, `pressure`, `consequence`).
+- Input Dice: d6 tables (single or paired depending on oracle type).
+- Resolution:
+   1. Roll on selected oracle table.
+   2. Persist last question, kind, and result.
+   3. Push result into oracle history (max 8 records).
+   4. Re-render oracle panel with current and recent outputs.
+- Consequence: Solo adjudication prompts stay consistent and replayable.
+- Log Line format: `solo-oracle:<kind>:roll:<d6...>:result:<token>`
+
+---
+
+### VI. Solo Save, Checkpoint, and Recovery Law
+
+#### Rule Block S6-15: Save Envelope + Checkpoint Write
+
+- Trigger: Player executes save command.
+- Input Dice: None.
+- Resolution:
+   1. Sync character state from current fields.
+   2. Build save envelope with schema/checksum/data.
+   3. Detach large media payloads into media envelope key.
+   4. Write primary save and backup mirror.
+   5. Write rotating checkpoint history (up to configured limit).
+   6. Stamp last-loaded checksum for dirty-state detection.
+- Consequence: Solo progression has integrity checks with rolling recovery points.
+- Log Line format: `solo-save:primary:ok:checkpoint:<ok|warn>`
+
+#### Rule Block S6-16: Load Fallback and Recovery Center
+
+- Trigger: Player executes load or recovery action.
+- Input Dice: None.
+- Resolution:
+   1. Attempt primary envelope and checksum validation.
+   2. If invalid, quarantine corrupt payload and load backup.
+   3. Expose checkpoint slot restore options and backup promotion.
+   4. Support import/export envelope flow with integrity checks.
+   5. Save health panel reports primary/backup/checkpoint validity and timestamps.
+- Consequence: Corruption or bad imports fail safely with operational recovery tools.
+- Log Line format: `solo-load:<primary|backup|checkpoint|import>:<success|fail>`
+
+---
+
+### VII. One-Page Reference Frame - Step 6 Solo Challenge Sheet
+
+> [REFERENCE SHEET: S6-A SOLO CHALLENGE + 100-DAY CLOCK]
+
+| Phase | Trigger | Input Dice | Resolution | Consequence | Log Line format |
+|---|---|---|---|---|---|
+| Mode Gate | Toggle New Sun | Campaign/solo state | Allow or block solo challenge | Valid solo-only activation | `new-sun-gate:<state>` |
+| Run Start | Enable New Sun | Arc seed + day key | Initialize run state blocks | 100-day run begins | `new-sun-start:<arc>:day:0` |
+| Day Tick | `advanceDay`/travel days | Day delta | Update elapsed/remaining/tier/omen | Doom clock advances | `new-sun-day:<d>:remaining:<r>` |
+| Threshold Hit | Day >= 25/50/75/90/100 | Day count | One-time threshold notice and prophecy updates | Escalation warnings | `new-sun-threshold:day:<n>` |
+| Day 100 Lock | Day reaches 100 | None | Force finale trigger and resolve ending | No further delay possible | `new-sun-finale-lock:day:100` |
+| Arc Post | Sync marker mission | None | Post next legal stage mission | Arc route continues | `new-sun-arc-posted:<stageId>` |
+| Branch Choice | Branch selection | None | Persist choice + apply deltas + tags | Route and ending weights shift | `new-sun-branch:<id>:choice:<id>` |
+| Time Fracture | Rewind request | Eligibility gates | Rewind 7 days + add paradox scars | Limited redo with permanent cost | `fracture-used:rewind:7:...` |
+| Solo GM Loop | Console choice | Stat die vs dynamic dread | Resolve beat success/failure | Rumor/heat/weirdness evolve | `solo-gm-choice:<id>:<result>` |
+| Oracle Pull | Oracle action | d6 table roll(s) | Produce/adopt oracle prompt | Deterministic solo adjudication | `solo-oracle:<kind>:...` |
+| Save Recovery | Save/load/recovery action | None | Envelope checks, backup fallback, checkpoints | Integrity-preserving persistence | `solo-save|solo-load:...` |
+
+#### Read Aloud
+
+> [READ ALOUD]
+> "You are not racing to victory. You are racing a dying sky, a fragile ledger, and the parts of yourself that remember other timelines."
+
+#### Margin Notes
+
+> [SIDEBAR]
+> Step 6 has two linked loops: narrative pressure (100-day New Sun) and operator reliability (save/checkpoint/recovery discipline). Ignoring either one shortens the run.
+
+> [CODE-TRUTH NOTE]
+> Canonical Step 6 keys for campaign journals: `solarCycle.storyModeEnabled`, `solarCycle.enabled`, `solarCycle.daysElapsed`, `solarCycle.daysRemaining`, `solarCycle.worldTilt`, `solarCycle.currentTier`, `solarCycle.currentOmen`, `solarCycle.thresholdNotifs[]`, `solarCycle.endingFlags`, `solarCycle.timeFracture`, `solarCycle.arcProgress`, `solarCycle.questScheduler`, `soloGM.*`, and solo save envelope/checkpoint metadata keys.
 

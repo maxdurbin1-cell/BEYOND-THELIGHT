@@ -118,6 +118,31 @@ nav{grid-column:1 / -1;display:flex;gap:.32rem;flex-wrap:wrap;align-items:center
 @media (max-width:900px){.global-quick-access{top:var(--quick-access-top, 8.2rem);padding:.35rem .6rem;}}
 .section-title{font-family:'Cinzel',serif;font-size:.84rem;letter-spacing:.18em;text-transform:uppercase;color:var(--gold2);margin-bottom:.85rem;padding-bottom:.45rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.4rem;font-weight:700;}
 .section-title::before{content:'';width:3px;height:.7rem;background:var(--gold);opacity:.6;flex-shrink:0;}
+.tab-panel[id="tab-character"] .section-title,
+.tab-panel[id="tab-combat"] .section-title,
+.tab-panel[id="tab-missions"] .section-title,
+.tab-panel[id="tab-map"] .section-title,
+.tab-panel[id="tab-dice"] .section-title{font-size:.88rem;letter-spacing:.14em;margin-bottom:.68rem;}
+.tab-panel[id="tab-character"] .card,
+.tab-panel[id="tab-combat"] .card,
+.tab-panel[id="tab-missions"] .card,
+.tab-panel[id="tab-map"] .card,
+.tab-panel[id="tab-dice"] .card{padding:.9rem .88rem;}
+.tab-panel[id="tab-character"] .form-row,
+.tab-panel[id="tab-combat"] .form-row,
+.tab-panel[id="tab-missions"] .form-row,
+.tab-panel[id="tab-map"] .form-row,
+.tab-panel[id="tab-dice"] .form-row{margin-bottom:.72rem;}
+.tab-panel[id="tab-character"] .sub-label,
+.tab-panel[id="tab-combat"] .sub-label,
+.tab-panel[id="tab-missions"] .sub-label,
+.tab-panel[id="tab-map"] .sub-label,
+.tab-panel[id="tab-dice"] .sub-label{font-size:.76rem;color:var(--muted3);}
+.tab-panel[id="tab-character"] .stat-sub,
+.tab-panel[id="tab-combat"] .stat-sub,
+.tab-panel[id="tab-missions"] .campaign-muted,
+.tab-panel[id="tab-map"] .province-info-intro,
+.tab-panel[id="tab-dice"] .sea-note{font-size:.79rem;line-height:1.62;color:var(--muted2);}
 .sub-label{font-family:'Cinzel',serif;font-size:.74rem;letter-spacing:.1em;color:var(--muted2);text-transform:uppercase;display:block;margin-bottom:.32rem;font-weight:600;}
 .card{background:linear-gradient(180deg,rgba(17,19,36,.96) 0%,rgba(12,14,28,.98) 100%);border:1px solid rgba(72,79,120,.42);padding:.78rem;border-radius:12px;box-shadow:0 10px 26px rgba(0,0,0,.2),inset 0 0 0 1px rgba(255,255,255,.02);}
 .btn{background:transparent;border:1px solid var(--border2);color:var(--text2);font-family:'Rajdhani',sans-serif;font-size:.95rem;font-weight:600;letter-spacing:.08em;padding:.48rem 1.05rem;cursor:pointer;text-transform:uppercase;transition:all .15s;white-space:nowrap;min-height:2.4rem;border-radius:10px;}
@@ -21805,6 +21830,7 @@ window.addEventListener('DOMContentLoaded', function() {
     if(typeof S.quickPanel.flatMod!=='number')S.quickPanel.flatMod=0;
     if(typeof S.quickPanel.advMode!=='string')S.quickPanel.advMode='normal';
     if(typeof S.quickPanel.advDie!=='number')S.quickPanel.advDie=6;
+    if(typeof S.quickPanel.advDieSource!=='string')S.quickPanel.advDieSource='valor';
     if(typeof S.quickPanel.notes!=='string')S.quickPanel.notes='';
     if(typeof S.quickPanel.quickEnemyDread!=='number')S.quickPanel.quickEnemyDread=(S.combat&&S.combat.enemyDread)||8;
     if(typeof S.quickPanel.lastCombatRoll!=='string')S.quickPanel.lastCombatRoll='No combat roll yet.';
@@ -21895,12 +21921,17 @@ window.addEventListener('DOMContentLoaded', function() {
   function qpRollWithAdvMode(die){
     ensureQPState();
     var mode=(document.getElementById('qpAdvMode')||{}).value||'normal';
+    var advSource=(document.getElementById('qpAdvDieSource')||{}).value||'valor';
     var advDie=parseInt((document.getElementById('qpAdvDie')||{}).value,10);
+    if(advSource==='valor'){
+      advDie=(typeof getValorDieSize==='function') ? getValorDieSize() : Math.max(4, Number((S&&S.stats&&S.stats.valor)||4));
+    }
     if(isNaN(advDie))advDie=6;
     var flat=parseInt((document.getElementById('qpFlatMod')||{}).value,10);
     if(isNaN(flat))flat=0;
     S.quickPanel.advMode=mode;
     S.quickPanel.advDie=advDie;
+    S.quickPanel.advDieSource=advSource;
     S.quickPanel.flatMod=flat;
     var r1=qpRoll(die),r2=null,total=r1;
     if(mode==='adv'||mode==='dis'){
@@ -21908,7 +21939,7 @@ window.addEventListener('DOMContentLoaded', function() {
       total=(mode==='adv')?Math.max(r1,r2):Math.min(r1,r2);
     }
     total+=flat;
-    return {mode:mode,r1:r1,r2:r2,total:total,flat:flat,advDie:advDie};
+    return {mode:mode,r1:r1,r2:r2,total:total,flat:flat,advDie:advDie,advSource:advSource,advLabel:(advSource==='valor'?'Valor d'+advDie:'d'+advDie)};
   }
 
   function qpRenderDiceResults(){
@@ -21933,7 +21964,7 @@ window.addEventListener('DOMContentLoaded', function() {
       var relicTotal = (typeof sumAdventureBonusRolls==='function') ? sumAdventureBonusRolls(relicRolls) : 0;
       var radPenalty = (typeof getRadPenaltyForStat==='function') ? getRadPenaltyForStat(statKey) : 0;
       var finalTotal = Math.max(0, rr.total + Number(wpBonus.flat||0) + Number(queuedValor.total||0) + Number(wpValor&&wpValor.total||0) + relicTotal - radPenalty);
-      var detail = rr.r2===null ? ('d'+die+'='+rr.r1) : ('d'+die+' vs d'+rr.advDie+' ['+rr.r1+', '+rr.r2+'] '+(rr.mode==='adv'?'adv':'dis'));
+      var detail = rr.r2===null ? ('d'+die+'='+rr.r1) : ('d'+die+' vs '+rr.advLabel+' ['+rr.r1+', '+rr.r2+'] '+(rr.mode==='adv'?'adv':'dis'));
       var detail2 = rr.flat ? (' <span style="color:var(--gold2);">'+(rr.flat>0?'+':'')+rr.flat+'</span>') : '';
       var detailWp = Number(wpBonus.flat||0) ? (' <span style="color:var(--gold2);">weapon '+(Number(wpBonus.flat||0)>0?'+':'')+Number(wpBonus.flat||0)+'</span>') : '';
       var detailQv = Number(queuedValor.total||0) ? (' <span style="color:var(--gold2);">queued V.D. +'+Number(queuedValor.total||0)+'</span>') : '';
@@ -23297,6 +23328,7 @@ window.addEventListener('DOMContentLoaded', function() {
       return '<button class="btn btn-xs" onclick="qpRollDie('+d+')" style="font-size:.62rem;padding:.2rem .4rem;">d'+d+'</button>';
     });
     var dreadDie = (S.combat && S.combat.enemyDread) ? S.combat.enemyDread : 8;
+    var valorDie = (typeof getValorDieSize==='function') ? getValorDieSize() : Math.max(4, Number((S&&S.stats&&S.stats.valor)||4));
     var tmwPool=Math.max(0,Number(S.tmw||0));
     var dreadOptions = [4,6,8,10,12,20].map(function(d){
       return '<button class="btn btn-xs'+(d===dreadDie?' btn-primary':'')+'" onclick="qpSetDreadDie('+d+')" style="font-size:.6rem;padding:.15rem .35rem;">d'+d+'</button>';
@@ -23308,9 +23340,10 @@ window.addEventListener('DOMContentLoaded', function() {
       + '<div style="display:flex;flex-wrap:wrap;gap:.25rem;">' + rows.join('') + '</div></div>'
       + '<div style="display:flex;gap:.25rem;align-items:center;flex-wrap:wrap;margin-bottom:.4rem;">'
       + '<select id="qpAdvMode" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.2rem .3rem;font-size:.72rem;"><option value="normal"'+(S.quickPanel.advMode==='normal'?' selected':'')+'>Normal</option><option value="adv"'+(S.quickPanel.advMode==='adv'?' selected':'')+'>Advantage</option><option value="dis"'+(S.quickPanel.advMode==='dis'?' selected':'')+'>Disadvantage</option></select>'
+      + '<select id="qpAdvDieSource" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.2rem .3rem;font-size:.72rem;"><option value="valor"'+((S.quickPanel.advDieSource||'valor')==='valor'?' selected':'')+'>Valor d'+valorDie+'</option><option value="manual"'+((S.quickPanel.advDieSource||'valor')==='manual'?' selected':'')+'>Manual Die</option></select>'
       + '<select id="qpAdvDie" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.2rem .3rem;font-size:.72rem;">'+[4,6,8,10,12,20].map(function(d){return '<option value="'+d+'"'+(d===S.quickPanel.advDie?' selected':'')+'>d'+d+'</option>';}).join('')+'</select>'
       + '<input id="qpFlatMod" type="number" value="'+(S.quickPanel.flatMod||0)+'" min="-20" max="20" style="width:4rem;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.18rem .3rem;font-size:.72rem;"/>'
-      + '<span style="font-size:.68rem;color:var(--muted2);">Adv/Dis Die + Flat Mod</span>'
+      + '<span style="font-size:.68rem;color:var(--muted2);">Adv/Dis uses Valor Die by default + Flat Mod</span>'
       + '</div>'
       + '<div style="margin-bottom:.42rem;padding:.32rem .36rem;border:1px solid var(--border2);background:rgba(255,255,255,.02);">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;">'

@@ -79,6 +79,9 @@
     lastPlayerDockSeed: "",
     lastDockActorKey: "",
     dockActorFlashUntil: 0,
+    dockTimelinePinned: false,
+    dockTimelineUnseen: 0,
+    lastDockTimelineEntryKey: "",
     tableSceneMode: "auto",
     effectiveTableSceneMode: "exploration",
     timelineFilterManual: false
@@ -4488,6 +4491,7 @@
       + '<div id="campaignDockFilters" class="campaign-dock-filters"></div>'
       + '<div id="campaignDockTrigger" class="campaign-dock-roll campaign-dock-trigger"></div>'
       + '<div id="campaignDockTimeline" class="campaign-dock-timeline"></div>'
+      + '<div id="campaignDockTimelineActions" class="campaign-dock-timeline-actions"></div>'
       + '<div class="campaign-dock-chat">'
       + '<input id="campaignDockChatInput" class="campaign-dock-input" type="text" maxlength="500" placeholder="Type campaign chat...">'
       + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.sendChatMessage()">Send</button>'
@@ -4564,6 +4568,7 @@
     var filters = document.getElementById("campaignDockFilters");
     var trigger = document.getElementById("campaignDockTrigger");
     var lock = document.getElementById("campaignDockLock");
+    var timelineActions = document.getElementById("campaignDockTimelineActions");
 
     var campaign = state.campaign;
     var active = campaign && campaign.activeRollRequest;
@@ -4780,13 +4785,62 @@
         shared && Array.isArray(shared.sessionTimeline) ? shared.sessionTimeline : []
       );
       var filtered = filterTimeline(combinedSource);
+      var latestEntry = filtered.length ? filtered[filtered.length - 1] : null;
+      var latestEntryKey = latestEntry ? getTimelineEntryKey(latestEntry) : "";
+      var hasNewEntry = !!(latestEntryKey && latestEntryKey !== state.lastDockTimelineEntryKey);
+      var shouldStickToBottom = !state.dockTimelinePinned && oldScrollBottom < 52;
       timeline.innerHTML = renderDockTimeline(filtered);
+      if (!timeline._campaignScrollBound) {
+        timeline.addEventListener("scroll", function () {
+          var distance = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight;
+          var nearBottom = distance < 44;
+          if (nearBottom) {
+            if (state.dockTimelinePinned || state.dockTimelineUnseen) {
+              state.dockTimelinePinned = false;
+              state.dockTimelineUnseen = 0;
+              renderDockPanel();
+            }
+            return;
+          }
+          state.dockTimelinePinned = true;
+        });
+        timeline._campaignScrollBound = true;
+      }
       var newLogSize = campaign && Array.isArray(campaign.log) ? campaign.log.length : 0;
-      if (oldScrollBottom < 40 || newLogSize !== state.lastDockLogSize) {
+      if (shouldStickToBottom || (newLogSize !== state.lastDockLogSize && oldScrollBottom < 120 && !state.dockTimelinePinned)) {
         timeline.scrollTop = timeline.scrollHeight;
+        state.dockTimelineUnseen = 0;
+      } else if (hasNewEntry && state.dockTimelinePinned) {
+        state.dockTimelineUnseen = Math.min(99, Number(state.dockTimelineUnseen || 0) + 1);
       }
       state.lastDockLogSize = newLogSize;
+      state.lastDockTimelineEntryKey = latestEntryKey;
     }
+
+    if (timelineActions) {
+      var badge = state.dockTimelineUnseen > 0 ? (' <span class="campaign-dock-unseen-badge">+' + state.dockTimelineUnseen + '</span>') : "";
+      timelineActions.innerHTML = ""
+        + '<button class="btn btn-xs ' + (state.dockTimelinePinned ? 'btn-teal' : '') + '" onclick="window.campaignSystem.toggleDockTimelinePin()">'
+        + (state.dockTimelinePinned ? 'Auto-scroll Off' : 'Auto-scroll On')
+        + '</button>'
+        + '<button class="btn btn-xs" onclick="window.campaignSystem.jumpDockTimelineLatest()">Jump To Latest' + badge + '</button>';
+    }
+  }
+
+  function toggleDockTimelinePin() {
+    state.dockTimelinePinned = !state.dockTimelinePinned;
+    if (!state.dockTimelinePinned) state.dockTimelineUnseen = 0;
+    renderDockPanel();
+  }
+
+  function jumpDockTimelineLatest() {
+    var timeline = document.getElementById("campaignDockTimeline");
+    if (timeline) {
+      timeline.scrollTop = timeline.scrollHeight;
+    }
+    state.dockTimelinePinned = false;
+    state.dockTimelineUnseen = 0;
+    renderDockPanel();
   }
 
   function syncDockOffset(root) {
@@ -5208,23 +5262,35 @@
   }
 
   async function callRollRequest() {
-    if (!state.socket) {
-      safeNotif("Only connected GM can call campaign rolls.", "warn");
-      return;
-    }
-    if (!guardAction("callRoll", "Only connected GM can call campaign rolls.")) return;
-    if (!guardRiskySharedAction("call roll request")) return;
-
     var label = readUiValue("campaignRollLabel").trim() || "Dread Check";
     var stat = readUiValue("campaignRollStat").trim().toLowerCase() || "valor";
     var dread = Math.max(1, Number(readUiValue("campaignRollDread") || 8));
 
-    var res = await emitWithAck("campaign:rollRequest", { label: label, stat: stat, dread: dread });
+    return requestRollPrompt(label, stat, dread, "");
+  }
+
+  async function requestRollPrompt(label, stat, dread, targetToken) {
+    if (!state.socket) {
+      safeNotif("Only connected GM can call campaign rolls.", "warn");
+      return { ok: false, error: "Not connected." };
+    }
+    if (!guardAction("callRoll", "Only connected GM can call campaign rolls.")) return { ok: false, error: "Not allowed." };
+    if (!guardRiskySharedAction("call roll request")) return { ok: false, error: "Cancelled." };
+
+    var nextLabel = String(label || "Dread Check").trim() || "Dread Check";
+    var nextStat = String(stat || "valor").trim().toLowerCase() || "valor";
+    var nextDread = Math.max(1, Number(dread || 8));
+    var payload = { label: nextLabel, stat: nextStat, dread: nextDread };
+    var target = String(targetToken || "").trim();
+    if (target) payload.targetToken = target;
+
+    var res = await emitWithAck("campaign:rollRequest", payload);
     if (!res.ok) {
       safeNotif(res.error || "Could not create roll request.", "warn");
-      return;
+      return res || { ok: false, error: "Could not create roll request." };
     }
     safeNotif("Roll request sent to campaign.", "good");
+    return res;
   }
 
   async function closeActiveRoll() {
@@ -6060,6 +6126,7 @@
     syncProvinceFocus: syncProvinceFocus,
     showOnboarding: showOnboarding,
     requestResync: requestResync,
+    requestRollPrompt: requestRollPrompt,
     exportSnapshot: exportSnapshot,
     importSnapshotPrompt: importSnapshotPrompt,
     importSnapshotFromModal: importSnapshotFromModal,
@@ -6067,6 +6134,8 @@
     restoreRecentDockChat: restoreRecentDockChat,
     toggleDock: toggleDock,
     openDock: openDock,
+    toggleDockTimelinePin: toggleDockTimelinePin,
+    jumpDockTimelineLatest: jumpDockTimelineLatest,
     recordEconomyDelta: recordEconomyDelta,
     toggleStrictTeamworkMode: function() {
       var enabled = false;

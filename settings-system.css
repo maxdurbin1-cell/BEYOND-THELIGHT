@@ -885,7 +885,7 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
 
 .campaign-dock.open .campaign-dock-panel {
   display: grid;
-  grid-template-rows: auto auto auto auto auto auto auto auto 1fr auto;
+  grid-template-rows: auto auto auto auto auto auto auto auto 1fr auto auto;
 }
 
 .campaign-dock-head {
@@ -1107,15 +1107,37 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
   display: flex;
   flex-direction: column;
   gap: 0.26rem;
+  font-size: 0.76rem;
+  line-height: 1.42;
+}
+
+.campaign-dock-timeline-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.24rem;
+  padding: 0.3rem 0.58rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(9, 13, 19, 0.74);
+}
+
+.campaign-dock-unseen-badge {
+  color: var(--gold2);
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
 }
 
 .campaign-dock-line {
   display: grid;
   grid-template-columns: auto 1fr auto;
   gap: 0.36rem;
-  align-items: baseline;
-  font-size: 0.72rem;
+  align-items: start;
+  font-size: 0.76rem;
   color: var(--text2);
+}
+
+.campaign-dock-text {
+  line-height: 1.4;
+  word-break: break-word;
 }
 
 .campaign-dock-line.chat .campaign-dock-kind {

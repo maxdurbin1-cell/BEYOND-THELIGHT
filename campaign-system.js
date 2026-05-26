@@ -4594,6 +4594,7 @@
       + '<div id="campaignDockTimelineActions" class="campaign-dock-timeline-actions"></div>'
       + '<div class="campaign-dock-chat">'
       + '<input id="campaignDockChatInput" class="campaign-dock-input" type="text" maxlength="500" placeholder="Type campaign chat...">'
+      + '<div class="campaign-dock-chat-helper">Tip: GM can run <strong>/prompt valor d6 @wayfarer breach door</strong> from chat.</div>'
       + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.sendChatMessage()">Send</button>'
       + '<button class="btn btn-xs" onclick="window.campaignSystem.clearRecentDockChat()">Clear Recent</button>'
       + '<button class="btn btn-xs" onclick="window.campaignSystem.restoreRecentDockChat()" title="Restore last cleared chat batch">Restore</button>'

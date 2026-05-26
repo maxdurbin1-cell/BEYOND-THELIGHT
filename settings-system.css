@@ -1181,6 +1181,18 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
   font-size: 0.77rem;
 }
 
+.campaign-dock-chat-helper {
+  grid-column: 1 / -1;
+  font-size: 0.64rem;
+  line-height: 1.35;
+  color: var(--muted2);
+  margin-top: -0.02rem;
+}
+
+.campaign-dock-chat-helper strong {
+  color: var(--gold2);
+}
+
 .campaign-dock-panel {
   transition: border-color 0.28s, box-shadow 0.28s, background 0.28s;
 }

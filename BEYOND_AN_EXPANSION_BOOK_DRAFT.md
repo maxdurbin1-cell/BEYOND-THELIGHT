@@ -14,8 +14,8 @@ This draft is written in production stages. Steps 1-3 are now codified in manusc
 - Step 1 (complete): Expedition Raids, encounter tables, loot architecture, and printable reference packets.
 - Step 2 (complete): Spellcasting overhaul and GM Circumstance Questions.
 - Step 3 (complete): Monster Hunting and Bounty Protocols with zero-ambiguity rule blocks.
-- Step 4 (pending transfer): Gate Wars (Mephisto/Azrael lanes), puzzle population, and realm escalation.
-- Step 5 (pending transfer): Colosseum mode, Soul Forge progression, and affix economy.
+- Step 4 (complete): Gate Wars (Mephisto/Azrael lanes), puzzle population, and realm escalation.
+- Step 5 (complete): Colosseum mode, Soul Forge progression, and affix economy.
 - Step 6 (pending transfer): Solo Challenge frame: 100 Days until the Old Sun Dies.
 - Step 7 (pending transfer): Character generator and progression updates (professions, subclass roots, hunt specializations).
 
@@ -42,13 +42,11 @@ Scope law:
 
 Current status:
 
-- Complete in manuscript: Step 1, Step 2, Step 3.
-- Remaining for full transfer: Step 4, Step 5, Step 6, Step 7.
+- Complete in manuscript: Step 1, Step 2, Step 3, Step 4, Step 5.
+- Remaining for full transfer: Step 6, Step 7.
 
 Remaining transfer queue by system source:
 
-- Step 4 source cluster: gate war and pinnacle portal mission tracks, gate closure counters, teleporter/puzzle escalation, world consequence pressure propagation.
-- Step 5 source cluster: colosseum endless tiers, Soul Forge mission unlocks, affix rewards, raid-colosseum-soul progression coupling.
 - Step 6 source cluster: solo save flow, solo GM state prompts, day-stamp pressure loops, and solo reference procedures.
 - Step 7 source cluster: character generation/state bootstrap, backstory/faction hooks, profession/subclass progression wiring, and onboarding prompts.
 
@@ -2115,4 +2113,304 @@ Every rule block uses this schema:
 
 > [CODE-TRUTH NOTE]
 > Step 4 canonical state keys for table tracking: `closedHellscape`, `closedCelestial`, `pinnacleUnlocked`, `pinnacleBoss`, `pinnacleRetries`, `kickoutPending`, `pinnacleCleared`, `portalAttempts`, `teleporterHexKey`, `teleporterTheme`, `consequenceFeed`, `activeCrises`, `economy.scarcity`, `economy.priceMultiplier`.
+
+---
+
+## STEP 5 - COLOSSEUM ENDLESS CIRCUIT, SOUL FORGE PROGRESSION, AND AFFIX ECONOMY (ZERO AMBIGUITY PASS)
+
+This chapter codifies the endgame arena loop, Soul Mission-to-Forge conversion, affix lifecycle economy, and tracker coupling.
+Every rule block uses this schema:
+
+- Trigger
+- Input Dice
+- Resolution
+- Consequence
+- Log Line format
+
+> [BOXED CALLOUT]
+> Step 5 journal token standard follows prior chapters: lowercase event token + colon segments.
+> Runtime anchors: `endgame.colosseum.{lastRollDayStamp,nextEligibleDayStamp,counter,history,bestClearDie,clears}` and `soulForge.{unlocked,inventory,equipped,lastRewardAt}`.
+
+> [CODE-TRUTH NOTE]
+> Core Step 5 flow: random endgame sync -> post `colosseum_endless` / `soul_mission` -> resolve encounter -> update endgame state -> apply loot/affix economy through Soul Forge vendor.
+
+---
+
+### I. Colosseum Endless Circuit
+
+#### Rule Block S5-1: Colosseum Spawn Eligibility
+
+- Trigger: Endgame spawn sync evaluates Colosseum events.
+- Input Dice:
+   1. Storyline post-ending gate (unless forced spawn).
+   2. Per-day cadence gate (`lastRollDayStamp`, `nextEligibleDayStamp`).
+   3. Seeded chance roll (`<=30` on 0-99 band).
+- Resolution:
+   1. Abort if storyline is not post-ending and spawn is not forced.
+   2. Abort if active unfinished `colosseum_endless` mission already exists.
+   3. Abort if same day already rolled or cooldown day not reached.
+   4. Roll seeded chance and spawn only in allowed band.
+- Consequence: Colosseum contracts appear as periodic endgame broadcasts, not constant spam.
+- Log Line format: `colosseum-roll:<dayStamp>:<spawn|no-spawn>`
+
+#### Rule Block S5-2: Tier Die and Rank Assignment
+
+- Trigger: Colosseum spawn passes eligibility.
+- Input Dice: Seeded tier selection from `[d4,d6,d8,d10,d12,d20]`.
+- Resolution:
+   1. Select one tier die.
+   2. Map die to rank and difficulty:
+      - d4 Easy / `easy`
+      - d6 Rising / `medium`
+      - d8 Veteran / `hard`
+      - d10 Brutal / `hard`
+      - d12 Apex / `very_hard`
+      - d20 Mythic / `impossible`
+   3. Select enemy title, signature move, and unique reward string.
+- Consequence: Arena contract tier has explicit threat rank and reward identity.
+- Log Line format: `colosseum-tier:<missionId>:d<tierDie>:<rank>`
+
+#### Rule Block S5-3: Post Colosseum Mission Packet
+
+- Trigger: Tier and enemy profile are finalized.
+- Input Dice: None beyond prior selections.
+- Resolution:
+   1. Create mission type `colosseum_endless`.
+   2. Assign fixed step names:
+      - Accept Arena Contract
+      - Survive Wave Bracket
+      - Defeat Arena Champion
+   3. Write checkpoints including bracket die, champion move, and unique reward.
+   4. Persist mission fields `colosseumTierDie`, `colosseumEnemyName`, `colosseumEnemySkill`, `colosseumUniqueReward`.
+   5. Set next eligible day to `+3` and increment spawn counter.
+- Consequence: Endless Sea receives a live arena contract with deterministic metadata.
+- Log Line format: `colosseum-posted:<missionId>:d<tierDie>:reward:<tag>`
+
+#### Rule Block S5-4: Colosseum Mission Resolution (Board Contract)
+
+- Trigger: `colosseum_endless` mission resolves.
+- Input Dice: Mission success boolean from confrontation flow.
+- Resolution:
+   1. On success:
+      - Increment `clears`.
+      - Update `bestClearDie = max(bestClearDie, mission tier die)`.
+      - Push success record into `history` (trim to 12).
+      - Add `colosseumUniqueReward` into mission loot packet.
+   2. On failure:
+      - Push failure record into `history` (trim to 12).
+- Consequence: Arena progression preserves best-tier evidence and run ledger.
+- Log Line format: `colosseum-resolve:<missionId>:<success|failure>:d<tierDie>`
+
+#### Rule Block S5-5: Sea Hex Quick Bout Resolution
+
+- Trigger: Players run direct Sea Colosseum bout from sea hex interaction.
+- Input Dice:
+   1. Action side: Valor die.
+   2. Opposition side: `getSeaColosseumTierDie()` threshold from clears/best history.
+- Resolution:
+   1. Compute dynamic tier gate from progression:
+      - d8 unlocked at best>=8 or clears>=3
+      - d10 unlocked at best>=10 or clears>=5
+      - d12 unlocked at best>=12 or clears>=8
+      - d20 unlocked at best>=20 or clears>=12
+      - otherwise d6 baseline
+   2. Roll action vs dread.
+   3. On success:
+      - Credits reward = `50 + (tierDie * 15)`.
+      - Increment clears and best die.
+      - Roll one loot entry by difficulty derived from tier.
+   4. Always append result into history (trim to 12).
+- Consequence: Fast arena mode feeds same progression ledger as mission-board mode.
+- Log Line format: `colosseum-bout:<hexKey>:d<tierDie>:<success|failure>:credits:<n>`
+
+#### Read Aloud
+
+> [READ ALOUD]
+> "The sea ring remembers your best day and your worst one. It only honors the first if you survive enough of the second."
+
+---
+
+### II. Soul Mission to Forge Conversion
+
+#### Rule Block S5-6: Soul Mission Spawn Eligibility
+
+- Trigger: Endgame spawn sync evaluates Soul Mission events.
+- Input Dice:
+   1. Soul-offer gate (`shouldOfferSoulMission`) unless forced.
+   2. Per-day cadence gate (`lastRollDayStamp`, `nextEligibleDayStamp`).
+   3. Seeded chance roll with renown influence.
+- Resolution:
+   1. Abort when Soul-offer gate fails and spawn is not forced.
+   2. Abort if unfinished `soul_mission` already exists.
+   3. Abort for same-day duplicate roll.
+   4. Roll seeded chance; threshold is looser after ending (`<=97`) than pre-ending (`<=92`).
+   5. Restrict preferred spawn regions to Province/Sea when available.
+- Consequence: Soul Mission cadence remains sparse, high-value, and endgame-weighted.
+- Log Line format: `soul-roll:<dayStamp>:<spawn|no-spawn>`
+
+#### Rule Block S5-7: Post Soul Mission Packet
+
+- Trigger: Soul spawn passes eligibility.
+- Input Dice: Seeded boss and icon pick from Soul pools.
+- Resolution:
+   1. Create mission type `soul_mission` with label `Soul Mission`.
+   2. Assign fixed step names:
+      - Track Soul Echo
+      - Breach the Hollow Site
+      - Take the Soul
+   3. Persist `soulBoss`, `soulIcon`, and endgame lore lock.
+   4. Emit notifications for map marker routing and challenge intent.
+   5. Emit mission consequence entry tagged `soul-mission` and `endgame`.
+- Consequence: A single soul target is published as forge progression content.
+- Log Line format: `soul-posted:<missionId>:boss:<bossName>`
+
+#### Rule Block S5-8: Soul Token Encounter Gate
+
+- Trigger: Players interact with Soul token/site marker.
+- Input Dice: None.
+- Resolution:
+   1. If Step 2 is incomplete, force Step 2 progression first.
+   2. If Step 3 already completed, reject duplicate encounter.
+   3. Otherwise open Soul Forge encounter modal with explicit fight profile.
+- Consequence: Soul boss combat can only start from legal mission phase.
+- Log Line format: `soul-token-open:<missionId>:<allowed|blocked>`
+
+#### Rule Block S5-9: Soul Popup Combat Profile
+
+- Trigger: Players press `Fight` from Soul encounter modal.
+- Input Dice: Combat rolls inside arena engine.
+- Resolution:
+   1. Seed arena flow mode `soul` with mission binding.
+   2. Force enemy profile to:
+      - Dread d12
+      - 24 HP / 24 max stress
+      - Special action `Soul Rend`
+   3. Open arena popup and run combat to hostile elimination.
+   4. On unresolved hostiles, deny reward claim.
+- Consequence: Soul rewards are gated behind completed popup boss kill.
+- Log Line format: `soul-combat:<missionId>:<opened|blocked|won>`
+
+#### Rule Block S5-10: Award Soul Affix Reward
+
+- Trigger: Soul encounter resolves as victory and mission resolves success.
+- Input Dice:
+   1. Deterministic hash from mission id length, boss string length, and mission reward.
+   2. Affix pool and tier pool indexing from hash.
+- Resolution:
+   1. Force `soulForge.unlocked=true`.
+   2. Determine target slot (`weapon` or `armor`) by hash parity.
+   3. Select affix name from Soul Forge pool.
+   4. Select tier from weighted pool (`rare`, `legendary`, `mythic`).
+   5. Set sale value by tier (`80/140/220`).
+   6. Append affix entry to forge inventory with source boss and timestamp.
+   7. Return reward label string and surface vendor UI.
+- Consequence: Soul victory converts directly into persistent affix capital.
+- Log Line format: `soul-affix-awarded:<missionId>:<affix>:<tier>:<target>`
+
+---
+
+### III. Soul Forge Vendor Economy
+
+#### Rule Block S5-11: Forge State Normalization
+
+- Trigger: Any Soul Forge operation opens vendor or mutates inventory.
+- Input Dice: None.
+- Resolution:
+   1. Ensure forge schema exists:
+      - `unlocked`
+      - `inventory[]`
+      - `equipped.weapon[]`
+      - `equipped.armor[]`
+      - `lastRewardAt`
+   2. Normalize each inventory entry fields:
+      - id, name, target, tier, sourceBoss, saleValue, equipped, slot
+   3. Enforce minimum sale value floor 20.
+- Consequence: Vendor operations remain safe across save migrations and partial data.
+- Log Line format: `soulforge-normalize:entries:<count>`
+
+#### Rule Block S5-12: Install and Remove Affix Operations
+
+- Trigger: Player clicks install/remove in Soul Forge vendor.
+- Input Dice: None.
+- Resolution:
+   1. Install validation:
+      - Affix record must exist.
+      - Slot must match affix target law (`weapon`, `armor`, or `either`).
+      - Required equipment piece must be equipped.
+   2. On install: set `equipped=true`, write `slot`, resync equipped arrays.
+   3. On remove: set `equipped=false`, clear slot, resync arrays.
+   4. Refresh vendor panels and combat stat displays after any success.
+- Consequence: Affix buildouts can be changed live with immediate rules effect.
+- Log Line format: `soulforge-install:<affixId>:<weapon|armor>|soulforge-remove:<affixId>`
+
+#### Rule Block S5-13: Sell Affix for Credits
+
+- Trigger: Player clicks `Sell` on an affix entry.
+- Input Dice: None.
+- Resolution:
+   1. Validate affix record exists.
+   2. Remove entry from inventory.
+   3. Credit payout = entry `saleValue` (minimum 20).
+   4. Add credits and refresh vendor/tracker UI.
+- Consequence: Soul rewards can be converted into direct economy liquidity.
+- Log Line format: `soulforge-sell:<affixId>:credits:<n>`
+
+---
+
+### IV. Progression Coupling and Runtime Surface
+
+#### Rule Block S5-14: Endgame Tracker Surface Sync
+
+- Trigger: Missions tab/endgame tracker renders.
+- Input Dice: None.
+- Resolution:
+   1. Render Gate War seals, Colosseum clears/best die, Soul Forge unlock state.
+   2. Render affix inventory count and active soul hunt count.
+   3. Render operations card from recent endgame history.
+- Consequence: Tables receive one-screen proof of cross-system endgame progression.
+- Log Line format: `endgame-tracker-sync:col-clears:<n>:soul-affixes:<n>`
+
+#### Rule Block S5-15: Endgame Daily Sync Loop
+
+- Trigger: Mission init/load cycle runs spawn synchronizer.
+- Input Dice: Day stamp plus seeded entropy.
+- Resolution:
+   1. Attempt Soul Mission spawn.
+   2. Attempt Colosseum spawn.
+   3. Attempt Gate War spawn.
+   4. Return created mission list for this tick.
+- Consequence: Step 4 and Step 5 systems co-propagate from one deterministic scheduler.
+- Log Line format: `endgame-sync:<dayStamp>:created:<count>`
+
+---
+
+### V. One-Page Reference Frame - Step 5 Endgame Economy Sheet
+
+> [REFERENCE SHEET: S5-A COLOSSEUM + SOUL FORGE LOOP]
+
+| Phase | Trigger | Input Dice | Resolution | Consequence | Log Line format |
+|---|---|---|---|---|---|
+| Colosseum Roll | Endgame sync tick | Post-ending gate + cadence + chance | Decide arena spawn | Trial posted or skipped | `colosseum-roll:<day>:<result>` |
+| Tier Assign | Spawn approved | Tier set `[d4..d20]` | Rank/difficulty/enemy/reward assigned | Bracket identity fixed | `colosseum-tier:<id>:d<tier>:<rank>` |
+| Arena Resolve | Mission resolves | Success boolean | Update clears, best die, history, unique reward | Endless progression advances | `colosseum-resolve:<id>:<result>:d<tier>` |
+| Sea Quick Bout | Sea hex challenge | Valor vs dynamic tier die | Win credits+loot or log loss | Same ledger progression | `colosseum-bout:<hex>:d<tier>:<result>` |
+| Soul Roll | Endgame sync tick | Soul gate + cadence + chance | Decide soul spawn | Soul hunt posted or skipped | `soul-roll:<day>:<result>` |
+| Soul Encounter | Token interact + fight | Popup combat d12/24 | Kill soul boss and resolve mission | Affix reward unlocks forge | `soul-combat:<id>:<state>` |
+| Affix Award | Soul victory | Hashed affix/tier/target | Add affix entry; unlock forge | Persistent affix capital created | `soul-affix-awarded:<id>:<affix>:<tier>:<target>` |
+| Install/Remove | Vendor click | Validation gates | Toggle equipped+slot, sync arrays | Live build tuning | `soulforge-install|soulforge-remove:<affixId>` |
+| Sell | Vendor click | Sale value | Remove affix; add credits | Liquidity from soul stock | `soulforge-sell:<affixId>:credits:<n>` |
+| Tracker Sync | UI render | None | Surface seals/clears/forge inventory | Unified endgame visibility | `endgame-tracker-sync:...` |
+
+#### Read Aloud
+
+> [READ ALOUD]
+> "Win the ring for proof. Hunt the soul for power. Then decide if power belongs on your steel or on the market."
+
+#### Margin Notes
+
+> [SIDEBAR]
+> Colosseum tracks endurance. Soul Forge tracks conversion. Together they define whether endgame momentum is combat-first or economy-first.
+
+> [CODE-TRUTH NOTE]
+> Canonical Step 5 keys to track in campaign journals: `endgame.colosseum.history`, `endgame.colosseum.bestClearDie`, `endgame.colosseum.clears`, `soulForge.unlocked`, `soulForge.inventory[]`, `soulForge.equipped.weapon[]`, `soulForge.equipped.armor[]`, `soulForge.lastRewardAt`.
 

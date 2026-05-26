@@ -23390,11 +23390,13 @@ window.addEventListener('DOMContentLoaded', function() {
   function buildQPDice() {
     if (typeof S === 'undefined') return '<div style="color:var(--muted2);">State not loaded.</div>';
     var stats = [
-      ['adventure','Adv'],['body','Body'],['mind','Mind'],['spirit','Spirit'],['lead','Lead'],
+      ['adventure','Valor'],['body','Body'],['mind','Mind'],['spirit','Spirit'],['lead','Lead'],
       ['strike','Strike'],['shoot','Shoot'],['defend','Defend'],['control','Control']
     ];
     var rows = stats.map(function(s){
-      var die = s[0]==='adventure' ? ((S.stats && S.stats.adventure) ? S.stats.adventure : 4) : ((typeof getEffectiveDie==='function') ? getEffectiveDie(s[0]) : ((S.stats && S.stats[s[0]]) ? S.stats[s[0]] : 4));
+      var die = s[0]==='adventure'
+        ? ((typeof getValorDieSize==='function') ? getValorDieSize() : Math.max(4, Number((S && S.stats && (S.stats.valor || S.stats.adventure)) || 4)))
+        : ((typeof getEffectiveDie==='function') ? getEffectiveDie(s[0]) : ((S.stats && S.stats[s[0]]) ? S.stats[s[0]] : 4));
       return '<button class="btn btn-xs btn-teal" onclick="qpRollStat(\''+s[0]+'\',\''+s[1]+'\')" style="font-size:.62rem;padding:.2rem .4rem;">'+s[1]+' d'+die+'</button>';
     });
     var freeRolls = [4,6,8,10,12,20].map(function(d){

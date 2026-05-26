@@ -1843,3 +1843,276 @@ Every rule block uses this schema:
 > Guild state fields to track in campaign journals: `currentArcStage`, `activeCampaignMissionId`, `activeContractMissionId`, `completedQuestIds`, `earnedPrepOptions`, `activePrepIds`, `contractRuns`, `bossUnlocked`, `bossDefeated`, `lastOutcome`.
 > Canonical runtime `lastOutcome` tokens: `joined`, `posted:<questId>`, `failed:<questId>`, `completed:<questId>`, `contract-posted:<contractId>`, `contract-completed:<contractId>`, `contract-failed:<contractId>`.
 
+---
+
+## STEP 4 - GATE WARS, PUZZLE ESCALATION, AND REALM PRESSURE (ZERO AMBIGUITY PASS)
+
+This chapter codifies post-storyline Gate War operations, Heaven/Hell closure races, pinnacle teleporter unlocks, and consequence spread pressure.
+Every rule block uses this schema:
+
+- Trigger
+- Input Dice
+- Resolution
+- Consequence
+- Log Line format
+
+> [BOXED CALLOUT]
+> Step 4 journal token standard follows Step 3 grammar: lowercase event token + colon segments.
+> Runtime-authentic state anchors: `closedHellscape`, `closedCelestial`, `pinnacleUnlocked`, `pinnacleBoss`, `pinnacleRetries`, `kickoutPending`, `portalAttempts`, `teleporterHexKey`, `teleporterTheme`.
+
+> [CODE-TRUTH NOTE]
+> Core Step 4 code path: `spawnRandomGateWarMissionEvent` -> Gate War mission resolve -> `maybeUnlockPinnacleMegadungeonFromGateWar` -> pinnacle teleporter assignment -> mission/world consequence propagation.
+
+---
+
+### I. Gate War Activation and Spawn Law
+
+#### Rule Block S4-1: Gate War Eligibility Gate
+
+- Trigger: Endgame mission spawner tick runs.
+- Input Dice:
+   1. Storyline state gate (post-ending or forced spawn).
+   2. Spawn chance roll from seeded value (`<=24` out of 100 band).
+   3. Day-stamp cadence check (`lastRollDayStamp` and `nextEligibleDayStamp`).
+- Resolution:
+   1. Abort if storyline not post-ending and not forced.
+   2. Abort if a Gate War mission is already active.
+   3. Abort if same day already rolled or next eligible day not reached.
+   4. Roll seeded chance; spawn only in allowed band.
+- Consequence: Gate War mission appears only on legal cadence and probability.
+- Log Line format: `gate-war-roll:<dayStamp>:<spawn|no-spawn>`
+
+#### Rule Block S4-2: Gate Side Selection
+
+- Trigger: Gate War spawn is approved.
+- Input Dice:
+   1. Remaining closure gaps: `10-closedHellscape` and `10-closedCelestial`.
+   2. Seeded tiebreak when both gaps equal.
+- Resolution:
+   1. Choose `hellscape` when Hell gap is larger.
+   2. Choose `celestial` when Celestial gap is larger.
+   3. If tied, break by deterministic seed parity.
+- Consequence: Warfront side is selected for this operation.
+- Log Line format: `gate-war-side:<hellscape|celestial>`
+
+#### Rule Block S4-3: Create Gate War Mission Packet
+
+- Trigger: Side is selected.
+- Input Dice: None beyond prior selection.
+- Resolution:
+   1. Create mission type `gate_war`.
+   2. Assign side-specific profile:
+       - Celestial: 1 Angel (DD12, 24 HP), difficulty `very_hard`.
+       - Hellscape: 3 Demons (DD4, 8 HP each), difficulty `hard`.
+   3. Assign fixed step names:
+       - Locate Warring Gate
+       - Defeat Gate Hostiles
+       - Solve Gate Seal Puzzle
+   4. Write checkpoint line for 10-gate closure race unlock.
+   5. Stamp gate icon and set next eligible day to +2.
+- Consequence: Active Gate War mission enters mission board and map token flow.
+- Log Line format: `gate-war-posted:<gateType>:<missionId>`
+
+#### Read Aloud
+
+> [READ ALOUD]
+> "The sky has split into two verdicts. One is fire in chains. One is law with a blade. Pick which gate bleeds first."
+
+---
+
+### II. Puzzle Escalation Protocol
+
+#### Rule Block S4-4: Side-Specific Seal Puzzle Directive
+
+- Trigger: Step 3 of a Gate War mission begins (`Solve Gate Seal Puzzle`).
+- Input Dice:
+   1. Side selection (`hellscape` or `celestial`).
+   2. Scene challenge roll(s) selected by table procedure.
+- Resolution:
+   1. Celestial directive: seal sigil lattice before reinforcement breach.
+   2. Hellscape directive: collapse chain-runes before abyssal overflow.
+   3. Resolve puzzle outcome per table method (shared puzzle frame or equivalent check flow).
+- Consequence:
+   1. Success closes one gate on selected side.
+   2. Failure leaves closure race unchanged and raises failure pressure downstream.
+- Log Line format: `gate-seal-attempt:<gateType>:<success|failure>`
+
+#### Rule Block S4-5: Closure Counter Update
+
+- Trigger: `gate_war` mission resolves successfully.
+- Input Dice: Mission success boolean.
+- Resolution:
+   1. If side is `hellscape`, increment `closedHellscape` by 1.
+   2. If side is `celestial`, increment `closedCelestial` by 1.
+   3. Keep counters bounded to [0..10] in practice UI displays.
+- Consequence: Closure race advances toward portal unlock threshold.
+- Log Line format: `gate-closed:<gateType>:hell:<h>/10:cel:<c>/10`
+
+#### Rule Block S4-6: Failure and Expiration Escalation
+
+- Trigger: Gate War mission fails or expires.
+- Input Dice: None at settlement stage.
+- Resolution:
+   1. Apply standard failed mission penalty flow.
+   2. Emit world consequence packet with failure tags and pressure deltas.
+   3. Allow future Gate War spawns by cadence gate.
+- Consequence: Realm pressure increases without closure progress.
+- Log Line format: `gate-war-failed:<missionId>`
+
+---
+
+### III. Pinnacle Teleporter Unlock Chain
+
+#### Rule Block S4-7: Unlock Threshold Test
+
+- Trigger: Gate closure counters change.
+- Input Dice: Counter state only.
+- Resolution:
+   1. If both closure counters are below 10, abort unlock.
+   2. If either side reaches 10 and no pinnacle is unlocked, continue.
+   3. Determine theme from source side (`hellscape` => Mephisto, `celestial` => Azrael).
+- Consequence: Unlock precondition passes and pinnacle mission generation starts.
+- Log Line format: `pinnacle-threshold:<locked|ready>:hell:<h>:cel:<c>`
+
+#### Rule Block S4-8: Spawn Pinnacle Megadungeon Mission
+
+- Trigger: Unlock threshold test passes.
+- Input Dice:
+   1. Side theme (`hellscape` or `celestial`).
+   2. Random map-theme pick from side-specific pools.
+- Resolution:
+   1. Create `pinnacle_megadungeon` mission at `Random Province Teleporter`.
+   2. Assign boss:
+       - Hellscape theme -> Mephisto
+       - Celestial theme -> Azrael
+   3. Set fixed checkpoint laws:
+       - Opened by 10 side-closures.
+       - Random province teleporter is active.
+       - Boss profile d20/40 with two phases.
+       - Failure eject resets both closure counters to 0/10.
+   4. Set gate-war state flags:
+       - `pinnacleUnlocked=true`
+       - `pinnacleBoss=<boss>`
+       - `kickoutPending=false`
+       - `portalAttempts += 1`
+       - `teleporterTheme=<gateType>`
+- Consequence: Endgame teleporter operation is live and map-bound.
+- Log Line format: `pinnacle-opened:<boss>:theme:<gateType>:attempt:<n>`
+
+#### Rule Block S4-9: Teleporter Placement
+
+- Trigger: Pinnacle mission token is assigned to province map.
+- Input Dice: Random wilderness candidate selection.
+- Resolution:
+   1. Choose one province wilderness hex.
+   2. Mark mission token type `pinnacle_portal`.
+   3. Persist `pinnacleTeleporterHexKey` and mirror into gate state `teleporterHexKey`.
+- Consequence: Exactly one live province teleporter entry point is exposed.
+- Log Line format: `teleporter-bound:<hexKey>:theme:<gateType>`
+
+---
+
+### IV. Kickout, Retry, and Counter Reset Law
+
+#### Rule Block S4-10: Pinnacle Failure Kickout
+
+- Trigger: Pinnacle mission resolves as failure.
+- Input Dice: Mission outcome boolean.
+- Resolution:
+   1. Increment `pinnacleRetries`.
+   2. Set `kickoutPending=true`.
+   3. Reset unlock state and boss binding.
+   4. Reset both closure counters to 0.
+   5. Clear teleporter bindings and mark run not cleared.
+   6. Stamp `lastKickoutAt`.
+- Consequence: Players are ejected and must rebuild one side from zero closures.
+- Log Line format: `pinnacle-kickout:retry:<n>:hell:0:cel:0`
+
+#### Rule Block S4-11: Pinnacle Success Finalization
+
+- Trigger: Pinnacle mission resolves as success.
+- Input Dice: Mission outcome boolean.
+- Resolution:
+   1. Mark `pinnacleCleared=true`.
+   2. Clear `kickoutPending`.
+   3. Clear live teleporter key for this run path.
+- Consequence: Endgame portal arc is marked cleared for current progression state.
+- Log Line format: `pinnacle-cleared:<boss>:attempt:<n>`
+
+---
+
+### V. Realm Pressure and Propagation Layer
+
+#### Rule Block S4-12: Mission Consequence Emission
+
+- Trigger: Any Gate War or related mission resolves (success, failure, expiration).
+- Input Dice: None at emission stage.
+- Resolution:
+   1. Emit consequence entry with region, location key, severity, deltas, and tags.
+   2. Success trend defaults: +stability, -scarcity, +witness, -factionHeat.
+   3. Failure trend defaults: -stability, +scarcity, +rumor, -witness, +factionHeat.
+   4. Expiration trend defaults: failure plus corruption pressure.
+- Consequence: World-state feed and downstream propagation receive deterministic pressure data.
+- Log Line format: `realm-consequence:<missionId>:<success|failure|expired>:sev:<level>`
+
+#### Rule Block S4-13: World State Pressure Application
+
+- Trigger: `recordWorldConsequence` receives event packet.
+- Input Dice: None.
+- Resolution:
+   1. Update hex state safety/tension from deltas.
+   2. Update faction region heat/control where faction id exists.
+   3. Update economy scarcity and price multiplier.
+   4. Append consequence feed entry.
+   5. Add active crisis entries for high-severity or crisis-tagged events.
+   6. Run propagation plan and inject rumor diffusion per spread event.
+- Consequence: Realm pressure persists across map, economy, and faction layers.
+- Log Line format: `world-pressure:<locationKey>:stability:<d>:scarcity:<d>:heat:<d>`
+
+#### Rule Block S4-14: Autonomous Faction Turn Pressure
+
+- Trigger: Faction turn simulator executes.
+- Input Dice:
+   1. Random faction pick from live faction set.
+   2. Posture-weighted operation pick (`expand`, `retaliate`, `secure`, `destabilize`, `negotiate`, `weaken`).
+- Resolution:
+   1. Choose operation by posture.
+   2. Choose operation-compatible province location.
+   3. Emit world consequence packet with operation deltas and tags.
+   4. For high-severity operations, emit warning notification.
+- Consequence: Independent geopolitical pressure continues between player missions.
+- Log Line format: `faction-op:<factionId>:<op>:<locationKey>`
+
+---
+
+### VI. One-Page Reference Frame - Step 4 Gate War Sheet
+
+> [REFERENCE SHEET: S4-A GATE WAR LOOP]
+
+| Phase | Trigger | Input Dice | Resolution | Consequence | Log Line format |
+|---|---|---|---|---|---|
+| Spawn Check | Endgame tick | Storyline gate + chance band + cadence | Decide spawn/no-spawn | Gate War may appear | `gate-war-roll:<day>:<result>` |
+| Side Select | Spawn approved | Remaining closure gaps + tiebreak | Choose hellscape/celestial | Mission side locked | `gate-war-side:<type>` |
+| Mission Post | Side locked | None | Create `gate_war` packet and +2 day cooldown | Active warfront mission | `gate-war-posted:<type>:<missionId>` |
+| Seal Puzzle | Step 3 entered | Side directive + puzzle/check outcome | Resolve gate seal action | Closure gain or stall | `gate-seal-attempt:<type>:<result>` |
+| Counter Update | Mission success | Success boolean | Increment side closure counter | Progress toward 10/10 | `gate-closed:<type>:hell:<h>:cel:<c>` |
+| Threshold Test | Counter changed | Counter state | Check 10/10 side unlock | Portal unlock ready or locked | `pinnacle-threshold:<state>:hell:<h>:cel:<c>` |
+| Pinnacle Open | Threshold ready | Side theme + map theme pick | Create `pinnacle_megadungeon` | Teleporter era begins | `pinnacle-opened:<boss>:theme:<type>:attempt:<n>` |
+| Teleporter Bind | Portal token assignment | Random wilderness hex | Bind `teleporterHexKey` | One live province teleporter | `teleporter-bound:<hexKey>:theme:<type>` |
+| Pinnacle Fail | Pinnacle mission fails | Mission outcome | Retry++, kickout, reset both counters | Rebuild from 0/10 | `pinnacle-kickout:retry:<n>:hell:0:cel:0` |
+| Pinnacle Clear | Pinnacle mission wins | Mission outcome | Mark cleared and remove live teleporter | Arc completion state | `pinnacle-cleared:<boss>:attempt:<n>` |
+| Realm Pressure | Any mission/faction event | Consequence packet | Apply map/faction/economy propagation | Persistent world escalation | `world-pressure:<locationKey>:...` |
+
+#### Read Aloud
+
+> [READ ALOUD]
+> "Close ten gates on one side and the Province answers with a single door. Fail that door, and both heavens go dark again."
+
+#### Margin Notes
+
+> [SIDEBAR]
+> Gate War is not only an encounter ladder. It is also a pressure engine: every miss alters scarcity, tension, and rumor spread.
+
+> [CODE-TRUTH NOTE]
+> Step 4 canonical state keys for table tracking: `closedHellscape`, `closedCelestial`, `pinnacleUnlocked`, `pinnacleBoss`, `pinnacleRetries`, `kickoutPending`, `pinnacleCleared`, `portalAttempts`, `teleporterHexKey`, `teleporterTheme`, `consequenceFeed`, `activeCrises`, `economy.scarcity`, `economy.priceMultiplier`.
+

@@ -1473,6 +1473,13 @@ Every rule block uses this schema:
 - Consequence
 - Log Line format
 
+> [BOXED CALLOUT]
+> Campaign journal token standard for Step 3:
+> - Use lowercase kebab-case event tokens.
+> - Use colon-delimited segments only.
+> - Use this shape: `event[:id][:field:value...]`.
+> - Runtime-authentic `lastOutcome` tokens are: `joined`, `posted:<questId>`, `failed:<questId>`, `completed:<questId>`, `contract-posted:<contractId>`, `contract-completed:<contractId>`, `contract-failed:<contractId>`.
+
 > [CODE-TRUTH NOTE]
 > Hunt posting and progression here are mapped to guild systems in faction and mission logic: `ensureGuildContractBoard`, `postGuildContract`, `startGuildCampaignQuest`, `applyGuildPrepToMission`, `resolveGuildCampaignProgress`, `onMissionResolved`, and mission Step 3 confrontation handling.
 
@@ -1492,7 +1499,7 @@ Every rule block uses this schema:
 - Consequence:
    1. A new hunting slate exists for posting.
    2. Old board identity is replaced when refresh is forced.
-- Log Line format: `contract-board-generated:<factionId>:<seed>`
+- Log Line format: `board-generated:<factionId>:<seed>`
 
 #### Rule Block S3-2: Refresh Contract Board
 
@@ -1500,7 +1507,7 @@ Every rule block uses this schema:
 - Input Dice: None.
 - Resolution: Force board regeneration regardless of existing rows.
 - Consequence: Available prey contracts rotate; unposted rows are lost.
-- Log Line format: `contract-board-refreshed:<factionId>`
+- Log Line format: `board-refreshed:<factionId>`
 
 #### Rule Block S3-3: Post Contract
 
@@ -1576,7 +1583,7 @@ Every rule block uses this schema:
 - Input Dice: None (already resolved by mission success).
 - Resolution: Add prep id to guild state `earnedPrepOptions` if not already present.
 - Consequence: New weakness countermeasure can be slotted into active prep loadout.
-- Log Line format: `prep-unlocked:<factionId>:<prepId>`
+- Log Line format: `prep-unlocked:<prepId>`
 
 #### Rule Block S3-8: Toggle Active Prep Loadout
 
@@ -1590,7 +1597,7 @@ Every rule block uses this schema:
 - Consequence:
    1. Active prep loadout updates immediately.
    2. Future posted hunts inherit this loadout snapshot.
-- Log Line format: `prep-active:<factionId>:[prepId1,prepId2,prepId3]`
+- Log Line format: `prep-active:<prepId1|prepId2|prepId3>`
 
 #### Rule Block S3-9: Apply Prep to Posted Hunt
 
@@ -1601,7 +1608,7 @@ Every rule block uses this schema:
    2. For each prep with `effectType='dread_down'`, step mission dread die downward by configured steps.
    3. Clamp mission bonus to [0..20] and dread floor to d4.
 - Consequence: Hunt confrontation math is materially changed before first roll.
-- Log Line format: `prep-applied:<missionId>:bonus+<n>:dread->d<die>`
+- Log Line format: `prep-applied:<missionId>:bonus:<n>:dread:d<die>`
 
 > [SIDEBAR]
 > In fiction, treat prep as known weakness exploitation. In mechanics, it is explicit bonus and/or dread suppression.
@@ -1624,7 +1631,7 @@ Every rule block uses this schema:
 - Consequence:
    1. Success path can resolve mission as completed.
    2. Failure path applies consequence package before mission fail resolution.
-- Log Line format: `hunt-check:<missionId>:A<actionPlusBonus>-D<dread>=<success|failure>`
+- Log Line format: `check:<missionId>:<success|failure>:action:<actionPlusBonus>:dread:<dread>`
 
 #### Rule Block S3-11: Failure Consequence Package
 
@@ -1641,7 +1648,7 @@ Every rule block uses this schema:
    6. Add +1 Teamwork meter.
    7. If boss-layer ability locks are active, reduce margin and suppress specific lines per lock map.
 - Consequence: Hunt failure has guaranteed attrition even before mission outcome renown/faction fallout.
-- Log Line format: `hunt-fail-consequence:<missionId>:margin<k>:mental+1:rad+1:cond=<key>:tmw+1`
+- Log Line format: `fail-package:<missionId>:margin:<k>:mental:1:radiation:1:condition:<key>:tmw:1`
 
 #### Rule Block S3-12: Push Luck Protocol
 
@@ -1655,7 +1662,7 @@ Every rule block uses this schema:
    3. On reroll success: grant positive condition mapped from Valor axis and resolve mission as success.
    4. On reroll failure: apply failure consequence package and resolve mission as failure.
 - Consequence: High-risk recovery lane that can flip a lost hunt into success.
-- Log Line format: `hunt-push-luck:<missionId>:spent2tmw:d<newDread>:<success|failure>`
+- Log Line format: `push-luck:<missionId>:spent-tmw:2:dread:d<newDread>:<success|failure>`
 
 ---
 
@@ -1670,7 +1677,7 @@ Every rule block uses this schema:
    2. Cross-reference selected prep ids against boss `prepLocks` map.
    3. Mark each matching ability with `lockedByPrepIds`.
 - Consequence: Prepared weaknesses hard-disable or soften named boss abilities.
-- Log Line format: `boss-layer:<missionId>:locked=[abilityId...]`
+- Log Line format: `boss-layer:<missionId>:locked:<abilityId-list>`
 
 #### Rule Block S3-14: Boss Lock Mitigation in Failure Math
 
@@ -1681,7 +1688,7 @@ Every rule block uses this schema:
    2. Suppress Mental Stress line when specific locked ability ids match mitigation map.
    3. Suppress Condition line when specific locked ability ids match mitigation map.
 - Consequence: Proper weakness prep converts lethal boss attrition into survivable failure.
-- Log Line format: `boss-mitigation:<missionId>:margin-<n>:suppress=[mental|condition|none]`
+- Log Line format: `boss-mitigation:<missionId>:margin-reduce:<n>:suppress:<mental|condition|none>`
 
 ---
 
@@ -1715,7 +1722,7 @@ Every rule block uses this schema:
 - Consequence:
    1. Hunt outcomes alter economy, standing, and world pressure.
    2. Guild campaign and contract state machines advance or stall from same hook.
-- Log Line format: `hunt-settlement:<missionId>:<success|failure>:renown<delta>:credits<delta>`
+- Log Line format: `settlement:<missionId>:<success|failure>:renown:<delta>:credits:<delta>`
 
 ---
 
@@ -1725,13 +1732,13 @@ Every rule block uses this schema:
 
 | Phase | Trigger | Input Dice | Resolution | Consequence | Log Line format |
 |---|---|---|---|---|---|
-| Board Generate | Open guild base or refresh | None | Build 3-row contract board | New bounty slate exists | `contract-board-generated:<factionId>:<seed>` |
+| Board Generate | Open guild base or refresh | None | Build 3-row contract board | New bounty slate exists | `board-generated:<factionId>:<seed>` |
 | Contract Post | Press `Post` | None | Create guild contract mission; apply active prep | Active contract mission id set | `contract-posted:<contractId>` |
 | Campaign Post | Press `Post Campaign Quest` | None | Create campaign/boss mission from stage | Active campaign mission id set | `posted:<questId>` |
-| Prep Toggle | Press `Set Prep` / `Unset` | None | Validate owned prep; max 3 active | Loadout snapshot changes | `prep-active:<factionId>:[...]` |
-| Confrontation | Enter Step 3 | Valor + bonus vs Dread | Compare totals; success/failure branch | Mission success path or failure modal | `hunt-check:<missionId>:A-D=<result>` |
-| Failure Accept | Choose failure | Margin from failed check | Apply damage/stress, mental, radiation, condition, teamwork | Attrition package applied | `hunt-fail-consequence:<missionId>:...` |
-| Push Luck | Spend 2 Teamwork | Reroll at higher dread | Success flips to win; failure applies package | Salvage or collapse | `hunt-push-luck:<missionId>:...` |
+| Prep Toggle | Press `Set Prep` / `Unset` | None | Validate owned prep; max 3 active | Loadout snapshot changes | `prep-active:<prepId1|prepId2|prepId3>` |
+| Confrontation | Enter Step 3 | Valor + bonus vs Dread | Compare totals; success/failure branch | Mission success path or failure modal | `check:<missionId>:<result>:action:<n>:dread:<n>` |
+| Failure Accept | Choose failure | Margin from failed check | Apply damage/stress, mental, radiation, condition, teamwork | Attrition package applied | `fail-package:<missionId>:...` |
+| Push Luck | Spend 2 Teamwork | Reroll at higher dread | Success flips to win; failure applies package | Salvage or collapse | `push-luck:<missionId>:...` |
 | Contract Resolve | Mission resolves | Upstream success bool | Clear active contract; update runs/outcome | Board reopens; runs advance on success | `contract-completed|contract-failed:<id>` |
 | Campaign Resolve | Mission resolves | Upstream success bool | Advance stage on success; stall on failure | Prep unlocks, boss gating progression | `completed|failed:<questId>` |
 
@@ -1747,4 +1754,5 @@ Every rule block uses this schema:
 
 > [CODE-TRUTH NOTE]
 > Guild state fields to track in campaign journals: `currentArcStage`, `activeCampaignMissionId`, `activeContractMissionId`, `completedQuestIds`, `earnedPrepOptions`, `activePrepIds`, `contractRuns`, `bossUnlocked`, `bossDefeated`, `lastOutcome`.
+> Canonical runtime `lastOutcome` tokens: `joined`, `posted:<questId>`, `failed:<questId>`, `completed:<questId>`, `contract-posted:<contractId>`, `contract-completed:<contractId>`, `contract-failed:<contractId>`.
 

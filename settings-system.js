@@ -288,6 +288,8 @@ window.playCustomMusicFromSettings = function() {
     gmRevealDC: true,
     gmRevealHiddenInfo: true,
     manualRollMode: false,
+    tableSceneFocusLock: false,
+    tableSceneLockedMode: 'exploration',
     colorBlindMode: false,
     monochromeMode: false,
     phoneLayoutMode: false,
@@ -314,6 +316,10 @@ window.playCustomMusicFromSettings = function() {
         this.gmRevealDC = saved.gmRevealDC !== undefined ? !!saved.gmRevealDC : true;
         this.gmRevealHiddenInfo = saved.gmRevealHiddenInfo !== undefined ? !!saved.gmRevealHiddenInfo : true;
         this.manualRollMode = saved.manualRollMode !== undefined ? !!saved.manualRollMode : false;
+        this.tableSceneFocusLock = saved.tableSceneFocusLock !== undefined ? !!saved.tableSceneFocusLock : false;
+        this.tableSceneLockedMode = ['narrative', 'exploration', 'combat'].indexOf(String(saved.tableSceneLockedMode || 'exploration').toLowerCase()) >= 0
+          ? String(saved.tableSceneLockedMode || 'exploration').toLowerCase()
+          : 'exploration';
         this.colorBlindMode = saved.colorBlindMode !== undefined ? !!saved.colorBlindMode : false;
         this.monochromeMode = saved.monochromeMode !== undefined ? !!saved.monochromeMode : false;
         this.phoneLayoutMode = saved.phoneLayoutMode !== undefined ? !!saved.phoneLayoutMode : false;
@@ -350,6 +356,8 @@ window.playCustomMusicFromSettings = function() {
           gmRevealDC: this.gmRevealDC,
           gmRevealHiddenInfo: this.gmRevealHiddenInfo,
           manualRollMode: this.manualRollMode,
+          tableSceneFocusLock: this.tableSceneFocusLock,
+          tableSceneLockedMode: this.tableSceneLockedMode,
           colorBlindMode: this.colorBlindMode,
           monochromeMode: this.monochromeMode,
           phoneLayoutMode: this.phoneLayoutMode,
@@ -423,6 +431,55 @@ window.playCustomMusicFromSettings = function() {
 
     shouldRevealHiddenInfo() {
       return !this.isGMMode() || !!this.gmRevealHiddenInfo;
+    },
+
+    getTableSceneFocusState() {
+      return {
+        locked: !!this.tableSceneFocusLock,
+        mode: String(this.tableSceneLockedMode || 'exploration')
+      };
+    },
+
+    setTableSceneLockedMode(mode, opts) {
+      const options = opts || {};
+      const key = String(mode || '').toLowerCase();
+      if (['narrative', 'exploration', 'combat'].indexOf(key) === -1) return;
+      this.tableSceneLockedMode = key;
+      if (this.tableSceneFocusLock) {
+        this.save();
+        syncTableSceneFocusUI();
+        if (window.campaignSystem && typeof window.campaignSystem.refreshSceneFocusState === 'function') {
+          window.campaignSystem.refreshSceneFocusState();
+        }
+        if (!options.silent && typeof showNotif === 'function') {
+          showNotif(`Focus Lock pinned to ${key}.`, 'good');
+        }
+      }
+    },
+
+    setTableSceneFocusLock(enabled, opts) {
+      const options = opts || {};
+      const next = !!enabled;
+      if (next && ['narrative', 'exploration', 'combat'].indexOf(String(this.tableSceneLockedMode || '').toLowerCase()) === -1) {
+        const bodyMode = document.body ? String(document.body.getAttribute('data-table-scene') || '') : '';
+        const fallback = ['narrative', 'exploration', 'combat'].indexOf(bodyMode) >= 0 ? bodyMode : 'exploration';
+        this.tableSceneLockedMode = fallback;
+      }
+      this.tableSceneFocusLock = next;
+      if (options.mode && ['narrative', 'exploration', 'combat'].indexOf(String(options.mode).toLowerCase()) >= 0) {
+        this.tableSceneLockedMode = String(options.mode).toLowerCase();
+      }
+      this.save();
+      syncTableSceneFocusUI();
+      if (typeof window.campaignSystem !== 'undefined' && window.campaignSystem && typeof window.campaignSystem.refreshSceneFocusState === 'function') {
+        window.campaignSystem.refreshSceneFocusState();
+      }
+      if (!options.silent && typeof showNotif === 'function') {
+        showNotif(this.tableSceneFocusLock
+          ? `Focus Lock enabled (${this.tableSceneLockedMode}).`
+          : 'Focus Lock disabled.',
+          'good');
+      }
     },
 
     applyAccessibilitySettings() {
@@ -727,6 +784,16 @@ window.playCustomMusicFromSettings = function() {
         <div id="settingsTabPanel-campaign" class="settings-tab-panel" data-settings-tab="campaign">
           <div class="settings-section">
             <h4>Campaign</h4>
+            <div class="setting-row" style="margin-bottom:.4rem;align-items:flex-start;">
+              <label>Focus Lock</label>
+              <div style="display:flex;flex-direction:column;gap:.25rem;min-width:0;width:100%;">
+                <div class="campaign-actions" style="margin:0;align-items:center;">
+                  <button id="tableSceneFocusLockBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleTableSceneFocusLock()">Focus Lock: ${Settings.tableSceneFocusLock ? 'On' : 'Off'}</button>
+                  <span id="tableSceneFocusLockLabel" class="campaign-muted">${Settings.tableSceneFocusLock ? ('Pinned to ' + String(Settings.tableSceneLockedMode || 'exploration')) : 'Locks the current narrative/exploration/combat focus globally.'}</span>
+                </div>
+                <div class="campaign-muted" style="font-size:.72rem;">Use the dock scene buttons to change the pinned mode while lock is on.</div>
+              </div>
+            </div>
             <div class="campaign-muted">Campaign controls and multiplayer diagnostics live here.</div>
           </div>
         </div>
@@ -953,6 +1020,21 @@ window.playCustomMusicFromSettings = function() {
     }
   }
 
+  function syncTableSceneFocusUI() {
+    const focusBtn = document.getElementById('tableSceneFocusLockBtn');
+    const focusLabel = document.getElementById('tableSceneFocusLockLabel');
+    if (focusBtn) {
+      focusBtn.textContent = 'Focus Lock: ' + (Settings.tableSceneFocusLock ? 'On' : 'Off');
+      focusBtn.style.borderColor = Settings.tableSceneFocusLock ? 'var(--teal)' : 'var(--border2)';
+      focusBtn.style.color = Settings.tableSceneFocusLock ? 'var(--teal)' : 'var(--muted2)';
+    }
+    if (focusLabel) {
+      focusLabel.textContent = Settings.tableSceneFocusLock
+        ? ('Pinned to ' + String(Settings.tableSceneLockedMode || 'exploration'))
+        : 'Locks the current narrative/exploration/combat focus globally.';
+    }
+  }
+
   function syncGameModeUI() {
     const isGM = Settings.gameMode === 'gm';
     const isCampaign = Settings.gameMode === 'campaign';
@@ -999,6 +1081,8 @@ window.playCustomMusicFromSettings = function() {
       manualRollModeBtn.style.borderColor = Settings.manualRollMode ? 'var(--teal)' : 'var(--border2)';
       manualRollModeBtn.style.color = Settings.manualRollMode ? 'var(--teal)' : 'var(--muted2)';
     }
+
+    syncTableSceneFocusUI();
 
     const settingsBtn = document.querySelector('nav .settings-tab-btn');
     if (settingsBtn) {
@@ -1425,6 +1509,16 @@ window.playCustomMusicFromSettings = function() {
     shouldRevealDC: () => Settings.shouldRevealDC(),
     shouldRevealHiddenInfo: () => Settings.shouldRevealHiddenInfo(),
     isManualRollMode: () => !!Settings.manualRollMode,
+    getTableSceneFocusState: () => Settings.getTableSceneFocusState(),
+    setTableSceneLockedMode: (mode, opts) => Settings.setTableSceneLockedMode(mode, opts),
+    setTableSceneFocusLock: (enabled, opts) => Settings.setTableSceneFocusLock(enabled, opts),
+    toggleTableSceneFocusLock: () => {
+      const currentScene = document.body ? String(document.body.getAttribute('data-table-scene') || '').toLowerCase() : '';
+      const sceneMode = ['narrative', 'exploration', 'combat'].indexOf(currentScene) >= 0
+        ? currentScene
+        : Settings.tableSceneLockedMode;
+      Settings.setTableSceneFocusLock(!Settings.tableSceneFocusLock, { mode: sceneMode });
+    },
     getSettings: () => ({
       masterVolume: Settings.masterVolume,
       musicVolume: Settings.musicVolume,
@@ -1434,6 +1528,8 @@ window.playCustomMusicFromSettings = function() {
       gmRevealDC: Settings.gmRevealDC,
       gmRevealHiddenInfo: Settings.gmRevealHiddenInfo,
       manualRollMode: Settings.manualRollMode,
+      tableSceneFocusLock: Settings.tableSceneFocusLock,
+      tableSceneLockedMode: Settings.tableSceneLockedMode,
       colorBlindMode: Settings.colorBlindMode,
       monochromeMode: Settings.monochromeMode,
       phoneLayoutMode: Settings.phoneLayoutMode,

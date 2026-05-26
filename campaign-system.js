@@ -372,12 +372,24 @@
   }
 
   function resolveTableSceneState(sharedState, tableState, campaignState) {
+    var settingsFocus = null;
+    if (window.settingsSystem && typeof window.settingsSystem.getTableSceneFocusState === "function") {
+      try {
+        settingsFocus = window.settingsSystem.getTableSceneFocusState() || null;
+      } catch (_err) {
+        settingsFocus = null;
+      }
+    }
     var preferred = normalizeTableSceneMode(state.tableSceneMode);
     var autoMode = deriveAutoTableSceneMode(sharedState, tableState, campaignState);
-    var effective = preferred === "auto" ? autoMode : preferred;
+    var focusLocked = !!(settingsFocus && settingsFocus.locked);
+    var lockedMode = normalizeTableSceneMode(settingsFocus && settingsFocus.mode || "exploration");
+    var effective = focusLocked ? lockedMode : (preferred === "auto" ? autoMode : preferred);
     return {
       preferred: preferred,
       auto: autoMode,
+      locked: focusLocked,
+      lockedMode: lockedMode,
       effective: effective,
       descriptor: getTableSceneDescriptor(effective)
     };
@@ -396,6 +408,14 @@
     var opts = options || {};
     var next = normalizeTableSceneMode(mode);
     state.tableSceneMode = next;
+    if (window.settingsSystem && typeof window.settingsSystem.getTableSceneFocusState === "function") {
+      try {
+        var focusState = window.settingsSystem.getTableSceneFocusState() || null;
+        if (focusState && focusState.locked && next !== "auto" && typeof window.settingsSystem.setTableSceneLockedMode === "function") {
+          window.settingsSystem.setTableSceneLockedMode(next, { silent: true });
+        }
+      } catch (_err) {}
+    }
     if (!opts.skipTimelinePreset) {
       if (next === "auto") {
         applySceneTimelinePreset(state.effectiveTableSceneMode || "exploration", false);
@@ -420,6 +440,10 @@
     } else {
       body.removeAttribute("data-table-scene");
     }
+  }
+
+  function refreshSceneFocusState() {
+    renderDockPanel();
   }
 
   function guardRiskySharedAction(actionLabel, callback) {
@@ -6020,6 +6044,7 @@
     deleteCampaign: deleteCampaign,
     setTimelineFilter: setTimelineFilter,
     setTableSceneMode: setTableSceneMode,
+    refreshSceneFocusState: refreshSceneFocusState,
     requestSharedConsent: requestSharedConsent,
     syncProvinceEncounterResult: syncProvinceEncounterResult,
     respondReadyCheck: respondReadyCheck,

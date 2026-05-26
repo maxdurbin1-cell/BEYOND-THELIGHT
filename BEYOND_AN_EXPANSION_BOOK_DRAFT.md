@@ -21,6 +21,24 @@ This draft is still written in production stages, but Step 1 has now been expand
 
 ---
 
+## Print Layout Conventions (Production Notes)
+
+Use these labels consistently during page layout so the manuscript is template-ready.
+
+> [BOXED CALLOUT]
+> Use for critical rules that must be visible at a glance. Keep to 2-6 lines.
+
+> [SIDEBAR]
+> Use for design intent, table culture notes, and optional guidance. Do not hide required mechanics in sidebars.
+
+> [READ ALOUD]
+> Use for spoken GM text. Keep sentence rhythm strong and under 90 words when possible.
+
+> [PRINTER NOTE]
+> Use for grayscale-safe formatting, line-break policy, and table fit guidance.
+
+---
+
 ## STEP 1 - RAID EXPEDITIONS OF THE COLLAPSING PROVINCE (EXPANDED)
 
 ### I. Archivist Field Warning
@@ -44,6 +62,9 @@ If your table understands this loop, Raid mode sings. If your table treats it li
 ### II. Core Mechanic Primer: Dread vs Action Dice
 
 This section must be clear enough that no table needs to guess how the system resolves.
+
+> [BOXED CALLOUT]
+> Core resolution: Action total >= Dread total succeeds. Ties succeed.
 
 #### A. Action Dice in This Expansion
 
@@ -81,6 +102,9 @@ Default margin formula:
 
 Margin is used in many subsystems to scale damage, backlash, stress, and side effects.
 
+> [SIDEBAR]
+> Margin should always be recorded, even when no immediate effect is applied. Later systems can reference stored margin outcomes.
+
 #### C. Exploding Dice and Manual Entry
 
 Digital play supports exploding rolls where available. Manual mode supports physical rolling with direct value entry.
@@ -98,6 +122,9 @@ Push Luck pattern (if used):
 - Dread die step chain: d4 -> d6 -> d8 -> d10 -> d12 -> d20
 
 Use this exactly when emulating website behavior at the table.
+
+> [PRINTER NOTE]
+> Keep the Push Luck die chain on a single line in print proofs: d4 -> d6 -> d8 -> d10 -> d12 -> d20.
 
 ---
 
@@ -132,12 +159,12 @@ Run setup in this exact sequence.
 3. Set expedition day to 1 and phase to explore.
 4. Initialize flask economy: 3 current flasks, 7 max.
 5. Initialize objective counters:
-6. Portals closed = 0
-7. Gates closed = 0
-8. Portal objective target = 5
-9. Seed mini-boss hexes.
-10. Seed boss ladder profiles.
-11. Roll/select Raid Lord identity.
+   - Portals closed = 0
+   - Gates closed = 0
+   - Portal objective target = 5
+6. Seed mini-boss hexes.
+7. Seed boss ladder profiles.
+8. Roll/select Raid Lord identity.
 
 Raid Lord pool (website-aligned):
 
@@ -150,7 +177,8 @@ Raid Lord pool (website-aligned):
 
 Table opening script (grim format):
 
-"Choose your armor. Choose your weapon. Choose your flavor blessing. The Province has already chosen how it wants to kill you."
+> [READ ALOUD]
+> "Choose your armor. Choose your weapon. Choose your flavor blessing. The Province has already chosen how it wants to kill you."
 
 ---
 
@@ -158,36 +186,49 @@ Table opening script (grim format):
 
 #### A. Mechanical Tiers
 
-- Field Enemy: d4 Dread, 4 HP
-- Portal Guard: d4 Dread, 4 HP
-- Mini Boss: d6 Dread, 12 HP
-- Day 1 Boss: d8 Dread, 16 HP
-- Day 2 Boss: d10 Dread, 20 HP
-- Raid Boss: d20 Dread, 40 HP (or d12/24 when weakened)
+| Threat Tier | Dread Profile | HP Profile | Notes |
+|---|---|---|---|
+| Field Enemy | d4 | 4 | Baseline attrition unit |
+| Portal Guard | d4 | 4 | Spawned during portal breach |
+| Mini Boss | d6 | 12 | Mid-run pressure spike |
+| Day 1 Boss | d8 | 16 | First ladder gatekeeper |
+| Day 2 Boss | d10 | 20 | Second ladder gatekeeper |
+| Raid Boss | d20 (or d12 weakened) | 40 (or 24 weakened) | Final encounter identity |
+
+> [PRINTER NOTE]
+> Keep this table in landscape-friendly width and avoid merged cells for home printing.
 
 #### B. Field Enemy Table (Roll or Select)
 
-1. Mire Hound - Hunts by sound; punishes noisy armor routes.
-2. Lantern Wretch - Lightless carrier whose shadow field distorts safe lines.
-3. Ash Drifter - Leaves false movement trails and positional uncertainty.
-4. Bone Orchard Stalker - Precision hunter with relentless lane pressure.
+| d4 | Field Enemy | Tactical Identity |
+|---|---|---|
+| 1 | Mire Hound | Hunts by sound; punishes noisy armor routes |
+| 2 | Lantern Wretch | Shadow field distorts safe lines |
+| 3 | Ash Drifter | Creates false movement trails |
+| 4 | Bone Orchard Stalker | Precision hunter with lane pressure |
 
 #### C. Mini Boss Table
 
-1. The Gallow-Archivist - Control-oriented pressure; punishes stalled parties.
-2. Salt Widow - Attrition duelist; strips confidence from frontliners.
-3. Basilica Warden - Greed punisher; ideal for loot-lure hexes.
-4. Hollow Harbormaster - Breath and storm motif; excellent during rough weather.
+| d4 | Mini Boss | Tactical Identity |
+|---|---|---|
+| 1 | The Gallow-Archivist | Control pressure; punishes stalled parties |
+| 2 | Salt Widow | Attrition duelist; strips frontliner confidence |
+| 3 | Basilica Warden | Greed punisher for loot-lure routes |
+| 4 | Hollow Harbormaster | Storm pressure; thrives in rough weather |
 
 #### D. Field Boss Table
 
-1. Ruin Butcher - Bannered execution profile, excellent pre-Day 1 climax.
-2. Gate Devourer - Gate-line predator, ideal for transit disruption arcs.
+| d2 | Field Boss | Tactical Identity |
+|---|---|---|
+| 1 | Ruin Butcher | Bannered execution profile before Day 1 climax |
+| 2 | Gate Devourer | Gate-line predator and transit disruptor |
 
 #### E. Portal Spawn Table
 
-1. Portal Thrall - Breach loyalist that stabilizes local danger.
-2. Rift Whelp - Fast pressure piece that punishes indecision.
+| d2 | Portal Spawn | Tactical Identity |
+|---|---|---|
+| 1 | Portal Thrall | Breach loyalist that stabilizes local danger |
+| 2 | Rift Whelp | Fast pressure piece that punishes indecision |
 
 #### F. Day Boss Suggestions
 
@@ -288,36 +329,24 @@ On failure:
 
 When a wilderness search triggers random encounter resolution, roll d9:
 
-1. Shifting Weather  
-Lead vs DD6 weather save. Failure adds stress pressure.
-
-2. Peril Event  
-Control vs DD6. Failure deals direct damage/stress consequences based on difference.
-
-3. Barrier Event  
-Body vs DD6. Failure blocks route progress.
-
-4. Roaming Enemy Pack  
-Spawn 1-4 field enemies (DD4, 4 HP each). Bounty reward baseline: 60 credits per enemy group unit.
-
-5. Loot Cache  
-Grant field-tier loot roll. Cache can be empty or produce immediate run item.
-
-6. Roaming Mini Boss  
-Spawn mini boss profile (DD6, 12 HP) and force combat state.
-
-7. Roaming Merchant  
-Generate temporary stock package (usually 6-10 items), buy directly in encounter flow.
-
-8. Radiation Surge (Valor Check)  
-Resolve Spirit vs DD6 in this event context. On failure, gain Radiation by difference.
-
-9. Portal Surge Teleport  
-Attempt random relocation to a valid open hex. If no legal anchor, surge fizzles.
+| d9 | Encounter | Resolution |
+|---|---|---|
+| 1 | Shifting Weather | Lead vs DD6; failure adds stress pressure |
+| 2 | Peril Event | Control vs DD6; failure deals damage/stress by margin |
+| 3 | Barrier Event | Body vs DD6; failure blocks route progress |
+| 4 | Roaming Enemy Pack | Spawn 1-4 field enemies (DD4, 4 HP each); bounty baseline 60 credits per unit |
+| 5 | Loot Cache | Grant field-tier loot roll; may be empty |
+| 6 | Roaming Mini Boss | Spawn mini boss (DD6, 12 HP); force combat phase |
+| 7 | Roaming Merchant | Generate temporary stock (usually 6-10 items) |
+| 8 | Radiation Surge (Valor Check) | Resolve Spirit vs DD6; failure adds Radiation by margin |
+| 9 | Portal Surge Teleport | Relocate to valid open hex; fizzle if no legal anchor |
 
 GM running note:
 
 Entries 4 and 6 are combat spikes. Entries 1, 2, 3, and 8 are attrition spikes. Entries 5 and 7 are recovery/tempo pivots. Entry 9 is board-state chaos.
+
+> [SIDEBAR]
+> If your table is new to raids, announce category before rolling: "Attrition check," "Combat spike," or "Tempo pivot."
 
 ---
 
@@ -471,7 +500,8 @@ Act III - The Named Hunger
 
 Archivist line for Act III opening:
 
-"When the Lord arrived, the bells in our camp rang with no one touching them."
+> [READ ALOUD]
+> "When the Lord arrived, the bells in our camp rang with no one touching them."
 
 ---
 
@@ -548,6 +578,9 @@ Purpose:
 | Portal fallback puzzle | Mind | DD8 | Portal backlash and pressure |
 | Combat strike lane | Strike/Shoot/etc. | Enemy Dread profile | Stress/HP loss, status pressure |
 
+> [PRINTER NOTE]
+> Freeze this table width to one page. If needed, abbreviate the last row to "Combat lane" for narrow formats.
+
 Notes:
 
 - Use action totals after all valid bonuses/penalties.
@@ -564,43 +597,53 @@ Purpose:
 
 #### d9 Random Encounter Table
 
-1. Weather event
-2. Peril event
-3. Barrier event
-4. Roaming enemy pack
-5. Loot cache
-6. Roaming mini boss
-7. Roaming merchant
-8. Radiation surge
-9. Portal surge teleport
+| d9 | Encounter |
+|---|---|
+| 1 | Weather event |
+| 2 | Peril event |
+| 3 | Barrier event |
+| 4 | Roaming enemy pack |
+| 5 | Loot cache |
+| 6 | Roaming mini boss |
+| 7 | Roaming merchant |
+| 8 | Radiation surge |
+| 9 | Portal surge teleport |
 
 #### Field Enemy Table
 
-1. Mire Hound
-2. Lantern Wretch
-3. Ash Drifter
-4. Bone Orchard Stalker
+| d4 | Field Enemy |
+|---|---|
+| 1 | Mire Hound |
+| 2 | Lantern Wretch |
+| 3 | Ash Drifter |
+| 4 | Bone Orchard Stalker |
 
 #### Mini Boss Table
 
-1. Gallow-Archivist
-2. Salt Widow
-3. Basilica Warden
-4. Hollow Harbormaster
+| d4 | Mini Boss |
+|---|---|
+| 1 | Gallow-Archivist |
+| 2 | Salt Widow |
+| 3 | Basilica Warden |
+| 4 | Hollow Harbormaster |
 
 #### Portal Guard Table
 
-1. Portal Thrall
-2. Rift Whelp
+| d2 | Portal Guard |
+|---|---|
+| 1 | Portal Thrall |
+| 2 | Rift Whelp |
 
 #### Raid Lord Table
 
-1. Azrael
-2. Mephisto
-3. The Hollow Saint
-4. The Bone Regent
-5. The Blackened Throne
-6. The Rift Shepherd
+| d6 | Raid Lord |
+|---|---|
+| 1 | Azrael |
+| 2 | Mephisto |
+| 3 | The Hollow Saint |
+| 4 | The Bone Regent |
+| 5 | The Blackened Throne |
+| 6 | The Rift Shepherd |
 
 ---
 
@@ -642,23 +685,26 @@ Examples:
 
 Use this script to keep pacing brutal and clear.
 
-1. "State objective and current counters."
-2. "Declare route and why."
-3. "Resolve movement checks and environmental checks."
-4. "Resolve encounter if triggered."
-5. "If portal: fight, then puzzle, then update counters."
-6. "Log attrition and loot openly."
-7. "Advance to next decision point immediately."
+> [READ ALOUD]
+> 1. "State objective and current counters."
+> 2. "Declare route and why."
+> 3. "Resolve movement checks and environmental checks."
+> 4. "Resolve encounter if triggered."
+> 5. "If portal: fight, then puzzle, then update counters."
+> 6. "Log attrition and loot openly."
+> 7. "Advance to next decision point immediately."
 
 If table stalls, ask:
 
-"What are you protecting right now: the run, the objective, or yourselves?"
+> [READ ALOUD]
+> "What are you protecting right now: the run, the objective, or yourselves?"
 
 ---
 
 ### XII. Archivist Closing Passage (Grim Revision)
 
-"Most novices believe raids are won when the Lord falls. Veterans know the Lord is only the receipt. The bill arrives earlier: in the barrier you failed, the flask you burned, the portal you postponed, the ally you left one hex too far from rescue. The Province remembers all of it. It remembers better than we do."
+> [READ ALOUD]
+> "Most novices believe raids are won when the Lord falls. Veterans know the Lord is only the receipt. The bill arrives earlier: in the barrier you failed, the flask you burned, the portal you postponed, the ally you left one hex too far from rescue. The Province remembers all of it. It remembers better than we do."
 
 ---
 

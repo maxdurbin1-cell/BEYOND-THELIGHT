@@ -2298,6 +2298,14 @@
     return !!(token && !token.isPlayer && (String(token.faction) === 'player' || String(token.faction) === 'monster'));
   }
 
+  function isWayfarerToken(token) {
+    return !!(token && token.isPlayer);
+  }
+
+  function isPlayerFactionToken(token) {
+    return !!(token && (token.isPlayer || String(token.faction || '') === 'player'));
+  }
+
   function buildTurnOrder(tokens) {
     var list = Array.isArray(tokens) ? tokens.filter(Boolean) : [];
     var wayfarers = list.filter(function (t) { return !!t.isPlayer; });
@@ -2808,17 +2816,21 @@
   function getMovementActionsAvailable(state, token) {
     if (!state || !token) return 0;
     if (!isSceneActive() || !state.playMode) return 0;
-    var isPlayerSide = !!token.isPlayer || String(token.faction || '') === 'player';
+    var wayfarerToken = isWayfarerToken(token);
+    var playerSideToken = isPlayerFactionToken(token);
     var tokenTurnActive = isTokenTurnActive(state, token.id);
     if (!tokenTurnActive) {
       var hasInitiative = !!(Array.isArray(state.initiative) && state.initiative.length);
       var playerActions = Math.max(0, Number(window.S && window.S.combat && window.S.combat.actionsLeft || 0));
       // Keep reachable hexes visible for Wayfarer when initiative has not synced yet.
-      if (!(isPlayerSide && (!hasInitiative || playerActions > 0))) return 0;
+      if (!(wayfarerToken && (!hasInitiative || playerActions > 0))) return 0;
     }
     if (isTokenDead(token)) return 0;
-    if (isPlayerSide) {
+    if (wayfarerToken) {
       return Math.max(0, Number(window.S && window.S.combat && window.S.combat.actionsLeft || 0));
+    }
+    if (playerSideToken) {
+      return Math.max(0, Number(state.teamActions && state.teamActions[token.id] || 0));
     }
     return Math.max(0, Number(state.teamActions && state.teamActions[token.id] || 0));
   }
@@ -6366,40 +6378,6 @@
     return lines;
   }
 
-  function getWayfarerQuickRollProfile(actionKey) {
-    var key = String(actionKey || 'strike').toLowerCase();
-    var affix = (typeof window.getEquippedAffixCombatBonuses === 'function') ? window.getEquippedAffixCombatBonuses() : {};
-    var wpStrike = (typeof window.parseWeaponBonuses === 'function') ? window.parseWeaponBonuses('strike') : { flat: 0, advDie: 0 };
-    var wpShoot = (typeof window.parseWeaponBonuses === 'function') ? window.parseWeaponBonuses('shoot') : { flat: 0, advDie: 0 };
-    var flStrike = (typeof window.getFlavorBonus === 'function') ? window.getFlavorBonus('strike') : { flat: 0, advDice: [] };
-    var flShoot = (typeof window.getFlavorBonus === 'function') ? window.getFlavorBonus('shoot') : { flat: 0, advDice: [] };
-    var mtStrike = (typeof window.getMutationBonus === 'function') ? window.getMutationBonus('strike') : { flat: 0, advDice: [] };
-    var mtShoot = (typeof window.getMutationBonus === 'function') ? window.getMutationBonus('shoot') : { flat: 0, advDice: [] };
-    var rollMod = window.S && window.S.rollMod ? window.S.rollMod : { flat: 0, advDice: [] };
-    var isShoot = key.indexOf('shoot') >= 0 || key.indexOf('ranged') >= 0;
-    var baseDie = getWayfarerEffectiveDie(isShoot ? 'shoot' : key, 4);
-    var flat = Number(rollMod.flat || 0);
-    var advDice = [];
-    if (isShoot) {
-      flat += Number(wpShoot.flat || 0) + Number(flShoot.flat || 0) + Number(mtShoot.flat || 0) + Number(affix && affix.shootFlat || 0);
-      advDice = advDice.concat((flShoot && flShoot.advDice) || []).concat((mtShoot && mtShoot.advDice) || []);
-      if (Number(wpShoot && wpShoot.advDie || 0) > 0) advDice.push(Number(wpShoot.advDie));
-    } else {
-      flat += Number(wpStrike.flat || 0) + Number(flStrike.flat || 0) + Number(mtStrike.flat || 0) + Number(affix && affix.strikeFlat || 0);
-      advDice = advDice.concat((flStrike && flStrike.advDice) || []).concat((mtStrike && mtStrike.advDice) || []);
-      if (Number(wpStrike && wpStrike.advDie || 0) > 0) advDice.push(Number(wpStrike.advDie));
-    }
-    if (Array.isArray(rollMod && rollMod.advDice)) advDice = advDice.concat(rollMod.advDice);
-    advDice = advDice.map(function (die) { return Math.max(4, Number(die || 0)); }).filter(Boolean);
-    return {
-      actionKey: key,
-      baseDie: Math.max(4, Number(baseDie || 4)),
-      flat: flat,
-      advDice: advDice,
-      pool: [Math.max(4, Number(baseDie || 4))].concat(advDice)
-    };
-  }
-
   function formatSoulArraySummary() {
     var soul = Array.isArray(window.S && window.S.soulArray) ? window.S.soulArray.slice() : [];
     if (!soul.length) return 'Not rolled yet';
@@ -6897,9 +6875,9 @@
   function consumeMovementAction(actor, distance) {
     if (!actor) return true;
     if (!isSceneActive()) return true;
-    var isPlayerSide = !!actor.isPlayer || String(actor.faction || '') === 'player';
+    var wayfarerToken = isWayfarerToken(actor);
     var required = Math.max(1, Number(distance || 1));
-    if (isPlayerSide) {
+    if (wayfarerToken) {
       if (!window.S || !window.S.combat) return true;
       var available = Math.max(0, Number(window.S.combat.actionsLeft || 0));
       if (available < required) {
@@ -6919,9 +6897,10 @@
       return true;
     }
     var state = store.getState();
-    var availableEnemy = Math.max(0, Number(state.teamActions && state.teamActions[actor.id] || 0));
-    if (availableEnemy < required) {
-      safeNotif('Enemy token is out of actions for movement this turn.', 'warn');
+    var availableActor = Math.max(0, Number(state.teamActions && state.teamActions[actor.id] || 0));
+    if (availableActor < required) {
+      var actorLabel = isPlayerFactionToken(actor) ? 'Ally' : 'Enemy token';
+      safeNotif(actorLabel + ' is out of actions for movement this turn.', 'warn');
       return false;
     }
     for (var j = 0; j < required; j++) {
@@ -7469,10 +7448,6 @@
       + '<div id="combatNextActorPreview" class="combat-mini" style="text-align:right;">Next: -</div>'
       + '</div>'
       + '<div style="display:flex;gap:.24rem;margin-top:.26rem;"><button class="btn btn-xs" id="combatNextTurnBtn">Next Turn</button><button class="btn btn-xs" id="combatRollModeBtn">Auto Roll</button></div>'
-      + '<div class="combat-action-block">'
-      + '<div class="combat-label">Quick Rolls</div>'
-      + '<div id="combatQuickRollBar" class="combat-chip-row"></div>'
-      + '</div>'
       + '<div class="combat-action-block">'
       + '<div class="combat-label">Scene Opener</div>'
       + '<div id="combatSceneOpenerSummary" class="combat-mini">No opener active.</div>'
@@ -9908,110 +9883,6 @@
         var nextRow = rows[nextIdx] || null;
         nextPreview.textContent = 'Next: ' + String(nextRow && nextRow.name || 'Unknown');
       }
-    }
-
-    var quickRollBar = document.getElementById('combatQuickRollBar');
-    if (quickRollBar) {
-      var rollPresets = [
-        { key: 'strike', label: 'Strike', stat: 'strike' },
-        { key: 'shoot', label: 'Shoot', stat: 'shoot' },
-        { key: 'defend', label: 'Defend', stat: 'defend' },
-        { key: 'control', label: 'Control', stat: 'control' },
-        { key: 'mind', label: 'Mind', stat: 'mind' }
-      ];
-      quickRollBar.innerHTML = rollPresets.map(function (preset) {
-        return '<button class="combat-chip" data-quick-roll="' + preset.key + '">' + preset.label + '</button>';
-      }).join('');
-      Array.prototype.slice.call(quickRollBar.querySelectorAll('[data-quick-roll]')).forEach(function (btn) {
-        btn.onclick = function () {
-          var key = String(btn.getAttribute('data-quick-roll') || 'defend');
-          var profile = getWayfarerQuickRollProfile(key);
-          var mixedPoolMap = Object.create(null);
-          profile.pool.forEach(function (die) {
-            var sides = Math.max(2, Number(die || 20));
-            mixedPoolMap[sides] = (mixedPoolMap[sides] || 0) + 1;
-          });
-          var mixedPool = Object.keys(mixedPoolMap).map(function (sides) {
-            return { sides: Number(sides), count: mixedPoolMap[sides], label: 'd' + sides };
-          });
-          var totalFormula = profile.pool.map(function (die) { return 'd' + die; }).join(' / ');
-          var fallbackRoll = function () {
-            var rolls = profile.pool.map(function (die) {
-              return (typeof window.explodingRoll === 'function')
-                ? window.explodingRoll(die, { type: 'action', major: true, label: 'Quick ' + key + ' d' + die })
-                : { total: rollDie(die), exploded: false };
-            });
-            var totals = rolls.map(function (entry) { return Number(entry.total || 0); });
-            var total = totals.length ? Math.max.apply(Math, totals) + Number(profile.flat || 0) : Number(profile.flat || 0);
-            if (typeof window.queueDiceRollVisual === 'function') {
-              try {
-                rolls.forEach(function (entry, idx) {
-                  var die = profile.pool[idx] || profile.baseDie;
-                  window.queueDiceRollVisual(die, Number(entry.total || 0), { type: 'action', major: true, label: 'Quick ' + key, exploded: !!entry.exploded });
-                });
-              } catch (_err) {}
-            }
-            if (window.AudioManager && typeof window.AudioManager.playSFX === 'function') {
-              try { window.AudioManager.playSFX('sfx-combat-block', 0.45); } catch (_err) {}
-            }
-            addCombatLogEntry({
-              eventType: 'roll',
-              action: 'Quick Roll ' + key.toUpperCase(),
-              actorName: String((window.S && window.S.name) || 'Wayfarer'),
-              roll: { label: key.toUpperCase(), formula: totalFormula, total: total, breakdown: profile.advDice.length ? ('Adv ' + profile.advDice.map(function (die) { return 'd' + die; }).join(', ')) : '' },
-              result: 'Quick roll total ' + total,
-              tags: ['roll', 'quick'],
-              message: 'Quick roll ' + key.toUpperCase() + ': ' + totalFormula + ' = ' + total
-            });
-            if (typeof window.combatChatPostSystem === 'function') {
-              try { window.combatChatPostSystem('Wayfarer quick roll ' + key.toUpperCase() + ': ' + totalFormula + ' = ' + total); } catch (_chatErr) {}
-            }
-            safeNotif('Quick ' + key + ': ' + total, 'good');
-          };
-
-          if (typeof window.rollMixed3DDice === 'function' && mixedPool.length) {
-            try {
-              if (window.AudioManager && typeof window.AudioManager.playSFX === 'function') {
-                try { window.AudioManager.playSFX('sfx-combat-block', 0.45); } catch (_err) {}
-              }
-              window.rollMixed3DDice(mixedPool, Number(profile.flat || 0), {
-                mode: 'highest',
-                aggregate: function (rolls, bonus) {
-                  var values = Array.isArray(rolls) ? rolls.map(function (entry) { return Number(entry && entry.value || 0); }) : [];
-                  return (values.length ? Math.max.apply(Math, values) : 0) + Number(bonus || 0);
-                }
-              }, function (result) {
-                var total = Number(result && result.total || 0);
-                var rolls = Array.isArray(result && result.rolls) ? result.rolls : [];
-                addCombatLogEntry({
-                  eventType: 'roll',
-                  action: 'Quick Roll ' + key.toUpperCase(),
-                  actorName: String((window.S && window.S.name) || 'Wayfarer'),
-                  roll: {
-                    label: key.toUpperCase(),
-                    formula: totalFormula,
-                    total: total,
-                    breakdown: rolls.map(function (entry) {
-                      return String(entry.poolLabel || entry.type || '').replace(/^d/, 'd') + ':' + Number(entry.value || 0);
-                    }).join(', ')
-                  },
-                  result: 'Quick roll total ' + total,
-                  tags: ['roll', 'quick'],
-                  message: 'Quick roll ' + key.toUpperCase() + ': ' + totalFormula + ' = ' + total
-                });
-                if (typeof window.combatChatPostSystem === 'function') {
-                  try { window.combatChatPostSystem('Wayfarer quick roll ' + key.toUpperCase() + ': ' + totalFormula + ' = ' + total); } catch (_chatErr) {}
-                }
-                safeNotif('Quick ' + key + ': ' + total, 'good');
-              });
-            } catch (_err) {
-              fallbackRoll();
-            }
-          } else {
-            fallbackRoll();
-          }
-        };
-      });
     }
 
     var log = document.getElementById('combatFeedLog');
@@ -13483,6 +13354,85 @@
         if (String(actor.faction) === 'monster') {
           var directTarget = targetVal ? byId(targetVal) : null;
           executeEnemyTokenAction(actor, directTarget, actionVal || 'enemy_action');
+          return;
+        }
+        if (!actor.isPlayer && String(actor.faction) === 'player') {
+          if (!actionVal) {
+            safeNotif('Choose a token action first.', 'warn');
+            return;
+          }
+          if (!spendUnitAction(actor.id)) {
+            safeNotif(String(actor.name || 'Ally') + ' has no actions left this turn.', 'warn');
+            return;
+          }
+
+          var lowerActionAlly = String(actionVal || '').toLowerCase();
+          if (/utility|use_item|backpack|hack|flavor|personal_flavor/.test(lowerActionAlly)) {
+            store.setState(function (state) {
+              var next = Object.assign({}, state);
+              next.sceneRules = Object.assign({}, state.sceneRules, { supportBonus: 2 });
+              persist(next);
+              return next;
+            });
+            addHistory(String(actor.name || 'Ally') + ' used support utility: next action gets +2 scene bonus.');
+            drawBoard();
+            updateUiPanels();
+            return;
+          }
+
+          if (lowerActionAlly.indexOf('defend') >= 0) {
+            store.setState(function (state) {
+              var next = Object.assign({}, state);
+              var key = toKey(actor.q, actor.r);
+              next.layers = Object.assign({}, state.layers);
+              next.layers.objects = Object.assign({}, state.layers.objects);
+              next.layers.objects[key] = 'obstacle';
+              persist(next);
+              return next;
+            });
+            addHistory(String(actor.name || 'Ally') + ' used Defend and fortified their position.');
+            drawBoard();
+            updateUiPanels();
+            return;
+          }
+
+          var targetAlly = targetVal ? byId(targetVal) : null;
+          if (!targetAlly || String(targetAlly.faction) === 'player' || isTokenDead(targetAlly)) {
+            var nearest = (store.getState().tokens || []).filter(function (row) {
+              return row && String(row.faction) === 'monster' && !isTokenDead(row);
+            }).sort(function (a, b) {
+              return hexDistance({ q: actor.q, r: actor.r }, { q: a.q, r: a.r }) - hexDistance({ q: actor.q, r: actor.r }, { q: b.q, r: b.r });
+            });
+            targetAlly = nearest[0] || null;
+          }
+
+          if (!targetAlly) {
+            safeNotif('No living enemy target available for ally action.', 'warn');
+            updateUiPanels();
+            return;
+          }
+
+          var rangeToTarget = hexDistance({ q: actor.q, r: actor.r }, { q: targetAlly.q, r: targetAlly.r });
+          if (!canActionReachTarget(actionVal, rangeToTarget)) {
+            safeNotif('Target is out of range for this ally action.', 'warn');
+            updateUiPanels();
+            return;
+          }
+
+          var supportBonus = Number(store.getState().sceneRules && store.getState().sceneRules.supportBonus || 0);
+          var attackRoll = rollDie(20) + supportBonus;
+          var dreadDie = Math.max(4, Number(targetAlly.dread || targetAlly.codexDread || 6));
+          var damage = Math.max(0, attackRoll - dreadDie);
+          if (damage > 0) applyDamageToToken(targetAlly.id, Math.max(1, damage), actor.name || 'Ally');
+          store.setState(function (state) {
+            var next = Object.assign({}, state);
+            next.sceneRules = Object.assign({}, state.sceneRules, { supportBonus: 0 });
+            persist(next);
+            return next;
+          });
+          addHistory(String(actor.name || 'Ally') + ' used ' + String(actionVal) + ' vs ' + String(targetAlly.name || 'Enemy') + ' (' + (damage > 0 ? ('hit for ' + Math.max(1, damage)) : 'miss') + ').');
+          drawBoard();
+          updateUiPanels();
           return;
         }
         if (!actionVal) {

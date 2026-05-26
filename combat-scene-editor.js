@@ -10228,7 +10228,6 @@
 
     var tokenTargetSel = document.getElementById('combatTokenTargetSel');
     var tokenActionSel = document.getElementById('combatTokenActionSel');
-    var tokenEnemyBtn = document.getElementById('combatTokenEnemyActionBtn');
     var tokenCoverSel = document.getElementById('combatTargetCoverOverrideSel');
     var generateLootBtn = document.getElementById('combatGenerateLootBtn');
     var lootBodyBtn = document.getElementById('combatLootBodyBtn');
@@ -10324,11 +10323,6 @@
         tokenActionSel._bound = true;
         tokenActionSel.onchange = function () { updateUiPanels(); };
       }
-    }
-    var tokenEnemyBtnVis = document.getElementById('combatTokenEnemyActionBtn');
-    if (tokenEnemyBtnVis) {
-      var actorForEnemyBtn = byId(state.selectedTokenId);
-      tokenEnemyBtnVis.style.display = (actorForEnemyBtn && String(actorForEnemyBtn.faction) === 'monster') ? '' : 'none';
     }
     if (generateLootBtn) {
       var selectedLootToken = byId(state.selectedTokenId);
@@ -10429,12 +10423,6 @@
       } else {
         tokenActionHelp.textContent = 'No combat roll yet.';
       }
-    }
-
-    if (tokenEnemyBtn) {
-      var selectedTokenForButton = byId(state.selectedTokenId);
-      var showEnemyBtn = !!(selectedTokenForButton && String(selectedTokenForButton.faction) === 'monster');
-      tokenEnemyBtn.style.display = showEnemyBtn ? '' : 'none';
     }
 
     if (lootBodyBtn) {
@@ -10578,75 +10566,6 @@
       rowsMirror.innerHTML = rowsHtml || '<div class="combat-feed-line">No recent roll outputs yet.</div>';
     }
 
-    var enemyLedgerMeta = document.getElementById('combatEnemyLedgerMeta');
-    var enemyLedgerFeed = document.getElementById('combatEnemyLedgerFeed');
-    if (enemyLedgerMeta && enemyLedgerFeed) {
-      var ledgerBlock = enemyLedgerMeta.parentElement;
-      if (ledgerBlock) ledgerBlock.style.display = 'none';
-      var entries = [];
-      if (typeof window.getEnemyBudgetLedger === 'function') {
-        try { entries = window.getEnemyBudgetLedger() || []; } catch (_err) { entries = []; }
-      }
-      var spendRows = entries.filter(function (entry) {
-        return entry && String(entry.kind || '') === 'spend';
-      });
-      var grouped = {};
-      spendRows.forEach(function (entry) {
-        var c = Math.max(1, Number(entry.cycle || 1));
-        if (!grouped[c]) grouped[c] = 0;
-        grouped[c] += 1;
-      });
-      var activeCycle = 1;
-      Object.keys(grouped).forEach(function (k) {
-        activeCycle = Math.max(activeCycle, Number(k || 1));
-      });
-      var activeCount = grouped[activeCycle] || 0;
-      var alliesWithActions = (state.tokens || []).filter(function (t) {
-        return t && !t.isPlayer && String(t.faction) === 'player';
-      }).map(function (t) {
-        return String(t.name || 'Ally') + ' ' + Math.max(0, Number(state.teamActions && state.teamActions[t.id] || 0)) + 'A';
-      });
-      var enemiesWithActions = (state.tokens || []).filter(function (t) {
-        return t && String(t.faction) === 'monster';
-      }).map(function (t) {
-        return String(t.name || 'Enemy') + ' ' + Math.max(0, Number(state.teamActions && state.teamActions[t.id] || 0)) + 'A';
-      });
-      enemyLedgerMeta.textContent = 'Turn Actions · Allies: ' + (alliesWithActions.join(', ') || 'none') + ' · Enemies: ' + (enemiesWithActions.join(', ') || 'none') + ' · ledger events ' + spendRows.length + ' (cycle ' + activeCycle + ': ' + activeCount + ')';
-      var lines = entries.slice(-18).reverse().map(function (entry) {
-        if (!entry) return '';
-        var kind = String(entry.kind || 'event');
-        var source = String(entry.source || 'enemy event');
-        var cycle = Math.max(1, Number(entry.cycle || 1));
-        var round = Math.max(1, Number(entry.round || 1));
-        var remaining = Math.max(0, Number(entry.remaining || 0));
-        var spent = Math.max(0, Number(entry.spent || 0));
-        var note = stripHtml(String(entry.note || ''));
-        var badgeColor = kind === 'blocked' ? 'var(--combat-danger)' : (kind === 'cycle-complete' ? 'var(--combat-accent-2)' : 'var(--combat-accent)');
-        return '<div class="combat-feed-line">'
-          + '<span style="color:' + badgeColor + ';font-weight:700;">' + kind.toUpperCase() + '</span>'
-          + ' · src ' + source
-          + ' · r' + round + ' c' + cycle
-          + ' · spent ' + spent
-          + ' · remaining ' + remaining
-          + (note ? (' · ' + note) : '')
-          + '</div>';
-      }).filter(Boolean).join('');
-      enemyLedgerFeed.innerHTML = lines || '<div class="combat-feed-line">No enemy budget events yet.</div>';
-    }
-
-    var allySel = document.getElementById('combatAllySelect');
-    if (allySel) {
-      var allies = (state.tokens || []).filter(function (token) { return token && !token.isPlayer && String(token.faction) === 'player'; });
-      allySel.innerHTML = allies.map(function (ally) {
-        var left = Math.max(0, Number(state.teamActions && state.teamActions[ally.id] || 0));
-        return '<option value="' + String(ally.id) + '">' + String(ally.name || 'Ally') + ' · actions ' + left + '</option>';
-      }).join('');
-    }
-
-    var allyBudget = document.getElementById('combatAllyBudgetMeta');
-    if (allyBudget) {
-      allyBudget.textContent = 'Turn order: Wayfarer -> Allies -> Enemy. Allies and enemies have 2 actions per token each turn.';
-    }
   }
 
   function bindCanvas() {
@@ -13308,36 +13227,6 @@
       return 0;
     }
 
-    var cmdStrike = document.getElementById('combatCmdStrikeBtn');
-    if (cmdStrike && !cmdStrike._bound) {
-      cmdStrike._bound = true;
-      cmdStrike.onclick = function () { runLegacyAction('strike'); };
-    }
-
-    var cmdShoot = document.getElementById('combatCmdShootBtn');
-    if (cmdShoot && !cmdShoot._bound) {
-      cmdShoot._bound = true;
-      cmdShoot.onclick = function () { runLegacyAction('shoot'); };
-    }
-
-    var cmdDefend = document.getElementById('combatCmdDefendBtn');
-    if (cmdDefend && !cmdDefend._bound) {
-      cmdDefend._bound = true;
-      cmdDefend.onclick = function () { runLegacyAction('defend'); };
-    }
-
-    var cmdTrauma = document.getElementById('combatCmdTraumaBtn');
-    if (cmdTrauma && !cmdTrauma._bound) {
-      cmdTrauma._bound = true;
-      cmdTrauma.onclick = function () { runLegacyAction('trauma'); };
-    }
-
-    var cmdEnemy = document.getElementById('combatCmdEnemyBtn');
-    if (cmdEnemy && !cmdEnemy._bound) {
-      cmdEnemy._bound = true;
-      cmdEnemy.onclick = function () { runLegacyAction('enemy'); };
-    }
-
     var tokenExecuteBtn = document.getElementById('combatTokenExecuteActionBtn');
     if (tokenExecuteBtn && !tokenExecuteBtn._bound) {
       tokenExecuteBtn._bound = true;
@@ -13442,27 +13331,17 @@
         var lowerAction = actionVal.toLowerCase();
         var utilityLike = /use_item|utility|backpack|hack|flavor|personal_flavor/.test(lowerAction);
         if (utilityLike) {
-          var utilitySnapshot = captureLegacyCombatSnapshot();
-          if (!consumeWayfarerUtilityAction(actionVal)) {
-            safeNotif('No combat actions left for that utility.', 'warn');
-            return;
-          }
-          if (/flavor|personal_flavor/.test(lowerAction) && typeof window.usePersonalFlavorAction === 'function') {
-            try { window.usePersonalFlavorAction(); } catch (_flavorErr) {}
-            addHistory('Wayfarer utility executed: Personal Flavor.');
-            safeNotif('Personal Flavor used.', 'good');
-          } else if (typeof window.openCombatUtilityChooser === 'function') {
+          if (typeof window.openCombatUtilityChooser === 'function') {
             try { window.openCombatUtilityChooser(); } catch (_chooserErr) {}
             addHistory('Wayfarer utility chooser opened from Combat Scene.');
-            safeNotif('Utility chooser opened. Action spent.', 'good');
+            safeNotif('Select an item/hack/spell/flavor to spend the action and resolve.', 'good');
           } else if (typeof window.promptWayfarerBackpackOrFlavor === 'function') {
             try { window.promptWayfarerBackpackOrFlavor(); } catch (_promptErr) {}
             addHistory('Wayfarer utility menu opened from Combat Scene.');
-            safeNotif('Utility menu opened. Action spent.', 'good');
+            safeNotif('Select an item/hack/spell/flavor to spend the action and resolve.', 'good');
           } else {
             safeNotif('Utility actions are unavailable right now.', 'warn');
           }
-          resolveLegacyDamageBridge('wayfarer', utilitySnapshot);
           updateUiPanels();
           return;
         }
@@ -13622,138 +13501,6 @@
           return;
         }
         takeLootFromTokenDrop(tokenId, indexes, 'Take Selected');
-      };
-    }
-
-    var openUtilityPromptBtn = document.getElementById('combatOpenUtilityPromptBtn');
-    if (openUtilityPromptBtn && !openUtilityPromptBtn._bound) {
-      openUtilityPromptBtn._bound = true;
-      openUtilityPromptBtn.onclick = function () {
-        if (typeof window.openCombatUtilityChooser === 'function') {
-          try { window.openCombatUtilityChooser(); } catch (_err) {}
-        } else if (typeof window.promptCombatUtilityAction === 'function') {
-          try { window.promptCombatUtilityAction(); } catch (_err2) {}
-        }
-        updateUiPanels();
-      };
-    }
-
-    var openFlavorActionBtn = document.getElementById('combatOpenFlavorActionBtn');
-    if (openFlavorActionBtn && !openFlavorActionBtn._bound) {
-      openFlavorActionBtn._bound = true;
-      openFlavorActionBtn.onclick = function () {
-        if (typeof window.usePersonalFlavorAction === 'function') {
-          try { window.usePersonalFlavorAction(); } catch (_err) {}
-        }
-        updateUiPanels();
-      };
-    }
-
-    function allyAction(handlerLabel, applyFn) {
-      var allySel = document.getElementById('combatAllySelect');
-      var allyId = String(allySel && allySel.value || '');
-      if (!allyId) return;
-      if (!spendUnitAction(allyId)) {
-        addHistory('No remaining actions for selected ally.');
-        updateUiPanels();
-        return;
-      }
-      applyFn(allyId);
-      addHistory(handlerLabel);
-      drawBoard();
-      updateUiPanels();
-    }
-
-    var allyDefend = document.getElementById('combatAllyDefendBtn');
-    if (allyDefend && !allyDefend._bound) {
-      allyDefend._bound = true;
-      allyDefend.onclick = function () {
-        allyAction('Ally used Defend: +1 cover effect to active position.', function (allyId) {
-          store.setState(function (state) {
-            var next = Object.assign({}, state);
-            var ally = (state.tokens || []).find(function (t) { return t && String(t.id) === allyId; }) || null;
-            if (!ally) return state;
-            var key = toKey(ally.q, ally.r);
-            next.layers = Object.assign({}, state.layers);
-            next.layers.objects = Object.assign({}, state.layers.objects);
-            next.layers.objects[key] = 'obstacle';
-            persist(next);
-            return next;
-          });
-        });
-      };
-    }
-
-    var allySupport = document.getElementById('combatAllySupportBtn');
-    if (allySupport && !allySupport._bound) {
-      allySupport._bound = true;
-      allySupport.onclick = function () {
-        allyAction('Ally used Support: next action gets +2 scene bonus.', function () {
-          store.setState(function (state) {
-            var next = Object.assign({}, state);
-            next.sceneRules = Object.assign({}, state.sceneRules, { supportBonus: 2 });
-            persist(next);
-            return next;
-          });
-        });
-      };
-    }
-
-    var allyAttack = document.getElementById('combatAllyAttackBtn');
-    if (allyAttack && !allyAttack._bound) {
-      allyAttack._bound = true;
-      allyAttack.onclick = function () {
-        allyAction('Ally attacked nearest enemy.', function (allyId) {
-          var state = store.getState();
-          var ally = (state.tokens || []).find(function (t) { return t && String(t.id) === allyId; }) || null;
-          if (!ally) return;
-          var enemies = (state.tokens || []).filter(function (t) { return t && String(t.faction) === 'monster' && Number(t.hp || 0) > 0; });
-          if (!enemies.length) return;
-          enemies.sort(function (a, b) {
-            return hexDistance({ q: ally.q, r: ally.r }, { q: a.q, r: a.r }) - hexDistance({ q: ally.q, r: ally.r }, { q: b.q, r: b.r });
-          });
-          var target = enemies[0];
-          var roll = Math.floor(Math.random() * 20) + 1;
-          var dd = Math.max(4, Number(target.dread || target.codexDread || 6));
-          var support = Number(state.sceneRules && state.sceneRules.supportBonus || 0);
-          var total = roll + support;
-          if (total >= dd) {
-            var dmg = Math.max(1, total - dd);
-            var dn = Math.max(1, Number(target.deathNumber || dd));
-            var kill = dmg >= dn;
-            applyDamageToToken(target.id, kill ? Math.max(0, Number(target.hp || 0)) : dmg, ally.name || 'Ally');
-            store.setState(function (inner) {
-              var next = Object.assign({}, inner);
-              next.sceneRules = Object.assign({}, inner.sceneRules, { supportBonus: 0 });
-              persist(next);
-              return next;
-            });
-            addHistory((ally.name || 'Ally') + ' hit ' + (target.name || 'Enemy') + ' for ' + dmg + ' (DD d' + dd + ', DN ' + dn + (kill ? ', instant kill).' : ').'));
-          } else {
-            addHistory((ally.name || 'Ally') + ' missed ' + (target.name || 'Enemy') + ' (roll ' + total + ' vs DD d' + dd + ').');
-          }
-        });
-      };
-    }
-
-    var allyMove = document.getElementById('combatAllyMoveBtn');
-    if (allyMove && !allyMove._bound) {
-      allyMove._bound = true;
-      allyMove.onclick = function () {
-        allyAction('Ally moved one hex.', function (allyId) {
-          store.setState(function (state) {
-            var next = Object.assign({}, state);
-            next.tokens = (state.tokens || []).map(function (token) {
-              if (!token || String(token.id) !== allyId) return token;
-              var nq = Number(token.q || 0) + 1;
-              var nr = Number(token.r || 0);
-              if (isBlocked(nq, nr)) return token;
-              return Object.assign({}, token, { q: nq, r: nr });
-            });
-            persist(next);
-            return next;
-          });
-        });
       };
     }
 

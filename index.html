@@ -8077,9 +8077,8 @@ function executeWayfarerAction(){
     return;
   }
   if(v==='use_item'){
-    if(!consumeCombatAction('Use Item / Utility'))return;
     var shown=promptWayfarerBackpackOrFlavor();
-    setRes('<span style="color:var(--muted2);">'+(shown?'Choose from your actual readied item, backpack inventory, owned hacks, or Personal Flavor.':'No utility actions are available right now.')+'</span>');
+    setRes('<span style="color:var(--muted2);">'+(shown?'Choose from your actual readied item, backpack inventory, owned hacks, or Personal Flavor. Action is spent when you confirm your utility choice.':'No utility actions are available right now.')+'</span>');
     return;
   }
   if(v==='stand_help'){
@@ -24073,7 +24072,8 @@ window.addEventListener('DOMContentLoaded', function() {
       if (typeof showNotif === 'function') showNotif('Combat tab actions are unavailable.', 'warn');
       return false;
     }
-    src.value = String(arenaSel.value || src.value || '');
+    var selectedAction = String(arenaSel.value || src.value || '');
+    src.value = selectedAction;
     if (typeof updateWayfarerActionBtn === 'function') updateWayfarerActionBtn();
     executeWayfarerAction();
     if (S && S.quickPanel) {
@@ -24082,6 +24082,7 @@ window.addEventListener('DOMContentLoaded', function() {
         || (document.getElementById('defendResult') || {}).innerHTML
         || S.quickPanel.lastCombatRoll;
     }
+    if (/use_item|utility|backpack|hack|spell|flavor|personal_flavor/.test(selectedAction)) return true;
     renderArenaCombatPopup();
     return true;
   }

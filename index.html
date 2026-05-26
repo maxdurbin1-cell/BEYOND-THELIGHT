@@ -7564,6 +7564,9 @@ function startCombat(){
   S.combat.active=true;
   S.combat.round=1;
   S.combat.fastAttackUsedEncounter=false;
+  S.combat.enemySkillLocks={};
+  S.combat.quickBackpackFreeUseMarker='';
+  S.combat.deferredUtilitySpendByBackpackIndex={};
   prepareCombatTurnStart();
   S.combat.sceneDefendBonus=0;
   S.combat.enemyDefendsThisTurn=0;
@@ -7708,7 +7711,6 @@ function finishCurrentQuest(){
   updateQuestUI();
 }
 
-function nextRound(){S.combat.round++;prepareCombatTurnStart();S.combat.enemyDefendsThisTurn=0;S.combat.enemyActionPenaltyThisRound=0;resetEnemyBudgetLedger('next round');applyRegeneratorRecovery(1,'combat round');applyRoundStartAffixBonuses();updateCombatUI();}
 function endCombat(){
   S.combat.active=false;
   S.combat.round=0;
@@ -7720,6 +7722,9 @@ function endCombat(){
   S.combat.autoReloaderActionSpent=false;
   S.combat.fastAttackUsedEncounter=false;
   S.combat.flavorResistUsed={};
+  S.combat.enemySkillLocks={};
+  S.combat.quickBackpackFreeUseMarker='';
+  S.combat.deferredUtilitySpendByBackpackIndex={};
   resetEnemyBudgetLedger('scene end');
   if(Array.isArray(S.enemies)){
     S.enemies=S.enemies.filter(function(e){
@@ -8440,8 +8445,8 @@ function removeTrackedCombatantByMapUnit(unit){
 }
 
 function getCombatRoundMarker(){
-  if(!S||!S.combat)return '0|0';
-  return String(Math.max(0,Number(S.combat.round||0)))+'|'+String(Math.max(0,Number(S.combat.enemyBudgetCycle||0)));
+  if(!S||!S.combat)return '0';
+  return String(Math.max(0,Number(S.combat.round||0)));
 }
 
 function canUseQuickBackpackSlotFree(index){
@@ -8457,19 +8462,41 @@ function markQuickBackpackSlotFreeUse(){
   S.combat.quickBackpackFreeUseMarker=getCombatRoundMarker();
 }
 
+function setDeferredUtilitySpendForBackpackIndex(backpackIndex,label){
+  if(!S||!S.combat)return;
+  if(!S.combat.deferredUtilitySpendByBackpackIndex||typeof S.combat.deferredUtilitySpendByBackpackIndex!=='object'){
+    S.combat.deferredUtilitySpendByBackpackIndex={};
+  }
+  var idx=Math.max(0,Number(backpackIndex||0));
+  var spendLabel=String(label||'Use Backpack Item');
+  S.combat.deferredUtilitySpendByBackpackIndex[idx]=spendLabel;
+}
+
+function clearDeferredUtilitySpendForBackpackIndex(backpackIndex){
+  if(!S||!S.combat||!S.combat.deferredUtilitySpendByBackpackIndex||typeof S.combat.deferredUtilitySpendByBackpackIndex!=='object')return;
+  var idx=Math.max(0,Number(backpackIndex||0));
+  delete S.combat.deferredUtilitySpendByBackpackIndex[idx];
+}
+
+function getDeferredUtilitySpendLabelForBackpackIndex(backpackIndex){
+  if(!S||!S.combat||!S.combat.deferredUtilitySpendByBackpackIndex||typeof S.combat.deferredUtilitySpendByBackpackIndex!=='object')return '';
+  var idx=Math.max(0,Number(backpackIndex||0));
+  return String(S.combat.deferredUtilitySpendByBackpackIndex[idx]||'');
+}
+
 function openCombatUtilityChooser(){
   var sections=[];
   var readied=String((S&&S.equipment&&S.equipment.readied)||'').trim();
   if(readied){
-    sections.push('<div style="margin-bottom:.5rem;"><div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">Readied Item</div><button class="btn btn-sm btn-primary" onclick="executeCombatUtilityAction(\'readied\');closeModal()">Use '+readied.replace(/'/g,'&#39;')+'</button></div>');
+    sections.push('<div style="margin-bottom:.5rem;"><div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">Readied Item</div><button class="btn btn-sm btn-primary" onclick="if(executeCombatUtilityAction(\'readied\'))closeModal()">Use '+readied.replace(/'/g,'&#39;')+'</button></div>');
   }
   var backpackItems=Array.isArray(S&&S.backpack)?S.backpack.map(function(item,idx){return {item:String(item||'').trim(),idx:idx};}).filter(function(entry){return !!entry.item;}):[];
   if(backpackItems.length){
-    sections.push('<div style="margin-bottom:.5rem;"><div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">Backpack</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">'+backpackItems.map(function(entry){var quick=entry.idx<3?' <span style="font-size:.62rem;color:#57d69b;">Q'+(entry.idx+1)+'</span>':'';return '<button class="btn btn-xs" onclick="executeCombatUtilityAction(\'backpack\','+entry.idx+');closeModal()">'+entry.item.replace(/'/g,'&#39;')+quick+'</button>';}).join('')+'</div><div style="font-size:.66rem;color:var(--muted2);margin-top:.22rem;">Quick slots Q1-Q3: first backpack use each combat round costs no Action.</div></div>');
+    sections.push('<div style="margin-bottom:.5rem;"><div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">Backpack</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">'+backpackItems.map(function(entry){var quick=entry.idx<3?' <span style="font-size:.62rem;color:#57d69b;">Q'+(entry.idx+1)+'</span>':'';return '<button class="btn btn-xs" onclick="if(executeCombatUtilityAction(\'backpack\','+entry.idx+'))closeModal()">'+entry.item.replace(/'/g,'&#39;')+quick+'</button>';}).join('')+'</div><div style="font-size:.66rem;color:var(--muted2);margin-top:.22rem;">Quick slots Q1-Q3: first backpack use each combat round costs no Action.</div></div>');
   }
   var hacks=Array.isArray(S&&S.ownedHacks)?S.ownedHacks.filter(Boolean):[];
   if(hacks.length){
-    sections.push('<div style="margin-bottom:.5rem;"><div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">Owned Hacks</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">'+hacks.map(function(hack){var safe=String(hack).replace(/'/g,'&#39;');return '<button class="btn btn-xs btn-teal" onclick="executeCombatUtilityAction(\'hack\',\''+safe+'\');closeModal()">'+safe+'</button>';}).join('')+'</div></div>');
+    sections.push('<div style="margin-bottom:.5rem;"><div style="font-size:.72rem;color:var(--gold2);margin-bottom:.18rem;">Owned Hacks</div><div style="display:flex;gap:.25rem;flex-wrap:wrap;">'+hacks.map(function(hack){var safe=String(hack).replace(/'/g,'&#39;');return '<button class="btn btn-xs btn-teal" onclick="if(executeCombatUtilityAction(\'hack\',\''+safe+'\'))closeModal()">'+safe+'</button>';}).join('')+'</div></div>');
   }
   var flavors=[];
   if(Array.isArray(S&&S.personalFlavors)){
@@ -8486,7 +8513,7 @@ function openCombatUtilityChooser(){
       var bits=String(flavorText||'').split(':');
       var label=String(bits[0]||'Personal Flavor').trim();
       var detail=String(bits.slice(1).join(':')||'').trim();
-      return '<button class="btn btn-xs" style="text-align:left;" onclick="executeCombatUtilityAction(\'flavor\',decodeURIComponent(\''+encoded+'\'));closeModal()"><strong>'+label+'</strong>'+(detail?' <span style="color:var(--muted2);font-size:.68rem;">- '+detail+'</span>':'')+'</button>';
+      return '<button class="btn btn-xs" style="text-align:left;" onclick="if(executeCombatUtilityAction(\'flavor\',decodeURIComponent(\''+encoded+'\')))closeModal()"><strong>'+label+'</strong>'+(detail?' <span style="color:var(--muted2);font-size:.68rem;">- '+detail+'</span>':'')+'</button>';
     }).join('')+'</div></div>');
   }
   if(!sections.length){showNotif('No readied item, backpack item, hack, or Personal Flavor is ready to use.','warn');return;}
@@ -8494,6 +8521,14 @@ function openCombatUtilityChooser(){
 }
 
 function executeCombatUtilityAction(kind,payload){
+  function isMultiStepUtility(kindName,payloadValue){
+    var itemText='';
+    if(kindName==='backpack')itemText=String(Array.isArray(S&&S.backpack)?S.backpack[Math.max(0,Number(payloadValue||0))]||'':'').trim();
+    else if(kindName==='readied')itemText=String(S&&S.equipment&&S.equipment.readied||'').trim();
+    if(!itemText)return false;
+    var found=(typeof findShopItem==='function')?findShopItem(itemText):null;
+    return !!(found&&found.cat==='toolkits');
+  }
   function combatLockState(){
     return (S&&S.combat&&S.combat.enemySkillLocks&&typeof S.combat.enemySkillLocks==='object')?S.combat.enemySkillLocks:{};
   }
@@ -8527,49 +8562,58 @@ function executeCombatUtilityAction(kind,payload){
   var utilityName=itemNameForKind();
   if(kind==='hack'&&Number(locks.hackUntilRound||0)>=roundNow){
     showNotif('Enemy effect: hacks are disabled until your next turn.','warn');
-    return;
+    return false;
   }
   if(nameLooksLikeSpell(utilityName)&&Number(locks.spellUntilRound||0)>=roundNow){
     showNotif('Enemy effect: spells are disabled until your next turn.','warn');
-    return;
+    return false;
   }
   if(nameLooksLikeAugmentation(utilityName)&&Number(locks.augmentationUntilRound||0)>=roundNow){
     showNotif('Enemy effect: augmentations are disabled until your next turn.','warn');
-    return;
+    return false;
   }
   if(kind==='flavor'){
     if(typeof usePersonalFlavorAction==='function')usePersonalFlavorAction(payload);
-    return;
+    return true;
   }
   if(kind==='hack'){
     if(!S.hackRoller)S.hackRoller={dreadDie:6,guess:null,selectedHack:null};
     S.hackRoller.selectedHack=String(payload||'');
     var hackSel=document.getElementById('hackSelect');
     if(hackSel)hackSel.value=S.hackRoller.selectedHack;
-    if(!S.hackRoller.guess){showNotif('Pick Below / Between / Above in the Hack panel first.','warn');return;}
-    if(!consumeCombatAction('Cast Hack'))return;
+    if(!S.hackRoller.guess){showNotif('Pick Below / Between / Above in the Hack panel first.','warn');return false;}
+    if(!consumeCombatAction('Cast Hack'))return false;
     if(typeof castHack==='function')castHack();
-    return;
+    return true;
   }
   if(kind==='backpack'){
     var bpIdx=Math.max(0,Number(payload||0));
     var hasItem=Array.isArray(S&&S.backpack)?String(S.backpack[bpIdx]||'').trim():'';
-    if(!hasItem){showNotif('That backpack slot is empty.','warn');return;}
+    if(!hasItem){showNotif('That backpack slot is empty.','warn');return false;}
     var freeQuick=canUseQuickBackpackSlotFree(bpIdx);
-    if(!freeQuick&& !consumeCombatAction('Use Backpack Item'))return;
+    var deferSpend=isMultiStepUtility('backpack',bpIdx);
+    if(!freeQuick&&!deferSpend&&!consumeCombatAction('Use Backpack Item'))return false;
     if(freeQuick){
       markQuickBackpackSlotFreeUse();
       showNotif('Quick Slot used (no Action).','good');
+    }else if(deferSpend){
+      setDeferredUtilitySpendForBackpackIndex(bpIdx,'Use Backpack Item');
     }
     if(typeof useBackpackItem==='function')useBackpackItem(bpIdx);
-    return;
+    return true;
   }
-  if(!consumeCombatAction(kind==='readied'?'Use Readied Item':'Use Backpack Item'))return;
+  var readiedDeferSpend=isMultiStepUtility('readied',payload);
+  if(!readiedDeferSpend&&!consumeCombatAction(kind==='readied'?'Use Readied Item':'Use Backpack Item'))return false;
   if(kind==='readied'){
-    if(typeof useEquippedReadiedItem==='function')useEquippedReadiedItem();
-    return;
+    if(readiedDeferSpend){
+      if(typeof useEquippedReadiedItem==='function')useEquippedReadiedItem({deferredCombatSpendLabel:'Use Readied Item'});
+    }else{
+      if(typeof useEquippedReadiedItem==='function')useEquippedReadiedItem();
+    }
+    return true;
   }
   if(kind==='backpack'&&typeof useBackpackItem==='function')useBackpackItem(Number(payload||0));
+  return true;
 }
 
 function getHostileEnemyCount(){
@@ -8598,7 +8642,7 @@ function getEnemyActionsPerCycle(){
 
 function getEnemyActionsRemaining(){
   if(!S||!S.combat)return getEnemyActionsPerCycle();
-  var perCycle=Math.max(1,getEnemyActionsPerCycle());
+  var perCycle=Math.max(0,getEnemyActionsPerCycle());
   var spent=Math.max(0,Number(S.combat.enemyDefendsThisTurn||0));
   return Math.max(0,perCycle-spent);
 }
@@ -10012,10 +10056,16 @@ function maybeResetActionsAfterDefend(){
     showNotif('Enemy turn consumed. Initiative advanced.','info');
     return;
   }
+  var needed=Math.max(0,getEnemyActionsPerCycle());
+  if(needed<=0){
+    S.combat.enemyDefendsThisTurn=0;
+    updateCombatUI();
+    if(typeof renderQP==='function')renderQP('combat');
+    return;
+  }
   S.combat.enemyDefendsThisTurn=(S.combat.enemyDefendsThisTurn||0)+1;
   updateCombatUI();
   if(typeof renderQP==='function')renderQP('combat');
-  var needed=Math.max(1,getEnemyActionsPerCycle());
   if(S.combat.enemyDefendsThisTurn>=needed){
     S.combat.enemyDefendsThisTurn=0;
     S.combat.actionsLeft=getMaxActions();
@@ -13560,6 +13610,7 @@ function showEquippedItem(slot) {
 // Use currently equipped Readied Item by routing through backpack mechanics.
 // This preserves existing item behavior paths (scrolls, toolkits, consumables, custom items).
 function useEquippedReadiedItem() {
+  var options = (arguments.length > 0 && arguments[0] && typeof arguments[0] === 'object') ? arguments[0] : {};
   if (!S || !S.equipment || !S.backpack) return;
   var text = S.equipment.readied || '';
   if (!text) { showNotif('No Readied Item equipped.', 'warn'); return; }
@@ -13585,6 +13636,8 @@ function useEquippedReadiedItem() {
 
   // Toolkits require follow-up selection buttons tied to a backpack index.
   if (found && found.cat === 'toolkits') {
+    var deferredReadiedSpendLabel = String(options.deferredCombatSpendLabel || '');
+    if (deferredReadiedSpendLabel) setDeferredUtilitySpendForBackpackIndex(emptyIdx, deferredReadiedSpendLabel);
     useBackpackItem(emptyIdx);
     showNotif('Toolkit moved to Backpack for use selection.', 'good');
     return;
@@ -14056,8 +14109,9 @@ function useBackpackItem(index) {
   // Toolkits — prompt for stat, then roll Action Die vs Valor Die (take highest)
   if(cat === 'toolkits'){
     var tkStats = TOOLKIT_STATS[name] || ['lead'];
+    var deferredSpendLabel = getDeferredUtilitySpendLabelForBackpackIndex(index);
     var statOptions = tkStats.map(function(s){
-      return '<button class="btn btn-sm btn-teal" style="margin:.2rem;" onclick="useToolkit(\''+s+'\','+index+');closeModal();">'+s.charAt(0).toUpperCase()+s.slice(1)+'</button>';
+      return '<button class="btn btn-sm btn-teal" style="margin:.2rem;" onclick="useToolkit(\''+s+'\','+index+',\''+deferredSpendLabel.replace(/'/g,'&#39;')+'\');closeModal();">'+s.charAt(0).toUpperCase()+s.slice(1)+'</button>';
     }).join('');
     openModal(name+' — Use',
       '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'+item.desc+'<br><br>'
@@ -15118,7 +15172,14 @@ function castScrollFromBackpack(index) {
 }
 
 // Perform a toolkit roll: roll stat die AND valor die, show both, keep highest
-function useToolkit(statKey, backpackIndex) {
+function useToolkit(statKey, backpackIndex, combatSpendLabel) {
+  var spendLabel = String(combatSpendLabel || getDeferredUtilitySpendLabelForBackpackIndex(backpackIndex) || '');
+  if (spendLabel) {
+    if (typeof consumeCombatAction === 'function' && !consumeCombatAction(spendLabel)) {
+      return;
+    }
+    clearDeferredUtilitySpendForBackpackIndex(backpackIndex);
+  }
   var statDie = getEffectiveDie(statKey);
   var advDie = S.stats.adventure || 4;
   var statRoll = explodingRoll(statDie);
@@ -15136,6 +15197,7 @@ function useToolkit(statKey, backpackIndex) {
     + '<span style="font-size:.78rem;color:var(--muted2);">' + keptNote + '</span>' + formatAdventureBonusRolls(relicRolls)
     + '</div>');
   removeBackpackItem(backpackIndex);
+  clearDeferredUtilitySpendForBackpackIndex(backpackIndex);
   clearConditionOnUse(statKey);
 }
 function rollHaggle(){const a=explodingRoll(S.stats.spirit),d=explodingRoll(8);const diff=a.total-d.total;let result='';if(diff>=7)result='<strong style="color:var(--gold2);">You\'ve tripled the price and everyone is happy!</strong>';else if(diff>=4)result='<strong style="color:var(--gold);">It\'s a deal, but you suck at haggling.</strong>';else if(diff>=2)result='<strong style="color:var(--green2);">The merchant pays with a Strange Item.</strong>';else if(diff>=1)result='<strong style="color:var(--green);">The merchant nods and agrees to a deal.</strong>';else if(diff>=-2)result='<strong style="color:var(--red2);">Hilarious events end with you thrown out of town.</strong>';else result='<strong style="color:var(--red2);">They take it, and you leave. You wake up shackled in a livestock pen.</strong>';openModal('Haggle Check',`<div style="font-size:.9rem;margin-bottom:.5rem;">Spirit d${S.stats.spirit} = <strong style="color:var(--teal);">${a.total}</strong> vs DD8 = <strong style="color:var(--red);">${d.total}</strong></div><div style="font-size:.9rem;line-height:1.6;">${result}</div>`);if(diff>=1){if(typeof showDccSuccessOutcome==='function'){showDccSuccessOutcome('spirit',Math.max(1,diff),{actionTotal:a.total,dreadTotal:d.total,context:'Haggle check'});}addSuccessRoll();}else{if(typeof showDccFailureOutcome==='function'){showDccFailureOutcome('spirit',Math.max(1,d.total-a.total),{actionTotal:a.total,dreadTotal:d.total,context:'Haggle check'});}addTMWOnFail('general-failure');}}

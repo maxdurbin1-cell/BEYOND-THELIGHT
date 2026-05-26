@@ -3454,14 +3454,14 @@ function syncManualCheckPanel() {
   if (actionLabel) actionLabel.textContent = "Action d" + actionDie;
   if (dreadLabel) dreadLabel.textContent = "Dread d" + dreadDie;
   if (actionInput) {
-    actionInput.min = "1";
-    actionInput.removeAttribute("max");
-    actionInput.placeholder = "1+ (explode ok)";
+    actionInput.type = "text";
+    actionInput.inputMode = "text";
+    actionInput.placeholder = "e.g. 7+3+1+1";
   }
   if (dreadInput) {
-    dreadInput.min = "1";
-    dreadInput.removeAttribute("max");
-    dreadInput.placeholder = "1+ (explode ok)";
+    dreadInput.type = "text";
+    dreadInput.inputMode = "text";
+    dreadInput.placeholder = "e.g. 8+7";
   }
   if (prompt) {
     if (manualMode) {
@@ -3505,6 +3505,20 @@ function syncManualCheckPanel() {
   }
 }
 
+function parseManualTotalExpressionSafe(rawValue) {
+  var raw = String(rawValue == null ? "" : rawValue).trim();
+  if (!raw) return null;
+  if (!/^[+\-\d\s]+$/.test(raw)) return null;
+  var compact = raw.replace(/\s+/g, "");
+  if (!/^[+-]?\d+(?:[+-]\d+)*$/.test(compact)) return null;
+  var parts = compact.match(/[+-]?\d+/g) || [];
+  if (!parts.length) return null;
+  var total = 0;
+  for (var i = 0; i < parts.length; i++) total += Number(parts[i] || 0);
+  if (!Number.isFinite(total)) return null;
+  return Math.round(total);
+}
+
 function readManualCheckValue(kind, consume) {
   var die = Math.max(1, Number(window.selectedDice[kind] || (kind === "action" ? 4 : 6)));
   var input = document.getElementById(kind === "action" ? "manualActionValue" : "manualDreadValue");
@@ -3517,9 +3531,9 @@ function readManualCheckValue(kind, consume) {
     input.focus();
     return null;
   }
-  var value = Number.parseInt(raw, 10);
+  var value = parseManualTotalExpressionSafe(raw);
   if (!Number.isFinite(value) || value < 1) {
-    showNotif((kind === "action" ? "Action" : "Dread") + " result must be 1 or higher.", "warn");
+    showNotif((kind === "action" ? "Action" : "Dread") + " result must be a valid total (example: 7+3+1+1).", "warn");
     input.focus();
     return null;
   }
@@ -3566,10 +3580,10 @@ function consumeVisibleManualRollValue(kind, sides, meta) {
       return null;
     }
   }
-  var value = Number.parseInt(raw, 10);
+  var value = parseManualTotalExpressionSafe(raw);
   // Allow exploded physical totals in manual mode (example: 13 on d12).
   if (!Number.isFinite(value) || value < 1) {
-    showNotif((kind === "action" ? "Action" : "Dread") + " result must be 1 or higher.", "warn");
+    showNotif((kind === "action" ? "Action" : "Dread") + " result must be a valid total (example: 8+7).", "warn");
     input.focus();
     return null;
   }

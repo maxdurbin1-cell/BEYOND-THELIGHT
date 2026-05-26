@@ -3294,10 +3294,24 @@
     return rollDie(die);
   }
 
+  function parseManualTotalExpression(rawValue) {
+    var raw = String(rawValue == null ? '' : rawValue).trim();
+    if (!raw) return null;
+    if (!/^[+\-\d\s]+$/.test(raw)) return null;
+    var compact = raw.replace(/\s+/g, '');
+    if (!/^[+-]?\d+(?:[+-]\d+)*$/.test(compact)) return null;
+    var parts = compact.match(/[+-]?\d+/g) || [];
+    if (!parts.length) return null;
+    var total = 0;
+    for (var i = 0; i < parts.length; i++) total += Number(parts[i] || 0);
+    if (!Number.isFinite(total)) return null;
+    return Math.round(total);
+  }
+
   function promptManualDieTotal(message, defaultValue, min, max) {
     var raw = window.prompt(String(message || 'Enter roll total:'), String(defaultValue || 1));
     if (raw === null) return null;
-    var n = Number(raw);
+    var n = parseManualTotalExpression(raw);
     if (!Number.isFinite(n)) return null;
     var low = Math.max(1, Number(min || 1));
     return Math.max(low, Math.round(n));

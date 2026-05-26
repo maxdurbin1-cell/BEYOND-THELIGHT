@@ -1695,11 +1695,11 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-top:.45rem;">
           <label style="display:block;">
             <div id="manualActionLabel" class="sub-label" style="margin-bottom:.22rem;">Action d4</div>
-            <input type="number" id="manualActionValue" min="1" max="4" inputmode="numeric" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.38rem .45rem;font-size:.9rem;border-radius:4px;" placeholder="1-4">
+            <input type="text" id="manualActionValue" inputmode="text" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.38rem .45rem;font-size:.9rem;border-radius:4px;" placeholder="e.g. 7+3+1+1">
           </label>
           <label style="display:block;">
             <div id="manualDreadLabel" class="sub-label" style="margin-bottom:.22rem;">Dread d6</div>
-            <input type="number" id="manualDreadValue" min="1" max="6" inputmode="numeric" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.38rem .45rem;font-size:.9rem;border-radius:4px;" placeholder="1-6">
+            <input type="text" id="manualDreadValue" inputmode="text" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.38rem .45rem;font-size:.9rem;border-radius:4px;" placeholder="e.g. 8+7">
           </label>
         </div>
         <div style="display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.5rem;">
@@ -15364,6 +15364,23 @@ function buildManualRollModifierLines(statKey,actionDie,cfg){
   return lines;
 }
 window.buildManualRollModifierLines=buildManualRollModifierLines;
+
+function parseManualTotalExpression(rawValue){
+  var raw=String(rawValue==null?'':rawValue).trim();
+  if(!raw)return null;
+  if(!/^[+\-\d\s]+$/.test(raw))return null;
+  var compact=raw.replace(/\s+/g,'');
+  if(!/^[+-]?\d+(?:[+-]\d+)*$/.test(compact))return null;
+  var parts=compact.match(/[+-]?\d+/g)||[];
+  if(!parts.length)return null;
+  var total=0;
+  for(var i=0;i<parts.length;i++){
+    total+=Number(parts[i]||0);
+  }
+  if(!Number.isFinite(total))return null;
+  return Math.round(total);
+}
+
 function openProvinceManualCheckPrompt(config){
   if(typeof openModal!=='function')return false;
   const cfg=config&&typeof config==='object'?config:{};
@@ -15394,8 +15411,8 @@ function openProvinceManualCheckPrompt(config){
     + '<div style="font-size:.72rem;color:var(--muted2);margin-top:.14rem;">Roll physically, apply modifiers listed below, then enter final totals.</div>'
     + modifierHtml
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.32rem;margin-top:.4rem;">'
-    + '<div><div style="font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;">'+statLabel+' d'+actionDie+'</div><input type="number" id="provinceManualActionValue" min="1" placeholder="1+ (explode ok)" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;"></div>'
-    + '<div><div style="font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;">Dread d'+dreadDie+'</div><input type="number" id="provinceManualDreadValue" min="1" placeholder="1+ (explode ok)" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;"></div>'
+    + '<div><div style="font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;">'+statLabel+' d'+actionDie+'</div><input type="text" id="provinceManualActionValue" inputmode="text" placeholder="e.g. 8+7" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;"></div>'
+    + '<div><div style="font-size:.7rem;color:var(--muted2);margin-bottom:.16rem;">Dread d'+dreadDie+'</div><input type="text" id="provinceManualDreadValue" inputmode="text" placeholder="e.g. 7+3+1" style="width:100%;background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.32rem .42rem;font-size:.86rem;border-radius:3px;"></div>'
     + '</div>'
     + '<div style="display:flex;gap:.26rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.46rem;">'
     + '<button class="btn btn-sm" onclick="resolveProvinceManualCheckCancel()">'+cancelLabel+'</button>'
@@ -15421,12 +15438,12 @@ window.resolveProvinceManualCheck=function(mode){
   if(!pending)return;
   const actionInput=document.getElementById('provinceManualActionValue');
   const dreadInput=document.getElementById('provinceManualDreadValue');
-  const actionValue=parseInt(actionInput&&actionInput.value,10);
-  const dreadValue=parseInt(dreadInput&&dreadInput.value,10);
+  const actionValue=parseManualTotalExpression(actionInput&&actionInput.value);
+  const dreadValue=parseManualTotalExpression(dreadInput&&dreadInput.value);
   const actionDie=Math.max(4,Number(pending.actionDie||4));
   const dreadDie=Math.max(4,Number(pending.dreadDie||6));
   if(!Number.isFinite(actionValue)||!Number.isFinite(dreadValue)){
-    if(typeof showNotif==='function')showNotif('Enter both manual dice values first.','warn');
+    if(typeof showNotif==='function')showNotif('Enter valid totals (for example: 7+3+1+1).','warn');
     return;
   }
   if(actionValue<1||dreadValue<1){

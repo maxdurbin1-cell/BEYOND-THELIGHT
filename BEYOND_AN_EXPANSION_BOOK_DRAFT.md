@@ -513,103 +513,196 @@ These sheets are intentionally written long-form for zero ambiguity. Trim for la
 
 ### Reference Sheet A - Player Raid Operations
 
-Purpose:
+#### Header
 
-- What players need in front of them during the run.
+Player-facing raid sheet for round-to-round decisions.
 
-1. Core comparison rule: Action >= Dread succeeds.
-2. Main objective: close 5 portals before Day 3.
-3. Boss ladder: d8/16 -> d10/20 -> d20/40.
-4. Weakened final boss after portal objective: d12/24.
-5. Gate sealing gives progress and forced reposition.
-6. Random encounter table is dangerous, not flavor-only.
-7. Preserve flasks and action economy for Day 2 and Day 3 spikes.
+#### Rules Core
 
-Player decision hierarchy:
+- Core comparison rule: Action >= Dread succeeds.
+- Main objective: close 5 portals before Day 3.
+- Boss ladder: d8/16 -> d10/20 -> d20/40.
+- Weakened final boss after portal objective: d12/24.
+- Gate sealing gives objective progress and forced reposition.
 
-1. Can we close this portal safely now?
-2. If no, can we improve position with a gate action?
-3. If no, do we take controlled attrition to avoid catastrophic attrition?
+#### Procedure
+
+1. Check current objective counters (portals, gates, day).
+2. Choose route based on nearest useful objective, not nearest fight.
+3. Resolve movement checks and environmental checks before searching.
+4. If portal is reached: breach combat first, then puzzle closure.
+5. Log stress, radiation, HP loss, and loot immediately.
+
+#### Roll Tables
+
+| Situation | Roll | Success | Failure |
+|---|---|---|---|
+| Rough weather | Lead vs DD6 | No penalty | Mental Stress by margin |
+| Peril hex | Control vs DD4 | No penalty | +1 Tick and Mental Stress by margin |
+| Barrier crossing | Body vs DD6 | Gain pass token; cross on next move | +1 Tick; route stalls |
+| Radiation surge | Spirit vs DD6 | No radiation gain | Radiation by margin |
+
+#### Read Aloud
+
+> [READ ALOUD]
+> "Your mission is not to win every fight. Your mission is to arrive at Day 3 with enough of yourselves left to matter."
+
+#### Margin Notes
+
+> [SIDEBAR]
+> Player decision hierarchy:
+> 1. Can we close this portal safely now?
+> 2. If no, can we improve position with a gate action?
+> 3. If no, do we take controlled attrition to avoid catastrophic attrition?
 
 ---
 
 ### Reference Sheet B - GM Raid Operations
 
-Purpose:
+#### Header
 
-- Exact operations order and ruling defaults.
+GM operations sheet for setup, flow control, and adjudication order.
 
-Pre-run checklist:
+#### Rules Core
 
-1. Seed map and features.
-2. Set counters (portals 0/5, gates 0, flasks 3/7).
-3. Seed mini bosses.
-4. Assign raid lord.
+- Resolve checks in strict order: movement -> environmental -> encounter -> objective update.
+- Never skip portal combat before portal puzzle.
+- Objective threshold check happens immediately after every portal closure.
+- Raid boss clear awards +3 Raid Points.
 
-During-run checklist:
+#### Procedure
 
-1. Maintain day/phase state.
-2. Apply weather/peril/barrier checks exactly.
-3. Resolve portal fights before portal puzzles.
-4. Update objective counters immediately after closure.
-5. Recompute raid boss weakened state after each portal closure.
+1. Pre-run:
+   - Seed map and features.
+   - Set counters (portals 0/5, gates 0, flasks 3/7).
+   - Seed mini bosses and assign raid lord.
+2. During-run:
+   - Maintain day/phase state at all times.
+   - Apply weather/peril/barrier checks as written.
+   - Resolve random encounter outcome fully before next action.
+   - Update objective counters and weakened-boss state immediately.
+3. Post-run:
+   - Record result, loot highlights, and resource losses.
+   - Award +3 Raid Points on raid boss victory.
 
-Post-run checklist:
+#### Roll Tables
 
-1. Record run result.
-2. Award +3 Raid Points on raid boss clear.
-3. Log named loot outcomes.
+| Boss Stage | Dread | HP | Trigger |
+|---|---|---|---|
+| Day 1 Boss | d8 | 16 | First ladder gate |
+| Day 2 Boss | d10 | 20 | Second ladder gate |
+| Day 3 Raid Boss | d20 | 40 | Final encounter |
+| Day 3 Weakened | d12 | 24 | 5 portals closed before Day 3 |
+
+#### Read Aloud
+
+> [READ ALOUD]
+> "Mark your counters in ink. The Province is patient, and it wins when your table forgets one number."
+
+#### Margin Notes
+
+> [SIDEBAR]
+> Adjudication order prevents drift. If a turn is unclear, restart at movement and resolve each layer once.
 
 ---
 
 ### Reference Sheet C - Dread vs Action Matrix
 
-Purpose:
+#### Header
 
-- Fast lookup for what die is rolled against what DD in Step 1 systems.
+Unified check-resolution sheet for all core raid saves.
 
-| Situation | Action Die | Dread Die | Failure Consequence |
-|---|---|---|---|
-| Rough weather check | Lead | DD6 | Mental Stress by difference |
-| Peril hex save | Control | DD4 | Mental Stress + pressure tick |
-| Random peril event | Control | DD6 | Damage/stress by difference |
-| Barrier crossing | Body | DD6 | Blocked crossing + pressure tick |
-| Valor/radiation encounter | Spirit (Valor context) | DD6 | Radiation by difference |
-| Portal fallback puzzle | Mind | DD8 | Portal backlash and pressure |
-| Combat strike lane | Strike/Shoot/etc. | Enemy Dread profile | Stress/HP loss, status pressure |
+#### Rules Core
+
+- Compare Action total to Dread total.
+- Tie is success.
+- Margin = |Action total - Dread total|.
+- Record margin even when there is no immediate penalty.
+
+#### Procedure
+
+1. Announce Action stat and Dread die before rolling.
+2. Roll Action and Dread.
+3. Apply legal bonuses and penalties.
+4. Determine success/failure.
+5. Apply exact consequence line.
+6. Log outcome in raid notes.
+
+#### Roll Tables
+
+| Situation | Action Die | Dread Die | On Success | On Failure |
+|---|---|---|---|---|
+| Rough weather check | Lead | DD6 | No penalty | Mental Stress by margin |
+| Peril hex save | Control | DD4 | No penalty | +1 Tick and Mental Stress by margin |
+| Random peril event | Control | DD6 | No damage | HP damage by margin (minimum 1) |
+| Barrier crossing | Body | DD6 | Gain pass token; cross next move | +1 Tick; route stalls |
+| Valor/radiation encounter | Spirit | DD6 | No radiation gain | Radiation by margin (minimum 1) |
+| Portal fallback puzzle | Mind | DD8 | Portal closes; objective +1 | Portal remains dangerous; backlash |
+| Combat lane action | Strike/Shoot/Defend/Valor | Enemy Dread | Resolve attack/effect | Resolve enemy pressure and losses |
 
 > [PRINTER NOTE]
 > Freeze this table width to one page. If needed, abbreviate the last row to "Combat lane" for narrow formats.
 
-Notes:
+#### Read Aloud
 
-- Use action totals after all valid bonuses/penalties.
-- Tie is success.
-- Margin drives severity in many outcomes.
+> [READ ALOUD]
+> "Call your die. Call the dread. Then let the numbers judge you."
+
+#### Margin Notes
+
+> [SIDEBAR]
+> Manual mode options are Compare, Success, Failure, Push Luck + Success, and Push Luck + Failure.
+> Push Luck costs 2 Teamwork and raises Dread one step: d4 -> d6 -> d8 -> d10 -> d12 -> d20.
 
 ---
 
 ### Reference Sheet D - Encounter Tables Packet
 
-Purpose:
+#### Header
 
-- One source for all random and profile tables in Step 1.
+Exact random encounter execution sheet for wilderness search resolution.
 
-#### d9 Random Encounter Table
+#### Rules Core
 
-| d9 | Encounter |
+- Each Search Hex action generates one wilderness read and one d9 encounter roll.
+- Resolve the encounter fully before any further movement.
+- If combat is spawned, open combat immediately.
+
+#### Procedure
+
+1. Read one wilderness line (table below).
+2. Roll d9 on the encounter table.
+3. Execute the listed roll/spawn exactly.
+4. Apply consequence lines immediately.
+5. Log the result with encounter number.
+
+#### Roll Tables
+
+#### Wilderness Read Table (d5 flavor line)
+
+| d5 | Read Text |
 |---|---|
-| 1 | Weather event |
-| 2 | Peril event |
-| 3 | Barrier event |
-| 4 | Roaming enemy pack |
-| 5 | Loot cache |
-| 6 | Roaming mini boss |
-| 7 | Roaming merchant |
-| 8 | Radiation surge |
-| 9 | Portal surge teleport |
+| 1 | Sky: a castle hangs in chains from the moonlit cloudline. |
+| 2 | Flora and Fauna: pale reeds and kneeling skeletons line the route. |
+| 3 | Wonder: a submerged throne room still burns in silence. |
+| 4 | Aftermath: impossible architecture intersects with ruined roads. |
+| 5 | Archaeology: statues watch from angles no mason could set. |
 
-#### Field Enemy Table
+#### d9 Random Encounter Table (full resolution)
+
+| d9 | Encounter | How It Works | GM Read Text |
+|---|---|---|---|
+| 1 | Shifting Weather | Run Dangerous Weather from current hex and season. If weather is rough: Lead vs DD6. Success: no penalty. Failure: Mental Stress by margin (minimum 1). If weather is not rough: no mechanical penalty. | "The weather turns hostile. Check your Lead against DD6." |
+| 2 | Peril Event | Roll Control vs DD6. Success: peril cleared. Failure: take HP damage equal to margin (minimum 1). | "The route itself lashes back. Roll Control vs DD6." |
+| 3 | Barrier Event | Roll Body vs DD6. Success: barrier crossed. Failure: route blocked; no crossing this resolution. | "A barrier seals the route. Roll Body vs DD6 to force passage." |
+| 4 | Roaming Enemy Pack | Spawn 1-4 field enemies. Each enemy profile is DD4 and 4 HP. Enter combat immediately. Bounty baseline: 60 Credits per enemy count. | "Movement in the ashline. A roaming pack converges on your position." |
+| 5 | Loot Cache | Roll field-tier loot grant. Outcome can be item found or empty cache. | "A hidden cache surface-breaks under the dust." |
+| 6 | Roaming Mini Boss | Spawn one mini boss at DD6 and 12 HP. Enter combat immediately. | "Something larger has marked your route. Mini boss engaged." |
+| 7 | Roaming Merchant | Generate temporary merchant stock (6-10 items), each with listed credit cost. Party may buy directly from encounter stock. | "A caravan breaks through the dust. Temporary stock is available now." |
+| 8 | Radiation Surge | Roll Spirit vs DD6 (Valor context). Success: no radiation gain. Failure: Radiation increases by margin (minimum 1). | "The air burns blue. Roll Spirit vs DD6 to endure the surge." |
+| 9 | Portal Surge Teleport | Attempt random relocation to a valid open hex different from current position. If no anchor is found, surge fails and position stays. | "Space folds. A portal surge tries to throw you across the Province." |
+
+#### Enemy/Profile Tables
 
 | d4 | Field Enemy |
 |---|---|
@@ -618,8 +711,6 @@ Purpose:
 | 3 | Ash Drifter |
 | 4 | Bone Orchard Stalker |
 
-#### Mini Boss Table
-
 | d4 | Mini Boss |
 |---|---|
 | 1 | Gallow-Archivist |
@@ -627,14 +718,10 @@ Purpose:
 | 3 | Basilica Warden |
 | 4 | Hollow Harbormaster |
 
-#### Portal Guard Table
-
 | d2 | Portal Guard |
 |---|---|
 | 1 | Portal Thrall |
 | 2 | Rift Whelp |
-
-#### Raid Lord Table
 
 | d6 | Raid Lord |
 |---|---|
@@ -645,45 +732,104 @@ Purpose:
 | 5 | The Blackened Throne |
 | 6 | The Rift Shepherd |
 
+#### Read Aloud
+
+> [READ ALOUD]
+> "Search complete. One truth from the wilderness, then one judgment from the encounter die."
+
+#### Margin Notes
+
+> [SIDEBAR]
+> Recommended logging format:
+> Encounter X/9: [Result].
+> Example: Encounter 2/9: Peril failed, took 3 damage.
+
 ---
 
 ### Reference Sheet E - Loot and Affix Packet
 
-Purpose:
+#### Header
 
-- Clarify loot generation and trophy expectations.
+Loot execution sheet for encounter rewards and boss trophies.
 
-Boss loot behavior:
+#### Rules Core
 
-- Boss-type victories prioritize weapons/armor categories.
-- Affix always appended.
+- Boss-type victories prioritize weapons and armor in loot selection.
+- Boss-type loot receives an affix tag.
+- Eligible utility categories have a 35% chance to gain [AD+1].
 
-Affix table:
+#### Procedure
 
-1. Ashbound
-2. Moonchained
-3. Thornwake
-4. Hollowglass
-5. Dreadforged
-6. Graven
-7. Saltfire
-8. Umbral
+1. Identify loot source (field, miniboss, boss tier, raid boss, cache).
+2. Roll/select item from correct pool.
+3. If boss-class source, apply one affix.
+4. If utility category is eligible, roll 35% chance for [AD+1].
+5. Record full item string in run log.
 
-Utility modifier rule:
+#### Roll Tables
 
-- 35% chance on eligible utility items to add [AD+1]
+| d8 | Affix |
+|---|---|
+| 1 | Ashbound |
+| 2 | Moonchained |
+| 3 | Thornwake |
+| 4 | Hollowglass |
+| 5 | Dreadforged |
+| 6 | Graven |
+| 7 | Saltfire |
+| 8 | Umbral |
 
-Examples:
+| Utility Bonus Check | Result |
+|---|---|
+| 1-65 on d100 | No modifier |
+| 66-100 on d100 | Append [AD+1] |
 
-- Dreadforged Blade [Ashbound]
-- Reliquary Mail [Hollowglass]
-- Cauterize Scroll [AD+1]
+#### Read Aloud
+
+> [READ ALOUD]
+> "The dead rarely leave gifts. What they leave are obligations with sharp edges."
+
+#### Margin Notes
+
+> [SIDEBAR]
+> Print examples:
+> Saltfire Halberd [Umbral]
+> Basilica Plate [Graven]
+> Pilgrim Scroll [AD+1]
 
 ---
 
 ### Reference Sheet F - Raid Turn Script (At-Table Read Aloud)
 
-Use this script to keep pacing brutal and clear.
+#### Header
+
+One-turn pacing script to keep raids fast, grim, and rules-accurate.
+
+#### Rules Core
+
+- Do not skip sequence.
+- Do not resolve encounters out of order.
+- Do not defer counter updates.
+
+#### Procedure
+
+1. State objective counters and current day.
+2. Declare intended route and priority target.
+3. Resolve movement-linked checks (weather/peril/barrier).
+4. Resolve search/encounter result.
+5. If portal triggered: combat first, puzzle second, update portal counter.
+6. Log losses, gains, and positional changes.
+7. Hand initiative to next decision point.
+
+#### Roll Tables
+
+| Stalled Table Prompt | Use When |
+|---|---|
+| Run | Players are drifting and need objective focus |
+| Objective | Players are fighting without portal/gate progress |
+| Survival | Players are overextending into attrition collapse |
+
+#### Read Aloud
 
 > [READ ALOUD]
 > 1. "State objective and current counters."
@@ -694,10 +840,13 @@ Use this script to keep pacing brutal and clear.
 > 6. "Log attrition and loot openly."
 > 7. "Advance to next decision point immediately."
 
-If table stalls, ask:
-
 > [READ ALOUD]
 > "What are you protecting right now: the run, the objective, or yourselves?"
+
+#### Margin Notes
+
+> [SIDEBAR]
+> If a turn becomes unclear, rewind to Step 1 and re-run the sequence in order.
 
 ---
 

@@ -565,6 +565,9 @@ window.playCustomMusicFromSettings = function() {
     var i18n = getAccessibilityI18n();
     if (!i18n || typeof i18n.setLanguage !== 'function') return;
     i18n.setLanguage(lang);
+    if (typeof i18n.schedulePageTranslation === 'function') {
+      i18n.schedulePageTranslation();
+    }
     createSettingsPanel();
     syncGameModeUI();
     applySettingsTabVisibility();

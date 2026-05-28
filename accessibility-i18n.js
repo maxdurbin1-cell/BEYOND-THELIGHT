@@ -1,6 +1,25 @@
 (function () {
   var STORAGE_KEY = 'beyond-light-language';
+  var CACHE_KEY = 'beyond-light-language-cache-v1';
   var FALLBACK_LANGUAGE = 'en';
+  var AUTO_TRANSLATE_SOURCE = 'en';
+  var AUTO_TRANSLATE_ENDPOINT = 'https://translate.googleapis.com/translate_a/single';
+  var AUTO_TRANSLATE_ATTRS = ['aria-label', 'aria-description', 'title', 'placeholder', 'alt'];
+  var NON_TRANSLATABLE_TAGS = {
+    SCRIPT: true,
+    STYLE: true,
+    NOSCRIPT: true,
+    CODE: true,
+    PRE: true,
+    TEXTAREA: true
+  };
+  var translationCache = {};
+  var originalTextByNode = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+  var originalAttrsByNode = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+  var translationObserver = null;
+  var translationTimer = null;
+  var suppressObserver = false;
+  var translatePassCounter = 0;
   var dictionaries = {
     en: {
       'common.on': 'On',
@@ -81,6 +100,23 @@
 
   var currentLanguage = FALLBACK_LANGUAGE;
 
+  function loadTranslationCache() {
+    try {
+      var parsed = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+      if (parsed && typeof parsed === 'object') {
+        translationCache = parsed;
+      }
+    } catch (_err) {
+      translationCache = {};
+    }
+  }
+
+  function persistTranslationCache() {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(translationCache));
+    } catch (_err) {}
+  }
+
   function normalizeLanguage(value) {
     var base = String(value || '').trim().toLowerCase();
     if (!base) return FALLBACK_LANGUAGE;
@@ -138,6 +174,9 @@
         detail: { language: normalized }
       }));
     }
+    if (!opts.skipTranslate) {
+      schedulePageTranslation();
+    }
     return normalized;
   }
 
@@ -149,13 +188,276 @@
     ];
   }
 
+  function getElementTag(node) {
+    if (!node || node.nodeType !== 1) return '';
+    return String(node.tagName || '').toUpperCase();
+  }
+
+  function canTranslateNode(node) {
+    if (!node) return false;
+    if (node.nodeType === 3) {
+      var parent = node.parentElement;
+      if (!parent) return false;
+      if (parent.closest && parent.closest('[data-no-auto-translate="true"]')) return false;
+      var tag = getElementTag(parent);
+      if (NON_TRANSLATABLE_TAGS[tag]) return false;
+      if (parent.isContentEditable) return false;
+      return true;
+    }
+    if (node.nodeType === 1) {
+      if (node.closest && node.closest('[data-no-auto-translate="true"]')) return false;
+      var elTag = getElementTag(node);
+      if (NON_TRANSLATABLE_TAGS[elTag]) return false;
+      if (node.isContentEditable) return false;
+      return true;
+    }
+    return false;
+  }
+
+  function normalizeWhitespace(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function hasWords(value) {
+    var text = normalizeWhitespace(value);
+    if (!text || text.length < 2) return false;
+    return /[A-Za-z]{2,}/.test(text);
+  }
+
+  function preserveTextPadding(original, translated) {
+    var source = String(original || '');
+    var left = source.match(/^\s*/);
+    var right = source.match(/\s*$/);
+    return (left ? left[0] : '') + String(translated || '') + (right ? right[0] : '');
+  }
+
+  function getCacheBucket(lang) {
+    var key = normalizeLanguage(lang);
+    if (!translationCache[key] || typeof translationCache[key] !== 'object') {
+      translationCache[key] = {};
+    }
+    return translationCache[key];
+  }
+
+  function getCachedTranslation(lang, sourceText) {
+    var bucket = getCacheBucket(lang);
+    var source = normalizeWhitespace(sourceText);
+    return Object.prototype.hasOwnProperty.call(bucket, source) ? bucket[source] : '';
+  }
+
+  function setCachedTranslation(lang, sourceText, translatedText) {
+    var source = normalizeWhitespace(sourceText);
+    var translated = normalizeWhitespace(translatedText);
+    if (!source || !translated) return;
+    var bucket = getCacheBucket(lang);
+    bucket[source] = translated;
+  }
+
+  function fetchAutoTranslation(text, targetLanguage) {
+    var query = new URLSearchParams({
+      client: 'gtx',
+      sl: AUTO_TRANSLATE_SOURCE,
+      tl: targetLanguage,
+      dt: 't',
+      q: text
+    });
+    var url = AUTO_TRANSLATE_ENDPOINT + '?' + query.toString();
+    return fetch(url)
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error('Translation request failed');
+        return res.json();
+      })
+      .then(function (payload) {
+        if (!Array.isArray(payload) || !Array.isArray(payload[0])) return text;
+        var pieces = payload[0].map(function (part) {
+          return Array.isArray(part) ? String(part[0] || '') : '';
+        }).join('');
+        return pieces || text;
+      })
+      .catch(function () {
+        return text;
+      });
+  }
+
+  function translateMissingTextBatch(missingItems, targetLanguage) {
+    if (!Array.isArray(missingItems) || !missingItems.length) return Promise.resolve({});
+    var pairs = {};
+    var queue = missingItems.slice();
+    var concurrency = 4;
+    var workers = [];
+    function worker() {
+      if (!queue.length) return Promise.resolve();
+      var item = queue.shift();
+      return fetchAutoTranslation(item, targetLanguage)
+        .then(function (translated) {
+          pairs[item] = translated;
+        })
+        .then(worker);
+    }
+    for (var i = 0; i < concurrency; i += 1) workers.push(worker());
+    return Promise.all(workers).then(function () { return pairs; });
+  }
+
+  function collectTranslatableUnits(root) {
+    var scope = root && root.nodeType === 1 ? root : (document && document.body ? document.body : null);
+    var textUnits = [];
+    var attrUnits = [];
+    if (!scope) return { textUnits: textUnits, attrUnits: attrUnits };
+
+    var walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT, null);
+    var textNode;
+    while ((textNode = walker.nextNode())) {
+      if (!canTranslateNode(textNode)) continue;
+      var originalText = originalTextByNode && originalTextByNode.has(textNode)
+        ? originalTextByNode.get(textNode)
+        : textNode.nodeValue;
+      if (originalTextByNode && !originalTextByNode.has(textNode)) {
+        originalTextByNode.set(textNode, originalText);
+      }
+      if (currentLanguage === FALLBACK_LANGUAGE) {
+        if (textNode.nodeValue !== originalText) textNode.nodeValue = originalText;
+        continue;
+      }
+      if (!hasWords(originalText)) continue;
+      textUnits.push({ node: textNode, source: originalText });
+    }
+
+    var allElements = scope.querySelectorAll ? scope.querySelectorAll('*') : [];
+    Array.prototype.forEach.call(allElements, function (el) {
+      if (!canTranslateNode(el)) return;
+      var attrOriginals = originalAttrsByNode && originalAttrsByNode.has(el)
+        ? originalAttrsByNode.get(el)
+        : {};
+      var touched = false;
+      AUTO_TRANSLATE_ATTRS.forEach(function (attr) {
+        if (!el.hasAttribute(attr)) return;
+        var currentVal = String(el.getAttribute(attr) || '');
+        if (!currentVal) return;
+        if (!Object.prototype.hasOwnProperty.call(attrOriginals, attr)) {
+          attrOriginals[attr] = currentVal;
+          touched = true;
+        }
+        var sourceAttr = attrOriginals[attr];
+        if (currentLanguage === FALLBACK_LANGUAGE) {
+          if (currentVal !== sourceAttr) el.setAttribute(attr, sourceAttr);
+          return;
+        }
+        if (!hasWords(sourceAttr)) return;
+        attrUnits.push({ element: el, attr: attr, source: sourceAttr });
+      });
+      if (touched && originalAttrsByNode) originalAttrsByNode.set(el, attrOriginals);
+    });
+
+    return { textUnits: textUnits, attrUnits: attrUnits };
+  }
+
+  function applyTranslatedUnits(unitsMap, textUnits, attrUnits) {
+    suppressObserver = true;
+    try {
+      textUnits.forEach(function (unit) {
+        var sourceKey = normalizeWhitespace(unit.source);
+        var translated = Object.prototype.hasOwnProperty.call(unitsMap, sourceKey) ? unitsMap[sourceKey] : '';
+        if (!translated) return;
+        unit.node.nodeValue = preserveTextPadding(unit.source, translated);
+      });
+      attrUnits.forEach(function (unit) {
+        var sourceKey = normalizeWhitespace(unit.source);
+        var translated = Object.prototype.hasOwnProperty.call(unitsMap, sourceKey) ? unitsMap[sourceKey] : '';
+        if (!translated) return;
+        unit.element.setAttribute(unit.attr, translated);
+      });
+    } finally {
+      suppressObserver = false;
+    }
+  }
+
+  function ensureTranslationObserver() {
+    if (translationObserver || typeof MutationObserver === 'undefined' || !document || !document.body) return;
+    translationObserver = new MutationObserver(function () {
+      if (suppressObserver || currentLanguage === FALLBACK_LANGUAGE) return;
+      schedulePageTranslation();
+    });
+    translationObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: AUTO_TRANSLATE_ATTRS
+    });
+  }
+
+  function translatePage(root) {
+    if (typeof document === 'undefined' || !document.body) return Promise.resolve();
+    ensureTranslationObserver();
+    var passId = ++translatePassCounter;
+    var units = collectTranslatableUnits(root || document.body);
+    var textUnits = units.textUnits;
+    var attrUnits = units.attrUnits;
+    if (currentLanguage === FALLBACK_LANGUAGE) return Promise.resolve();
+
+    var sourceSet = {};
+    textUnits.forEach(function (item) {
+      sourceSet[normalizeWhitespace(item.source)] = true;
+    });
+    attrUnits.forEach(function (item) {
+      sourceSet[normalizeWhitespace(item.source)] = true;
+    });
+
+    var sourceTexts = Object.keys(sourceSet).filter(Boolean);
+    if (!sourceTexts.length) return Promise.resolve();
+
+    var unitsMap = {};
+    var missing = [];
+    sourceTexts.forEach(function (source) {
+      var cached = getCachedTranslation(currentLanguage, source);
+      if (cached) {
+        unitsMap[source] = cached;
+      } else {
+        missing.push(source);
+      }
+    });
+
+    return translateMissingTextBatch(missing, currentLanguage).then(function (fetched) {
+      Object.keys(fetched || {}).forEach(function (source) {
+        var translated = fetched[source];
+        if (!translated || translated === source) return;
+        setCachedTranslation(currentLanguage, source, translated);
+        unitsMap[source] = translated;
+      });
+      persistTranslationCache();
+      if (passId !== translatePassCounter) return;
+      applyTranslatedUnits(unitsMap, textUnits, attrUnits);
+    });
+  }
+
+  function schedulePageTranslation() {
+    if (typeof window === 'undefined') return;
+    if (translationTimer) {
+      clearTimeout(translationTimer);
+      translationTimer = null;
+    }
+    translationTimer = setTimeout(function () {
+      translationTimer = null;
+      translatePage(document && document.body ? document.body : null);
+    }, 120);
+  }
+
   function init() {
+    loadTranslationCache();
     var stored = getStoredLanguage();
     if (stored && stored !== FALLBACK_LANGUAGE) {
       setLanguage(stored, { silent: true });
-      return;
+    } else {
+      setLanguage(getBrowserLanguage(), { silent: true });
     }
-    setLanguage(getBrowserLanguage(), { silent: true });
+    if (typeof document !== 'undefined') {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', schedulePageTranslation);
+      } else {
+        schedulePageTranslation();
+      }
+      window.addEventListener('load', schedulePageTranslation);
+    }
   }
 
   init();
@@ -165,6 +467,8 @@
     setLanguage: setLanguage,
     getLanguage: function () { return currentLanguage; },
     getSupportedLanguages: getSupportedLanguages,
+    translatePage: function (root) { return translatePage(root); },
+    schedulePageTranslation: schedulePageTranslation,
     hasLanguage: function (lang) {
       var code = normalizeLanguage(lang);
       return Object.prototype.hasOwnProperty.call(dictionaries, code);

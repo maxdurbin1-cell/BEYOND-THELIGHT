@@ -1144,11 +1144,7 @@ window.playCustomMusicFromSettings = function() {
 
     const settingsBtn = document.querySelector('#mainNav .settings-tab-btn');
     if (settingsBtn) {
-      const settingsModeLabel = isGM
-        ? 'Settings, GM Mode Active'
-        : (isCampaign ? 'Settings, Campaign Mode Active' : 'Settings, Solo Mode Active');
-      settingsBtn.setAttribute('aria-label', settingsModeLabel);
-      settingsBtn.textContent = isGM ? '⚙ GM' : (isCampaign ? '⚙ C' : '⚙');
+      settingsBtn.textContent = isGM ? '⚙ GM Settings' : (isCampaign ? '⚙ Campaign Settings' : '⚙ Settings');
     }
 
     const soloBtn = document.querySelector('#mainNav .solo-reference-btn');
@@ -1156,8 +1152,6 @@ window.playCustomMusicFromSettings = function() {
       soloBtn.classList.toggle('on', isSolo);
       soloBtn.style.borderColor = isSolo ? 'var(--teal)' : '';
       soloBtn.style.color = isSolo ? 'var(--teal)' : '';
-      const soloLabel = isSolo ? 'Solo Reference, Solo Mode Active' : 'Solo Reference';
-      soloBtn.setAttribute('aria-label', soloLabel);
     }
 
     const gmBtn = document.querySelector('#mainNav .gm-dashboard-btn');
@@ -1165,7 +1159,6 @@ window.playCustomMusicFromSettings = function() {
       gmBtn.classList.toggle('on', isGM);
       gmBtn.style.borderColor = isGM ? 'var(--purple)' : '';
       gmBtn.style.color = isGM ? 'var(--purple)' : '';
-      gmBtn.setAttribute('aria-label', isGM ? 'GM Dashboard, GM Mode Active' : 'GM Dashboard');
     }
 
     if (typeof window.updateGmWorldbuilderVisibility === 'function') {

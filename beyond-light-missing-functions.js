@@ -1237,6 +1237,20 @@ function clearAllConditions() {
   updateAllStatDisplays();
 }
 
+function runConditionAction() {
+  var sel = document.getElementById('conditionActionSel');
+  var action = sel ? String(sel.value || 'roll') : 'roll';
+  if (action === 'remove') {
+    openRemoveConditionWindow();
+    return;
+  }
+  if (action === 'clear') {
+    clearAllConditions();
+    return;
+  }
+  rollPassion();
+}
+
 function rollPassion() {
   clearAllConditions();
   const rolled = roll(8);

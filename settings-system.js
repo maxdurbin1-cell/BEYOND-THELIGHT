@@ -1149,34 +1149,29 @@ window.playCustomMusicFromSettings = function() {
 
     syncTableSceneFocusUI();
 
-    const settingsBtn = document.querySelector('nav .settings-tab-btn');
+    const settingsBtn = document.querySelector('#mainNav .settings-tab-btn');
     if (settingsBtn) {
       const settingsModeLabel = isGM
         ? 'Settings, GM Mode Active'
         : (isCampaign ? 'Settings, Campaign Mode Active' : 'Settings, Solo Mode Active');
-      settingsBtn.title = isGM
-        ? 'Settings (GM Mode Active)'
-        : (isCampaign ? 'Settings (Campaign Mode Active)' : 'Settings (Solo Mode Active)');
       settingsBtn.setAttribute('aria-label', settingsModeLabel);
       settingsBtn.textContent = isGM ? '⚙ GM' : (isCampaign ? '⚙ C' : '⚙');
     }
 
-    const soloBtn = document.querySelector('nav .solo-reference-btn');
+    const soloBtn = document.querySelector('#mainNav .solo-reference-btn');
     if (soloBtn) {
       soloBtn.classList.toggle('on', isSolo);
       soloBtn.style.borderColor = isSolo ? 'var(--teal)' : '';
       soloBtn.style.color = isSolo ? 'var(--teal)' : '';
       const soloLabel = isSolo ? 'Solo Reference, Solo Mode Active' : 'Solo Reference';
-      soloBtn.title = isSolo ? 'Solo Reference (Solo Mode Active)' : 'Solo Reference';
       soloBtn.setAttribute('aria-label', soloLabel);
     }
 
-    const gmBtn = document.querySelector('nav .gm-dashboard-btn');
+    const gmBtn = document.querySelector('#mainNav .gm-dashboard-btn');
     if (gmBtn) {
       gmBtn.classList.toggle('on', isGM);
       gmBtn.style.borderColor = isGM ? 'var(--purple)' : '';
       gmBtn.style.color = isGM ? 'var(--purple)' : '';
-      gmBtn.title = isGM ? 'GM Dashboard (GM Mode Active)' : 'GM Dashboard';
       gmBtn.setAttribute('aria-label', isGM ? 'GM Dashboard, GM Mode Active' : 'GM Dashboard');
     }
 

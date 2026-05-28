@@ -72,7 +72,7 @@ setTimeout(function() {
 .skip-link{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;z-index:9999;background:var(--surface);color:var(--gold);font-family:'Cinzel',serif;font-size:.75rem;letter-spacing:.1em;padding:.6rem 1rem;border:1px solid var(--gold);text-transform:uppercase;text-decoration:none;}
 .skip-link:focus{position:fixed;left:.8rem;top:.8rem;width:auto;height:auto;overflow:visible;}
 :root{--bg:#06070e;--surface:#0b0c1a;--card:#0f1020;--card2:#131428;--border:#1a1c35;--border2:#252848;--gold:#c9a227;--gold2:#e8c050;--gold3:#f0d070;--teal:#2ec4b6;--teal2:#50ddd0;--red:#c94040;--red2:#e05050;--green:#4caf74;--green2:#6ed090;--purple:#8060c0;--text:#d8d0c0;--text2:#c4bdaa;--muted:#9ba3c0;--muted2:#c2c9de;--muted3:#d2d7e8;--focus-ring:rgba(80,221,208,.45);--panel-shadow:0 12px 28px rgba(0,0,0,.24);--readable-line:1.62;}
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}html{scroll-behavior:smooth;}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}html{scroll-behavior:smooth;scroll-padding-top:var(--sticky-focus-offset,10.5rem);}
 body{background:var(--bg);color:var(--text);font-family:'Crimson Pro',Georgia,serif;font-size:1rem;line-height:var(--readable-line);min-height:100vh;overflow-x:hidden;background-image:radial-gradient(ellipse 80% 60% at 15% 5%,rgba(201,162,39,.05) 0%,transparent 55%),radial-gradient(ellipse 60% 80% at 85% 95%,rgba(46,196,182,.04) 0%,transparent 55%);position:relative;}
 body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.07;background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.08) 0,rgba(255,255,255,.08) 1px,transparent 1px,transparent 6px),repeating-linear-gradient(45deg,rgba(201,162,39,.08) 0,rgba(201,162,39,.08) 1px,transparent 1px,transparent 9px);}
 #main-content,header,.global-quick-access{position:relative;z-index:1;}
@@ -81,7 +81,8 @@ header{background:linear-gradient(180deg,rgba(4,5,8,.98) 0%,rgba(10,12,24,.95) 5
 .logo{font-family:'Cinzel Decorative',serif;font-size:1.12rem;font-weight:700;color:var(--gold);letter-spacing:.12em;white-space:nowrap;text-shadow:0 0 30px rgba(201,162,39,.4);flex-shrink:0;line-height:1.1;display:flex;flex-direction:column;gap:.15rem;}
 .logo::after{content:'Digital Companion';font-family:'Rajdhani',sans-serif;font-size:.62rem;letter-spacing:.26em;color:var(--muted2);text-transform:uppercase;}
 .logo span{color:var(--teal);}
-nav{grid-column:1 / -1;display:flex;gap:.32rem;flex-wrap:wrap;align-items:center;padding:.46rem .5rem;background:linear-gradient(180deg,rgba(255,255,255,.035) 0%,rgba(255,255,255,.015) 100%);border:1px solid var(--border2);border-radius:18px;box-shadow:0 0 0 1px rgba(255,255,255,.02) inset;}
+#mainNav{grid-column:1 / -1;display:flex;gap:.32rem;flex-wrap:wrap;align-items:center;padding:.46rem .5rem;background:linear-gradient(180deg,rgba(255,255,255,.035) 0%,rgba(255,255,255,.015) 100%);border:1px solid var(--border2);border-radius:18px;box-shadow:0 0 0 1px rgba(255,255,255,.02) inset;}
+#main-content :is([id],button,input,select,textarea,[role="tab"],[role="radio"],a[href]){scroll-margin-top:var(--sticky-focus-offset,10.5rem);}
 .tab-btn{background:rgba(255,255,255,.01);border:1px solid transparent;color:var(--text2);font-family:'Cinzel',serif;font-size:.80rem;letter-spacing:.10em;padding:.5rem .94rem;cursor:pointer;text-transform:uppercase;transition:all .15s;white-space:nowrap;min-height:2.4rem;border-radius:999px;font-weight:600;}
 .tab-btn:hover{color:var(--gold);border-color:rgba(201,162,39,.26);background:rgba(201,162,39,.05);transform:translateY(-1px);}
 .tab-btn.active{color:var(--gold3);border-color:rgba(201,162,39,.45);background:linear-gradient(180deg,rgba(201,162,39,.14) 0%,rgba(201,162,39,.06) 100%);box-shadow:0 0 0 1px rgba(201,162,39,.08) inset;}
@@ -730,7 +731,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="ctx-btn" data-ctx="sea" aria-pressed="false">⚓ At Sea</button>
     <button class="ctx-btn" data-ctx="space" aria-pressed="false">🚀 Space</button>
   </div>
-  <nav aria-label="Main navigation" id="mainNav">
+  <div id="mainNav" role="group" aria-label="Primary game tabs and tools">
     <div id="mainNavTablist" role="tablist" aria-orientation="horizontal">
     <button class="tab-btn active ctx-traveling" role="tab" aria-selected="true" aria-controls="tab-character" id="tabnav-character" data-tab="character">Character</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-backstory" id="tabnav-backstory" data-tab="backstory">Backstory</button>
@@ -761,10 +762,10 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-gmworldbuilder" id="tabnav-gmworldbuilder" style="display:none;" data-tab="gmworldbuilder">GM Forge</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-howto" id="tabnav-howto" data-tab="howto">How To Use</button>
     </div>
-    <button class="tab-btn solo-reference-btn ctx-traveling" aria-label="Solo Reference" onclick="openSoloReference()" title="Solo Reference">🧭 Solo</button>
-    <button class="tab-btn gm-dashboard-btn" aria-label="GM Dashboard" onclick="openGmDashboard()" title="GM Dashboard">👥 GM</button>
-    <button class="tab-btn settings-tab-btn" aria-label="Settings" onclick="window.settingsSystem.toggleSettings()" title="Settings">⚙️</button>
-  </nav>
+    <button class="tab-btn solo-reference-btn ctx-traveling" aria-label="Solo Reference" onclick="openSoloReference()">🧭 Solo</button>
+    <button class="tab-btn gm-dashboard-btn" aria-label="GM Dashboard" onclick="openGmDashboard()">👥 GM</button>
+    <button class="tab-btn settings-tab-btn" aria-label="Settings" onclick="window.settingsSystem.toggleSettings()">⚙️</button>
+  </div>
   <div class="header-credits" onclick="promptCredits()">
     <span class="cl">Credits</span>
     <span class="amt" id="headerCredits">0 ₵</span>
@@ -1057,12 +1058,12 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
       <div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;">
         <div class="section-title" style="margin:0;">Equipment</div>
       </div>
-      <div class="form-row"><span class="sub-label">Weapon (Slot 1)</span><div style="display:flex;gap:.3rem;align-items:center;"><span id="eqWeapon1Icon" aria-hidden="true"></span><input type="text" id="eqWeapon1" placeholder="e.g. Sword (+1 Strike)" style="flex:1;" onchange="S.equipment.weapon1=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon1')" title="Item info" aria-label="Show info for Weapon Slot 1">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon1')" title="Unequip" aria-label="Unequip Weapon Slot 1">✕</button></div></div>
-      <div class="form-row"><span class="sub-label">Weapon (Slot 2)</span><div style="display:flex;gap:.3rem;align-items:center;"><span id="eqWeapon2Icon" aria-hidden="true"></span><input type="text" id="eqWeapon2" placeholder="Second weapon (optional)" style="flex:1;" onchange="S.equipment.weapon2=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon2')" title="Item info" aria-label="Show info for Weapon Slot 2">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon2')" title="Unequip" aria-label="Unequip Weapon Slot 2">✕</button></div></div>
+      <div class="form-row"><span class="sub-label">Weapon (Slot 1)</span><div style="display:flex;gap:.3rem;align-items:center;"><span id="eqWeapon1Icon" aria-hidden="true"></span><input type="text" id="eqWeapon1" placeholder="e.g. Sword (+1 Strike)" style="flex:1;" onchange="S.equipment.weapon1=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon1')" aria-label="Show info for Weapon Slot 1">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon1')" title="Unequip" aria-label="Unequip Weapon Slot 1">✕</button></div></div>
+      <div class="form-row"><span class="sub-label">Weapon (Slot 2)</span><div style="display:flex;gap:.3rem;align-items:center;"><span id="eqWeapon2Icon" aria-hidden="true"></span><input type="text" id="eqWeapon2" placeholder="Second weapon (optional)" style="flex:1;" onchange="S.equipment.weapon2=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon2')" aria-label="Show info for Weapon Slot 2">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon2')" title="Unequip" aria-label="Unequip Weapon Slot 2">✕</button></div></div>
       <div class="form-row"><span class="sub-label">Armor</span>
-        <div style="display:flex;gap:.3rem;"><input type="text" id="eqArmor" placeholder="e.g. Balanced Armor (Ad6, 2 Actions)" style="flex:1;" onchange="S.equipment.armor=this.value;updateAllStatDisplays()"><button class="btn btn-sm btn-icon" onclick="rollArmor()">⚄</button><button class="bp-info-btn" onclick="showEquippedItem('armor')" title="Item info" aria-label="Show info for Armor">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('armor')" title="Unequip" aria-label="Unequip Armor">✕</button></div>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="eqArmor" placeholder="e.g. Balanced Armor (Ad6, 2 Actions)" style="flex:1;" onchange="S.equipment.armor=this.value;updateAllStatDisplays()"><button class="btn btn-sm btn-icon" onclick="rollArmor()">⚄</button><button class="bp-info-btn" onclick="showEquippedItem('armor')" aria-label="Show info for Armor">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('armor')" title="Unequip" aria-label="Unequip Armor">✕</button></div>
       </div>
-      <div class="form-row"><span class="sub-label">Readied Item</span><div style="display:flex;gap:.3rem;"><input type="text" id="eqReadied" placeholder="Item granting Valor Die bonus" style="flex:1;" onchange="S.equipment.readied=this.value"><button class="bp-info-btn" onclick="showEquippedItem('readied')" title="Item info" aria-label="Show info for Readied Item">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('readied')" title="Unequip" aria-label="Unequip Readied Item">✕</button></div></div>
+      <div class="form-row"><span class="sub-label">Readied Item</span><div style="display:flex;gap:.3rem;"><input type="text" id="eqReadied" placeholder="Item granting Valor Die bonus" style="flex:1;" onchange="S.equipment.readied=this.value"><button class="bp-info-btn" onclick="showEquippedItem('readied')" aria-label="Show info for Readied Item">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('readied')" title="Unequip" aria-label="Unequip Readied Item">✕</button></div></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
           <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;">
             <span id="backpackSlotsLabel" class="sub-label" style="margin-bottom:0;">Backpack (6 Slots)</span>
@@ -1075,10 +1076,10 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
           </div>
         </div>
         <div class="backpack-grid" id="backpackGrid">
-          <div class="bp-cell"><input class="bp-input" id="bp0" placeholder="Slot 1" onchange="S.backpack[0]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(0)" title="Item info" aria-label="Show info for Backpack Slot 1">?</button></div>
-          <div class="bp-cell"><input class="bp-input" id="bp1" placeholder="Slot 2" onchange="S.backpack[1]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(1)" title="Item info" aria-label="Show info for Backpack Slot 2">?</button></div>
-          <div class="bp-cell"><input class="bp-input" id="bp2" placeholder="Slot 3" onchange="S.backpack[2]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(2)" title="Item info" aria-label="Show info for Backpack Slot 3">?</button></div>
-          <div class="bp-cell"><input class="bp-input" id="bp3" placeholder="Slot 4" onchange="S.backpack[3]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(3)" title="Item info" aria-label="Show info for Backpack Slot 4">?</button></div>
+          <div class="bp-cell"><input class="bp-input" id="bp0" placeholder="Slot 1" onchange="S.backpack[0]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(0)" aria-label="Show info for Backpack Slot 1">?</button></div>
+          <div class="bp-cell"><input class="bp-input" id="bp1" placeholder="Slot 2" onchange="S.backpack[1]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(1)" aria-label="Show info for Backpack Slot 2">?</button></div>
+          <div class="bp-cell"><input class="bp-input" id="bp2" placeholder="Slot 3" onchange="S.backpack[2]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(2)" aria-label="Show info for Backpack Slot 3">?</button></div>
+          <div class="bp-cell"><input class="bp-input" id="bp3" placeholder="Slot 4" onchange="S.backpack[3]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(3)" aria-label="Show info for Backpack Slot 4">?</button></div>
           <div class="bp-cell"><input class="bp-input" id="bp4" placeholder="Slot 5" onchange="S.backpack[4]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(4)" title="Item info" aria-label="Show info for Backpack Slot 5">?</button></div>
           <div class="bp-cell"><input class="bp-input" id="bp5" placeholder="Slot 6" onchange="S.backpack[5]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(5)" title="Item info" aria-label="Show info for Backpack Slot 6">?</button></div>
         </div>
@@ -4138,7 +4139,7 @@ function renderBackpackUI(){
     var badge=slotCost>0?'<span style="font-size:.6rem;color:var(--muted2);padding:0 .15rem;" title="'+slotCost+' slot'+(slotCost===1?'':'s')+'">'+slotCost+'&#9633;</span>':'';
     var quickBadge=isQuick?'<span style="font-size:.57rem;color:#57d69b;padding:0 .2rem;" title="Quick Slot '+(i+1)+': first use each combat round costs no Action">Q'+(i+1)+'</span>':'';
     var shellStyle=isQuick?' style="border-color:rgba(87,214,155,.45);box-shadow:0 0 0 1px rgba(87,214,155,.2) inset;"':'';
-    html.push('<div class="bp-cell"'+shellStyle+'>'+quickBadge+badge+'<input class="bp-input" id="bp'+i+'" placeholder="'+(isQuick?'Quick ':'Slot ')+(i+1)+'" value="'+val+'" onchange="setBackpackSlotValue('+i+',this.value)"><button class="bp-info-btn" onclick="showBackpackItem('+i+')" title="Item info" aria-label="Show info for Backpack Slot '+(i+1)+'">?</button></div>');
+    html.push('<div class="bp-cell"'+shellStyle+'>'+quickBadge+badge+'<input class="bp-input" id="bp'+i+'" placeholder="'+(isQuick?'Quick ':'Slot ')+(i+1)+'" value="'+val+'" onchange="setBackpackSlotValue('+i+',this.value)"><button class="bp-info-btn" onclick="showBackpackItem('+i+')" aria-label="Show info for Backpack Slot '+(i+1)+'">?</button></div>');
   }
   host.innerHTML=html.join('');
   updateBackpackCapacityLabel();
@@ -15606,8 +15607,8 @@ function setContext(ctx,btn){
 
   // Show only tabs assigned to the selected location context.
   // Exclude the settings button (which has no ctx- class) from being hidden.
-  document.querySelectorAll('nav .tab-btn[class*="ctx-"]').forEach(t=>{t.style.display='none';});
-  document.querySelectorAll('nav .tab-btn.ctx-'+ctx).forEach(t=>{t.style.display='';}); 
+  document.querySelectorAll('#mainNav .tab-btn[class*="ctx-"]').forEach(t=>{t.style.display='none';});
+  document.querySelectorAll('#mainNav .tab-btn.ctx-'+ctx).forEach(t=>{t.style.display='';}); 
 
   // Store active context for expansion scripts
   window._activeContext = ctx;

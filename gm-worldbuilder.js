@@ -1381,7 +1381,7 @@
     var gm = isGMMode();
     if (btn) btn.style.display = gm ? '' : 'none';
     if (panel && !gm && panel.classList.contains('active') && typeof window.switchTab === 'function') {
-      var fallback = document.getElementById('tabnav-character') || document.querySelector("nav .tab-btn[onclick*=\"switchTab('character'\"]");
+      var fallback = document.getElementById('tabnav-character') || document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('character'\"]");
       window.switchTab('character', fallback || null);
     }
   }

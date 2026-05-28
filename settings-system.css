@@ -1,8 +1,7 @@
 /* settings-system.css — Settings Panel & Game Mode Styles */
 
 /* Settings Button in Header */
-nav .tab-btn[title="Settings"],
-nav .settings-tab-btn {
+#mainNav .settings-tab-btn {
   position: relative;
   color: var(--gold);
   border: 1px solid rgba(201, 162, 39, 0.3);
@@ -14,15 +13,14 @@ nav .settings-tab-btn {
   font-size: 1rem;
 }
 
-nav .tab-btn[title="Settings"]:hover,
-nav .settings-tab-btn:hover {
+#mainNav .settings-tab-btn:hover {
   color: var(--gold2);
   border-color: var(--gold);
   background: rgba(201, 162, 39, 0.1);
 }
 
 /* Ensure settings button takes up space in nav flex */
-nav {
+#mainNav {
   display: flex;
   gap: 0.15rem;
   flex-wrap: wrap;
@@ -1409,15 +1407,15 @@ body.phone-layout-mode nav {
   scrollbar-width: none;
 }
 
-body.phone-layout-mode nav::-webkit-scrollbar,
+body.phone-layout-mode #mainNav::-webkit-scrollbar,
 body.phone-layout-mode .global-quick-access::-webkit-scrollbar {
   display: none;
 }
 
 body.phone-layout-mode .tab-btn,
-body.phone-layout-mode nav .settings-tab-btn,
-body.phone-layout-mode nav .gm-dashboard-btn,
-body.phone-layout-mode nav .solo-reference-btn {
+body.phone-layout-mode #mainNav .settings-tab-btn,
+body.phone-layout-mode #mainNav .gm-dashboard-btn,
+body.phone-layout-mode #mainNav .solo-reference-btn {
   flex: 0 0 auto;
   font-size: 0.64rem;
   padding: 0.38rem 0.62rem;

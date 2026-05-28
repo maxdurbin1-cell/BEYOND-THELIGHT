@@ -7274,7 +7274,7 @@ function applySolarCycleQuestChallengeOutcome(quest, rollResult, misled) {
     if (typeof addEnemy === 'function') addEnemy(foeName, foeDread);
     if (typeof addEnemy === 'function') addEnemy('Fracture Hound', Math.max(6, foeDread - 2));
     if (typeof startCombat === 'function') startCombat();
-    var btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('combat'\"]");
+    var btn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('combat'\"]");
     if (typeof switchTab === 'function') switchTab('combat', btn || null);
     if (typeof showNotif === 'function') {
       showNotif(foeName + ' engages: DD' + foeDread + ' | ' + foeHealth + ' Health | Death Number ' + deathNumber + '. ' + foeDesc, 'warn');
@@ -8329,7 +8329,7 @@ function renderSolarCycleGalaxyTaskPanel(task) {
 }
 
 function ensureNewSunTab() {
-  var nav = document.getElementById('mainNavTablist') || document.querySelector('nav');
+  var nav = document.getElementById('mainNavTablist') || document.getElementById('mainNav');
   var panelHost = document.getElementById('tab-map') ? document.getElementById('tab-map').parentElement : null;
   if (!nav || !panelHost) return;
 
@@ -11262,7 +11262,7 @@ function openSpaceHubMarket() {
   if (!hub) return;
   const cat = hub.life && hub.life.scarcity === 'scarce' ? 'weapon_mods' : 'items';
   if (typeof switchTab === 'function') {
-    const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('shop'\"]");
+    const btn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('shop'\"]");
     switchTab('shop', btn || null);
   }
   if (typeof showShopCat === 'function') {
@@ -11639,13 +11639,13 @@ function resolveMysteryContactOption(optionId) {
     return;
   }
   if (option.trade) {
-    const shopBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('shop'\"]");
+    const shopBtn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('shop'\"]");
     if (shopBtn && typeof switchTab === 'function') switchTab('shop', shopBtn);
     finishMysteryResolution('Trade concluded. Merchant inventory is now open in the Merchant tab.', 'good');
     return;
   }
   if (option.contraband) {
-    const shopBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('shop'\"]");
+    const shopBtn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('shop'\"]");
     if (shopBtn && typeof switchTab === 'function') switchTab('shop', shopBtn);
     finishMysteryResolution('Contraband deal concluded. Merchant inventory is now open in the Merchant tab.', 'good');
     return;
@@ -14871,7 +14871,7 @@ function resolvePlanetSkirmishChoice(choice, groupA, groupB, factionA, factionB,
 
   if (typeof startCombat === 'function') startCombat();
   if (typeof renderEnemies === 'function') renderEnemies();
-  const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('combat'\"]");
+  const btn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('combat'\"]");
   if (typeof switchTab === 'function') switchTab('combat', btn || null);
   showNotif('Planet skirmish seeded in Combat tab. Resolve and mark outcome.', 'warn');
   openPlanetSkirmishOutcomeModal();
@@ -15614,7 +15614,7 @@ function openActivePlanetMap() {
   }
   S.starSystem.activePlanetHexId = h.id;
   ensurePlanetSurfaceState(h);
-  const b = document.getElementById('tabnav-planet') || document.querySelector('nav .tab-btn[data-tab="planet"]');
+  const b = document.getElementById('tabnav-planet') || document.querySelector('#mainNav .tab-btn[data-tab="planet"]');
   if (typeof switchTab === 'function' && b) switchTab('planet', b);
 }
 
@@ -16618,7 +16618,7 @@ function yessodEngageMonster() {
   state.pendingMonster.combatStarted = true;
   state.pendingMonster.resolving = true;
   showNotif(`Combat started: ${count} × ${monster.name}. Check Combat tab or Quick Panel.`, 'warn');
-  const combatBtn = document.getElementById('tabnav-combat') || document.querySelector('nav .tab-btn[data-tab="combat"]');
+  const combatBtn = document.getElementById('tabnav-combat') || document.querySelector('#mainNav .tab-btn[data-tab="combat"]');
   if (typeof switchTab === 'function' && combatBtn) switchTab('combat', combatBtn);
 }
 
@@ -16672,7 +16672,7 @@ function enterYessodBossTower(towerId) {
   if (typeof startCombat === 'function') startCombat();
   if (typeof renderEnemies === 'function') renderEnemies();
   showNotif(`Entering ${bossData.name}. ${bossData.label} Raid encounter started. This is a Gate Endgame Mission.`, 'warn');
-  const combatBtn = document.getElementById('tabnav-combat') || document.querySelector('nav .tab-btn[data-tab="combat"]');
+  const combatBtn = document.getElementById('tabnav-combat') || document.querySelector('#mainNav .tab-btn[data-tab="combat"]');
   if (typeof switchTab === 'function' && combatBtn) switchTab('combat', combatBtn);
 }
 
@@ -22872,7 +22872,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  const nav = document.querySelector('nav');
+  const nav = document.getElementById('mainNav');
 
   const dedupeNodes = function(selector, keyFn) {
     const seen = new Set();
@@ -22888,7 +22888,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   };
   dedupeNodes('.ctx-btn[data-ctx]', function(node) { return node.getAttribute('data-ctx'); });
-  dedupeNodes('nav .tab-btn', function(node) {
+  dedupeNodes('#mainNav .tab-btn', function(node) {
     return node.getAttribute('data-tab') || node.getAttribute('aria-controls') || node.id || node.textContent;
   });
 
@@ -22942,15 +22942,15 @@ document.addEventListener('DOMContentLoaded', function() {
     nav.appendChild(yessodBtn);
   }
 
-  const planetTab = document.getElementById('tabnav-planet') || document.querySelector('nav .tab-btn[data-tab="planet"]');
-  const yessodTab = document.getElementById('tabnav-yessod') || document.querySelector('nav .tab-btn[data-tab="yessod"]');
-  const exocraftsTab = document.getElementById('tabnav-exocrafts') || document.querySelector('nav .tab-btn[data-tab="exocrafts"]');
+  const planetTab = document.getElementById('tabnav-planet') || document.querySelector('#mainNav .tab-btn[data-tab="planet"]');
+  const yessodTab = document.getElementById('tabnav-yessod') || document.querySelector('#mainNav .tab-btn[data-tab="yessod"]');
+  const exocraftsTab = document.getElementById('tabnav-exocrafts') || document.querySelector('#mainNav .tab-btn[data-tab="exocrafts"]');
   if (nav && planetTab && yessodTab && exocraftsTab) {
     nav.insertBefore(planetTab, yessodTab);
     if (yessodTab.nextSibling !== exocraftsTab) nav.insertBefore(exocraftsTab, yessodTab.nextSibling);
   }
 
-  dedupeNodes('nav .tab-btn', function(node) {
+  dedupeNodes('#mainNav .tab-btn', function(node) {
     return node.getAttribute('data-tab') || node.getAttribute('aria-controls') || node.id || node.textContent;
   });
   syncYessodTabVisibility();

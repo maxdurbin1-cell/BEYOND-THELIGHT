@@ -82,7 +82,7 @@ async function runAssertions(page) {
     const summaries = [];
 
     function getCtxTabs() {
-      return Array.from(document.querySelectorAll("nav .tab-btn[class*='ctx-']"));
+      return Array.from(document.querySelectorAll("#mainNav .tab-btn[class*='ctx-']"));
     }
 
     function visibleTabIds(tabs) {

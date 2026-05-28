@@ -1401,13 +1401,13 @@
     }
     if (typeof switchTab !== 'function') return;
     if (region === 'galaxy') {
-      var gBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('galaxy'\"]");
+      var gBtn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('galaxy'\"]");
       switchTab('galaxy', gBtn || null);
     } else if (region === 'wtw') {
-      var wBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('worldthatwas'\"]");
+      var wBtn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('worldthatwas'\"]");
       switchTab('worldthatwas', wBtn || null);
     } else {
-      var pBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('map'\"]");
+      var pBtn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('map'\"]");
       switchTab('map', pBtn || null);
     }
   }

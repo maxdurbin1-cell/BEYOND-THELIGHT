@@ -3269,7 +3269,7 @@
     if (typeof renderEnemies === "function") renderEnemies();
     const dreadDisplay = document.getElementById("enemyDreadDisplay");
     if (dreadDisplay) dreadDisplay.textContent = "d" + combatDread;
-    const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('combat'\"]");
+    const btn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('combat'\"]");
     if (typeof switchTab === "function") switchTab("combat", btn || null);
     if (config && typeof showNotif === 'function') {
       showNotif('World combat seeded: ' + (seeded ? seeded.count : Math.max(1, Number(config.enemies || 2))) + ' enemies in Combat tab.', 'warn');
@@ -4204,17 +4204,17 @@
   }
 
   function returnToGalaxy() {
-    const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('galaxy'\"]");
+    const btn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('galaxy'\"]");
     if (typeof switchTab === "function") switchTab("galaxy", btn || null);
   }
 
   function returnToProvince() {
-    const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('map'\"]");
+    const btn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('map'\"]");
     if (typeof switchTab === "function") switchTab("map", btn || null);
   }
 
   function returnToLastSea() {
-    const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('lastsea'\"]");
+    const btn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('lastsea'\"]");
     if (typeof switchTab === "function") switchTab("lastsea", btn || null);
   }
 
@@ -4228,7 +4228,7 @@
     } else {
       renderWorldThatWas();
     }
-    const btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('worldthatwas'\"]");
+    const btn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('worldthatwas'\"]");
     if (typeof switchTab === "function") switchTab("worldthatwas", btn || null);
   }
 

@@ -10023,7 +10023,7 @@
     if (cat === 'weapons') cat = 'weapon_mods';
     node.result = 'Merchant stalls are active. Redirecting to Merchants (' + cat + ').';
     if (typeof switchTab === 'function') {
-      var btn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('shop'\"]");
+      var btn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('shop'\"]");
       switchTab('shop', btn || null);
     }
     if (typeof showShopCat === 'function') {
@@ -10348,7 +10348,7 @@
     crawl.history.unshift(String(node.label || 'District') + ': Mission board refreshed.');
     crawl.history = crawl.history.slice(0, 12);
     if (typeof switchTab === 'function') {
-      var missionBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('missions'\"]");
+      var missionBtn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('missions'\"]");
       switchTab('missions', missionBtn || null);
     }
     if (typeof showNotif === 'function') showNotif((posted ? 'Contract posted to Missions: ' : 'New mission posted in ') + node.label + '.', 'good');
@@ -10821,7 +10821,7 @@
       }
       crawl.stats.security = Math.min(10, Number((crawl.stats && crawl.stats.security) || 0) + 1);
       if (typeof switchTab === 'function') {
-        var missionBtn = document.querySelector("nav .tab-btn[onclick*=\"switchTab('missions'\"]");
+        var missionBtn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('missions'\"]");
         switchTab('missions', missionBtn || null);
       }
       msg = 'Audience complete. +1 Renown and a ruler-issued mission is now active in Missions.';

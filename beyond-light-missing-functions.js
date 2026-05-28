@@ -42,9 +42,9 @@ function getTabLabelFromButton(btn, tabId) {
 function getNavTabButton(tabId) {
   if (!tabId) return null;
   return document.querySelector(
-    "nav .tab-btn[data-tab='" + String(tabId).replace(/'/g, "\\'") + "']," +
-    "nav .tab-btn#tabnav-" + String(tabId).replace(/[^a-z0-9_-]/gi, '') + "," +
-    "nav .tab-btn[onclick*=\"switchTab('" + String(tabId).replace(/'/g, "\\'") + "'\"]"
+    "#mainNav .tab-btn[data-tab='" + String(tabId).replace(/'/g, "\\'") + "']," +
+    "#mainNav .tab-btn#tabnav-" + String(tabId).replace(/[^a-z0-9_-]/gi, '') + "," +
+    "#mainNav .tab-btn[onclick*=\"switchTab('" + String(tabId).replace(/'/g, "\\'") + "'\"]"
   );
 }
 
@@ -86,6 +86,7 @@ function renderGlobalQuickAccess() {
   if (!root) return;
   const header = document.querySelector('header');
   const headerHeight = header ? Math.ceil(header.getBoundingClientRect().height || 0) : 0;
+  const quickHeight = Math.ceil(root.getBoundingClientRect().height || 0);
   root.style.display = 'flex';
   root.style.position = 'sticky';
   root.style.top = headerHeight ? (headerHeight + 'px') : '';
@@ -94,6 +95,7 @@ function renderGlobalQuickAccess() {
   root.style.webkitOverflowScrolling = 'touch';
   if (document.documentElement) {
     document.documentElement.style.setProperty('--quick-access-top', (headerHeight || 0) + 'px');
+    document.documentElement.style.setProperty('--sticky-focus-offset', ((headerHeight || 0) + (quickHeight || 0) + 12) + 'px');
   }
   if (!Array.isArray(window._quickAccessTabs) || !window._quickAccessTabs.length) {
     const activePanel = document.querySelector('.tab-panel.active[id^="tab-"]');
@@ -117,6 +119,10 @@ function renderGlobalQuickAccess() {
     html += '<button class="btn btn-sm" onclick="quickAccessGo(\'' + String(tabId).replace(/'/g, "&#39;") + '\')">' + label + '</button>';
   });
   root.innerHTML = html;
+  if (document.documentElement) {
+    var renderedQuickHeight = Math.ceil(root.getBoundingClientRect().height || 0);
+    document.documentElement.style.setProperty('--sticky-focus-offset', ((headerHeight || 0) + (renderedQuickHeight || 0) + 12) + 'px');
+  }
 }
 
 window.quickAccessGo = quickAccessGo;

@@ -762,7 +762,7 @@
           window.openWorldThatWasFromGalaxy();
           handledWorldThatWas = true;
         } else if (typeof window.switchTab === "function") {
-          var btn = document.querySelector('nav .tab-btn[onclick*="switchTab(\'' + tab + '\'"]');
+          var btn = document.querySelector('#mainNav .tab-btn[onclick*="switchTab(\'' + tab + '\'"]');
           window.switchTab(tab, btn || null);
         }
       } catch (_err) {}

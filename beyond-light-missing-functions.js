@@ -1368,9 +1368,17 @@ function syncCharacterStateFromFields() {
 function applyFallbackAriaLabels() {
   const controls = document.querySelectorAll('input,select,textarea');
   controls.forEach(function (el) {
-    if (!el || el.getAttribute('aria-label') || el.getAttribute('aria-labelledby')) return;
-    const explicit = el.getAttribute('placeholder') || el.getAttribute('name') || '';
+    if (!el || el.getAttribute('aria-labelledby')) return;
     const id = el.id || '';
+    if (id) {
+      const explicitLabel = document.querySelector('label[for="' + id + '"]');
+      if (explicitLabel && (explicitLabel.textContent || '').trim()) {
+        if (el.hasAttribute('aria-label')) el.removeAttribute('aria-label');
+        return;
+      }
+    }
+    if (el.getAttribute('aria-label')) return;
+    const explicit = el.getAttribute('placeholder') || el.getAttribute('name') || '';
     let inferred = explicit;
     if (!inferred && id) {
       inferred = id

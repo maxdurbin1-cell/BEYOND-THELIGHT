@@ -13690,24 +13690,20 @@
   function initCharDreadDiceOpts() {
     var el = document.getElementById('charDreadDiceOpts');
     if (!el) { return; }
-    el.setAttribute('role', 'toolbar');
-    el.setAttribute('aria-label', 'Character Dread Die');
-    el.innerHTML = [4, 6, 8, 10, 12, 20].map(function(d) {
-      var selected = d === charDreadDieSize;
-      return '<button type="button" class="d-opt' + (selected ? ' dread-sel' : '') + '" data-v="' + d + '" '
-        + 'aria-pressed="' + (selected ? 'true' : 'false') + '" '
-        + 'aria-label="Character Dread Die d' + d + '" onclick="selectCharDreadDie(' + d + ')">d' + d + '</button>';
-    }).join('');
+    el.removeAttribute('role');
+    el.removeAttribute('aria-label');
+    el.innerHTML = '<label class="sub-label" for="charDreadDieSelect" style="margin-bottom:.15rem;">Choose Dread Die</label>'
+      + '<select id="charDreadDieSelect" onchange="selectCharDreadDie(this.value)" style="max-width:10rem;">'
+      + [4, 6, 8, 10, 12, 20].map(function(d) {
+        return '<option value="' + d + '"' + (d === charDreadDieSize ? ' selected' : '') + '>d' + d + '</option>';
+      }).join('')
+      + '</select>';
   }
 
   function selectCharDreadDie(d) {
-    charDreadDieSize = d;
-    var opts = document.querySelectorAll('#charDreadDiceOpts .d-opt');
-    opts.forEach(function(opt) {
-      var selected = parseInt(opt.dataset.v, 10) === d;
-      opt.classList.toggle('dread-sel', selected);
-      opt.setAttribute('aria-pressed', selected ? 'true' : 'false');
-    });
+    charDreadDieSize = Math.max(1, parseInt(d, 10) || 8);
+    var sel = document.getElementById('charDreadDieSelect');
+    if (sel) sel.value = String(charDreadDieSize);
   }
 
   function rollCharDreadDie() {
@@ -13786,15 +13782,13 @@
     // Dread die options
     var dreadOpts = document.getElementById('hackDreadOpts');
     if (dreadOpts) {
-      dreadOpts.setAttribute('role', 'toolbar');
-      dreadOpts.setAttribute('aria-label', 'Hack Dread Die');
-      dreadOpts.innerHTML = [4, 6, 8, 10, 12, 20].map(function(d) {
-        var selected = S.hackRoller.dreadDie === d;
-        return '<button type="button" class="d-opt' + (selected ? ' dread-sel' : '') + '" '
-          + 'data-v="' + d + '" aria-pressed="' + (selected ? 'true' : 'false') + '" '
-          + 'aria-label="Hack Dread Die d' + d + '" onclick="setHackDreadDie(' + d + ')">'
-          + 'd' + d + '</button>';
-      }).join('');
+      dreadOpts.removeAttribute('role');
+      dreadOpts.removeAttribute('aria-label');
+      dreadOpts.innerHTML = '<select id="hackDreadDieSelect" onchange="setHackDreadDie(this.value)" style="max-width:10rem;">'
+        + [4, 6, 8, 10, 12, 20].map(function(d) {
+          return '<option value="' + d + '"' + (S.hackRoller.dreadDie === d ? ' selected' : '') + '>d' + d + '</option>';
+        }).join('')
+        + '</select>';
     }
 
     // Guess buttons
@@ -13824,13 +13818,9 @@
 
   function setHackDreadDie(die) {
     ensureNewFeatureState();
-    S.hackRoller.dreadDie = die;
-    var opts = document.querySelectorAll('#hackDreadOpts .d-opt');
-    opts.forEach(function(opt) {
-      var selected = parseInt(opt.dataset.v, 10) === die;
-      opt.classList.toggle('dread-sel', selected);
-      opt.setAttribute('aria-pressed', selected ? 'true' : 'false');
-    });
+    S.hackRoller.dreadDie = Math.max(1, parseInt(die, 10) || 6);
+    var sel = document.getElementById('hackDreadDieSelect');
+    if (sel) sel.value = String(S.hackRoller.dreadDie);
   }
 
   function isNewFeaturesManualRollMode() {

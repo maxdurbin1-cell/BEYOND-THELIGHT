@@ -64,6 +64,26 @@ window.playCustomMusicFromSettings = function() {
   let terrainAssetsByRegion = {};
   let terrainAssetDbPromise = null;
 
+  function getAccessibilityI18n() {
+    if (typeof window === 'undefined' || !window.accessibilityI18n) return null;
+    return window.accessibilityI18n;
+  }
+
+  function tr(key, fallback, params) {
+    var i18n = getAccessibilityI18n();
+    if (!i18n || typeof i18n.t !== 'function') {
+      if (!params || typeof params !== 'object') return fallback || key;
+      return String(fallback || key).replace(/\{([a-zA-Z0-9_]+)\}/g, function (_full, token) {
+        return Object.prototype.hasOwnProperty.call(params, token) ? String(params[token]) : '';
+      });
+    }
+    return i18n.t(key, fallback, params);
+  }
+
+  function getOnOffLabel(value) {
+    return value ? tr('common.on', 'On') : tr('common.off', 'Off');
+  }
+
   function normalizeTerrainAssetKey(value) {
     return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
   }
@@ -526,6 +546,29 @@ window.playCustomMusicFromSettings = function() {
       + '<li>Use Solo Reference anytime for quick reminders without breaking narrative momentum.</li>'
       + '</ol>';
   }
+
+  function getAccessibilityLanguageOptionsHtml() {
+    var i18n = getAccessibilityI18n();
+    var current = i18n && typeof i18n.getLanguage === 'function' ? i18n.getLanguage() : 'en';
+    var options = i18n && typeof i18n.getSupportedLanguages === 'function'
+      ? i18n.getSupportedLanguages()
+      : [{ code: 'en', label: 'English' }];
+    return options.map(function (opt) {
+      var code = String(opt && opt.code ? opt.code : 'en');
+      var label = String(opt && opt.label ? opt.label : code.toUpperCase());
+      var selected = code === current ? ' selected' : '';
+      return '<option value="' + code + '"' + selected + '>' + label + '</option>';
+    }).join('');
+  }
+
+  function setAccessibilityLanguage(lang) {
+    var i18n = getAccessibilityI18n();
+    if (!i18n || typeof i18n.setLanguage !== 'function') return;
+    i18n.setLanguage(lang);
+    createSettingsPanel();
+    syncGameModeUI();
+    applySettingsTabVisibility();
+  }
   
   function createSettingsPanel() {
     const container = document.getElementById(SETTINGS_ID);
@@ -541,7 +584,7 @@ window.playCustomMusicFromSettings = function() {
         <div class="settings-tabs">
           <button id="settingsTab-general" class="settings-tab-btn active" onclick="window.settingsSystem.setActiveTab('general')">General</button>
           <button id="settingsTab-audio" class="settings-tab-btn" onclick="window.settingsSystem.setActiveTab('audio')">Audio</button>
-          <button id="settingsTab-accessibility" class="settings-tab-btn" onclick="window.settingsSystem.setActiveTab('accessibility')">Accessibility</button>
+          <button id="settingsTab-accessibility" class="settings-tab-btn" onclick="window.settingsSystem.setActiveTab('accessibility')">${tr('settings.accessibility.title', 'Accessibility')}</button>
           <button id="settingsTab-recovery" class="settings-tab-btn" onclick="window.settingsSystem.setActiveTab('recovery')">Recovery</button>
           <button id="settingsTab-campaign" class="settings-tab-btn" onclick="window.settingsSystem.setActiveTab('campaign')">Campaign</button>
         </div>
@@ -704,45 +747,54 @@ window.playCustomMusicFromSettings = function() {
 
         <div id="settingsTabPanel-accessibility" class="settings-tab-panel" data-settings-tab="accessibility">
           <div class="settings-section">
-            <h4>Accessibility</h4>
+            <h4>${tr('settings.accessibility.title', 'Accessibility')}</h4>
             <div class="setting-row">
-              <label>Color Blind Friendly Palette</label>
+              <label for="accessibilityLanguageSelect">${tr('settings.accessibility.language.label', 'Language')}</label>
+              <div class="campaign-actions" style="margin:0;">
+                <select id="accessibilityLanguageSelect" class="campaign-input" onchange="window.settingsSystem.setAccessibilityLanguage(this.value)" aria-label="${tr('settings.accessibility.language.aria', 'Accessibility language')}">
+                  ${getAccessibilityLanguageOptionsHtml()}
+                </select>
+                <span class="campaign-muted">${tr('settings.accessibility.language.helper', 'Choose a language for accessibility labels and guidance.')}</span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <label>${tr('settings.accessibility.palette.label', 'Color Blind Friendly Palette')}</label>
               <div class="campaign-actions" style="margin:0;">
                 <button id="colorBlindModeBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleColorBlindMode()">
-                  ${Settings.colorBlindMode ? 'On' : 'Off'}
+                  ${Settings.colorBlindMode ? tr('common.on', 'On') : tr('common.off', 'Off')}
                 </button>
                 <button id="colorBlindPreviewBtn" class="btn btn-xs" onclick="window.settingsSystem.previewColorBlindMode()">
-                  Preview 10s
+                  ${tr('settings.accessibility.palette.preview', 'Preview 10s')}
                 </button>
-                <span class="campaign-muted">Uses higher-contrast, color-blind-safe accents.</span>
+                <span class="campaign-muted">${tr('settings.accessibility.palette.help', 'Uses higher-contrast, color-blind-safe accents.')}</span>
               </div>
               <div id="colorBlindPreviewStatus" class="campaign-muted" style="margin-top:.25rem;"></div>
             </div>
             <div class="setting-row">
-              <label>All-Color Difficulty Mode</label>
+              <label>${tr('settings.accessibility.monochrome.label', 'All-Color Difficulty Mode')}</label>
               <div class="campaign-actions" style="margin:0;">
                 <button id="monochromeModeBtn" class="btn btn-xs" onclick="window.settingsSystem.toggleMonochromeMode()">
-                  ${Settings.monochromeMode ? 'On' : 'Off'}
+                  ${Settings.monochromeMode ? tr('common.on', 'On') : tr('common.off', 'Off')}
                 </button>
-                <span class="campaign-muted">Forces a strict black-and-white palette with shape/text cues (no color reliance).</span>
+                <span class="campaign-muted">${tr('settings.accessibility.monochrome.help', 'Forces a strict black-and-white palette with shape/text cues (no color reliance).')}</span>
               </div>
             </div>
             <div class="setting-row">
-              <label>Phone Layout</label>
+              <label>${tr('settings.accessibility.phoneLayout.label', 'Phone Layout')}</label>
               <div class="campaign-actions" style="margin:0;">
                 <button id="phoneLayoutModeBtn" class="btn btn-xs" onclick="window.settingsSystem.togglePhoneLayoutMode()">
-                  ${Settings.phoneLayoutMode ? 'On' : 'Off'}
+                  ${Settings.phoneLayoutMode ? tr('common.on', 'On') : tr('common.off', 'Off')}
                 </button>
-                <span class="campaign-muted">Reflows navigation, settings, and campaign tools into a tighter single-column phone layout.</span>
+                <span class="campaign-muted">${tr('settings.accessibility.phoneLayout.help', 'Reflows navigation, settings, and campaign tools into a tighter single-column phone layout.')}</span>
               </div>
             </div>
             <div class="setting-row">
-              <label>Text Size</label>
+              <label>${tr('settings.accessibility.textSize.label', 'Text Size')}</label>
               <div class="campaign-actions" style="margin:0;">
-                <button id="textSizeSmBtn" class="btn btn-xs ${Settings.textSize === 'small' ? 'active' : ''}" onclick="window.settingsSystem.setTextSize('small')">Small</button>
-                <button id="textSizeMdBtn" class="btn btn-xs ${Settings.textSize === 'medium' ? 'active' : ''}" onclick="window.settingsSystem.setTextSize('medium')">Medium</button>
-                <button id="textSizeLgBtn" class="btn btn-xs ${Settings.textSize === 'large' ? 'active' : ''}" onclick="window.settingsSystem.setTextSize('large')">Large</button>
-                <span class="campaign-muted">Scales all text across the app.</span>
+                <button id="textSizeSmBtn" class="btn btn-xs ${Settings.textSize === 'small' ? 'active' : ''}" onclick="window.settingsSystem.setTextSize('small')">${tr('settings.accessibility.textSize.small', 'Small')}</button>
+                <button id="textSizeMdBtn" class="btn btn-xs ${Settings.textSize === 'medium' ? 'active' : ''}" onclick="window.settingsSystem.setTextSize('medium')">${tr('settings.accessibility.textSize.medium', 'Medium')}</button>
+                <button id="textSizeLgBtn" class="btn btn-xs ${Settings.textSize === 'large' ? 'active' : ''}" onclick="window.settingsSystem.setTextSize('large')">${tr('settings.accessibility.textSize.large', 'Large')}</button>
+                <span class="campaign-muted">${tr('settings.accessibility.textSize.help', 'Scales all text across the app.')}</span>
               </div>
             </div>
             <div class="setting-row" style="align-items:flex-start;">
@@ -1114,7 +1166,7 @@ window.playCustomMusicFromSettings = function() {
 
     const colorBlindBtn = document.getElementById('colorBlindModeBtn');
     if (colorBlindBtn) {
-      colorBlindBtn.textContent = Settings.colorBlindMode ? 'On' : 'Off';
+      colorBlindBtn.textContent = getOnOffLabel(Settings.colorBlindMode);
       colorBlindBtn.style.borderColor = Settings.colorBlindMode ? 'var(--teal)' : 'var(--border2)';
       colorBlindBtn.style.color = Settings.colorBlindMode ? 'var(--teal)' : 'var(--muted2)';
     }
@@ -1124,29 +1176,31 @@ window.playCustomMusicFromSettings = function() {
     if (previewBtn) {
       previewBtn.disabled = !!Settings.colorBlindMode || colorBlindPreviewActive;
       previewBtn.style.opacity = previewBtn.disabled ? '0.6' : '1';
-      previewBtn.textContent = colorBlindPreviewActive ? 'Previewing…' : 'Preview 10s';
+      previewBtn.textContent = colorBlindPreviewActive
+        ? tr('settings.accessibility.preview.running', 'Previewing...')
+        : tr('settings.accessibility.palette.preview', 'Preview 10s');
     }
     if (previewStatus) {
       if (Settings.colorBlindMode) {
-        previewStatus.textContent = 'Color-blind mode is enabled and saved.';
+        previewStatus.textContent = tr('settings.accessibility.preview.enabled', 'Color-blind mode is enabled and saved.');
       } else if (colorBlindPreviewActive) {
         const secondsLeft = Math.max(1, Math.ceil((colorBlindPreviewEndsAt - Date.now()) / 1000));
-        previewStatus.textContent = 'Preview active (' + secondsLeft + 's remaining).';
+        previewStatus.textContent = tr('settings.accessibility.preview.active', 'Preview active ({seconds}s remaining).', { seconds: secondsLeft });
       } else {
-        previewStatus.textContent = 'Preview applies temporarily for 10 seconds.';
+        previewStatus.textContent = tr('settings.accessibility.preview.ready', 'Preview applies temporarily for 10 seconds.');
       }
     }
 
     const monochromeBtn = document.getElementById('monochromeModeBtn');
     if (monochromeBtn) {
-      monochromeBtn.textContent = Settings.monochromeMode ? 'On' : 'Off';
+      monochromeBtn.textContent = getOnOffLabel(Settings.monochromeMode);
       monochromeBtn.style.borderColor = Settings.monochromeMode ? 'var(--teal)' : 'var(--border2)';
       monochromeBtn.style.color = Settings.monochromeMode ? 'var(--teal)' : 'var(--muted2)';
     }
 
     const phoneLayoutBtn = document.getElementById('phoneLayoutModeBtn');
     if (phoneLayoutBtn) {
-      phoneLayoutBtn.textContent = Settings.phoneLayoutMode ? 'On' : 'Off';
+      phoneLayoutBtn.textContent = getOnOffLabel(Settings.phoneLayoutMode);
       phoneLayoutBtn.style.borderColor = Settings.phoneLayoutMode ? 'var(--teal)' : 'var(--border2)';
       phoneLayoutBtn.style.color = Settings.phoneLayoutMode ? 'var(--teal)' : 'var(--muted2)';
     }
@@ -1306,7 +1360,9 @@ window.playCustomMusicFromSettings = function() {
 
   function previewColorBlindMode() {
     if (Settings.colorBlindMode) {
-      if (typeof showNotif === 'function') showNotif('Color-blind mode is already enabled.', 'info');
+      if (typeof showNotif === 'function') {
+        showNotif(tr('settings.accessibility.notif.previewAlreadyEnabled', 'Color-blind mode is already enabled.'), 'info');
+      }
       return;
     }
     stopColorBlindPreview();
@@ -1493,6 +1549,11 @@ window.playCustomMusicFromSettings = function() {
     toggleColorBlindMode,
     toggleMonochromeMode,
     togglePhoneLayoutMode,
+    setAccessibilityLanguage,
+    getAccessibilityLanguage: () => {
+      const i18n = getAccessibilityI18n();
+      return i18n && typeof i18n.getLanguage === 'function' ? i18n.getLanguage() : 'en';
+    },
     previewColorBlindMode,
     setMasterVolume,
     setMusicVolume,
@@ -1557,6 +1618,11 @@ window.playCustomMusicFromSettings = function() {
 
   window.addEventListener('beyond:now-playing-changed', refreshNowPlayingLabel);
   window.addEventListener('beyond:audio-asset-pack-changed', refreshAudioCreditsPanel);
+  window.addEventListener('beyond:accessibility-language-changed', function () {
+    createSettingsPanel();
+    syncGameModeUI();
+    applySettingsTabVisibility();
+  });
   window.getTerrainTileAsset = getTerrainTileAsset;
   window.getTerrainAssetCatalog = function () { return JSON.parse(JSON.stringify(TERRAIN_ASSET_CATALOG)); };
   

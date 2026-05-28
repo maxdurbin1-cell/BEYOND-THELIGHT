@@ -201,21 +201,14 @@ window.runContextQuickAction = runContextQuickAction;
 window.renderContextQuickActions = renderContextQuickActions;
 
 function syncTabAccessibility() {
-  var tablist = document.getElementById('mainNavTablist');
-  if (tablist) {
-    tablist.setAttribute('role', 'tablist');
-    tablist.setAttribute('aria-orientation', 'horizontal');
-  }
-
-  document.querySelectorAll("#mainNavTablist .tab-btn[role='tab'][aria-controls]").forEach(function (tab) {
-    var panelId = tab.getAttribute('aria-controls');
+  document.querySelectorAll('#mainNavTablist .tab-btn[data-tab]').forEach(function (tab) {
+    var panelId = tab.getAttribute('aria-controls') || ('tab-' + String(tab.getAttribute('data-tab') || ''));
     var panel = panelId ? document.getElementById(panelId) : null;
     if (!panel) return;
-    panel.setAttribute('role', 'tabpanel');
-    if (tab.id) panel.setAttribute('aria-labelledby', tab.id);
     var active = panel.classList.contains('active');
     panel.setAttribute('aria-hidden', active ? 'false' : 'true');
     panel.setAttribute('tabindex', active ? '0' : '-1');
+    tab.setAttribute('aria-current', active ? 'page' : 'false');
   });
 }
 
@@ -239,9 +232,9 @@ function switchTab(tabId, btn) {
     panel.setAttribute("aria-hidden", "true");
     panel.setAttribute('tabindex', '-1');
   });
-  document.querySelectorAll(".tab-btn[role='tab']").forEach((tab) => {
+  document.querySelectorAll('#mainNavTablist .tab-btn[data-tab]').forEach((tab) => {
     tab.classList.remove("active");
-    tab.setAttribute("aria-selected", "false");
+    tab.setAttribute('aria-current', 'false');
   });
 
   const target = document.getElementById("tab-" + tabId);
@@ -252,7 +245,9 @@ function switchTab(tabId, btn) {
   }
   if (btn) {
     btn.classList.add("active");
-    if (btn.hasAttribute("aria-selected")) btn.setAttribute("aria-selected", "true");
+    if (btn.matches && btn.matches('#mainNavTablist .tab-btn[data-tab]')) {
+      btn.setAttribute('aria-current', 'page');
+    }
   }
   trackQuickAccessTab(tabId);
   renderGlobalQuickAccess();

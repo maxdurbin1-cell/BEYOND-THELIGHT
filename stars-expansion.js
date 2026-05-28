@@ -8337,9 +8337,8 @@ function ensureNewSunTab() {
     var btn = document.createElement('button');
     btn.className = 'tab-btn ctx-traveling';
     btn.id = 'tabnav-newsun';
-    btn.setAttribute('role', 'tab');
-    btn.setAttribute('aria-selected', 'false');
     btn.setAttribute('aria-controls', 'tab-newsun');
+    btn.setAttribute('data-tab', 'newsun');
     btn.setAttribute('onclick', "switchTab('newsun',this)");
     btn.textContent = 'Solo Challenge';
     var factionsBtn = document.getElementById('tabnav-factions');
@@ -8350,8 +8349,6 @@ function ensureNewSunTab() {
     var panel = document.createElement('div');
     panel.className = 'tab-panel';
     panel.id = 'tab-newsun';
-    panel.setAttribute('role', 'tabpanel');
-    panel.setAttribute('aria-labelledby', 'tabnav-newsun');
     panelHost.appendChild(panel);
   }
 }

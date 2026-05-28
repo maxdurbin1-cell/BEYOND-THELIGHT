@@ -276,7 +276,7 @@ body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr 1f
 .s-cost{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.9rem;color:var(--gold);}
 .dice-center{max-width:600px;margin:0 auto;}
 .die-options{display:flex;gap:.45rem;flex-wrap:wrap;margin-bottom:.6rem;}
-.d-opt{width:3rem;height:3rem;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px solid var(--border2);cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:700;color:var(--muted);transition:all .15s;border-radius:3px;}
+.d-opt{width:3rem;height:3rem;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px solid var(--border2);cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:.9rem;font-weight:700;color:var(--muted);transition:all .15s;border-radius:3px;background:transparent;padding:0;}
 .d-opt:hover{border-color:var(--teal);color:var(--teal);}.d-opt.sel{border-color:var(--teal);color:var(--teal);background:rgba(46,196,182,.1);}.d-opt.dread-sel{border-color:var(--red);color:var(--red);background:rgba(201,64,64,.1);}
 .roll-result-box{background:var(--card);border:1px solid var(--border);padding:1.1rem;text-align:center;}
 .res-dice{display:flex;align-items:center;justify-content:center;gap:2rem;margin:.8rem 0;}
@@ -730,7 +730,8 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="ctx-btn" data-ctx="sea" aria-pressed="false">⚓ At Sea</button>
     <button class="ctx-btn" data-ctx="space" aria-pressed="false">🚀 Space</button>
   </div>
-  <nav aria-label="Main navigation" id="mainNavTablist" role="tablist" aria-orientation="horizontal">
+  <nav aria-label="Main navigation" id="mainNav">
+    <div id="mainNavTablist" role="tablist" aria-orientation="horizontal">
     <button class="tab-btn active ctx-traveling" role="tab" aria-selected="true" aria-controls="tab-character" id="tabnav-character" data-tab="character">Character</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-backstory" id="tabnav-backstory" data-tab="backstory">Backstory</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-dice" id="tabnav-dice" data-tab="dice">Dice</button>
@@ -759,6 +760,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="tab-btn ctx-holding" role="tab" aria-selected="false" aria-controls="tab-holding" id="tabnav-holding" style="display:none;" data-tab="holding">Holdings</button>
     <button class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-gmworldbuilder" id="tabnav-gmworldbuilder" style="display:none;" data-tab="gmworldbuilder">GM Forge</button>
     <button class="tab-btn ctx-traveling" role="tab" aria-selected="false" aria-controls="tab-howto" id="tabnav-howto" data-tab="howto">How To Use</button>
+    </div>
     <button class="tab-btn solo-reference-btn ctx-traveling" aria-label="Solo Reference" onclick="openSoloReference()" title="Solo Reference">🧭 Solo</button>
     <button class="tab-btn gm-dashboard-btn" aria-label="GM Dashboard" onclick="openGmDashboard()" title="GM Dashboard">👥 GM</button>
     <button class="tab-btn settings-tab-btn" aria-label="Settings" onclick="window.settingsSystem.toggleSettings()" title="Settings">⚙️</button>
@@ -1005,7 +1007,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
       </div>
       <div style="padding-top:.45rem;border-top:1px solid var(--border);">
         <div class="sub-label">Passion Roll (d8) — once per Scene</div>
-        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;" role="group" aria-label="Condition actions">
           <button class="btn btn-sm btn-teal" onclick="rollPassion()">⚄ Roll Passion</button>
           <button class="btn btn-sm" onclick="openRemoveConditionWindow()">Remove Condition</button>
           <button class="btn btn-sm" onclick="clearAllConditions()">Clear All</button>

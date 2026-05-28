@@ -958,8 +958,8 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
         <div><span class="sub-label">Path Tokens</span>
           <div class="counter-row"><button class="step-btn" onclick="changeCounter('pathTokens',-1)">−</button><span class="counter-val teal-val" id="pathTokensVal">0</span><button class="step-btn" onclick="changeCounter('pathTokens',1)">+</button></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:.25rem;margin-top:.3rem;">
-            <button class="btn btn-xs btn-teal" style="width:100%;padding:.2rem .35rem;" onclick="spendPathTokensUpgrade15()" title="Spend 15 Path Tokens to step up one Action Die">−15: Step Up Die</button>
-            <button class="btn btn-xs" style="width:100%;padding:.2rem .35rem;" onclick="spendPathTokensUpgrade20()" title="Spend 20 Path Tokens to gain a new Personal Trait">−20: New Trait</button>
+            <button class="btn btn-xs btn-teal" style="width:100%;padding:.2rem .35rem;" onclick="spendPathTokensUpgrade15()" title="Spend 15 Path Tokens to step up one Action Die" aria-label="Spend 15 Path Tokens to step up one Action Die">−15: Step Up Die</button>
+            <button class="btn btn-xs" style="width:100%;padding:.2rem .35rem;" onclick="spendPathTokensUpgrade20()" title="Spend 20 Path Tokens to gain a new Personal Trait" aria-label="Spend 20 Path Tokens to gain a new Personal Trait">−20: New Trait</button>
           </div>
         </div>
         <div><span class="sub-label">Teamwork Pts</span>
@@ -1055,12 +1055,12 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
       <div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;">
         <div class="section-title" style="margin:0;">Equipment</div>
       </div>
-      <div class="form-row"><span class="sub-label">Weapon (Slot 1)</span><div style="display:flex;gap:.3rem;align-items:center;"><span id="eqWeapon1Icon" aria-hidden="true"></span><input type="text" id="eqWeapon1" placeholder="e.g. Sword (+1 Strike)" style="flex:1;" onchange="S.equipment.weapon1=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon1')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon1')" title="Unequip">✕</button></div></div>
-      <div class="form-row"><span class="sub-label">Weapon (Slot 2)</span><div style="display:flex;gap:.3rem;align-items:center;"><span id="eqWeapon2Icon" aria-hidden="true"></span><input type="text" id="eqWeapon2" placeholder="Second weapon (optional)" style="flex:1;" onchange="S.equipment.weapon2=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon2')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon2')" title="Unequip">✕</button></div></div>
+      <div class="form-row"><span class="sub-label">Weapon (Slot 1)</span><div style="display:flex;gap:.3rem;align-items:center;"><span id="eqWeapon1Icon" aria-hidden="true"></span><input type="text" id="eqWeapon1" placeholder="e.g. Sword (+1 Strike)" style="flex:1;" onchange="S.equipment.weapon1=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon1')" title="Item info" aria-label="Show info for Weapon Slot 1">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon1')" title="Unequip" aria-label="Unequip Weapon Slot 1">✕</button></div></div>
+      <div class="form-row"><span class="sub-label">Weapon (Slot 2)</span><div style="display:flex;gap:.3rem;align-items:center;"><span id="eqWeapon2Icon" aria-hidden="true"></span><input type="text" id="eqWeapon2" placeholder="Second weapon (optional)" style="flex:1;" onchange="S.equipment.weapon2=this.value;renderWeaponModsPanel();updateAllStatDisplays()"><button class="bp-info-btn" onclick="showEquippedItem('weapon2')" title="Item info" aria-label="Show info for Weapon Slot 2">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('weapon2')" title="Unequip" aria-label="Unequip Weapon Slot 2">✕</button></div></div>
       <div class="form-row"><span class="sub-label">Armor</span>
-        <div style="display:flex;gap:.3rem;"><input type="text" id="eqArmor" placeholder="e.g. Balanced Armor (Ad6, 2 Actions)" style="flex:1;" onchange="S.equipment.armor=this.value;updateAllStatDisplays()"><button class="btn btn-sm btn-icon" onclick="rollArmor()">⚄</button><button class="bp-info-btn" onclick="showEquippedItem('armor')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('armor')" title="Unequip">✕</button></div>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="eqArmor" placeholder="e.g. Balanced Armor (Ad6, 2 Actions)" style="flex:1;" onchange="S.equipment.armor=this.value;updateAllStatDisplays()"><button class="btn btn-sm btn-icon" onclick="rollArmor()">⚄</button><button class="bp-info-btn" onclick="showEquippedItem('armor')" title="Item info" aria-label="Show info for Armor">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('armor')" title="Unequip" aria-label="Unequip Armor">✕</button></div>
       </div>
-      <div class="form-row"><span class="sub-label">Readied Item</span><div style="display:flex;gap:.3rem;"><input type="text" id="eqReadied" placeholder="Item granting Valor Die bonus" style="flex:1;" onchange="S.equipment.readied=this.value"><button class="bp-info-btn" onclick="showEquippedItem('readied')" title="Item info">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('readied')" title="Unequip">✕</button></div></div>
+      <div class="form-row"><span class="sub-label">Readied Item</span><div style="display:flex;gap:.3rem;"><input type="text" id="eqReadied" placeholder="Item granting Valor Die bonus" style="flex:1;" onchange="S.equipment.readied=this.value"><button class="bp-info-btn" onclick="showEquippedItem('readied')" title="Item info" aria-label="Show info for Readied Item">?</button><button class="btn btn-sm btn-icon" onclick="unequipItem('readied')" title="Unequip" aria-label="Unequip Readied Item">✕</button></div></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem;">
           <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;">
             <span id="backpackSlotsLabel" class="sub-label" style="margin-bottom:0;">Backpack (6 Slots)</span>
@@ -1073,12 +1073,12 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
           </div>
         </div>
         <div class="backpack-grid" id="backpackGrid">
-          <div class="bp-cell"><input class="bp-input" id="bp0" placeholder="Slot 1" onchange="S.backpack[0]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(0)" title="Item info">?</button></div>
-          <div class="bp-cell"><input class="bp-input" id="bp1" placeholder="Slot 2" onchange="S.backpack[1]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(1)" title="Item info">?</button></div>
-          <div class="bp-cell"><input class="bp-input" id="bp2" placeholder="Slot 3" onchange="S.backpack[2]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(2)" title="Item info">?</button></div>
-          <div class="bp-cell"><input class="bp-input" id="bp3" placeholder="Slot 4" onchange="S.backpack[3]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(3)" title="Item info">?</button></div>
-          <div class="bp-cell"><input class="bp-input" id="bp4" placeholder="Slot 5" onchange="S.backpack[4]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(4)" title="Item info">?</button></div>
-          <div class="bp-cell"><input class="bp-input" id="bp5" placeholder="Slot 6" onchange="S.backpack[5]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(5)" title="Item info">?</button></div>
+          <div class="bp-cell"><input class="bp-input" id="bp0" placeholder="Slot 1" onchange="S.backpack[0]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(0)" title="Item info" aria-label="Show info for Backpack Slot 1">?</button></div>
+          <div class="bp-cell"><input class="bp-input" id="bp1" placeholder="Slot 2" onchange="S.backpack[1]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(1)" title="Item info" aria-label="Show info for Backpack Slot 2">?</button></div>
+          <div class="bp-cell"><input class="bp-input" id="bp2" placeholder="Slot 3" onchange="S.backpack[2]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(2)" title="Item info" aria-label="Show info for Backpack Slot 3">?</button></div>
+          <div class="bp-cell"><input class="bp-input" id="bp3" placeholder="Slot 4" onchange="S.backpack[3]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(3)" title="Item info" aria-label="Show info for Backpack Slot 4">?</button></div>
+          <div class="bp-cell"><input class="bp-input" id="bp4" placeholder="Slot 5" onchange="S.backpack[4]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(4)" title="Item info" aria-label="Show info for Backpack Slot 5">?</button></div>
+          <div class="bp-cell"><input class="bp-input" id="bp5" placeholder="Slot 6" onchange="S.backpack[5]=this.value"><button class="bp-info-btn" onclick="showBackpackItem(5)" title="Item info" aria-label="Show info for Backpack Slot 6">?</button></div>
         </div>
         <div style="font-size:.72rem;color:var(--muted);margin-top:.2rem;">Always carry: Rations (1₵) · Rope (2₵) · Mapping Materials (3₵)</div>
         <div style="margin-top:.55rem;border-top:1px solid var(--border);padding-top:.4rem;">
@@ -4136,7 +4136,7 @@ function renderBackpackUI(){
     var badge=slotCost>0?'<span style="font-size:.6rem;color:var(--muted2);padding:0 .15rem;" title="'+slotCost+' slot'+(slotCost===1?'':'s')+'">'+slotCost+'&#9633;</span>':'';
     var quickBadge=isQuick?'<span style="font-size:.57rem;color:#57d69b;padding:0 .2rem;" title="Quick Slot '+(i+1)+': first use each combat round costs no Action">Q'+(i+1)+'</span>':'';
     var shellStyle=isQuick?' style="border-color:rgba(87,214,155,.45);box-shadow:0 0 0 1px rgba(87,214,155,.2) inset;"':'';
-    html.push('<div class="bp-cell"'+shellStyle+'>'+quickBadge+badge+'<input class="bp-input" id="bp'+i+'" placeholder="'+(isQuick?'Quick ':'Slot ')+(i+1)+'" value="'+val+'" onchange="setBackpackSlotValue('+i+',this.value)"><button class="bp-info-btn" onclick="showBackpackItem('+i+')" title="Item info">?</button></div>');
+    html.push('<div class="bp-cell"'+shellStyle+'>'+quickBadge+badge+'<input class="bp-input" id="bp'+i+'" placeholder="'+(isQuick?'Quick ':'Slot ')+(i+1)+'" value="'+val+'" onchange="setBackpackSlotValue('+i+',this.value)"><button class="bp-info-btn" onclick="showBackpackItem('+i+')" title="Item info" aria-label="Show info for Backpack Slot '+(i+1)+'">?</button></div>');
   }
   host.innerHTML=html.join('');
   updateBackpackCapacityLabel();

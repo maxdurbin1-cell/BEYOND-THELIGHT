@@ -22069,7 +22069,7 @@ function buildStarsCharacterPanels() {
 <div style="margin-top:.4rem;padding:.4rem;background:var(--surface);border:1px solid var(--border);">
   <div style="font-family:Cinzel,serif;font-size:.56rem;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:.35rem;">Psyche Profile</div>
   <div style="margin-bottom:.35rem;">
-    <span class="sub-label">Nervous Tic (d20)</span>
+    <label class="sub-label" for="charNervousTic">Nervous Tic (d20)</label>
     <div style="display:flex;gap:.3rem;align-items:center;">
       <input type="text" id="charNervousTic" placeholder="Roll your nervous tic…" style="flex:1;" onchange="S.nervousTic=this.value">
       <button class="btn btn-icon btn-sm" onclick="rollNervousTic()">⚄</button>
@@ -22077,7 +22077,7 @@ function buildStarsCharacterPanels() {
     <div style="font-size:.73rem;color:var(--muted2);margin-top:.2rem;" id="nervousTicDisplay">${S.nervousTic||''}</div>
   </div>
   <div>
-    <span class="sub-label">Obsession (d10)</span>
+    <label class="sub-label" for="charObsession">Obsession (d10)</label>
     <div style="display:flex;gap:.3rem;align-items:center;">
       <input type="text" id="charObsession" placeholder="Roll your obsession…" style="flex:1;" onchange="S.obsession=this.value">
       <button class="btn btn-icon btn-sm" onclick="rollObsession()">⚄</button>

@@ -860,13 +860,13 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <div class="card">
       <div class="section-title">Identity</div>
       <div id="wayfarerVisualPanel" style="margin-bottom:.6rem;"></div>
-      <div class="form-row"><span class="sub-label">Name</span>
+      <div class="form-row"><label class="sub-label" for="charName">Name</label>
         <div style="display:flex;gap:.3rem;"><input type="text" id="charName" placeholder="Wayfarer name…" onchange="S.name=this.value"><button class="btn btn-icon btn-sm" onclick="rollName()">⚄</button></div>
       </div>
-      <div class="form-row"><span class="sub-label">Career</span>
+      <div class="form-row"><label class="sub-label" for="charCareer">Career</label>
         <div style="display:flex;gap:.3rem;"><input type="text" id="charCareer" placeholder="Soldier, Merchant…" style="flex:1;" onchange="S.career=this.value"><button class="btn btn-icon btn-sm" onclick="rollCareer()">⚄</button></div>
       </div>
-      <div class="form-row"><span class="sub-label">Background</span>
+      <div class="form-row"><label class="sub-label" for="charBackground">Background</label>
         <div style="display:flex;gap:.3rem;"><input type="text" id="charBackground" placeholder="Street-raised, Temple-trained…" style="flex:1;" onchange="S.background=this.value"><button class="btn btn-icon btn-sm" onclick="rollBackground()">⚄</button></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-bottom:.6rem;">
@@ -888,7 +888,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
           <span id="workJobResult" style="font-size:.74rem;color:var(--muted2);min-height:1rem;">Roll to earn 100 Credits and advance 1 day.</span>
         </div>
       </div>
-      <div class="form-row"><span class="sub-label">Why are you on the road?</span>
+      <div class="form-row"><label class="sub-label" for="charReason">Why are you on the road?</label>
         <div style="display:flex;gap:.3rem;align-items:flex-start;"><textarea id="charReason" rows="2" placeholder="Your drive…" style="resize:none;flex:1;" onchange="S.reason=this.value"></textarea><button class="btn btn-icon btn-sm" onclick="rollReason()" style="margin-top:.1rem;">⚄</button></div>
       </div>
       <div><span class="sub-label">Renown</span>
@@ -27067,21 +27067,21 @@ window.addEventListener('DOMContentLoaded', function() {
     if (!el) return '';
     const explicit = (el.getAttribute('aria-label') || '').trim();
     if (explicit) return explicit;
-    const title = (el.getAttribute('title') || '').trim();
-    if (title) return title;
-    const placeholder = (el.getAttribute('placeholder') || '').trim();
-    if (placeholder) return placeholder;
     const id = el.getAttribute('id');
     if (id) {
       const label = document.querySelector('label[for="' + id + '"]');
       if (label && label.textContent) return label.textContent.trim();
     }
+    const title = (el.getAttribute('title') || '').trim();
+    if (title) return title;
     let parent = el.parentElement;
     while (parent) {
       const sub = parent.querySelector('.sub-label,.stat-label,.section-title');
       if (sub && sub.textContent) return sub.textContent.trim();
       parent = parent.parentElement;
     }
+    const placeholder = (el.getAttribute('placeholder') || '').trim();
+    if (placeholder) return placeholder;
     return '';
   }
 

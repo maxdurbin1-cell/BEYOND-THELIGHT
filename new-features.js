@@ -13690,12 +13690,12 @@
   function initCharDreadDiceOpts() {
     var el = document.getElementById('charDreadDiceOpts');
     if (!el) { return; }
-    el.setAttribute('role', 'radiogroup');
+    el.setAttribute('role', 'toolbar');
     el.setAttribute('aria-label', 'Character Dread Die');
     el.innerHTML = [4, 6, 8, 10, 12, 20].map(function(d) {
       var selected = d === charDreadDieSize;
       return '<button type="button" class="d-opt' + (selected ? ' dread-sel' : '') + '" data-v="' + d + '" '
-        + 'role="radio" aria-checked="' + (selected ? 'true' : 'false') + '" tabindex="' + (selected ? '0' : '-1') + '" '
+        + 'aria-pressed="' + (selected ? 'true' : 'false') + '" '
         + 'aria-label="Character Dread Die d' + d + '" onclick="selectCharDreadDie(' + d + ')">d' + d + '</button>';
     }).join('');
   }
@@ -13706,8 +13706,7 @@
     opts.forEach(function(opt) {
       var selected = parseInt(opt.dataset.v, 10) === d;
       opt.classList.toggle('dread-sel', selected);
-      opt.setAttribute('aria-checked', selected ? 'true' : 'false');
-      opt.setAttribute('tabindex', selected ? '0' : '-1');
+      opt.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
   }
 
@@ -13787,12 +13786,12 @@
     // Dread die options
     var dreadOpts = document.getElementById('hackDreadOpts');
     if (dreadOpts) {
-      dreadOpts.setAttribute('role', 'radiogroup');
+      dreadOpts.setAttribute('role', 'toolbar');
       dreadOpts.setAttribute('aria-label', 'Hack Dread Die');
       dreadOpts.innerHTML = [4, 6, 8, 10, 12, 20].map(function(d) {
         var selected = S.hackRoller.dreadDie === d;
         return '<button type="button" class="d-opt' + (selected ? ' dread-sel' : '') + '" '
-          + 'data-v="' + d + '" role="radio" aria-checked="' + (selected ? 'true' : 'false') + '" tabindex="' + (selected ? '0' : '-1') + '" '
+          + 'data-v="' + d + '" aria-pressed="' + (selected ? 'true' : 'false') + '" '
           + 'aria-label="Hack Dread Die d' + d + '" onclick="setHackDreadDie(' + d + ')">'
           + 'd' + d + '</button>';
       }).join('');
@@ -13830,8 +13829,7 @@
     opts.forEach(function(opt) {
       var selected = parseInt(opt.dataset.v, 10) === die;
       opt.classList.toggle('dread-sel', selected);
-      opt.setAttribute('aria-checked', selected ? 'true' : 'false');
-      opt.setAttribute('tabindex', selected ? '0' : '-1');
+      opt.setAttribute('aria-pressed', selected ? 'true' : 'false');
     });
   }
 

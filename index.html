@@ -82,7 +82,7 @@ header{background:linear-gradient(180deg,rgba(4,5,8,.98) 0%,rgba(10,12,24,.95) 5
 .logo::after{content:'Digital Companion';font-family:'Rajdhani',sans-serif;font-size:.62rem;letter-spacing:.26em;color:var(--muted2);text-transform:uppercase;}
 .logo span{color:var(--teal);}
 #mainNav{grid-column:1 / -1;display:flex;gap:.32rem;flex-wrap:wrap;align-items:center;padding:.46rem .5rem;background:linear-gradient(180deg,rgba(255,255,255,.035) 0%,rgba(255,255,255,.015) 100%);border:1px solid var(--border2);border-radius:18px;box-shadow:0 0 0 1px rgba(255,255,255,.02) inset;}
-#main-content :is([id],button,input,select,textarea,[role="tab"],[role="radio"],a[href]){scroll-margin-top:var(--sticky-focus-offset,10.5rem);}
+#main-content :is([id],button,input,select,textarea,[role="radio"],a[href]){scroll-margin-top:var(--sticky-focus-offset,10.5rem);}
 .tab-btn{background:rgba(255,255,255,.01);border:1px solid transparent;color:var(--text2);font-family:'Cinzel',serif;font-size:.80rem;letter-spacing:.10em;padding:.5rem .94rem;cursor:pointer;text-transform:uppercase;transition:all .15s;white-space:nowrap;min-height:2.4rem;border-radius:999px;font-weight:600;}
 .tab-btn:hover{color:var(--gold);border-color:rgba(201,162,39,.26);background:rgba(201,162,39,.05);transform:translateY(-1px);}
 .tab-btn.active{color:var(--gold3);border-color:rgba(201,162,39,.45);background:linear-gradient(180deg,rgba(201,162,39,.14) 0%,rgba(201,162,39,.06) 100%);box-shadow:0 0 0 1px rgba(201,162,39,.08) inset;}
@@ -21888,10 +21888,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
   });
 
-  // ARIA: wire up tabpanel roles for all non-character tab panels
+  // Ensure panel focus targets and label relation are present.
   document.querySelectorAll('.tab-panel[id]').forEach(function(panel) {
     var tabId = panel.id.replace('tab-', '');
-    panel.setAttribute('role', 'tabpanel');
     panel.setAttribute('tabindex', '0');
     var navBtn = document.getElementById('tabnav-' + tabId);
     if (navBtn) panel.setAttribute('aria-labelledby', 'tabnav-' + tabId);

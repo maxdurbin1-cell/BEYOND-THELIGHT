@@ -21964,14 +21964,14 @@ window.addEventListener('DOMContentLoaded', function() {
 <!-- ── QUICK PANEL ── -->
 <button id="quickPanelToggle" onclick="toggleQuickPanel()" aria-expanded="false" aria-controls="quickPanel" aria-label="Toggle Quick Panel">⚙ Quick&nbsp;Panel</button>
 <div id="quickPanel" role="complementary" aria-label="Quick Panel">
-  <div class="qp-header" role="tablist" aria-label="Quick panel sections">
-    <button class="qp-tab on" role="tab" aria-selected="true" onclick="switchQP('dice',this)">🎲 Dice</button>
-    <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('char',this)">👤 Char</button>
-    <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('combat',this)">⚔ Combat</button>
-    <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('oracle',this)">🔮 Oracle</button>
-    <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('missions',this)">🗺 Missions</button>
-    <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('campaign',this)">🛰 Campaign</button>
-    <button class="qp-tab" role="tab" aria-selected="false" onclick="switchQP('notes',this)">📝 Notes</button>
+  <div class="qp-header" role="group" aria-label="Quick panel sections">
+    <button class="qp-tab on" aria-current="page" onclick="switchQP('dice',this)">🎲 Dice</button>
+    <button class="qp-tab" onclick="switchQP('char',this)">👤 Char</button>
+    <button class="qp-tab" onclick="switchQP('combat',this)">⚔ Combat</button>
+    <button class="qp-tab" onclick="switchQP('oracle',this)">🔮 Oracle</button>
+    <button class="qp-tab" onclick="switchQP('missions',this)">🗺 Missions</button>
+    <button class="qp-tab" onclick="switchQP('campaign',this)">🛰 Campaign</button>
+    <button class="qp-tab" onclick="switchQP('notes',this)">📝 Notes</button>
     <button class="qp-close" aria-label="Close Quick Panel" onclick="toggleQuickPanel()">✕</button>
   </div>
   <div id="qpContent"></div>
@@ -22005,11 +22005,11 @@ window.addEventListener('DOMContentLoaded', function() {
 
   window.switchQP = function(tab, el) {
     _qpTab = tab;
-    document.querySelectorAll('.qp-tab[role="tab"]').forEach(function(b) {
+    document.querySelectorAll('.qp-tab').forEach(function(b) {
       b.classList.remove('on');
-      b.setAttribute('aria-selected', 'false');
+      b.removeAttribute('aria-current');
     });
-    if (el) { el.classList.add('on'); el.setAttribute('aria-selected', 'true'); }
+    if (el) { el.classList.add('on'); el.setAttribute('aria-current', 'page'); }
     renderQP(tab);
   };
 
@@ -27086,9 +27086,18 @@ window.addEventListener('DOMContentLoaded', function() {
     return '';
   }
 
+  function hasExplicitFieldLabel(el) {
+    if (!el) return false;
+    const id = (el.getAttribute('id') || '').trim();
+    if (!id) return false;
+    const label = document.querySelector('label[for="' + id + '"]');
+    return !!(label && (label.textContent || '').trim());
+  }
+
   function runAccessibilityLabelAudit() {
     document.querySelectorAll('input,select,textarea').forEach(function(el){
       if (el.getAttribute('type') === 'hidden') return;
+      if (hasExplicitFieldLabel(el)) return;
       const label = deriveFieldAriaLabel(el);
       if (label && !el.getAttribute('aria-label')) {
         el.setAttribute('aria-label', label);

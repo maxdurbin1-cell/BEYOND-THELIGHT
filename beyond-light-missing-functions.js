@@ -214,6 +214,20 @@ function syncTabAccessibility() {
 }
 
 function switchTab(tabId, btn) {
+  function scheduleTabTranslation(tabName, delayMs) {
+    if (typeof window === 'undefined' || !window.accessibilityI18n) return;
+    var i18n = window.accessibilityI18n;
+    if (typeof i18n.translatePage !== 'function' && typeof i18n.schedulePageTranslation !== 'function') return;
+    setTimeout(function () {
+      var panel = document.getElementById('tab-' + String(tabName || ''));
+      if (panel && typeof i18n.translatePage === 'function') {
+        i18n.translatePage(panel);
+      } else if (typeof i18n.schedulePageTranslation === 'function') {
+        i18n.schedulePageTranslation();
+      }
+    }, Math.max(0, Number(delayMs || 0)));
+  }
+
   document.querySelectorAll(".tab-panel").forEach((panel) => {
     panel.classList.remove("active");
     panel.setAttribute("aria-hidden", "true");
@@ -247,6 +261,7 @@ function switchTab(tabId, btn) {
   }
   if (tabId === "holding" && typeof window.renderHoldingUI === "function") {
     window.renderHoldingUI();
+    scheduleTabTranslation('holding', 40);
   }
   if (tabId === "caravan" && typeof window.mountCaravanPanel === "function") {
     window.mountCaravanPanel();
@@ -261,6 +276,7 @@ function switchTab(tabId, btn) {
     if (typeof window.renderStarSystemMap === "function") {
       setTimeout(function () { window.renderStarSystemMap(); }, 0);
     }
+    scheduleTabTranslation('galaxy', 80);
   }
 
   if (tabId === "combat") {
@@ -330,6 +346,7 @@ function switchTab(tabId, btn) {
     } else if (typeof window.renderLastSeaMap === "function") {
       window.renderLastSeaMap();
     }
+    scheduleTabTranslation('lastsea', 80);
   }
 
   if (tabId === "dice") {
@@ -339,6 +356,11 @@ function switchTab(tabId, btn) {
   }
 
   syncTabAccessibility();
+
+  // Safety pass for any delayed UI chunks rendered after tab switch.
+  if (tabId === 'holding' || tabId === 'lastsea' || tabId === 'galaxy') {
+    scheduleTabTranslation(tabId, 260);
+  }
 
 }
 

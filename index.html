@@ -861,14 +861,14 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <div class="card">
       <div class="section-title">Identity</div>
       <div id="wayfarerVisualPanel" style="margin-bottom:.6rem;"></div>
-      <div class="form-row"><label id="charNameLabel" class="sub-label" for="charName">Name</label>
-        <div style="display:flex;gap:.3rem;"><input type="text" id="charName" aria-labelledby="charNameLabel" placeholder="Wayfarer name…" onchange="S.name=this.value"><button class="btn btn-icon btn-sm" onclick="rollName()">⚄</button></div>
+      <div class="form-row"><label class="sub-label" for="charName">Name</label>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="charName" placeholder="Wayfarer name…" onchange="S.name=this.value"><button class="btn btn-icon btn-sm" onclick="rollName()">⚄</button></div>
       </div>
-      <div class="form-row"><label id="charCareerLabel" class="sub-label" for="charCareer">Career</label>
-        <div style="display:flex;gap:.3rem;"><input type="text" id="charCareer" aria-labelledby="charCareerLabel" placeholder="Soldier, Merchant…" style="flex:1;" onchange="S.career=this.value"><button class="btn btn-icon btn-sm" onclick="rollCareer()">⚄</button></div>
+      <div class="form-row"><label class="sub-label" for="charCareer">Career</label>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="charCareer" placeholder="Soldier, Merchant…" style="flex:1;" onchange="S.career=this.value"><button class="btn btn-icon btn-sm" onclick="rollCareer()">⚄</button></div>
       </div>
-      <div class="form-row"><label id="charBackgroundLabel" class="sub-label" for="charBackground">Background</label>
-        <div style="display:flex;gap:.3rem;"><input type="text" id="charBackground" aria-labelledby="charBackgroundLabel" placeholder="Street-raised, Temple-trained…" style="flex:1;" onchange="S.background=this.value"><button class="btn btn-icon btn-sm" onclick="rollBackground()">⚄</button></div>
+      <div class="form-row"><label class="sub-label" for="charBackground">Background</label>
+        <div style="display:flex;gap:.3rem;"><input type="text" id="charBackground" placeholder="Street-raised, Temple-trained…" style="flex:1;" onchange="S.background=this.value"><button class="btn btn-icon btn-sm" onclick="rollBackground()">⚄</button></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-bottom:.6rem;">
         <div><span class="sub-label">Age</span>
@@ -889,8 +889,8 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
           <span id="workJobResult" style="font-size:.74rem;color:var(--muted2);min-height:1rem;">Roll to earn 100 Credits and advance 1 day.</span>
         </div>
       </div>
-      <div class="form-row"><label id="charReasonLabel" class="sub-label" for="charReason">Why are you on the road?</label>
-        <div style="display:flex;gap:.3rem;align-items:flex-start;"><textarea id="charReason" aria-labelledby="charReasonLabel" rows="2" placeholder="Your drive…" style="resize:none;flex:1;" onchange="S.reason=this.value"></textarea><button class="btn btn-icon btn-sm" onclick="rollReason()" style="margin-top:.1rem;">⚄</button></div>
+      <div class="form-row"><label class="sub-label" for="charReason">Why are you on the road?</label>
+        <div style="display:flex;gap:.3rem;align-items:flex-start;"><textarea id="charReason" rows="2" placeholder="Your drive…" style="resize:none;flex:1;" onchange="S.reason=this.value"></textarea><button class="btn btn-icon btn-sm" onclick="rollReason()" style="margin-top:.1rem;">⚄</button></div>
       </div>
       <div><span class="sub-label">Renown</span>
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.3rem;">

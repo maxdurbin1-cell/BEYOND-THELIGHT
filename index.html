@@ -13143,7 +13143,9 @@ function buyItem(cost, name, cat, baseCost) {
 }
 
 // Item use config: maxUses=null means infinite, N means limited.
-// rollStat: stat key to roll; rollAdvDie: true means roll stat AND V.D., take highest.
+// rollStat: stat key to roll.
+// rollAdvDie: true means roll stat AND V.D., keep highest (advantage style).
+// rollValorAdd: true means roll stat AND V.D., ADD both totals.
 const ITEM_USE_CFG = {
   'Healing Salve':    {maxUses:1},
   'Wound Salve':      {maxUses:1},
@@ -13161,7 +13163,7 @@ const ITEM_USE_CFG = {
   'Torch':            {maxUses:1},
   'Caltrops':         {maxUses:1,rollDesc:'Scatter to slow pursuers — no roll needed.'},
   'Grappling Hook':   {maxUses:3},
-  'Lockpicks':        {maxUses:3, rollStat:'control', rollAdvDie:true, rollDesc:'Control + V.D. to pick the lock.'},
+  'Lockpicks':        {maxUses:3, rollStat:'control', rollValorAdd:true, rollDesc:'Control + V.D. to pick the lock.'},
   'Compass':          {maxUses:null, rollStat:'lead',    rollAdvDie:true, rollDesc:'Lead + V.D. advantage for navigation.'},
   'Spyglass':         {maxUses:null, rollStat:'lead',    rollAdvDie:true, rollDesc:'Lead + V.D. advantage to notice details.'},
   'Rope (50ft)':      {maxUses:null},
@@ -14044,7 +14046,8 @@ function useBackpackItem(index) {
       var controlDie = typeof getEffectiveDie==='function' ? getEffectiveDie('control') : (S.stats.control||4);
       var controlRoll = explodingRoll(controlDie);
       var adRoll = explodingRoll(S.stats.adventure||4);
-      openModal('E-Picks — Use','<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">Electronic picks engaged.<br><strong style="color:var(--teal);">Result: '+Math.max(controlRoll.total, adRoll.total)+'</strong><br><span style="font-size:.76rem;color:var(--muted2);">Control d'+controlDie+'='+controlRoll.total+' vs V.D. d'+(S.stats.adventure||4)+'='+adRoll.total+' (keep highest)</span></div>');
+      var epicksTotal = Number(controlRoll.total || 0) + Number(adRoll.total || 0);
+      openModal('E-Picks — Use','<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">Electronic picks engaged.<br><strong style="color:var(--teal);">Result: '+epicksTotal+'</strong><br><span style="font-size:.76rem;color:var(--muted2);">Control d'+controlDie+'='+controlRoll.total+' + V.D. d'+(S.stats.adventure||4)+'='+adRoll.total+' (additive)</span></div>');
       return;
     }
   }
@@ -14092,7 +14095,12 @@ function useBackpackItem(index) {
     var statRoll = explodingRoll(statDie);
     var html='<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">';
     html+='<div style="font-size:.78rem;color:var(--muted2);margin-bottom:.35rem;">'+cfg.rollDesc+'</div>';
-    if(cfg.rollAdvDie){
+    if(cfg.rollValorAdd){
+      var addDie = S.stats.adventure||4;
+      var addRoll = explodingRoll(addDie);
+      var addedTotal = Number(statRoll.total || 0) + Number(addRoll.total || 0);
+      html+='Result: <strong style="color:var(--teal);">'+addedTotal+'</strong> <span style="font-size:.72rem;color:var(--muted2);">('+cfg.rollStat+' d'+statDie+'='+statRoll.total+' + V.D. d'+addDie+'='+addRoll.total+')</span>';
+    } else if(cfg.rollAdvDie){
       var aDie = S.stats.adventure||4;
       var aRoll = explodingRoll(aDie);
       var kept = Math.max(statRoll.total, aRoll.total);

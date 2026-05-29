@@ -22943,6 +22943,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const yessodTab = document.getElementById('tabnav-yessod') || document.querySelector('#mainNav .tab-btn[data-tab="yessod"]');
   const exocraftsTab = document.getElementById('tabnav-exocrafts') || document.querySelector('#mainNav .tab-btn[data-tab="exocrafts"]');
   if (nav && planetTab && yessodTab && exocraftsTab) {
+    if (planetTab.parentNode !== nav) nav.appendChild(planetTab);
+    if (yessodTab.parentNode !== nav) nav.appendChild(yessodTab);
+    if (exocraftsTab.parentNode !== nav) nav.appendChild(exocraftsTab);
+
     nav.insertBefore(planetTab, yessodTab);
     if (yessodTab.nextSibling !== exocraftsTab) nav.insertBefore(exocraftsTab, yessodTab.nextSibling);
   }

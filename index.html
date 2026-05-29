@@ -1,50 +1,3 @@
-
-</body>
-<script>
-// --- Modal Stack for Go Back Navigation ---
-window._modalStack = Array.isArray(window._modalStack) ? window._modalStack : [];
-setTimeout(function() {
-  try {
-    const _originalOpenModal = window.openModal || openModal;
-    window.openModal = function(title, html, restoreCallback, options) {
-      if (restoreCallback && typeof restoreCallback === 'object' && typeof options === 'undefined') {
-        options = restoreCallback;
-        restoreCallback = null;
-      }
-      try {
-        const overlay = document.getElementById('rollModal');
-        const titleEl = document.getElementById('modalTitle');
-        const contentEl = document.getElementById('modalContent');
-        if (overlay && overlay.classList.contains('open') && contentEl) {
-          const prevTitle = titleEl ? String(titleEl.textContent || '') : '';
-          const prevHtml = String(contentEl.innerHTML || '');
-          if (prevTitle || prevHtml) {
-            window._modalStack.push({ title: prevTitle, html: prevHtml, restoreCallback: restoreCallback });
-          }
-        }
-      } catch (err) {}
-      _originalOpenModal(title, html, null, options);
-    };
-    window.goBackModal = function() {
-      if (window._modalStack && window._modalStack.length > 0) {
-        const prev = window._modalStack.pop();
-        if (prev && typeof prev.restoreCallback === 'function') {
-          prev.restoreCallback();
-        } else if (prev && (prev.title || prev.html)) {
-          _originalOpenModal(prev.title, prev.html);
-        } else if (typeof closeModal === 'function') {
-          closeModal();
-        }
-      } else if (typeof closeModal === 'function') {
-        closeModal();
-      }
-    };
-    window.clearModalStack = function() {
-      window._modalStack = [];
-    };
-  } catch (err) {}
-}, 0);
-</script>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -21853,76 +21806,6 @@ function runWhenIdle(fn, timeoutMs){
   setTimeout(fn,Math.min(260,Math.max(0,timeoutMs||120)));
 }
 
-document.addEventListener('DOMContentLoaded',()=>{
-  document.addEventListener('click', function (ev) {
-    var ctxBtn = ev.target && ev.target.closest ? ev.target.closest('.ctx-btn[data-ctx]') : null;
-    if (ctxBtn && typeof setContext === 'function') {
-      setContext(String(ctxBtn.getAttribute('data-ctx') || ''), ctxBtn);
-      return;
-    }
-
-    var navBtn = ev.target && ev.target.closest ? ev.target.closest('#mainNavTablist .tab-btn[data-tab]') : null;
-    if (navBtn && typeof switchTab === 'function') {
-      switchTab(String(navBtn.getAttribute('data-tab') || ''), navBtn);
-      return;
-    }
-
-    var combatBtn = ev.target && ev.target.closest ? ev.target.closest('[data-combat-click]') : null;
-    if (!combatBtn) return;
-    var act = String(combatBtn.getAttribute('data-combat-click') || '');
-    if (act === 'rollmod-add-adv' && typeof addRollModAdv === 'function') return addRollModAdv('rollModDieSel-combat');
-    if (act === 'rollmod-set-flat' && typeof setRollModFlat === 'function') return setRollModFlat('rollModFlatInp-combat');
-    if (act === 'rollmod-clear' && typeof clearRollMod === 'function') return clearRollMod();
-    if (act === 'execute-wayfarer' && typeof executeWayfarerAction === 'function') return executeWayfarerAction();
-    if (act === 'roll-strike' && typeof rollAttack === 'function') return rollAttack('strike');
-    if (act === 'roll-shoot' && typeof rollAttack === 'function') return rollAttack('shoot');
-    if (act === 'roll-defend' && typeof rollDefend === 'function') return rollDefend();
-    if (act === 'roll-trauma' && typeof rollTraumaCheck === 'function') return rollTraumaCheck();
-    if (act === 'enemy-action' && typeof triggerEnemyActionEvent === 'function') return triggerEnemyActionEvent();
-    if (act === 'attempt-flee' && typeof attemptFlee === 'function') return attemptFlee();
-    if (act === 'add-enemy' && typeof addEnemy === 'function') return addEnemy();
-    if (act === 'clear-enemies' && typeof clearEnemies === 'function') return clearEnemies();
-  });
-
-  document.addEventListener('change', function (ev) {
-    var node = ev.target;
-    if (!node || !node.getAttribute) return;
-    var changeKey = String(node.getAttribute('data-combat-change') || '');
-    if (changeKey === 'focus-enemy' && typeof setCombatFocusEnemy === 'function') {
-      return setCombatFocusEnemy(String(node.value || ''));
-    }
-    if (changeKey === 'wayfarer-action' && typeof updateWayfarerActionBtn === 'function') {
-      return updateWayfarerActionBtn();
-    }
-  });
-
-  // Ensure panel focus targets and label relation are present.
-  document.querySelectorAll('.tab-panel[id]').forEach(function(panel) {
-    var tabId = panel.id.replace('tab-', '');
-    panel.setAttribute('tabindex', '0');
-    var navBtn = document.getElementById('tabnav-' + tabId);
-    if (navBtn) panel.setAttribute('aria-labelledby', 'tabnav-' + tabId);
-  });
-
-  // Critical character-surface paint first.
-  buildStatRows();updateRenown();updateCreditsUI();updateStressUI();updateTrauma();renderTraits();updateTMWPool();
-
-  // Defer non-critical panel and tab setup work.
-  runWhenIdle(function(){
-    showShopCat('weapons',document.querySelector('.shop-cats .scat'));
-    showCodexCat('histories',document.querySelector('.codex-cats .scat'));
-    updateCombatUI();renderEnemies();updateMapClickModeUI();updateSkirmishRoundUI();resetSkirmishActions();
-    if(typeof renderOSHacksPanel==='function')renderOSHacksPanel();
-    if(typeof renderWeaponModsPanel==='function')renderWeaponModsPanel();
-    if(typeof renderAugmentationsPanel==='function')renderAugmentationsPanel();
-    if(typeof initCharDreadDiceOpts==='function')initCharDreadDiceOpts();
-    updateDiceVisualUI();
-    updateMapVisualUI();
-  },1400);
-
-  const travelCtxBtn=document.querySelector('.ctx-btn[data-ctx="traveling"]');
-  if(typeof setContext==='function')setContext('traveling',travelCtxBtn||null);
-});
 </script>
 <script defer src="./audio-manager.js"></script>
 <script defer src="./item-lore-system.js"></script>
@@ -21944,26 +21827,6 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script defer src="./shared-puzzles.js"></script>
 <script defer src="./economy-ledger-system.js"></script>
 <script defer src="./teamwork-rules-system.js"></script>
-<script>
-// Ensure World That Was tab is initialized after all scripts are loaded
-window.addEventListener('DOMContentLoaded', function() {
-  if (typeof initWorldThatWas === 'function') initWorldThatWas();
-  // If the World That Was tab is already active, mount its panel immediately
-  var wtwPanel = document.getElementById('tab-worldthatwas');
-  var wtwBtn = document.getElementById('tabnav-worldthatwas');
-  if (wtwPanel && wtwBtn && wtwBtn.classList.contains('active') && typeof mountWorldThatWasPanel === 'function') {
-    mountWorldThatWasPanel();
-  }
-
-  // Always attach a click handler to the World That Was tab button
-  if (wtwBtn) {
-    wtwBtn.addEventListener('click', function() {
-      if (typeof mountWorldThatWasPanel === 'function') mountWorldThatWasPanel();
-      if (typeof renderWorldThatWas === 'function') renderWorldThatWas();
-    });
-  }
-});
-</script>
 <script defer src="./infinite-library-system.js"></script>
 <script defer src="./solo-gm-system.js"></script>
 <script defer src="./audit-panel-ui.js"></script>
@@ -27280,6 +27143,51 @@ window.addEventListener('DOMContentLoaded', function() {
 <script defer src="./campaign-system.js"></script>
 <script defer src="./combat-scene-editor.js"></script>
 <script defer src="./dice-roller-3d.js"></script>
+<script>
+// --- Modal Stack for Go Back Navigation ---
+window._modalStack = Array.isArray(window._modalStack) ? window._modalStack : [];
+setTimeout(function () {
+  try {
+    var _originalOpenModal = window.openModal || openModal;
+    window.openModal = function (title, html, restoreCallback, options) {
+      if (restoreCallback && typeof restoreCallback === 'object' && typeof options === 'undefined') {
+        options = restoreCallback;
+        restoreCallback = null;
+      }
+      try {
+        var overlay = document.getElementById('rollModal');
+        var titleEl = document.getElementById('modalTitle');
+        var contentEl = document.getElementById('modalContent');
+        if (overlay && overlay.classList.contains('open') && contentEl) {
+          var prevTitle = titleEl ? String(titleEl.textContent || '') : '';
+          var prevHtml = String(contentEl.innerHTML || '');
+          if (prevTitle || prevHtml) {
+            window._modalStack.push({ title: prevTitle, html: prevHtml, restoreCallback: restoreCallback });
+          }
+        }
+      } catch (_err) {}
+      _originalOpenModal(title, html, null, options);
+    };
+    window.goBackModal = function () {
+      if (window._modalStack && window._modalStack.length > 0) {
+        var prev = window._modalStack.pop();
+        if (prev && typeof prev.restoreCallback === 'function') {
+          prev.restoreCallback();
+        } else if (prev && (prev.title || prev.html)) {
+          _originalOpenModal(prev.title, prev.html);
+        } else if (typeof closeModal === 'function') {
+          closeModal();
+        }
+      } else if (typeof closeModal === 'function') {
+        closeModal();
+      }
+    };
+    window.clearModalStack = function () {
+      window._modalStack = [];
+    };
+  } catch (_err) {}
+}, 0);
+</script>
 
 </body>
 </html>

@@ -20,6 +20,10 @@
   var translationTimer = null;
   var suppressObserver = false;
   var translatePassCounter = 0;
+  var pendingLanguageStatusNotice = false;
+  var latestTranslationStatus = 'idle';
+  var lastStatusNoticeAt = 0;
+  var lastStatusNoticeKey = '';
   var dictionaries = {
     en: {
       'common.on': 'On',
@@ -175,6 +179,7 @@
       }));
     }
     if (!opts.skipTranslate) {
+      pendingLanguageStatusNotice = normalized !== FALLBACK_LANGUAGE;
       schedulePageTranslation();
     }
     return normalized;
@@ -268,20 +273,26 @@
         return res.json();
       })
       .then(function (payload) {
-        if (!Array.isArray(payload) || !Array.isArray(payload[0])) return text;
+        if (!Array.isArray(payload) || !Array.isArray(payload[0])) {
+          return { text: text, usedFallback: true };
+        }
         var pieces = payload[0].map(function (part) {
           return Array.isArray(part) ? String(part[0] || '') : '';
         }).join('');
-        return pieces || text;
+        var translated = pieces || text;
+        return { text: translated, usedFallback: translated === text };
       })
       .catch(function () {
-        return text;
+        return { text: text, usedFallback: true };
       });
   }
 
   function translateMissingTextBatch(missingItems, targetLanguage) {
-    if (!Array.isArray(missingItems) || !missingItems.length) return Promise.resolve({});
+    if (!Array.isArray(missingItems) || !missingItems.length) {
+      return Promise.resolve({ pairs: {}, fallbackCount: 0, total: 0 });
+    }
     var pairs = {};
+    var fallbackCount = 0;
     var queue = missingItems.slice();
     var concurrency = 4;
     var workers = [];
@@ -289,13 +300,48 @@
       if (!queue.length) return Promise.resolve();
       var item = queue.shift();
       return fetchAutoTranslation(item, targetLanguage)
-        .then(function (translated) {
+        .then(function (result) {
+          var translated = result && typeof result.text === 'string' ? result.text : item;
           pairs[item] = translated;
+          if (result && result.usedFallback) fallbackCount += 1;
         })
         .then(worker);
     }
     for (var i = 0; i < concurrency; i += 1) workers.push(worker());
-    return Promise.all(workers).then(function () { return pairs; });
+    return Promise.all(workers).then(function () {
+      return {
+        pairs: pairs,
+        fallbackCount: fallbackCount,
+        total: missingItems.length
+      };
+    });
+  }
+
+  function emitTranslationStatus(status) {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new CustomEvent('beyond:translation-status', {
+      detail: {
+        status: status,
+        language: currentLanguage,
+        fallbackLanguage: FALLBACK_LANGUAGE
+      }
+    }));
+
+    var noticeKey = status + ':' + currentLanguage;
+    var now = Date.now();
+    var shouldNotify = noticeKey !== lastStatusNoticeKey || (now - lastStatusNoticeAt) > 8000;
+    if (!shouldNotify || typeof window.showNotif !== 'function') return;
+
+    if (status === 'success') {
+      window.showNotif('Language updated. Live translation is online.', 'info');
+    } else if (status === 'cached') {
+      window.showNotif('Language updated using cached translations.', 'info');
+    } else if (status === 'fallback') {
+      window.showNotif('Language updated, but live translation is partially unavailable. Some text may remain in English.', 'warn');
+    }
+
+    lastStatusNoticeKey = noticeKey;
+    lastStatusNoticeAt = now;
   }
 
   function collectTranslatableUnits(root) {
@@ -417,13 +463,23 @@
       }
     });
 
-    return translateMissingTextBatch(missing, currentLanguage).then(function (fetched) {
-      Object.keys(fetched || {}).forEach(function (source) {
+    if (!missing.length) {
+      latestTranslationStatus = 'cached';
+      return Promise.resolve();
+    }
+
+    return translateMissingTextBatch(missing, currentLanguage).then(function (batchResult) {
+      var fetched = batchResult && batchResult.pairs ? batchResult.pairs : {};
+      var fallbackCount = batchResult && typeof batchResult.fallbackCount === 'number'
+        ? batchResult.fallbackCount
+        : 0;
+      Object.keys(fetched).forEach(function (source) {
         var translated = fetched[source];
         if (!translated || translated === source) return;
         setCachedTranslation(currentLanguage, source, translated);
         unitsMap[source] = translated;
       });
+      latestTranslationStatus = fallbackCount > 0 ? 'fallback' : 'success';
       persistTranslationCache();
       if (passId !== translatePassCounter) return;
       applyTranslatedUnits(unitsMap, textUnits, attrUnits);
@@ -462,7 +518,12 @@
       translationTimer = null;
       var explicitRoot = root && root.nodeType === 1 ? root : null;
       if (explicitRoot) {
-        translatePage(explicitRoot);
+        translatePage(explicitRoot).then(function () {
+          if (pendingLanguageStatusNotice) {
+            emitTranslationStatus(latestTranslationStatus);
+            pendingLanguageStatusNotice = false;
+          }
+        });
         return;
       }
 
@@ -472,6 +533,12 @@
         chain = chain.then(function () {
           return translatePage(priorityRoot);
         });
+      });
+      chain.then(function () {
+        if (pendingLanguageStatusNotice) {
+          emitTranslationStatus(latestTranslationStatus);
+          pendingLanguageStatusNotice = false;
+        }
       });
     }, 120);
   }

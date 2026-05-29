@@ -200,6 +200,133 @@ function renderContextQuickActions(tabId) {
 window.runContextQuickAction = runContextQuickAction;
 window.renderContextQuickActions = renderContextQuickActions;
 
+function runWhenIdleSafe(fn, timeoutMs) {
+  if (typeof fn !== 'function') return;
+  if (typeof runWhenIdle === 'function') {
+    runWhenIdle(fn, timeoutMs);
+    return;
+  }
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(fn, { timeout: timeoutMs || 1200 });
+    return;
+  }
+  setTimeout(fn, Math.min(260, Math.max(0, timeoutMs || 120)));
+}
+
+function wireMainUiDelegates() {
+  if (window.__mainUiDelegatesBound) return;
+  window.__mainUiDelegatesBound = true;
+
+  document.addEventListener('click', function (ev) {
+    var ctxBtn = ev.target && ev.target.closest ? ev.target.closest('.ctx-btn[data-ctx]') : null;
+    if (ctxBtn && typeof setContext === 'function') {
+      setContext(String(ctxBtn.getAttribute('data-ctx') || ''), ctxBtn);
+      return;
+    }
+
+    var navBtn = ev.target && ev.target.closest ? ev.target.closest('#mainNavTablist .tab-btn[data-tab]') : null;
+    if (navBtn && typeof switchTab === 'function') {
+      switchTab(String(navBtn.getAttribute('data-tab') || ''), navBtn);
+      return;
+    }
+
+    var combatBtn = ev.target && ev.target.closest ? ev.target.closest('[data-combat-click]') : null;
+    if (!combatBtn) return;
+    var act = String(combatBtn.getAttribute('data-combat-click') || '');
+    if (act === 'rollmod-add-adv' && typeof addRollModAdv === 'function') return addRollModAdv('rollModDieSel-combat');
+    if (act === 'rollmod-set-flat' && typeof setRollModFlat === 'function') return setRollModFlat('rollModFlatInp-combat');
+    if (act === 'rollmod-clear' && typeof clearRollMod === 'function') return clearRollMod();
+    if (act === 'execute-wayfarer' && typeof executeWayfarerAction === 'function') return executeWayfarerAction();
+    if (act === 'roll-strike' && typeof rollAttack === 'function') return rollAttack('strike');
+    if (act === 'roll-shoot' && typeof rollAttack === 'function') return rollAttack('shoot');
+    if (act === 'roll-defend' && typeof rollDefend === 'function') return rollDefend();
+    if (act === 'roll-trauma' && typeof rollTraumaCheck === 'function') return rollTraumaCheck();
+    if (act === 'enemy-action' && typeof triggerEnemyActionEvent === 'function') return triggerEnemyActionEvent();
+    if (act === 'attempt-flee' && typeof attemptFlee === 'function') return attemptFlee();
+    if (act === 'add-enemy' && typeof addEnemy === 'function') return addEnemy();
+    if (act === 'clear-enemies' && typeof clearEnemies === 'function') return clearEnemies();
+  });
+
+  document.addEventListener('change', function (ev) {
+    var node = ev.target;
+    if (!node || !node.getAttribute) return;
+    var changeKey = String(node.getAttribute('data-combat-change') || '');
+    if (changeKey === 'focus-enemy' && typeof setCombatFocusEnemy === 'function') {
+      return setCombatFocusEnemy(String(node.value || ''));
+    }
+    if (changeKey === 'wayfarer-action' && typeof updateWayfarerActionBtn === 'function') {
+      return updateWayfarerActionBtn();
+    }
+  });
+}
+
+function applyInitialPanelAccessibility() {
+  document.querySelectorAll('.tab-panel[id]').forEach(function (panel) {
+    var tabId = panel.id.replace('tab-', '');
+    panel.setAttribute('tabindex', '0');
+    var navBtn = document.getElementById('tabnav-' + tabId);
+    if (navBtn) panel.setAttribute('aria-labelledby', 'tabnav-' + tabId);
+  });
+}
+
+function runMainUiBootstrap() {
+  if (window.__mainUiBootstrapComplete) return;
+  window.__mainUiBootstrapComplete = true;
+
+  wireMainUiDelegates();
+  applyInitialPanelAccessibility();
+
+  if (typeof buildStatRows === 'function') buildStatRows();
+  if (typeof updateRenown === 'function') updateRenown();
+  if (typeof updateCreditsUI === 'function') updateCreditsUI();
+  if (typeof updateStressUI === 'function') updateStressUI();
+  if (typeof updateTrauma === 'function') updateTrauma();
+  if (typeof renderTraits === 'function') renderTraits();
+  if (typeof updateTMWPool === 'function') updateTMWPool();
+
+  runWhenIdleSafe(function () {
+    if (typeof showShopCat === 'function') showShopCat('weapons', document.querySelector('.shop-cats .scat'));
+    if (typeof showCodexCat === 'function') showCodexCat('histories', document.querySelector('.codex-cats .scat'));
+    if (typeof updateCombatUI === 'function') updateCombatUI();
+    if (typeof renderEnemies === 'function') renderEnemies();
+    if (typeof updateMapClickModeUI === 'function') updateMapClickModeUI();
+    if (typeof updateSkirmishRoundUI === 'function') updateSkirmishRoundUI();
+    if (typeof resetSkirmishActions === 'function') resetSkirmishActions();
+    if (typeof renderOSHacksPanel === 'function') renderOSHacksPanel();
+    if (typeof renderWeaponModsPanel === 'function') renderWeaponModsPanel();
+    if (typeof renderAugmentationsPanel === 'function') renderAugmentationsPanel();
+    if (typeof initCharDreadDiceOpts === 'function') initCharDreadDiceOpts();
+    if (typeof updateDiceVisualUI === 'function') updateDiceVisualUI();
+    if (typeof updateMapVisualUI === 'function') updateMapVisualUI();
+  }, 1400);
+
+  var travelCtxBtn = document.querySelector('.ctx-btn[data-ctx="traveling"]');
+  if (typeof setContext === 'function') setContext('traveling', travelCtxBtn || null);
+}
+
+function initWorldThatWasBootstrap() {
+  if (window.__worldThatWasBootstrapInit) return;
+  window.__worldThatWasBootstrapInit = true;
+  if (typeof initWorldThatWas === 'function') initWorldThatWas();
+
+  var wtwPanel = document.getElementById('tab-worldthatwas');
+  var wtwBtn = document.getElementById('tabnav-worldthatwas');
+  if (wtwPanel && wtwBtn && wtwBtn.classList.contains('active') && typeof mountWorldThatWasPanel === 'function') {
+    mountWorldThatWasPanel();
+  }
+
+  if (wtwBtn && !wtwBtn.dataset.worldThatWasBound) {
+    wtwBtn.dataset.worldThatWasBound = 'true';
+    wtwBtn.addEventListener('click', function () {
+      if (typeof mountWorldThatWasPanel === 'function') mountWorldThatWasPanel();
+      if (typeof renderWorldThatWas === 'function') renderWorldThatWas();
+    });
+  }
+}
+
+window.initializeMainUiBootstrap = runMainUiBootstrap;
+window.initializeWorldThatWasBootstrap = initWorldThatWasBootstrap;
+
 function syncTabAccessibility() {
   document.querySelectorAll('#mainNavTablist .tab-btn[data-tab]').forEach(function (tab) {
     var panelId = tab.getAttribute('aria-controls') || ('tab-' + String(tab.getAttribute('data-tab') || ''));
@@ -371,6 +498,8 @@ if (document.readyState === 'loading') {
     syncTabAccessibility();
     renderGlobalQuickAccess();
     renderContextQuickActions();
+    runMainUiBootstrap();
+    initWorldThatWasBootstrap();
     window.addEventListener('resize', function () {
       renderGlobalQuickAccess();
       renderContextQuickActions();
@@ -380,6 +509,8 @@ if (document.readyState === 'loading') {
   syncTabAccessibility();
   renderGlobalQuickAccess();
   renderContextQuickActions();
+  runMainUiBootstrap();
+  initWorldThatWasBootstrap();
   window.addEventListener('resize', function () {
     renderGlobalQuickAccess();
     renderContextQuickActions();

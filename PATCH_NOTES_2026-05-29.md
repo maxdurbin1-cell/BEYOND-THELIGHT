@@ -9,6 +9,7 @@ Build Focus: Integration, localization reliability, startup stability, and VTT n
 - Added live translation status notifications so you know if translation is online, cached, or partially unavailable.
 - Improved startup/event wiring for tab navigation and combat UI interactions to reduce cross-system regressions.
 - Fixed a DOM ordering issue that could cause rare client-side runtime errors during tab initialization.
+- Completed a V.D. consistency pass so item flows using +V.D. now resolve as additive bonuses where intended.
 
 ## Localization and Accessibility Improvements
 
@@ -32,6 +33,13 @@ Build Focus: Integration, localization reliability, startup stability, and VTT n
 - Verified with smoke coverage:
   - Context tab visibility smoke test
   - Click-paths smoke test (including multiplayer sync assertions)
+
+## V.D. Rules Consistency Pass
+
+- Lockpicks now resolve as Control + V.D. (additive), rather than highest-of-two.
+- E-Picks were aligned to the same additive lockpick behavior for consistency.
+- Toolkit rolls now use additive V.D. math and updated in-UI wording.
+- Compass and Spyglass item-use config was aligned from V.D. advantage semantics to additive +V.D. semantics.
 
 ## Why This Matters
 

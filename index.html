@@ -12955,7 +12955,7 @@ function applyShopDataOverrides(){
 
 applyShopDataOverrides();
 
-// Toolkit → which stats it benefits (for V.D. advantage roll)
+// Toolkit -> which stats it benefits for V.D. additive bonus rolls.
 var TOOLKIT_STATS = {
   "Navigator's Suitcase": ['lead'],
   "Ambassador's Trunk": ['lead','spirit'],
@@ -13164,8 +13164,8 @@ const ITEM_USE_CFG = {
   'Caltrops':         {maxUses:1,rollDesc:'Scatter to slow pursuers — no roll needed.'},
   'Grappling Hook':   {maxUses:3},
   'Lockpicks':        {maxUses:3, rollStat:'control', rollValorAdd:true, rollDesc:'Control + V.D. to pick the lock.'},
-  'Compass':          {maxUses:null, rollStat:'lead',    rollAdvDie:true, rollDesc:'Lead + V.D. advantage for navigation.'},
-  'Spyglass':         {maxUses:null, rollStat:'lead',    rollAdvDie:true, rollDesc:'Lead + V.D. advantage to notice details.'},
+  'Compass':          {maxUses:null, rollStat:'lead',    rollValorAdd:true, rollDesc:'Lead + V.D. for navigation.'},
+  'Spyglass':         {maxUses:null, rollStat:'lead',    rollValorAdd:true, rollDesc:'Lead + V.D. to notice details.'},
   'Rope (50ft)':      {maxUses:null},
   'Mapping Materials':{maxUses:null},
   'Lantern':          {maxUses:null},
@@ -14074,7 +14074,7 @@ function useBackpackItem(index) {
     openModal('Snake Oil','<div style="font-size:.9rem;color:var(--text2);">Generic remedies against bugs, parasites, diseases, rashes, and blisters.<br><em style="color:var(--muted2);">Nothing serious — but it smells terrible.</em></div>');
     return;
   }
-  // Toolkits — prompt for stat, then roll Action Die vs Valor Die (take highest)
+  // Toolkits - prompt for stat, then roll Action Die + Valor Die (additive)
   if(cat === 'toolkits'){
     var tkStats = TOOLKIT_STATS[name] || ['lead'];
     var deferredSpendLabel = getDeferredUtilitySpendLabelForBackpackIndex(index);
@@ -14083,7 +14083,7 @@ function useBackpackItem(index) {
     }).join('');
     openModal(name+' — Use',
       '<div style="font-size:.9rem;color:var(--text2);line-height:1.7;">'+item.desc+'<br><br>'
-      +'<strong style="color:var(--gold);">Roll which stat with V.D. Advantage?</strong><br>'
+      +'<strong style="color:var(--gold);">Roll which stat with +V.D. (additive)?</strong><br>'
       +statOptions+'</div>');
     return;
   }
@@ -15144,7 +15144,7 @@ function castScrollFromBackpack(index) {
   // Scroll is never removed — indefinite use
 }
 
-// Perform a toolkit roll: roll stat die AND valor die, show both, keep highest
+// Perform a toolkit roll: roll stat die AND Valor Die, then add both totals.
 function useToolkit(statKey, backpackIndex, combatSpendLabel) {
   var spendLabel = String(combatSpendLabel || getDeferredUtilitySpendLabelForBackpackIndex(backpackIndex) || '');
   if (spendLabel) {
@@ -15158,14 +15158,12 @@ function useToolkit(statKey, backpackIndex, combatSpendLabel) {
   var statRoll = explodingRoll(statDie);
   var advRoll = explodingRoll(advDie);
   var relicRolls = getPermanentAdventureBonusRolls(statKey, 'Relic Bonus');
-  var kept = (statRoll.total >= advRoll.total ? statRoll.total : advRoll.total) + sumAdventureBonusRolls(relicRolls);
+  var kept = Number(statRoll.total || 0) + Number(advRoll.total || 0) + sumAdventureBonusRolls(relicRolls);
   var label = statKey.charAt(0).toUpperCase() + statKey.slice(1);
-  var keptNote = statRoll.total >= advRoll.total
-    ? '(' + label + ' d' + statDie + '=' + statRoll.total + ' kept, V.D. d' + advDie + '=' + advRoll.total + ')'
-    : '(V.D. d' + advDie + '=' + advRoll.total + ' kept, ' + label + ' d' + statDie + '=' + statRoll.total + ')';
+  var keptNote = '(' + label + ' d' + statDie + '=' + statRoll.total + ' + V.D. d' + advDie + '=' + advRoll.total + ')';
   openModal('Toolkit Roll',
     '<div style="font-size:.95rem;color:var(--text2);line-height:1.7;">'
-    + label + ' vs V.D. Advantage<br>'
+    + label + ' + V.D. (additive)<br>'
     + '<strong style="color:var(--teal);">Result: ' + kept + '</strong> '
     + '<span style="font-size:.78rem;color:var(--muted2);">' + keptNote + '</span>' + formatAdventureBonusRolls(relicRolls)
     + '</div>');

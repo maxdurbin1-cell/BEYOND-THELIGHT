@@ -4309,7 +4309,7 @@ function buildNightModeProvinceAddonEncounter(col,row){
     desc='A hidden lane opens under moonlight (trigger d6='+triggerRoll+', mode d4='+modeRoll+'). Contraband handlers are willing to deal if you can keep quiet.';
     action='<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
       +'<button class="btn btn-xs btn-dark" onclick="attemptBlackMarketAccess('+col+','+row+')">Access (Control vs DD12)</button>'
-      +'<button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery(\'blackmarket\','+col+','+row+')">Thievery</button>'
+      +'<button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery(\'blackmarket\','+col+','+row+')">Thievery (Control vs DD12)</button>'
       +'</div>';
   }else if(modeRoll===3){
     title='Moonlit Caravan';
@@ -4317,7 +4317,7 @@ function buildNightModeProvinceAddonEncounter(col,row){
     action='<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
       +'<button class="btn btn-xs btn-info" onclick="showMerchantCaravan('+col+','+row+')">Shop</button>'
       +'<button class="btn btn-xs btn-gold" onclick="if(typeof haggleMerchantCaravan===\'function\')haggleMerchantCaravan('+col+','+row+')">Haggle</button>'
-      +'<button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery(\'merchant\','+col+','+row+')">Thievery</button>'
+      +'<button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery(\'merchant\','+col+','+row+')">Thievery (Control vs DD12)</button>'
       +'</div>';
   }else{
     title='Shadow Wayfarer';
@@ -4347,7 +4347,7 @@ function buildNightModeTradeAddonEncounter(col,row){
   if(modeRoll===2){
     return {
       title:'Moonlit Smuggler Cell',
-      html:'<div class="venture-result" style="margin-top:.35rem;border:1px solid rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><div class="vr-type" style="color:#d7b0ff;">Night Mode Bonus: Moonlit Smuggler Cell (d6='+triggerRoll+', d3='+modeRoll+')</div>A coded broker exchange appears beside the trade route.<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-dark" onclick="attemptBlackMarketAccess('+col+','+row+')">Access (Control vs DD12)</button><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery(\'blackmarket\','+col+','+row+')">Thievery</button></div></div>'
+      html:'<div class="venture-result" style="margin-top:.35rem;border:1px solid rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><div class="vr-type" style="color:#d7b0ff;">Night Mode Bonus: Moonlit Smuggler Cell (d6='+triggerRoll+', d3='+modeRoll+')</div>A coded broker exchange appears beside the trade route.<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-dark" onclick="attemptBlackMarketAccess('+col+','+row+')">Access (Control vs DD12)</button><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery(\'blackmarket\','+col+','+row+')">Thievery (Control vs DD12)</button></div></div>'
     };
   }
   return {
@@ -18927,33 +18927,59 @@ function attemptEncounterThievery(source,col,row){
   }
   const reward=pickEncounterStealReward(source,col,row);
   const controlDie=(typeof getEffectiveDie==='function')?getEffectiveDie('control'):(S.stats.control||4);
-  let rollDice=[controlDie];
-  if(S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood'))rollDice.push('d6');
-  const rolls=rollDice.map(d=>explodingRoll(d));
-  const playerTotal=rolls.reduce((sum,r)=>sum+r.total,0);
-  const dreadRoll=explodingRoll(12);
-  const success=playerTotal>=dreadRoll.total;
-  const failBy=Math.max(1,dreadRoll.total-playerTotal);
-  const controlLabel='Control d'+controlDie+(rollDice.length>1?' + Hood d6':'');
-  if(success){
-    if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,playerTotal-dreadRoll.total),{actionTotal:playerTotal,dreadTotal:dreadRoll.total,context:'Encounter thievery: '+source});
-    if(typeof addSuccessRoll==='function')addSuccessRoll();
-    if(reward.kind==='credits'){
-      S.credits=(S.credits||0)+reward.amount;
-      if(typeof updateCreditsUI==='function')updateCreditsUI();
-      showNotif('Thievery success ('+controlLabel+' vs DD12): '+reward.amount+'₵ from '+reward.label,'good');
-      appendQuickPanelNote('[Thievery] Stole '+reward.amount+'₵ from '+reward.label+' ('+rolls.map(r=>r.total).join('+')+' vs '+dreadRoll.total+')');
+  const resolveEncounterThieveryOutcome=function(outcome){
+    const manual=!!(outcome&&outcome.manual);
+    let playerTotal=Number((outcome&&outcome.actionTotal)||0);
+    const dreadTotal=Math.max(1,Number((outcome&&outcome.dreadTotal)||12));
+    const rollParts=[];
+    if(manual){
+      rollParts.push(String(playerTotal));
     }else{
-      const stored=(typeof addToBackpack==='function')?addToBackpack(reward.label):false;
-      showNotif('Thievery success ('+controlLabel+' vs DD12): '+reward.label+(stored?' (backpack)':''),'good');
-      appendQuickPanelNote('[Thievery] Stole '+reward.label+' ('+rolls.map(r=>r.total).join('+')+' vs '+dreadRoll.total+')');
+      let rollDice=[controlDie];
+      if(S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood'))rollDice.push('d6');
+      const rolls=rollDice.map(d=>explodingRoll(d));
+      playerTotal=rolls.reduce((sum,r)=>sum+r.total,0);
+      for(let i=0;i<rolls.length;i++)rollParts.push(String(rolls[i].total));
     }
-  }else{
-    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',failBy,{actionTotal:playerTotal,dreadTotal:dreadRoll.total,context:'Encounter thievery: '+source});
-    showNotif('Thievery failed ('+controlLabel+' vs DD12). Caught! ('+rolls.map(r=>r.total).join('+')+' vs '+dreadRoll.total+')','warn');
-    if(typeof addTMWOnFail==='function')addTMWOnFail('thievery-failure',{failedBy:failBy,actionDie:controlDie,dreadDie:12,actionLabel:'Control Die'});
-    appendQuickPanelNote('[Thievery] Caught while stealing from '+source+'. +1 TMW');
+    const success=(outcome&&typeof outcome.success==='boolean')?!!outcome.success:(playerTotal>=dreadTotal);
+    const failBy=Math.max(1,dreadTotal-playerTotal);
+    const hoodBonus=(S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood'))?' + Hood d6':'';
+    const controlLabel='Control d'+controlDie+hoodBonus;
+    const rollSummary=(rollParts.length?rollParts.join('+'):String(playerTotal))+' vs '+dreadTotal+(manual?' [manual]':'');
+    if(success){
+      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,playerTotal-dreadTotal),{actionTotal:playerTotal,dreadTotal:dreadTotal,context:'Encounter thievery: '+source});
+      if(typeof addSuccessRoll==='function')addSuccessRoll();
+      if(reward.kind==='credits'){
+        S.credits=(S.credits||0)+reward.amount;
+        if(typeof updateCreditsUI==='function')updateCreditsUI();
+        showNotif('Thievery success ('+controlLabel+' vs DD12): '+reward.amount+'₵ from '+reward.label,'good');
+        appendQuickPanelNote('[Thievery] Stole '+reward.amount+'₵ from '+reward.label+' ('+rollSummary+')');
+      }else{
+        const stored=(typeof addToBackpack==='function')?addToBackpack(reward.label):false;
+        showNotif('Thievery success ('+controlLabel+' vs DD12): '+reward.label+(stored?' (backpack)':''),'good');
+        appendQuickPanelNote('[Thievery] Stole '+reward.label+' ('+rollSummary+')');
+      }
+    }else{
+      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',failBy,{actionTotal:playerTotal,dreadTotal:dreadTotal,context:'Encounter thievery: '+source});
+      showNotif('Thievery failed ('+controlLabel+' vs DD12). Caught! ('+rollSummary+')','warn');
+      if(typeof addTMWOnFail==='function')addTMWOnFail('thievery-failure',{failedBy:failBy,actionDie:controlDie,dreadDie:12,actionLabel:'Control Die'});
+      appendQuickPanelNote('[Thievery] Caught while stealing from '+source+'. +1 TMW');
+    }
+  };
+  if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
+    openProvinceManualCheckPrompt({
+      title:'Manual Roll - Thievery',
+      context:'Thievery (Control vs DD12)',
+      statKey:'control',
+      statLabel:'Control',
+      actionDie:controlDie,
+      dreadDie:12,
+      onResolve:resolveEncounterThieveryOutcome
+    });
+    return;
   }
+  const dreadRoll=explodingRoll(12);
+  resolveEncounterThieveryOutcome({actionTotal:0,dreadTotal:dreadRoll.total});
 }
 
 function showTradeGoods(col,row){
@@ -19007,34 +19033,58 @@ function haggleMerchantCaravan(col,row){
 
 function attemptThievery(targetName){
   const controlDie=(typeof getEffectiveDie==='function')?getEffectiveDie('control'):(S.stats.control||4);
-  let rollDice=[controlDie];
-  if(S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood')){
-    rollDice.push('d6');
-  }
-  const rolls=rollDice.map(d=>explodingRoll(d));
-  const playerTotal=rolls.reduce((sum,r)=>sum+r.total,0);
-  const dreadRoll=explodingRoll(12);
-  const success=playerTotal>=dreadRoll.total;
-  const failBy=Math.max(1,dreadRoll.total-playerTotal);
-  const controlLabel='Control d'+controlDie+(rollDice.length>1?' + Hood d6':'');
-  if(success){
-    if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,playerTotal-dreadRoll.total),{actionTotal:playerTotal,dreadTotal:dreadRoll.total,context:'Direct thievery: '+targetName});
-    if(typeof addSuccessRoll==='function')addSuccessRoll();
-    if(typeof addToBackpack==='function'){
-      const stored=addToBackpack(targetName);
-      showNotif(`Thievery success (${controlLabel} vs DD12): ${targetName}${stored?' (backpack)':' (no space)'}`, 'good');
+  const resolveDirectThieveryOutcome=function(outcome){
+    const manual=!!(outcome&&outcome.manual);
+    let playerTotal=Number((outcome&&outcome.actionTotal)||0);
+    const dreadTotal=Math.max(1,Number((outcome&&outcome.dreadTotal)||12));
+    const rollParts=[];
+    if(manual){
+      rollParts.push(String(playerTotal));
     }else{
-      showNotif(`Thievery success (${controlLabel} vs DD12): ${targetName}`, 'good');
+      let rollDice=[controlDie];
+      if(S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood')){
+        rollDice.push('d6');
+      }
+      const rolls=rollDice.map(d=>explodingRoll(d));
+      playerTotal=rolls.reduce((sum,r)=>sum+r.total,0);
+      for(let i=0;i<rolls.length;i++)rollParts.push(String(rolls[i].total));
     }
-    appendQuickPanelNote(`[Thievery] Stole ${targetName} (${rolls.map(r=>r.total).join('+')} vs ${dreadRoll.total})`);
-  }else{
-    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',failBy,{actionTotal:playerTotal,dreadTotal:dreadRoll.total,context:'Direct thievery: '+targetName});
-    showNotif(`Thievery failed (${controlLabel} vs DD12). Caught! (${rolls.map(r=>r.total).join('+')} vs ${dreadRoll.total})`, 'warn');
-    if(typeof addTMWOnFail==='function')addTMWOnFail('thievery-failure',{failedBy:failBy,actionDie:controlDie,dreadDie:12,actionLabel:'Control Die'});
-    appendQuickPanelNote(`[Thievery] Caught attempting to steal ${targetName}. +1 TMW`);
+    const success=(outcome&&typeof outcome.success==='boolean')?!!outcome.success:(playerTotal>=dreadTotal);
+    const failBy=Math.max(1,dreadTotal-playerTotal);
+    const controlLabel='Control d'+controlDie+((S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood'))?' + Hood d6':'');
+    const rollSummary=(rollParts.length?rollParts.join('+'):String(playerTotal))+' vs '+dreadTotal+(manual?' [manual]':'');
+    if(success){
+      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,playerTotal-dreadTotal),{actionTotal:playerTotal,dreadTotal:dreadTotal,context:'Direct thievery: '+targetName});
+      if(typeof addSuccessRoll==='function')addSuccessRoll();
+      if(typeof addToBackpack==='function'){
+        const stored=addToBackpack(targetName);
+        showNotif(`Thievery success (${controlLabel} vs DD12): ${targetName}${stored?' (backpack)':' (no space)'}`, 'good');
+      }else{
+        showNotif(`Thievery success (${controlLabel} vs DD12): ${targetName}`, 'good');
+      }
+      appendQuickPanelNote(`[Thievery] Stole ${targetName} (${rollSummary})`);
+    }else{
+      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',failBy,{actionTotal:playerTotal,dreadTotal:dreadTotal,context:'Direct thievery: '+targetName});
+      showNotif(`Thievery failed (${controlLabel} vs DD12). Caught! (${rollSummary})`, 'warn');
+      if(typeof addTMWOnFail==='function')addTMWOnFail('thievery-failure',{failedBy:failBy,actionDie:controlDie,dreadDie:12,actionLabel:'Control Die'});
+      appendQuickPanelNote(`[Thievery] Caught attempting to steal ${targetName}. +1 TMW`);
+    }
+  };
+  if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
+    openProvinceManualCheckPrompt({
+      title:'Manual Roll - Thievery',
+      context:'Thievery (Control vs DD12)',
+      statKey:'control',
+      statLabel:'Control',
+      actionDie:controlDie,
+      dreadDie:12,
+      onResolve:resolveDirectThieveryOutcome
+    });
+    return;
   }
+  const dreadRoll=explodingRoll(12);
+  resolveDirectThieveryOutcome({actionTotal:0,dreadTotal:dreadRoll.total});
 }
-
 function formatStatWithModifiers(stat,shortForm){
   const mods=getStatModifiers(stat);
   const modStr=mods.sources.length>0?` ${mods.sources.join(' ')}`:'';
@@ -20416,11 +20466,11 @@ function rollHexEncounter(col,row){
       desc=`${banditType} — DD4 | 8 Stress per enemy.${pactLine}${hostilityLine}`;
       actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">
         <button class="btn btn-xs btn-warn" title="${combatHint}" onclick="startProvinceMonsterCombat(${col},${row},'bandits',${n},'${banditType}',4)">⚔ Fight${combatHint}</button>
-        <button class="btn btn-xs" onclick="attemptEncounterThievery('bandits',${col},${row})">🧿 Thievery</button>
+        <button class="btn btn-xs" onclick="attemptEncounterThievery('bandits',${col},${row})">🧿 Thievery (Control vs DD12)</button>
         <button class="btn btn-xs" onclick="resolveMonsterAvoid(${col},${row})">🚫 Evade</button>
       </div>`;
     }
-    else if(enc===2){title='Merchant Caravan';desc=`Goods wagons loaded with trade stock and coin lockboxes.${pactLine}`;actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-info" onclick="showMerchantCaravan(${col},${row})">Shop</button><button class="btn btn-xs btn-gold" onclick="if(typeof haggleMerchantCaravan==='function')haggleMerchantCaravan(${col},${row})">Haggle</button><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery('merchant',${col},${row})">Thievery</button></div>`;}
+    else if(enc===2){title='Merchant Caravan';desc=`Goods wagons loaded with trade stock and coin lockboxes.${pactLine}`;actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-info" onclick="showMerchantCaravan(${col},${row})">Shop</button><button class="btn btn-xs btn-gold" onclick="if(typeof haggleMerchantCaravan==='function')haggleMerchantCaravan(${col},${row})">Haggle</button><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery('merchant',${col},${row})">Thievery (Control vs DD12)</button></div>`;}
     else if(enc===3){
       const na=roll(4)+4,nb=roll(4)+4;
       const armyA=pick(['cavalry in worn plate','spearmen in dyed leather','crossbow skirmishers','banner-bearers in painted steel']);
@@ -20462,7 +20512,7 @@ function rollHexEncounter(col,row){
         <button class="btn btn-xs" onclick="resolveMonsterAvoid(${col},${row})">🚫 Evade</button>
       </div>`;
     }
-    else{title='Black Market';desc=`A coded rendezvous point for contraband brokers and Master Hack traders.`;actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-dark" onclick="attemptBlackMarketAccess(${col},${row})">Access (Control vs DD12)</button><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery('blackmarket',${col},${row})">Thievery</button></div>`;}
+    else{title='Black Market';desc=`A coded rendezvous point for contraband brokers and Master Hack traders.`;actionHTML=`<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-dark" onclick="attemptBlackMarketAccess(${col},${row})">Access (Control vs DD12)</button><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery('blackmarket',${col},${row})">Thievery (Control vs DD12)</button></div>`;}
       html=`<div class="encounter-block"><strong style="color:var(--teal);">Overland Encounter — d6=${vr}</strong><br><strong>${title}</strong><br>${desc}${actionHTML}</div>`;
     }else{
       const hexObj=mapData.find(h=>h.col===col&&h.row===row);
@@ -20587,7 +20637,7 @@ function rollTradeRouteEncounter(col,row){
       const wType=String(wn[2]||'Courier');
       const wDesc=String(wn[3]||'Shares coded route rumors.');
       result=`<strong>${wAdj} ${wType}</strong> (${wRole}) — ${wDesc}`;
-      actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery('wayfarer',${targetHex.col},${targetHex.row})">Thievery</button></div>`;
+      actionHTML=`<div style="margin-top:.3rem;"><button class="btn btn-xs btn-warn" onclick="attemptEncounterThievery('wayfarer',${targetHex.col},${targetHex.row})">Thievery (Control vs DD12)</button></div>`;
     }
     const worldAddon=buildWorldStateEncounterAddon(targetHex.col,targetHex.row,'trade');
     const siteMemoryAddon=buildSiteMemoryEncounterAddon(targetHex.col,targetHex.row);

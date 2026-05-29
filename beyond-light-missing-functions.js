@@ -252,6 +252,7 @@ function switchTab(tabId, btn) {
   trackQuickAccessTab(tabId);
   renderGlobalQuickAccess();
   renderContextQuickActions(tabId);
+  scheduleTabTranslation(tabId, 60);
   // AUDIO: Switch music based on tab
   if (typeof window.AudioManager !== "undefined") {
     window.AudioManager.switchTabMusic(tabId);

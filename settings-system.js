@@ -565,8 +565,16 @@ window.playCustomMusicFromSettings = function() {
     var i18n = getAccessibilityI18n();
     if (!i18n || typeof i18n.setLanguage !== 'function') return;
     i18n.setLanguage(lang);
+    var activePanel = document.querySelector('.tab-panel.active');
+    if (activePanel && typeof i18n.translatePage === 'function') {
+      i18n.translatePage(activePanel);
+    }
+    var settingsRoot = document.querySelector('#settingsPanel .settings-popup');
+    if (settingsRoot && typeof i18n.translatePage === 'function') {
+      i18n.translatePage(settingsRoot);
+    }
     if (typeof i18n.schedulePageTranslation === 'function') {
-      i18n.schedulePageTranslation();
+      i18n.schedulePageTranslation(activePanel || null);
     }
     createSettingsPanel();
     syncGameModeUI();

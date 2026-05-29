@@ -430,7 +430,29 @@
     });
   }
 
-  function schedulePageTranslation() {
+  function collectPriorityRoots() {
+    var roots = [];
+    function addRoot(node) {
+      if (!node || node.nodeType !== 1) return;
+      if (roots.indexOf(node) !== -1) return;
+      roots.push(node);
+    }
+
+    if (typeof document === 'undefined') return roots;
+    addRoot(document.querySelector('header'));
+    addRoot(document.getElementById('mainNav'));
+    addRoot(document.querySelector('.global-quick-access'));
+    addRoot(document.querySelector('.tab-panel.active'));
+    addRoot(document.querySelector('#settingsPanel .settings-popup'));
+
+    var openModal = document.querySelector('#rollModal.open #modalContent');
+    if (openModal) addRoot(openModal);
+
+    if (!roots.length && document.body) addRoot(document.body);
+    return roots;
+  }
+
+  function schedulePageTranslation(root) {
     if (typeof window === 'undefined') return;
     if (translationTimer) {
       clearTimeout(translationTimer);
@@ -438,7 +460,19 @@
     }
     translationTimer = setTimeout(function () {
       translationTimer = null;
-      translatePage(document && document.body ? document.body : null);
+      var explicitRoot = root && root.nodeType === 1 ? root : null;
+      if (explicitRoot) {
+        translatePage(explicitRoot);
+        return;
+      }
+
+      var roots = collectPriorityRoots();
+      var chain = Promise.resolve();
+      roots.forEach(function (priorityRoot) {
+        chain = chain.then(function () {
+          return translatePage(priorityRoot);
+        });
+      });
     }, 120);
   }
 

@@ -367,16 +367,30 @@
     return true;
   }
 
-  function applyFailureConsequence(kind) {
+  function getLibraryFailureMargin(actionTotal, dreadTotal) {
+    return Math.max(1, Number(dreadTotal || 0) - Number(actionTotal || 0));
+  }
+
+  function applyFailureConsequence(kind, diff) {
     if (typeof S === 'undefined' || !S) return;
+    var margin = Math.max(1, Number(diff || 0));
+    var penalties = { mentalStress: 0, damage: 0, radiationExposure: 0 };
     if (typeof addTMWOnFail === 'function') addTMWOnFail();
     if (kind === 'read' || kind === 'word') {
-      S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + 2);
+      penalties.mentalStress = margin;
+    } else if (kind === 'explore') {
+      penalties.mentalStress = margin;
+      penalties.damage = margin;
+      penalties.radiationExposure = margin;
     } else {
-      S.health = Math.max(0, Number(S.health || 0) - 1);
+      penalties.damage = margin;
     }
+    if (penalties.mentalStress) S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + penalties.mentalStress);
+    if (penalties.damage) S.health = Math.max(0, Number(S.health || 0) - penalties.damage);
+    if (penalties.radiationExposure) S.radiationExposure = Math.max(0, Number(S.radiationExposure || 0) + penalties.radiationExposure);
     if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
     if (typeof renderQP === 'function') renderQP('hero');
+    return penalties;
   }
 
   function getSpiralCoord(index) {
@@ -734,8 +748,9 @@
         rewardCredits(15 + dd);
         if (typeof toggleCond === 'function' && S && S.conditions && !S.conditions.focused) toggleCond('focused');
       } else {
-        applyFailureConsequence('read');
-        node.result = 'The text reads you back. Take backlash and lose your footing.';
+        var readDiff = getLibraryFailureMargin(readRoll.actionTotal, readRoll.dreadTotal);
+        var readPenalty = applyFailureConsequence('read', readDiff);
+        node.result = 'The text reads you back. Take ' + readPenalty.mentalStress + ' Mental Stress backlash.';
       }
       state.lastResult = 'Read result: AD' + readRoll.actionDie + ' ' + readRoll.actionTotal + ' vs DD' + dd + ' ' + readRoll.dreadTotal + '.';
       node.cleared = true;
@@ -766,8 +781,8 @@
 
     if (mode === 'fallback') {
       node.pendingCombat = false;
-      node.result = 'You fall back and lose ground in the stacks.';
-      applyFailureConsequence('explore');
+      var fallbackPenalty = applyFailureConsequence('fallback', dd);
+      node.result = 'You fall back and lose ground in the stacks. Take ' + fallbackPenalty.damage + ' Damage.';
       state.lastResult = 'Encounter marked as fallback.';
       revealLibraryDoors(state, floor, node.idx - 1);
       return;
@@ -884,17 +899,9 @@
       rewardCredits(12 + dd);
       revealLibraryDoors(state, floor, node.idx - 1);
     } else {
-      var mentalStressPenalty = 2;
-      var healthPenalty = 1;
-      var radiationExposure = 1;
-      if (typeof S !== 'undefined' && S) {
-        S.mentalStress = Math.max(0, Number(S.mentalStress || 0) + mentalStressPenalty);
-        S.health = Math.max(0, Number(S.health || 0) - healthPenalty);
-        S.radiationExposure = Math.max(0, Number(S.radiationExposure || 0) + radiationExposure);
-      }
-      if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
-      if (typeof renderQP === 'function') renderQP('hero');
-      node.result = 'Failed to stabilize this hex. Radiation cascades through the archive: +' + mentalStressPenalty + ' Mental Stress, -' + healthPenalty + ' Health, +' + radiationExposure + ' Radiation Exposure.';
+      var exploreDiff = getLibraryFailureMargin(exploreRoll.actionTotal, exploreRoll.dreadTotal);
+      var explorePenalty = applyFailureConsequence('explore', exploreDiff);
+      node.result = 'Failed to stabilize this hex. The archive lashes back: +' + explorePenalty.mentalStress + ' Mental Stress, ' + explorePenalty.damage + ' Damage, +' + explorePenalty.radiationExposure + ' Radiation Exposure.';
       state.instability = Math.max(0, Number(state.instability || 0) + 1);
       revealLibraryDoors(state, floor, node.idx - 1);
     }
@@ -1043,7 +1050,13 @@
     st.delveCount = Math.max(0, Number(st.delveCount || 0) + 1);
     ensureFloorState(st, st.depth);
 
-    if (typeof S !== 'undefined' && S && S.soloGM && S.soloGM.websiteCounters) {
+    if (typeof S !== 'undefined' && S) {
+      if (!S.soloGM || typeof S.soloGM !== 'object') {
+        S.soloGM = { websiteCounters: { tradeRolls: 0, libraryDelves: 0, taskGenerations: 0 } };
+      }
+      if (!S.soloGM.websiteCounters || typeof S.soloGM.websiteCounters !== 'object') {
+        S.soloGM.websiteCounters = { tradeRolls: 0, libraryDelves: 0, taskGenerations: 0 };
+      }
       S.soloGM.websiteCounters.libraryDelves = Math.max(0, Number(S.soloGM.websiteCounters.libraryDelves || 0) + 1);
     }
 

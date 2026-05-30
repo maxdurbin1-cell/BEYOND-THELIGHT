@@ -4088,6 +4088,11 @@
     { mode: 'mosaic', title: 'Current Map', prompt: 'Restore the current chart to unlock the depth hatch.', bank: ['TIDE', 'REEF', 'PORT'], answer: 'tide reef port' }
   ];
 
+  function createSeaRuinPuzzleSpec() {
+    if (!Array.isArray(SEA_RUIN_PUZZLES) || !SEA_RUIN_PUZZLES.length) return null;
+    return JSON.parse(JSON.stringify(SEA_RUIN_PUZZLES[Math.floor(Math.random() * SEA_RUIN_PUZZLES.length)]));
+  }
+
   function buildDungeonModal(data) {
     data.hexcrawl = data.hexcrawl || null;
     if (!data.hexcrawl || !Array.isArray(data.hexcrawl.nodes) || !data.hexcrawl.nodes.length) {
@@ -4248,8 +4253,7 @@
       const isPuzzleRoom = type === "Puzzle";
       if (isPuzzleRoom && !room.cleared) {
         if (!room.puzzleSpec) {
-          var pPool = (typeof SEA_RUIN_PUZZLES !== 'undefined' ? SEA_RUIN_PUZZLES : []);
-          room.puzzleSpec = pPool.length ? pPool[Math.floor(Math.random() * pPool.length)] : null;
+          room.puzzleSpec = createSeaRuinPuzzleSpec();
         }
         const blockingPuzzleIdx = getSeaDungeonBlockingPuzzleIndex(data.generatedRooms);
         const puzzleLocked = blockingPuzzleIdx >= 0 && (index - 1) > blockingPuzzleIdx;
@@ -4459,7 +4463,7 @@
       if (typeof changeStress === 'function') changeStress(diff);
       if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
       if (room.type === 'Trap' && S && S.conditions) S.conditions.distracted = true;
-      room.result = `${result}Failure. Suffer ${diff} Stress.`;
+      room.result = `${result}Failure. Suffer ${diff} Damage.`;
       data.unlockedRooms = Math.min(Number(data.rooms || data.generatedRooms.length || 1), Number(data.unlockedRooms || 1) + 1);
     }
     room.cleared = true;
@@ -4513,7 +4517,7 @@
     } else {
       if (typeof changeStress === 'function') changeStress(2);
       if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
-      room.result = '✕ Boss encounter failed — take 2 Stress and regroup.';
+      room.result = '✕ Boss encounter failed — take 2 Damage and regroup.';
       room.cleared = true;
       showNotif('Boss outcome marked as failure.', 'warn');
     }
@@ -4533,10 +4537,10 @@
       return false;
     }
     if (!room.puzzleSpec) {
-      var pool = (typeof SEA_RUIN_PUZZLES !== 'undefined' ? SEA_RUIN_PUZZLES : []);
-      room.puzzleSpec = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+      room.puzzleSpec = createSeaRuinPuzzleSpec();
     }
-    const spec = room.puzzleSpec || { mode: 'code', title: 'Sea Ruin Lock', prompt: 'Enter SEA', answer: 'sea' };
+    const spec = room.puzzleSpec || createSeaRuinPuzzleSpec();
+    if (!spec) return false;
     openStandaloneStoryPuzzle({
       mode: spec.mode,
       title: spec.title || 'Sea Ruin Puzzle',
@@ -4559,7 +4563,7 @@
           data.exploration.clearedRooms += 1;
           data.exploration.discoveredLoot.push(loot);
           room.cleared = true;
-          room.result = (result === 'success' ? '🧩 Solved' : '🧩 Partial success') + ' — Loot recovered: ' + loot + (result === 'partial' ? ' · Take 1 Stress.' : '');
+          room.result = (result === 'success' ? '🧩 Solved' : '🧩 Partial success') + ' — Loot recovered: ' + loot + (result === 'partial' ? ' · Take 1 Damage.' : '');
           data.unlockedRooms = Math.min(Number(data.rooms || data.generatedRooms.length || 1), Number(data.unlockedRooms || 1) + 2);
           if (typeof addToBackpack === 'function') {
             try { addToBackpack(loot); } catch (_err) { console.error(_err); }
@@ -4569,7 +4573,7 @@
           if (typeof changeStress === 'function') changeStress(2);
           if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
           room.cleared = false;
-          room.result = '🧩 Failed — lock backlash inflicts 2 Stress. This room blocks progress until solved.';
+          room.result = '🧩 Failed — lock backlash inflicts 2 Damage. This room blocks progress until solved.';
         }
         syncSeaDungeonState('sea-dungeon-puzzle');
         openModal(data.name, buildDungeonModal(data));

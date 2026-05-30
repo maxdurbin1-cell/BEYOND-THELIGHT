@@ -25272,6 +25272,16 @@ function runWhenIdle(fn, timeoutMs){
     return JSON.parse(JSON.stringify(puzzle));
   }
 
+  function getProvinceFailureMargin(actionTotal,dreadTotal){
+    return Math.max(1,Number(dreadTotal||0)-Number(actionTotal||0));
+  }
+
+  function applyProvinceDamage(diff){
+    const damage=Math.max(1,Number(diff||0));
+    if(typeof changeStress==='function')changeStress(damage);
+    return damage;
+  }
+
   function getProvinceDepthsFloorDie(floorIndex){
     const idx=Math.max(0,Math.min(PROVINCE_DEPTHS_FLOOR_DICE.length-1,(parseInt(floorIndex,10)||1)-1));
     return PROVINCE_DEPTHS_FLOOR_DICE[idx]||20;
@@ -25774,7 +25784,7 @@ function runWhenIdle(fn, timeoutMs){
           const reward=rollProvinceRuinLoot();
           const rewardText=applyProvinceRuinReward(reward);
           if(result==='partial'&&typeof changeStress==='function')changeStress(1);
-          room.result=(result==='success'?'🧩 Solved':'🧩 Partial success')+' — '+rewardText+(result==='partial'?' · Take 1 Stress from backlash.':'');
+          room.result=(result==='success'?'🧩 Solved':'🧩 Partial success')+' — '+rewardText+(result==='partial'?' · Take 1 Damage from backlash.':'');
           room.cleared=true;
           room.failed=false;
           if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('mind',1,{context:'Province ruin puzzle: '+(room.puzzle&&room.puzzle.title?room.puzzle.title:'Runic lock')});
@@ -25785,7 +25795,7 @@ function runWhenIdle(fn, timeoutMs){
           if(S.conditions)S.conditions.distracted=true;
           if(typeof updateConditionButtons==='function')updateConditionButtons();
           if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
-          room.result='🧩 Failed — runes flare, take 2 Stress, and become Distracted. This room blocks progress until solved.';
+          room.result='🧩 Failed — runes flare, take 2 Damage, and become Distracted. This room blocks progress until solved.';
           room.cleared=false;
           room.failed=true;
         }
@@ -25979,28 +25989,28 @@ function runWhenIdle(fn, timeoutMs){
         const shrineGifts=['empowered','bolstered','focused','protected'];
         const gift=pick(shrineGifts);
         if(!S.conditions[gift]){toggleCond(gift);}
-        room.result='AD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✦ Shrine answered: '+gift.charAt(0).toUpperCase()+gift.slice(1)+' granted. '+rewardText;
+        room.result='VD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✦ Shrine answered: '+gift.charAt(0).toUpperCase()+gift.slice(1)+' granted. '+rewardText;
       } else {
-        room.result='AD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✓ Success — '+rewardText;
+        room.result='VD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✓ Success — '+rewardText;
       }
       room.cleared=true;
       if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('body',Math.max(1,a.total-d.total),{actionTotal:a.total,dreadTotal:d.total,context:'Province ruin room: '+room.type});
       if(typeof addSuccessRoll==='function')addSuccessRoll();
     }else{
-      const diff=Math.max(1,d.total-a.total);
+      const diff=getProvinceFailureMargin(a.total,d.total);
       if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('body',diff,{actionTotal:a.total,dreadTotal:d.total,context:'Province ruin room: '+room.type});
-      if(typeof changeStress==='function')changeStress(diff);
+      applyProvinceDamage(diff);
       if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
       if(room.type==='Lair'){
         const count=Math.max(1,roll(3));
         const dreadEnemy=6;
-        room.result='AD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✕ Failure — take '+diff+' Stress. <button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'ruins\','+count+',\'Ruin Guardians\','+dreadEnemy+');closeModal();">⚔ Engage Combat</button>';
+        room.result='VD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✕ Failure — take '+diff+' Damage. <button class="btn btn-xs btn-warn" onclick="startProvinceMonsterCombat('+col+','+row+',\'ruins\','+count+',\'Ruin Guardians\','+dreadEnemy+');closeModal();">⚔ Engage Combat</button>';
       }else if(room.type==='Trap'){
-        room.result='AD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✕ Trap triggered — take '+diff+' Stress and Distracted condition.';
+        room.result='VD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✕ Trap triggered — take '+diff+' Damage and gain Distracted.';
         if(S.conditions)S.conditions.distracted=true;
         if(typeof updateConditionButtons==='function')updateConditionButtons();
       }else{
-        room.result='AD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✕ Failure — take '+diff+' Stress.';
+        room.result='VD'+actionDie+' '+a.total+' vs DD'+dreadForRoom+' '+d.total+'. ✕ Failure — take '+diff+' Damage.';
       }
       room.cleared=true;
     }
@@ -26026,7 +26036,7 @@ function runWhenIdle(fn, timeoutMs){
       if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('body',2,{context:'Province ruin boss chamber'});
       if(typeof changeStress==='function')changeStress(2);
       if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
-      room.result='✕ Boss encounter failed — take 2 Stress and regroup.';
+      room.result='✕ Boss encounter failed — take 2 Damage and regroup.';
       showNotif('Boss outcome marked as failure.','warn');
     }
     room.cleared=true;
@@ -26133,9 +26143,10 @@ function runWhenIdle(fn, timeoutMs){
       state.hiddenRoomsFound=(state.hiddenRoomsFound||0)+1;
       showNotif('Secret route found on floor '+state.currentFloor+'.','good');
     }else{
-      if(typeof changeStress==='function')changeStress(1);
+      const diff=getProvinceFailureMargin(a.total,d.total);
+      applyProvinceDamage(diff);
       if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
-      showNotif('Search failed: take 1 Stress and mark the wall for later.', 'warn');
+      showNotif('Search failed: take '+diff+' Damage and mark the wall for later.', 'warn');
     }
     syncProvinceRuinStateSoon('province-depths-hidden');
     openProvinceDepthsPopup(col,row);
@@ -26172,7 +26183,7 @@ function runWhenIdle(fn, timeoutMs){
             const reward=rollProvinceDepthsLoot('major',floorState.die||4);
             const rewardText=applyProvinceRuinReward(reward);
             if(result==='partial'&&typeof changeStress==='function')changeStress(1);
-            segment.result=(result==='success'?'Seal broken':'Seal partially broken')+' — '+rewardText+(result==='partial'?' · Take 1 Stress from the backlash.':'')+advanceProvinceDepthsTask(floorState,segment);
+              segment.result=(result==='success'?'Seal broken':'Seal partially broken')+' — '+rewardText+(result==='partial'?' · Take 1 Damage from the backlash.':'')+advanceProvinceDepthsTask(floorState,segment);
             segment.cleared=true;
             if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('mind',1,{context:'Province depths seal: floor '+state.currentFloor});
             if(typeof addSuccessRoll==='function')addSuccessRoll();
@@ -26180,7 +26191,7 @@ function runWhenIdle(fn, timeoutMs){
             if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('mind',2,{context:'Province depths seal: floor '+state.currentFloor});
             if(typeof changeStress==='function')changeStress(2);
             if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
-            segment.result='Seal holds. Take 2 Stress and try again later.';
+              segment.result='Seal holds. Take 2 Damage and try again later.';
           }
           syncProvinceRuinStateSoon('province-depths-puzzle');
           openProvinceDepthsPopup(col,row);
@@ -26220,11 +26231,11 @@ function runWhenIdle(fn, timeoutMs){
       if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome(actionKey,Math.max(1,a.total-d.total),{actionTotal:a.total,dreadTotal:d.total,context:'Province depths segment: '+segment.kind});
       if(typeof addSuccessRoll==='function')addSuccessRoll();
     }else{
-      const diff=Math.max(1,d.total-a.total);
+      const diff=getProvinceFailureMargin(a.total,d.total);
       if(typeof showDccFailureOutcome==='function')showDccFailureOutcome(actionKey,diff,{actionTotal:a.total,dreadTotal:d.total,context:'Province depths segment: '+segment.kind});
-      if(typeof changeStress==='function')changeStress(diff);
+      applyProvinceDamage(diff);
       if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
-      segment.result=actionKey.toUpperCase()+' d'+actionDie+' '+a.total+' vs DD'+dreadDie+' '+d.total+'. ✕ Failure — take '+diff+' Stress.';
+      segment.result=actionKey.toUpperCase()+' d'+actionDie+' '+a.total+' vs DD'+dreadDie+' '+d.total+'. ✕ Failure — take '+diff+' Damage.';
     }
     syncProvinceRuinStateSoon('province-depths-segment');
     openProvinceDepthsPopup(col,row);
@@ -26249,7 +26260,7 @@ function runWhenIdle(fn, timeoutMs){
       if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('body',2,{context:'Province depths combat: floor '+state.currentFloor});
       if(typeof changeStress==='function')changeStress(2);
       if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
-      segment.result='✕ Forced back by the floor defenders. Take 2 Stress and regroup.';
+      segment.result='✕ Forced back by the floor defenders. Take 2 Damage and regroup.';
       segment.cleared=false;
     }
     segment.pendingCombat=false;

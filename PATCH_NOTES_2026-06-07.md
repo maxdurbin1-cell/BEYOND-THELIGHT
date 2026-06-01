@@ -10,15 +10,15 @@ Build Focus: Province rules consistency, manual-roll reliability, and dungeon/pu
 - Ruin and dungeon result language was standardized so VD/DD wording and outcome text match actual behavior.
 - Puzzle flows were tightened so placeholder word-only fallbacks were replaced with real puzzle specs in active ruin paths.
 - Solo-GM tracking now correctly records Infinite Library delves from direct hex entry flows.
-- Valor/Adventure die sync is now enforced so Character Sheet, Soul Array/Dice readouts, and legacy systems always reference the same die value.
+- Valor is now the single canonical stat key across Character Sheet, Soul Array/Dice readouts, combat prompts, and rules-driven roll systems.
 - Space context sub-tabs now keep a stable grouped order after World That Was, preventing drifted or awkward tab positions in the nav row.
 
 ## Upcoming June 7 Additions
 
 - Fixed a Soul Array mismatch where Valor could display as d4 in Dice/Soul Array views even when Character Sheet showed a higher die (for example d8).
-- Added a stat normalization pass that mirrors Valor and legacy Adventure values during load, generation, reset, and display updates.
+- Added one-way save migration for legacy Adventure data so older saves are upgraded to Valor automatically on load.
 - Standardized Space Location sub-tab placement so Planet Exploration, Yessod, and Exocrafts stay aligned as a single cluster.
-- Began a rules-consistency pass focused on VD naming and cross-system die sourcing to reduce UI-to-rules drift.
+- Completed a Valor naming and stat-key consistency pass across UI labels, roller paths, campaign parsing, and smoke tests to reduce UI-to-rules drift.
 
 ## Thievery and Manual Roll Reliability
 

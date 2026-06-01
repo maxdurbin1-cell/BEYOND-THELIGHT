@@ -275,13 +275,13 @@ async function runScenario(browser) {
           token: String(gmMember.token || "gm-token"),
           name: String(gmMember.name || "GM"),
           role: "gm",
-          character: { name: String(gmMember.name || "GM"), stats: { adventure: 10 } }
+          character: { name: String(gmMember.name || "GM"), stats: { valor: 10 } }
         },
         {
           token: String(playerMember.token || "player-token"),
           name: String(playerMember.name || "Player"),
           role: "player",
-          character: { name: String(playerMember.name || "Player"), stats: { adventure: 6 } }
+          character: { name: String(playerMember.name || "Player"), stats: { valor: 6 } }
         }
       ],
       expected: {

@@ -177,7 +177,7 @@ async function runEffectFamilyTest(page, effectType, opts = {}) {
 
     if (!window.S) window.S = {};
     if (!window.S.stats) {
-      window.S.stats = { body: 4, strike: 4, shoot: 4, mind: 4, spirit: 4, defend: 4, control: 4, lead: 4, adventure: 4 };
+      window.S.stats = { body: 4, strike: 4, shoot: 4, mind: 4, spirit: 4, defend: 4, control: 4, lead: 4, valor: 4 };
     }
     if (!window.S.conditions) {
       window.S.conditions = { empowered: false, protected: false, focused: false, bolstered: false, weakened: false, vulnerable: false, distracted: false, shaken: false };

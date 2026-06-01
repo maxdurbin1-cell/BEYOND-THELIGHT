@@ -560,47 +560,56 @@ function getConditionStep(key) {
 }
 
 function resolveValorDieKey(key) {
-  const rawKey = String(key || '').toLowerCase();
-  return rawKey === 'adventure' ? 'valor' : rawKey;
+  return String(key || '').toLowerCase();
 }
 
-function normalizeValorAdventureStats() {
+function migrateLegacyAdventureStat() {
   if (!S || !S.stats || typeof S.stats !== 'object') {
     return 4;
   }
+
   const hasValor = Number.isFinite(Number(S.stats.valor));
   const hasAdventure = Number.isFinite(Number(S.stats.adventure));
-  const valor = hasValor ? Math.max(4, Number(S.stats.valor)) : null;
-  const adventure = hasAdventure ? Math.max(4, Number(S.stats.adventure)) : null;
+  let valor = hasValor ? Math.max(4, Number(S.stats.valor)) : 4;
 
-  let canonical = 4;
-  if (valor != null && adventure != null) {
-    canonical = valor;
-    if (valor !== adventure && valor === 4 && adventure > 4) {
-      canonical = adventure;
+  if (hasAdventure) {
+    const legacyAdventure = Math.max(4, Number(S.stats.adventure));
+    if (!hasValor || valor === 4) {
+      valor = legacyAdventure;
     }
-  } else if (valor != null) {
-    canonical = valor;
-  } else if (adventure != null) {
-    canonical = adventure;
   }
 
-  S.stats.valor = canonical;
-  S.stats.adventure = canonical;
-  return canonical;
+  S.stats.valor = Math.max(4, Number(valor || 4));
+  if (Object.prototype.hasOwnProperty.call(S.stats, 'adventure')) {
+    delete S.stats.adventure;
+  }
+
+  if (S.rollMod && Number.isFinite(Number(S.rollMod.addAdventure))) {
+    S.rollMod.addValor = Math.max(0, Number(S.rollMod.addValor || 0) + Number(S.rollMod.addAdventure || 0));
+    delete S.rollMod.addAdventure;
+  }
+  if (S.relicAdventureBonuses && typeof S.relicAdventureBonuses === 'object') {
+    S.relicValorBonuses = S.relicValorBonuses || {};
+    Object.keys(S.relicAdventureBonuses).forEach(function(statKey) {
+      S.relicValorBonuses[statKey] = Math.max(0, Number(S.relicValorBonuses[statKey] || 0)) + Math.max(0, Number(S.relicAdventureBonuses[statKey] || 0));
+    });
+    delete S.relicAdventureBonuses;
+  }
+
+  return S.stats.valor;
 }
 
 if (typeof window !== 'undefined') {
-  window.normalizeValorAdventureStats = normalizeValorAdventureStats;
+  window.migrateLegacyAdventureStat = migrateLegacyAdventureStat;
 }
 
 function getEffectiveDie(key) {
-  normalizeValorAdventureStats();
+  migrateLegacyAdventureStat();
   var resolvedKey = resolveValorDieKey(key);
   var base = 4;
-      if (S && S.stats) {
-        if (resolvedKey === 'valor') {
-          base = Number(S.stats.valor || S.stats.adventure || 4) || 4;
+  if (S && S.stats) {
+    if (resolvedKey === 'valor') {
+      base = Number(S.stats.valor || 4) || 4;
     } else {
       base = Number(S.stats[resolvedKey] || 4) || 4;
     }
@@ -619,7 +628,7 @@ function getEffectiveDie(key) {
 
 function updateDieDisplay(key) {
   const resolvedKey = resolveValorDieKey(key);
-  const targetKeys = resolvedKey === 'valor' ? ['valor', 'adventure'] : [resolvedKey];
+  const targetKeys = resolvedKey === 'valor' ? ['valor'] : [resolvedKey];
   const els = targetKeys.map(function(targetKey) { return document.getElementById('die-' + targetKey); }).filter(Boolean);
   if (!els.length) {
     return false;
@@ -656,7 +665,7 @@ function updateDieDisplay(key) {
   if (S && S.rollMod && Array.isArray(S.rollMod.valorDice) && S.rollMod.valorDice.length) {
     displayText += '+V.D.' + (S.rollMod.valorDice.length > 1 ? 'x' + S.rollMod.valorDice.length : '');
   }
-    const relicBonusCount = typeof getPermanentAdventureBonusCount === 'function' ? getPermanentAdventureBonusCount(resolvedKey) : 0;
+    const relicBonusCount = typeof getPermanentValorBonusCount === 'function' ? getPermanentValorBonusCount(resolvedKey) : 0;
   if (relicBonusCount > 0) displayText += '+V.D.' + (relicBonusCount > 1 ? 'x' + relicBonusCount : '');
 
   els.forEach(function(el) {
@@ -683,7 +692,7 @@ function updateMaxStressDisplay() {
 }
 
 function updateAllStatDisplays() {
-  normalizeValorAdventureStats();
+  migrateLegacyAdventureStat();
   STAT_KEYS.forEach(updateDieDisplay);
   updateDieDisplay("valor");
   if (typeof ensureBackpackCapacity === 'function') ensureBackpackCapacity();
@@ -725,10 +734,9 @@ function buildStatRows() {
 function stepDie(key, delta) {
   const resolvedKey = resolveValorDieKey(key);
   if (resolvedKey === 'valor') {
-    const current = Number((S.stats && (S.stats.valor || S.stats.adventure)) || 4) || 4;
+    const current = Number((S.stats && S.stats.valor) || 4) || 4;
     const next = delta > 0 ? stepUp(current) : stepDown(current);
     S.stats.valor = next;
-    S.stats.adventure = next;
     updateAllStatDisplays();
     return;
   }
@@ -794,7 +802,7 @@ function quickRollStat(key) {
   const holyShieldRoll = flB.holyShield ? explodingRoll(S.stats.spirit || 4) : null;
   if (holyShieldRoll) withFlat += holyShieldRoll.total;
   // +V.D. additive valor die
-  const valorBonus = addValorDie ? explodingRoll(S.stats.valor || S.stats.adventure || 4) : null;
+  const valorBonus = addValorDie ? explodingRoll(S.stats.valor || 4) : null;
   const withValor = withFlat + (valorBonus ? valorBonus.total : 0);
   const gearAddRolls = (gearBonus.addDice || []).map(function(dieSize){ return explodingRoll(dieSize); });
   // Augmentation additive
@@ -1863,7 +1871,6 @@ function generateCharacter() {
     }
   }
   S.stats.valor = pick([4, 6, 8]);
-  S.stats.adventure = S.stats.valor;
   S.credits = rollMulti(6, 2) * 10;
   S.health = 0;
   S.renown = 0;
@@ -1953,7 +1960,6 @@ function runCharacterBuildStep(stepId) {
     rollSoulArray();
     assignArray();
     S.stats.valor = pick([4, 6, 8]);
-    S.stats.adventure = S.stats.valor;
     steps.stats = Date.now();
     setGuidedBuildStatus('Step 5 complete: action dice and valor assigned.', 'good');
   } else if (step === 'finalize') {
@@ -2025,7 +2031,7 @@ function clearCharacter(options) {
   S.equipment = { weapon1: "", weapon2: "", armor: "", readied: "" };
   S.backpack = ["", "", "", "", "", ""];
   S.soulArray = [];
-  S.stats = { body: 4, strike: 4, shoot: 4, mind: 4, spirit: 4, defend: 4, control: 4, lead: 4, valor: 4, adventure: 4 };
+  S.stats = { body: 4, strike: 4, shoot: 4, mind: 4, spirit: 4, defend: 4, control: 4, lead: 4, valor: 4 };
   S.traits = {};
   S.augmentations = [];
   S.ownedHacks    = [];
@@ -2372,7 +2378,7 @@ function applyLoadedCharacterState(saved) {
       armyB: { ...S.combat.armyB, ...((loaded.combat && loaded.combat.armyB) || {}) }
     }
   };
-  normalizeValorAdventureStats();
+  migrateLegacyAdventureStat();
 
   if (typeof window.ensureBackstoryState === 'function') {
     window.ensureBackstoryState();
@@ -4054,7 +4060,7 @@ function selectDie(kind, value) {
 // Stat names displayed in the Action Die dropdown
 var STAT_DIE_LABELS = {
   body: 'Body', strike: 'Strike', shoot: 'Shoot', mind: 'Mind',
-  spirit: 'Spirit', defend: 'Defend', control: 'Control', lead: 'Lead', adventure: 'Valor'
+  spirit: 'Spirit', defend: 'Defend', control: 'Control', lead: 'Lead', valor: 'Valor'
 };
 
 function selectStatDie(statKey) {

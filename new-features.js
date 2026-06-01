@@ -12135,7 +12135,7 @@
   function rollCouncilTask(role) {
     var vdDie = (typeof getEffectiveDie === 'function')
       ? getEffectiveDie('valor')
-      : (((S.stats && S.stats.valor) || (S.stats && S.stats.adventure)) || 4);
+      : (((S.stats && S.stats.valor) || (S.stats && S.stats.valor)) || 4);
     var dreadTarget = (role === "regent" && (S.holding.crises || []).length > 0) ? 8 : 6;
     var a = explodingRoll(vdDie, { type: 'action', major: true, label: 'Council Task VD' + vdDie });
     var d = explodingRoll(dreadTarget, { type: 'dread', major: true, label: 'Council Task DD' + dreadTarget });
@@ -12370,7 +12370,7 @@
     if (next === current) { showNotif(stat + " is already at maximum (d20)!", "warn"); closeModal(); return; }
     S.stats[stat] = next;
     if (stat === 'valor') {
-      S.stats.adventure = next;
+      S.stats.valor = next;
     }
     S.pathTokens -= 15;
     var ptEl = document.getElementById("pathTokensVal");

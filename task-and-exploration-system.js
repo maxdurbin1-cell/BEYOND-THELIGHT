@@ -441,7 +441,7 @@ function completeTaskAtHex(col,row){
   // Valor Die (V.D.) additive bonus logic.
   const vdDie=(typeof getEffectiveDie==='function')
     ? getEffectiveDie('valor')
-    : (((S.stats&&S.stats.valor)||(S.stats&&S.stats.adventure))||4);
+    : (((S.stats&&S.stats.valor))||4);
   const v=explodingRoll(vdDie);
   const d=explodingRoll(6);
   const success=v.total>=d.total;
@@ -543,7 +543,7 @@ function completeRoyalTask(col,row){
   // Valor Die (V.D.) additive bonus logic.
   const vdDie=(typeof getEffectiveDie==='function')
     ? getEffectiveDie('valor')
-    : (((S.stats&&S.stats.valor)||(S.stats&&S.stats.adventure))||4);
+    : (((S.stats&&S.stats.valor))||4);
   const v=explodingRoll(vdDie);
   const d=explodingRoll(8);
   const success=v.total>=d.total;

@@ -1659,11 +1659,8 @@ function handleSolarCycleRelicBackpackUse(index) {
     consumeSolarCycleBackpackItem(index, 'Book of the New Sun');
     if (typeof ensureRelicBonusState === 'function') ensureRelicBonusState();
     S.relicValorBonuses = S.relicValorBonuses || {};
-    S.relicAdventureBonuses = S.relicAdventureBonuses || {}; // Compatibility mirror
     S.relicValorBonuses.mind = Math.max(0, Number(S.relicValorBonuses.mind || 0)) + 1;
     S.relicValorBonuses.spirit = Math.max(0, Number(S.relicValorBonuses.spirit || 0)) + 1;
-    S.relicAdventureBonuses.mind = Math.max(0, Number(S.relicAdventureBonuses.mind || 0)) + 1;
-    S.relicAdventureBonuses.spirit = Math.max(0, Number(S.relicAdventureBonuses.spirit || 0)) + 1;
     if (typeof changeCounter === 'function') changeCounter('tmw', 1);
     else S.tmw = Math.max(0, Number(S.tmw || 0) + 1);
     if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
@@ -10138,13 +10135,13 @@ function resolveGalaxySkillCheck(primaryKey, secondaryKey, dd, label) {
   const p = (typeof getEffectiveDie === 'function') ? getEffectiveDie(primaryKey) : ((S.stats && S.stats[primaryKey]) || 4);
   const s = secondaryKey ? ((typeof getEffectiveDie === 'function') ? getEffectiveDie(secondaryKey) : ((S.stats && S.stats[secondaryKey]) || 4)) : 0;
   const die = Math.max(p || 4, s || 0, 4);
-  const invBonus = (typeof collectInventoryBonusesForStat === 'function') ? collectInventoryBonusesForStat(primaryKey) : { advDice: [], flat: 0, addValor: 0, addAdventure: 0 };
+  const invBonus = (typeof collectInventoryBonusesForStat === 'function') ? collectInventoryBonusesForStat(primaryKey) : { advDice: [], flat: 0, addValor: 0 };
   const action = (typeof rollWithAdvantage === 'function' && invBonus.advDice && invBonus.advDice.length)
     ? rollWithAdvantage(die, invBonus.advDice)
     : { total: explodingRoll(die).total };
   let actionTotal = action.total + Number(invBonus.flat || 0);
   const valorDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('valor') : ((S.stats && S.stats.valor) || 4);
-  for (let i = 0; i < Number(invBonus.addValor || invBonus.addAdventure || 0); i++) {
+  for (let i = 0; i < Number(invBonus.addValor || 0); i++) {
     actionTotal += explodingRoll(valorDie).total;
   }
   const dread = explodingRoll(dd);
@@ -14255,7 +14252,7 @@ function buildGlobalManualRollModifierSummary(statKey) {
   const key = String(statKey || 'valor').toLowerCase();
   const invBonus = (typeof collectInventoryBonusesForStat === 'function')
     ? collectInventoryBonusesForStat(key)
-    : { advDice: [], flat: 0, addValor: 0, addAdventure: 0 };
+    : { advDice: [], flat: 0, addValor: 0 };
   const parts = [];
   if (invBonus && Array.isArray(invBonus.advDice) && invBonus.advDice.length) {
     parts.push('Advantage dice: ' + invBonus.advDice.map((d) => 'd' + Number(d)).join(', '));
@@ -14263,8 +14260,8 @@ function buildGlobalManualRollModifierSummary(statKey) {
   if (invBonus && Number(invBonus.flat || 0) !== 0) {
     parts.push('Flat modifier: ' + (Number(invBonus.flat) > 0 ? '+' : '') + Number(invBonus.flat));
   }
-  if (invBonus && Number(invBonus.addValor || invBonus.addAdventure || 0) > 0) {
-    parts.push('Bonus Valor rolls: +' + Number(invBonus.addValor || invBonus.addAdventure || 0));
+  if (invBonus && Number(invBonus.addValor || 0) > 0) {
+    parts.push('Bonus Valor rolls: +' + Number(invBonus.addValor || 0));
   }
   if (S && S.conditions) {
     const active = Object.keys(S.conditions).filter((c) => !!S.conditions[c]);

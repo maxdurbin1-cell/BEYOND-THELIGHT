@@ -1621,7 +1621,7 @@
       var inv = collectInventoryBonusesForStat(key) || { advDice: [], flat: 0, addValor: 0 };
       if (Array.isArray(inv.advDice) && inv.advDice.length) parts.push('Advantage dice: ' + inv.advDice.map(function(d) { return 'd' + Number(d); }).join(', '));
       if (Number(inv.flat || 0) !== 0) parts.push('Flat modifier: ' + (Number(inv.flat) > 0 ? '+' : '') + Number(inv.flat));
-      if (Number((inv.addValor || inv.addAdventure) || 0) > 0) parts.push('Bonus Valor rolls: +' + Number(inv.addValor || inv.addAdventure));
+      if (Number((inv.addValor) || 0) > 0) parts.push('Bonus Valor rolls: +' + Number(inv.addValor));
     }
     if (S && S.conditions && typeof S.conditions === 'object') {
       var active = Object.keys(S.conditions).filter(function(c) { return !!S.conditions[c]; });

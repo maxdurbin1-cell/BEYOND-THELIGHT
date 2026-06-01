@@ -1180,7 +1180,7 @@
     var statSeen = false;
     var validStats = {
       valor: true, body: true, mind: true, spirit: true, lead: true,
-      strike: true, shoot: true, defend: true, control: true, adventure: true
+      strike: true, shoot: true, defend: true, control: true
     };
 
     for (var i = 1; i < bits.length; i += 1) {
@@ -1188,7 +1188,7 @@
       if (!token) continue;
       var lower = token.toLowerCase();
       if (!statSeen && validStats[lower]) {
-        stat = lower === "adventure" ? "valor" : lower;
+        stat = lower;
         statSeen = true;
         continue;
       }
@@ -2209,7 +2209,7 @@
     var stats = c.stats && typeof c.stats === "object" ? c.stats : {};
     var explicit = Number(c.maxHealth || c.maxStress || 0);
     if (Number.isFinite(explicit) && explicit > 0) return Math.max(1, Math.floor(explicit));
-    var defendDie = Math.max(4, Number(stats.defend || stats.body || stats.valor || stats.adventure || 4));
+    var defendDie = Math.max(4, Number(stats.defend || stats.body || stats.valor || 4));
     var bonus = Math.max(0, Number(c.tempStressCapacityBonus || 0));
     return Math.max(1, (defendDie * 2) + bonus);
   }
@@ -2308,8 +2308,8 @@
       // Build turn order: Wayfarers first (highest Valor first), then enemies.
       var roster = (Array.isArray(participants) ? participants : buildPartyRoster()).slice();
       roster.sort(function(a, b) {
-        var advA = Number((a.character && a.character.stats && (a.character.stats.valor || a.character.stats.adventure)) || 0);
-        var advB = Number((b.character && b.character.stats && (b.character.stats.valor || b.character.stats.adventure)) || 0);
+        var advA = Number((a.character && a.character.stats && (a.character.stats.valor)) || 0);
+        var advB = Number((b.character && b.character.stats && (b.character.stats.valor)) || 0);
         return advB - advA;
       });
 
@@ -3170,7 +3170,7 @@
     try {
       var dice = ensureCharacterDice();
       dice[token] = {
-        valor: Math.max(4, Number((diceConfig && (diceConfig.valor || diceConfig.adventure)) || 4)),
+        valor: Math.max(4, Number((diceConfig && (diceConfig.valor)) || 4)),
         body: Math.max(4, Number((diceConfig && diceConfig.body) || 4)),
         mind: Math.max(4, Number((diceConfig && diceConfig.mind) || 4)),
         spirit: Math.max(4, Number((diceConfig && diceConfig.spirit) || 4)),
@@ -3496,7 +3496,7 @@
       ["Spirit", stats.spirit],
       ["Control", stats.control],
       ["Lead", stats.lead],
-      ["Valor", stats.valor || stats.adventure]
+      ["Valor", stats.valor]
     ];
     return ''
       + '<div style="display:grid;gap:.55rem;">'
@@ -3595,7 +3595,7 @@
         defend: Number(stats.defend || 4),
         strike: Number(stats.strike || 4),
         shoot: Number(stats.shoot || 4),
-        valor: Number((stats.valor || stats.adventure) || 4)
+        valor: Number((stats.valor) || 4)
       },
       loadout: {
         weapon1: String(equipment.weapon1 || "").trim(),
@@ -4186,7 +4186,7 @@
                 + '</div>'
                 + '<div class="campaign-muted" style="margin-top:.2rem;font-size:.85rem;">'
                 + 'HP ' + p.character.health + '/' + p.character.maxHealth + ' · MS ' + p.character.mentalStress + '/' + p.character.maxMentalStress
-                + (p.character.stats && (p.character.stats.valor || p.character.stats.adventure) ? ' · Val ' + Number(p.character.stats.valor || p.character.stats.adventure) : '')
+                + (p.character.stats && (p.character.stats.valor) ? ' · Val ' + Number(p.character.stats.valor) : '')
                 + '</div>'
                 + '<div class="campaign-muted" style="margin-top:.12rem;font-size:.78rem;">Loadout: ' + escapeHtml(loadoutText || 'Not synced yet') + '</div>'
                 + '<div class="campaign-muted" style="margin-top:.08rem;font-size:.78rem;">OS Hacks: ' + String(hacksCount) + '</div>'
@@ -4327,10 +4327,10 @@
             return '<div style="margin-bottom:.2rem;"><strong>Largest Wayfarer\'s Lead: d' + leadDie + '</strong></div>'
               + roster.map(function(p) {
                 var dice = allDice[p.token] || getCharacterDice(p.token);
-                var shorthand = 'Vd:d' + Number(dice.valor || dice.adventure || 4) + ' | Bd:d' + dice.body + ' | Md:d' + dice.mind;
+                var shorthand = 'Vd:d' + Number(dice.valor || 4) + ' | Bd:d' + dice.body + ' | Md:d' + dice.mind;
                 return '<div style="padding:.3rem;background:var(--bg3);border-radius:.2rem;font-size:.85rem;border-left:2px solid var(--teal);">'
                   + '<strong>' + escapeHtml(p.character.name) + '</strong>'
-                  + ' Lead: <strong style="color:var(--gold2);">d' + Math.max(Number(dice.valor || dice.adventure || 4), dice.body, dice.mind, dice.spirit, dice.control, dice.strike, dice.shoot, dice.defend) + '</strong>'
+                  + ' Lead: <strong style="color:var(--gold2);">d' + Math.max(Number(dice.valor || 4), dice.body, dice.mind, dice.spirit, dice.control, dice.strike, dice.shoot, dice.defend) + '</strong>'
                   + '<div style="margin-top:.1rem;">' + shorthand + '</div>'
                   + '</div>';
               }).join('');

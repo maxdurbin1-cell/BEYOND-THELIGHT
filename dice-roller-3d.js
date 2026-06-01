@@ -129,7 +129,7 @@
     { key: 'defend', label: 'Defend' },
     { key: 'control', label: 'Control' },
     { key: 'lead', label: 'Lead' },
-    { key: 'adventure', label: 'Valor' }
+    { key: 'valor', label: 'Valor' }
   ];
   const DIE_STEPS = [4, 6, 8, 10, 12, 20];
 

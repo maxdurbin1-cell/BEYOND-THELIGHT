@@ -22947,8 +22947,15 @@ document.addEventListener('DOMContentLoaded', function() {
     if (yessodTab.parentNode !== nav) nav.appendChild(yessodTab);
     if (exocraftsTab.parentNode !== nav) nav.appendChild(exocraftsTab);
 
-    nav.insertBefore(planetTab, yessodTab);
-    if (yessodTab.nextSibling !== exocraftsTab) nav.insertBefore(exocraftsTab, yessodTab.nextSibling);
+    var spaceAnchor = document.getElementById('tabnav-worldthatwas') || document.querySelector('#mainNav .tab-btn[data-tab="worldthatwas"]');
+    if (spaceAnchor && spaceAnchor.parentNode === nav) {
+      nav.insertBefore(planetTab, spaceAnchor.nextSibling);
+      nav.insertBefore(yessodTab, planetTab.nextSibling);
+      nav.insertBefore(exocraftsTab, yessodTab.nextSibling);
+    } else {
+      nav.insertBefore(planetTab, yessodTab);
+      if (yessodTab.nextSibling !== exocraftsTab) nav.insertBefore(exocraftsTab, yessodTab.nextSibling);
+    }
   }
 
   dedupeNodes('#mainNav .tab-btn', function(node) {

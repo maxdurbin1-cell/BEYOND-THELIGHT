@@ -564,7 +564,38 @@ function resolveValorDieKey(key) {
   return rawKey === 'adventure' ? 'valor' : rawKey;
 }
 
+function normalizeValorAdventureStats() {
+  if (!S || !S.stats || typeof S.stats !== 'object') {
+    return 4;
+  }
+  const hasValor = Number.isFinite(Number(S.stats.valor));
+  const hasAdventure = Number.isFinite(Number(S.stats.adventure));
+  const valor = hasValor ? Math.max(4, Number(S.stats.valor)) : null;
+  const adventure = hasAdventure ? Math.max(4, Number(S.stats.adventure)) : null;
+
+  let canonical = 4;
+  if (valor != null && adventure != null) {
+    canonical = valor;
+    if (valor !== adventure && valor === 4 && adventure > 4) {
+      canonical = adventure;
+    }
+  } else if (valor != null) {
+    canonical = valor;
+  } else if (adventure != null) {
+    canonical = adventure;
+  }
+
+  S.stats.valor = canonical;
+  S.stats.adventure = canonical;
+  return canonical;
+}
+
+if (typeof window !== 'undefined') {
+  window.normalizeValorAdventureStats = normalizeValorAdventureStats;
+}
+
 function getEffectiveDie(key) {
+  normalizeValorAdventureStats();
   var resolvedKey = resolveValorDieKey(key);
   var base = 4;
       if (S && S.stats) {
@@ -652,6 +683,7 @@ function updateMaxStressDisplay() {
 }
 
 function updateAllStatDisplays() {
+  normalizeValorAdventureStats();
   STAT_KEYS.forEach(updateDieDisplay);
   updateDieDisplay("valor");
   if (typeof ensureBackpackCapacity === 'function') ensureBackpackCapacity();
@@ -1831,6 +1863,7 @@ function generateCharacter() {
     }
   }
   S.stats.valor = pick([4, 6, 8]);
+  S.stats.adventure = S.stats.valor;
   S.credits = rollMulti(6, 2) * 10;
   S.health = 0;
   S.renown = 0;
@@ -1920,6 +1953,7 @@ function runCharacterBuildStep(stepId) {
     rollSoulArray();
     assignArray();
     S.stats.valor = pick([4, 6, 8]);
+    S.stats.adventure = S.stats.valor;
     steps.stats = Date.now();
     setGuidedBuildStatus('Step 5 complete: action dice and valor assigned.', 'good');
   } else if (step === 'finalize') {
@@ -1991,7 +2025,7 @@ function clearCharacter(options) {
   S.equipment = { weapon1: "", weapon2: "", armor: "", readied: "" };
   S.backpack = ["", "", "", "", "", ""];
   S.soulArray = [];
-  S.stats = { body: 4, strike: 4, shoot: 4, mind: 4, spirit: 4, defend: 4, control: 4, lead: 4, valor: 4 };
+  S.stats = { body: 4, strike: 4, shoot: 4, mind: 4, spirit: 4, defend: 4, control: 4, lead: 4, valor: 4, adventure: 4 };
   S.traits = {};
   S.augmentations = [];
   S.ownedHacks    = [];
@@ -2338,6 +2372,7 @@ function applyLoadedCharacterState(saved) {
       armyB: { ...S.combat.armyB, ...((loaded.combat && loaded.combat.armyB) || {}) }
     }
   };
+  normalizeValorAdventureStats();
 
   if (typeof window.ensureBackstoryState === 'function') {
     window.ensureBackstoryState();

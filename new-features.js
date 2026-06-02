@@ -11383,8 +11383,8 @@
       + '</div></div>'
       + resultHtml
       + buildNestedModalActionRow(
-        '<button class="btn btn-sm" onclick="skipHoldingQuestStep1();goBackOrCloseModal();">Skip This Step</button>'
-        + '<button class="btn btn-sm btn-teal" onclick="completeHoldingQuestStep1(' + success + ',decodeURIComponent(\'' + encoded + '\'));goBackOrCloseModal();">Confirm</button>',
+        '<button class="btn btn-sm" onclick="skipHoldingQuestStep1();closeModal();">Skip This Step</button>'
+        + '<button class="btn btn-sm btn-teal" onclick="completeHoldingQuestStep1(' + success + ',decodeURIComponent(\'' + encoded + '\'));closeModal();">Confirm</button>',
         { cancelLabel: 'Close' }
       );
     openModal('Step 1 — Gather Information', html, null, { preventScroll: true, focusTrap: true });
@@ -11495,7 +11495,7 @@
     var actionButtons = '';
     if (!hasActive) {
       actionButtons = buildNestedModalActionRow(
-        '<button class="btn btn-sm ' + (allExplored ? 'btn-teal' : '') + '" onclick="completeHoldingQuestStep2();goBackOrCloseModal();">' + (allExplored ? 'Proceed to Confrontation' : 'Skip Remaining Rooms → Confrontation') + '</button>',
+        '<button class="btn btn-sm ' + (allExplored ? 'btn-teal' : '') + '" onclick="completeHoldingQuestStep2();closeModal();">' + (allExplored ? 'Proceed to Confrontation' : 'Skip Remaining Rooms → Confrontation') + '</button>',
         { cancelLabel: 'Close' }
       );
     } else {
@@ -14017,7 +14017,7 @@
       spellMeta: pending.spellMeta || null
     });
     S.hackRoller.pendingManual = null;
-    goBackOrCloseModal();
+    if (typeof closeModal === 'function') closeModal();
     return true;
   }
 

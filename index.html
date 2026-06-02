@@ -4670,6 +4670,13 @@ function getDarkAfflictionPenalty(stat){
   if(peak>=10)basePenalty+=1;
   return ['defend','body','mind','spirit','control','lead','strike','shoot','valor'].indexOf(stat)>=0?-basePenalty:0;
 }
+function applyUtilityRollDarkPenalty(statKey,total){
+  var raw=Number(total||0);
+  if(!Number.isFinite(raw))raw=0;
+  var penalty=(typeof getDarkAfflictionPenalty==='function')?Number(getDarkAfflictionPenalty(String(statKey||''))||0):0;
+  if(!Number.isFinite(penalty))penalty=0;
+  return {raw:raw,penalty:penalty,total:raw+penalty};
+}
 function applyDarkAfflictionDailyProgress(daysPassed){
   ensureDarkAfflictionState();
   var days=Math.max(1,parseInt(daysPassed,10)||1);
@@ -15185,7 +15192,32 @@ function useToolkit(statKey, backpackIndex, combatSpendLabel) {
   clearDeferredUtilitySpendForBackpackIndex(backpackIndex);
   clearConditionOnUse(statKey);
 }
-function rollHaggle(){const a=explodingRoll(S.stats.spirit),d=explodingRoll(8);const diff=a.total-d.total;let result='';if(diff>=7)result='<strong style="color:var(--gold2);">You\'ve tripled the price and everyone is happy!</strong>';else if(diff>=4)result='<strong style="color:var(--gold);">It\'s a deal, but you suck at haggling.</strong>';else if(diff>=2)result='<strong style="color:var(--green2);">The merchant pays with a Strange Item.</strong>';else if(diff>=1)result='<strong style="color:var(--green);">The merchant nods and agrees to a deal.</strong>';else if(diff>=-2)result='<strong style="color:var(--red2);">Hilarious events end with you thrown out of town.</strong>';else result='<strong style="color:var(--red2);">They take it, and you leave. You wake up shackled in a livestock pen.</strong>';openModal('Haggle Check',`<div style="font-size:.9rem;margin-bottom:.5rem;">Spirit d${S.stats.spirit} = <strong style="color:var(--teal);">${a.total}</strong> vs DD8 = <strong style="color:var(--red);">${d.total}</strong></div><div style="font-size:.9rem;line-height:1.6;">${result}</div>`);if(diff>=1){if(typeof showDccSuccessOutcome==='function'){showDccSuccessOutcome('spirit',Math.max(1,diff),{actionTotal:a.total,dreadTotal:d.total,context:'Haggle check'});}addSuccessRoll();}else{if(typeof showDccFailureOutcome==='function'){showDccFailureOutcome('spirit',Math.max(1,d.total-a.total),{actionTotal:a.total,dreadTotal:d.total,context:'Haggle check'});}addTMWOnFail('general-failure');}}
+function rollHaggle(){
+  const spiritDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):(S.stats.spirit||4);
+  const a=explodingRoll(spiritDie),d=explodingRoll(8);
+  const adj=applyUtilityRollDarkPenalty('spirit',a.total);
+  const diff=adj.total-d.total;
+  const penaltyNote=adj.penalty<0?` (Day penalty ${adj.penalty})`:'';
+  let result='';
+  if(diff>=7)result='<strong style="color:var(--gold2);">You\'ve tripled the price and everyone is happy!</strong>';
+  else if(diff>=4)result='<strong style="color:var(--gold);">It\'s a deal, but you suck at haggling.</strong>';
+  else if(diff>=2)result='<strong style="color:var(--green2);">The merchant pays with a Strange Item.</strong>';
+  else if(diff>=1)result='<strong style="color:var(--green);">The merchant nods and agrees to a deal.</strong>';
+  else if(diff>=-2)result='<strong style="color:var(--red2);">Hilarious events end with you thrown out of town.</strong>';
+  else result='<strong style="color:var(--red2);">They take it, and you leave. You wake up shackled in a livestock pen.</strong>';
+  openModal('Haggle Check',`<div style="font-size:.9rem;margin-bottom:.5rem;">Spirit d${spiritDie} = <strong style="color:var(--teal);">${adj.raw}</strong>${adj.penalty!==0?` <span style="color:var(--muted2);">→</span> <strong style="color:var(--teal);">${adj.total}</strong>`:''} vs DD8 = <strong style="color:var(--red);">${d.total}</strong>${penaltyNote}</div><div style="font-size:.9rem;line-height:1.6;">${result}</div>`);
+  if(diff>=1){
+    if(typeof showDccSuccessOutcome==='function'){
+      showDccSuccessOutcome('spirit',Math.max(1,diff),{actionTotal:adj.total,dreadTotal:d.total,context:'Haggle check'+(adj.penalty<0?` [day penalty ${adj.penalty}]`:'')});
+    }
+    addSuccessRoll();
+  }else{
+    if(typeof showDccFailureOutcome==='function'){
+      showDccFailureOutcome('spirit',Math.max(1,d.total-adj.total),{actionTotal:adj.total,dreadTotal:d.total,context:'Haggle check'+(adj.penalty<0?` [day penalty ${adj.penalty}]`:'')});
+    }
+    addTMWOnFail('general-failure');
+  }
+}
 
 // ── MAP GENERATION ────────────────────────────────────────────────────────────
 // FIX: 12×12 grid
@@ -18916,16 +18948,17 @@ function attemptBlackMarketAccess(col,row){
   const controlDie=(typeof getEffectiveDie==='function')?getEffectiveDie('control'):(S.stats.control||4);
   const a=explodingRoll(controlDie);
   const d=explodingRoll(12);
-  const success=a.total>=d.total;
+  const adj=applyUtilityRollDarkPenalty('control',a.total);
+  const success=adj.total>=d.total;
   const hex=mapData.find(h=>h.col===col&&h.row===row);
   if(!hex)return;
 
   let html=`<div style="font-size:.84rem;color:var(--text2);margin-bottom:.35rem;">Control vs DD12 access check</div>`+
-    `<div style="font-size:.86rem;"><strong style="color:var(--teal);">${a.total}</strong> vs <strong style="color:var(--red);">${d.total}</strong> — `+
+    `<div style="font-size:.86rem;"><strong style="color:var(--teal);">${adj.raw}</strong>${adj.penalty!==0?` <span style="color:var(--muted2);">→</span> <strong style="color:var(--teal);">${adj.total}</strong>`:''} vs <strong style="color:var(--red);">${d.total}</strong>${adj.penalty<0?` <span style="color:var(--muted2);">(Day penalty ${adj.penalty})</span>`:''} — `+
     (success?'<strong style="color:var(--green2);">Success</strong>':'<strong style="color:var(--red2);">Failure</strong>')+'</div>';
 
   if(success){
-    if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,a.total-d.total),{actionTotal:a.total,dreadTotal:d.total,context:'Black market access'});
+    if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,adj.total-d.total),{actionTotal:adj.total,dreadTotal:d.total,context:'Black market access'+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});
     const bm=initBlackMarketHex(hex);
     const hackNames=(bm.hacks||[]).slice(0,2).map(h=>h.name).join(' • ');
     const osItem=(SHOP_DATA.augmentations||[]).find(a=>a.name==='OPERATING SYSTEM');
@@ -18940,7 +18973,7 @@ function attemptBlackMarketAccess(col,row){
     showNotif('You gain access to the Black Market.','good');
     if(typeof addSuccessRoll==='function')addSuccessRoll();
   }else{
-    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',Math.max(1,d.total-a.total),{actionTotal:a.total,dreadTotal:d.total,context:'Black market access'});
+    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',Math.max(1,d.total-adj.total),{actionTotal:adj.total,dreadTotal:d.total,context:'Black market access'+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});
     html+=`<div style="margin-top:.35rem;font-size:.8rem;color:var(--muted2);">Lookouts clock you immediately and throw you out before any deal starts.</div>`;
     showNotif('Black Market access failed. You were thrown out.','warn');
     if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
@@ -18999,13 +19032,14 @@ function attemptEncounterThievery(source,col,row){
       playerTotal=rolls.reduce((sum,r)=>sum+r.total,0);
       for(let i=0;i<rolls.length;i++)rollParts.push(String(rolls[i].total));
     }
-    const success=(outcome&&typeof outcome.success==='boolean')?!!outcome.success:(playerTotal>=dreadTotal);
-    const failBy=Math.max(1,dreadTotal-playerTotal);
+    const adj=applyUtilityRollDarkPenalty('control',playerTotal);
+    const success=(outcome&&typeof outcome.success==='boolean')?!!outcome.success:(adj.total>=dreadTotal);
+    const failBy=Math.max(1,dreadTotal-adj.total);
     const hoodBonus=(S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood'))?' + Hood d6':'';
     const controlLabel='Control d'+controlDie+hoodBonus;
-    const rollSummary=(rollParts.length?rollParts.join('+'):String(playerTotal))+' vs '+dreadTotal+(manual?' [manual]':'');
+    const rollSummary=(rollParts.length?rollParts.join('+'):String(playerTotal))+(adj.penalty!==0?(' → '+adj.total):'')+' vs '+dreadTotal+(manual?' [manual]':'')+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'');
     if(success){
-      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,playerTotal-dreadTotal),{actionTotal:playerTotal,dreadTotal:dreadTotal,context:'Encounter thievery: '+source});
+      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,adj.total-dreadTotal),{actionTotal:adj.total,dreadTotal:dreadTotal,context:'Encounter thievery: '+source+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});
       if(typeof addSuccessRoll==='function')addSuccessRoll();
       if(reward.kind==='credits'){
         S.credits=(S.credits||0)+reward.amount;
@@ -19018,7 +19052,7 @@ function attemptEncounterThievery(source,col,row){
         appendQuickPanelNote('[Thievery] Stole '+reward.label+' ('+rollSummary+')');
       }
     }else{
-      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',failBy,{actionTotal:playerTotal,dreadTotal:dreadTotal,context:'Encounter thievery: '+source});
+      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',failBy,{actionTotal:adj.total,dreadTotal:dreadTotal,context:'Encounter thievery: '+source+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});
       showNotif('Thievery failed ('+controlLabel+' vs DD12). Caught! ('+rollSummary+')','warn');
       if(typeof addTMWOnFail==='function')addTMWOnFail('thievery-failure',{failedBy:failBy,actionDie:controlDie,dreadDie:12,actionLabel:'Control Die'});
       appendQuickPanelNote('[Thievery] Caught while stealing from '+source+'. +1 TMW');
@@ -19076,16 +19110,17 @@ function haggleMerchantCaravan(col,row){
   const spiritDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):(S.stats.spirit||4);
   const roll1=explodingRoll(spiritDie);
   const roll2=explodingRoll('d8');
-  const success=roll1.total>=roll2.total;
+  const adj=applyUtilityRollDarkPenalty('spirit',roll1.total);
+  const success=adj.total>=roll2.total;
   if(success){
-    if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('spirit',Math.max(1,roll1.total-roll2.total),{actionTotal:roll1.total,dreadTotal:roll2.total,context:'Caravan haggle'});
+    if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('spirit',Math.max(1,adj.total-roll2.total),{actionTotal:adj.total,dreadTotal:roll2.total,context:'Caravan haggle'+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});
     S.data=S.data||{};
     S.data.haggleDiscount=true;
-    showNotif(`Haggle Success! (${roll1.total} vs DD8=${roll2.total}) 20% Discount Granted!`,'good');
+    showNotif(`Haggle Success! (${adj.penalty!==0?roll1.total+'→'+adj.total:roll1.total} vs DD8=${roll2.total}) 20% Discount Granted!`,'good');
     appendQuickPanelNote(`[Merchant Haggle] Negotiated 20% discount with caravan at [${col+1},${row+1}]`);
   }else{
-    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('spirit',Math.max(1,roll2.total-roll1.total),{actionTotal:roll1.total,dreadTotal:roll2.total,context:'Caravan haggle'});
-    showNotif(`Haggle Failed (${roll1.total} vs DD8=${roll2.total}). Regular pricing.`,'warn');
+    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('spirit',Math.max(1,roll2.total-adj.total),{actionTotal:adj.total,dreadTotal:roll2.total,context:'Caravan haggle'+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});
+    showNotif(`Haggle Failed (${adj.penalty!==0?roll1.total+'→'+adj.total:roll1.total} vs DD8=${roll2.total}). Regular pricing.`,'warn');
   }
 }
 
@@ -19107,12 +19142,13 @@ function attemptThievery(targetName){
       playerTotal=rolls.reduce((sum,r)=>sum+r.total,0);
       for(let i=0;i<rolls.length;i++)rollParts.push(String(rolls[i].total));
     }
-    const success=(outcome&&typeof outcome.success==='boolean')?!!outcome.success:(playerTotal>=dreadTotal);
-    const failBy=Math.max(1,dreadTotal-playerTotal);
+    const adj=applyUtilityRollDarkPenalty('control',playerTotal);
+    const success=(outcome&&typeof outcome.success==='boolean')?!!outcome.success:(adj.total>=dreadTotal);
+    const failBy=Math.max(1,dreadTotal-adj.total);
     const controlLabel='Control d'+controlDie+((S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood'))?' + Hood d6':'');
-    const rollSummary=(rollParts.length?rollParts.join('+'):String(playerTotal))+' vs '+dreadTotal+(manual?' [manual]':'');
+    const rollSummary=(rollParts.length?rollParts.join('+'):String(playerTotal))+(adj.penalty!==0?(' → '+adj.total):'')+' vs '+dreadTotal+(manual?' [manual]':'')+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'');
     if(success){
-      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,playerTotal-dreadTotal),{actionTotal:playerTotal,dreadTotal:dreadTotal,context:'Direct thievery: '+targetName});
+      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,adj.total-dreadTotal),{actionTotal:adj.total,dreadTotal:dreadTotal,context:'Direct thievery: '+targetName+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});
       if(typeof addSuccessRoll==='function')addSuccessRoll();
       if(typeof addToBackpack==='function'){
         const stored=addToBackpack(targetName);
@@ -19122,7 +19158,7 @@ function attemptThievery(targetName){
       }
       appendQuickPanelNote(`[Thievery] Stole ${targetName} (${rollSummary})`);
     }else{
-      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',failBy,{actionTotal:playerTotal,dreadTotal:dreadTotal,context:'Direct thievery: '+targetName});
+      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',failBy,{actionTotal:adj.total,dreadTotal:dreadTotal,context:'Direct thievery: '+targetName+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});
       showNotif(`Thievery failed (${controlLabel} vs DD12). Caught! (${rollSummary})`, 'warn');
       if(typeof addTMWOnFail==='function')addTMWOnFail('thievery-failure',{failedBy:failBy,actionDie:controlDie,dreadDie:12,actionLabel:'Control Die'});
       appendQuickPanelNote(`[Thievery] Caught attempting to steal ${targetName}. +1 TMW`);
@@ -19412,13 +19448,14 @@ function resolveProvinceHoldingDowntime(col,row,statKey){
   const key=allowedStats.indexOf(requestedKey)>=0?requestedKey:'lead';
   const die=(typeof getEffectiveDie==='function')?getEffectiveDie(key):((S.stats&&S.stats[key])||4);
   const a=explodingRoll(die),d=explodingRoll(evt.dd||6);
-  const success=a.total>=d.total;
+  const adj=applyUtilityRollDarkPenalty(key,a.total);
+  const success=adj.total>=d.total;
   let effectExtra='';
-  if(success){effectExtra=applyProvinceHoldingDowntimeEffect(evt.successEffect);if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome(key,Math.max(1,a.total-d.total),{actionTotal:a.total,dreadTotal:d.total,context:'Province holding downtime: '+evt.name});if(typeof addSuccessRoll==='function')addSuccessRoll();}
-  else{if(typeof showDccFailureOutcome==='function')showDccFailureOutcome(key,Math.max(1,d.total-a.total),{actionTotal:a.total,dreadTotal:d.total,context:'Province holding downtime: '+evt.name});effectExtra=applyProvinceHoldingDowntimeEffect(evt.failEffect);if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');}
+  if(success){effectExtra=applyProvinceHoldingDowntimeEffect(evt.successEffect);if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome(key,Math.max(1,adj.total-d.total),{actionTotal:adj.total,dreadTotal:d.total,context:'Province holding downtime: '+evt.name+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});if(typeof addSuccessRoll==='function')addSuccessRoll();}
+  else{if(typeof showDccFailureOutcome==='function')showDccFailureOutcome(key,Math.max(1,d.total-adj.total),{actionTotal:adj.total,dreadTotal:d.total,context:'Province holding downtime: '+evt.name+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});effectExtra=applyProvinceHoldingDowntimeEffect(evt.failEffect);if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');}
   hex.data.downtimeLastResult={
     success:success,
-    check:key.toUpperCase()+' d'+die+'='+a.total+' vs DD'+(evt.dd||6)+'='+d.total,
+    check:key.toUpperCase()+' d'+die+'='+a.total+(adj.penalty!==0?('→'+adj.total):'')+' vs DD'+(evt.dd||6)+'='+d.total,
     text:(success?evt.success:evt.failure)+(effectExtra||'')
   };
   hex.data.pendingDowntimeEvent=null;

@@ -410,8 +410,9 @@
     var includeCancel = options.includeCancel !== false;
     var goBackLabel = options.goBackLabel || 'Go Back';
     var cancelLabel = options.cancelLabel || 'Cancel';
+    var cancelHandler = options.cancelUsesClose ? 'closeModal()' : 'goBackOrCloseModal()';
     var goBackBtn = '<button class="btn btn-sm" onclick="goBackOrCloseModal()">' + goBackLabel + '</button>';
-    var cancelBtn = includeCancel ? ('<button class="btn btn-sm" onclick="goBackOrCloseModal()">' + cancelLabel + '</button>') : '';
+    var cancelBtn = includeCancel ? ('<button class="btn btn-sm" onclick="' + cancelHandler + '">' + cancelLabel + '</button>') : '';
     return '<div style="display:flex;gap:' + gap + ';flex-wrap:' + wrap + ';justify-content:' + justify + ';">'
       + goBackBtn + cancelBtn + String(actionsHtml || '')
       + '</div>';
@@ -11586,7 +11587,7 @@
       + buildNestedModalActionRow(
         '<button class="btn btn-sm btn-red" onclick="openHoldingQuestFailureOutcomeModal()">\u2717 Failure — Roll Failed</button>'
         + '<button class="btn btn-sm btn-primary" onclick="resolveHoldingQuestOutcome(true)">\u2713 Success — Roll Succeeded</button>',
-        { cancelLabel: 'Close' }
+        { cancelLabel: 'Close', cancelUsesClose: true }
       );
     openModal('Step 3 — Confrontation', html, null, { preventScroll: true, focusTrap: true });
   }
@@ -11713,7 +11714,7 @@
       + buildNestedModalActionRow(
         '<button class="btn btn-sm btn-warn" onclick="acceptHoldingQuestFailureOutcome()">Accept Failure</button>'
         + '<button class="btn btn-sm btn-teal" ' + (tmw >= 2 ? '' : "disabled title='Need 2 Teamwork'") + ' onclick="pushHoldingQuestLuckOutcome()">Push Luck (2 Teamwork)</button>',
-        { cancelLabel: 'Close' }
+        { cancelLabel: 'Close', cancelUsesClose: true }
       )
       + '</div>';
     openModal('Holding Confrontation Failure', html, null, { preventScroll: true, focusTrap: true });
@@ -11750,7 +11751,7 @@
           + buildNestedModalActionRow(
               '<button class="btn btn-sm btn-red" onclick="resolveHoldingQuestPushLuck(false)">Push Luck Failed</button>'
               + '<button class="btn btn-sm btn-primary" onclick="resolveHoldingQuestPushLuck(true)">Push Luck Succeeded</button>',
-              { cancelLabel: 'Close' }
+              { cancelLabel: 'Close', cancelUsesClose: true }
             )
         + '</div>',
         null,

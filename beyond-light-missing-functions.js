@@ -567,7 +567,10 @@ function dieClass(value) {
 
 function applyDieSteps(baseDie, steps) {
   let result = baseDie;
-  let remaining = steps;
+  let remaining = Number(steps || 0);
+  if (!Number.isFinite(remaining)) remaining = 0;
+  // Guard against corrupted saves/modifiers causing massive step loops.
+  remaining = Math.max(-24, Math.min(24, Math.trunc(remaining)));
   while (remaining > 0) {
     result = stepUp(result);
     remaining -= 1;
@@ -954,7 +957,11 @@ function updateCreditsUI() {
 }
 
 function setHealth(value) {
-  const maxHealth = getEffectiveDie("defend") * 2 + Math.max(0, Number(S.tempStressCapacityBonus || 0));
+  const defendDieRaw = Number(getEffectiveDie("defend") || 4);
+  const defendDie = Number.isFinite(defendDieRaw) ? Math.max(1, Math.min(20, defendDieRaw)) : 4;
+  const tempBonusRaw = Number(S.tempStressCapacityBonus || 0);
+  const tempBonus = Number.isFinite(tempBonusRaw) ? Math.max(0, Math.min(200, tempBonusRaw)) : 0;
+  const maxHealth = Math.max(1, Math.min(240, defendDie * 2 + tempBonus));
   const oldHealth = S.health || 0;
   S.health = Math.max(0, Math.min(value, maxHealth));
   S.stress = S.health; // backwards-compat alias
@@ -970,8 +977,11 @@ function setHealth(value) {
 function setStress(value) { setHealth(value); } // backwards-compat shim
 
 function updateStressUI() {
-  const maxHealth = getEffectiveDie("defend") * 2 + Math.max(0, Number(S.tempStressCapacityBonus || 0));
-  const bonus = Math.max(0, Number(S.tempStressCapacityBonus || 0));
+  const defendDieRaw = Number(getEffectiveDie("defend") || 4);
+  const defendDie = Number.isFinite(defendDieRaw) ? Math.max(1, Math.min(20, defendDieRaw)) : 4;
+  const bonusRaw = Number(S.tempStressCapacityBonus || 0);
+  const bonus = Number.isFinite(bonusRaw) ? Math.max(0, Math.min(200, bonusRaw)) : 0;
+  const maxHealth = Math.max(1, Math.min(240, defendDie * 2 + bonus));
   if ((S.health || 0) > maxHealth) {
     S.health = maxHealth;
     S.stress = S.health;

@@ -22936,23 +22936,14 @@ document.addEventListener('DOMContentLoaded', function() {
     nav.appendChild(yessodBtn);
   }
 
-  const planetTab = document.getElementById('tabnav-planet') || document.querySelector('#mainNav .tab-btn[data-tab="planet"]');
-  const yessodTab = document.getElementById('tabnav-yessod') || document.querySelector('#mainNav .tab-btn[data-tab="yessod"]');
-  const exocraftsTab = document.getElementById('tabnav-exocrafts') || document.querySelector('#mainNav .tab-btn[data-tab="exocrafts"]');
-  if (nav && planetTab && yessodTab && exocraftsTab) {
-    if (planetTab.parentNode !== nav) nav.appendChild(planetTab);
-    if (yessodTab.parentNode !== nav) nav.appendChild(yessodTab);
-    if (exocraftsTab.parentNode !== nav) nav.appendChild(exocraftsTab);
-
-    var spaceAnchor = document.getElementById('tabnav-worldthatwas') || document.querySelector('#mainNav .tab-btn[data-tab="worldthatwas"]');
-    if (spaceAnchor && spaceAnchor.parentNode === nav) {
-      nav.insertBefore(planetTab, spaceAnchor.nextSibling);
-      nav.insertBefore(yessodTab, planetTab.nextSibling);
-      nav.insertBefore(exocraftsTab, yessodTab.nextSibling);
-    } else {
-      nav.insertBefore(planetTab, yessodTab);
-      if (yessodTab.nextSibling !== exocraftsTab) nav.insertBefore(exocraftsTab, yessodTab.nextSibling);
-    }
+  if (nav) {
+    var orderedTabs = ['oracle', 'missions', 'galaxy', 'worldthatwas', 'planet', 'naval', 'exocrafts', 'yessod', 'shop'];
+    orderedTabs.forEach(function(tabId) {
+      var tabBtn = document.getElementById('tabnav-' + tabId) || document.querySelector('#mainNav .tab-btn[data-tab="' + tabId + '"]');
+      if (!tabBtn) return;
+      if (tabBtn.parentNode !== nav) nav.appendChild(tabBtn);
+      nav.appendChild(tabBtn);
+    });
   }
 
   dedupeNodes('#mainNav .tab-btn', function(node) {

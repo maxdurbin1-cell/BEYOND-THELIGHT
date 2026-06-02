@@ -693,7 +693,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="tab-btn ctx-traveling" aria-controls="tab-rules" id="tabnav-rules" data-tab="rules">Rules</button>
     <button class="tab-btn ctx-traveling" aria-controls="tab-combat" id="tabnav-combat" data-tab="combat">Combat</button>
     <button class="tab-btn ctx-traveling" aria-controls="tab-scenes" id="tabnav-scenes" data-tab="scenes">VTT</button>
-    <button class="tab-btn ctx-traveling ctx-holding ctx-sea" aria-controls="tab-oracle" id="tabnav-oracle" data-tab="oracle">Oracle</button>
+    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" aria-controls="tab-oracle" id="tabnav-oracle" data-tab="oracle">Oracle</button>
     <button class="tab-btn ctx-traveling" aria-controls="tab-storyline" id="tabnav-storyline" data-tab="storyline">Storyline</button>
     <button class="tab-btn ctx-traveling" aria-controls="tab-factions" id="tabnav-factions" data-tab="factions">Factions</button>
     <button class="tab-btn ctx-traveling" aria-controls="tab-trophies" id="tabnav-trophies" data-tab="trophies">Trophies</button>
@@ -15574,6 +15574,28 @@ window.resolveProvinceEdgeBarrierCheck=function(fromKey,toKey){
 
 function setAge(age,btn){S.currentAge=age;document.querySelectorAll('.age-btn').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');else{var autoBtn=document.getElementById('age-'+age);if(autoBtn)autoBtn.classList.add('on');}}
 function setSeason(season,btn){S.currentSeason=season;document.querySelectorAll('.season-btn').forEach(b=>b.classList.remove('on'));if(btn)btn.classList.add('on');else{var autoBtn=document.getElementById('season-'+season);if(autoBtn)autoBtn.classList.add('on');}}
+function enforceSpaceTabOrder(){
+  var tablist=document.getElementById('mainNavTablist')||document.getElementById('mainNav');
+  if(!tablist)return;
+
+  // Space context order: Oracle, Missions, Galaxy, World That Was, Planet Exploration,
+  // Ship, Exocrafts, (optional Yessod), Merchant.
+  var orderedTabs=['oracle','missions','galaxy','worldthatwas','planet','naval','exocrafts','yessod','shop'];
+  orderedTabs.forEach(function(tabId){
+    var btn=document.getElementById('tabnav-'+tabId)||tablist.querySelector('.tab-btn[data-tab="'+tabId+'"]');
+    if(btn&&btn.parentNode===tablist)tablist.appendChild(btn);
+  });
+
+  // Keep utility controls after context tabs in Space: GM, Solo, Settings.
+  var navRoot=document.getElementById('mainNav');
+  if(!navRoot)return;
+  var gmBtn=navRoot.querySelector('.gm-dashboard-btn');
+  var soloBtn=navRoot.querySelector('.solo-reference-btn');
+  var settingsBtn=navRoot.querySelector('.settings-tab-btn');
+  if(gmBtn)navRoot.appendChild(gmBtn);
+  if(soloBtn)navRoot.appendChild(soloBtn);
+  if(settingsBtn)navRoot.appendChild(settingsBtn);
+}
 function setContext(ctx,btn){
   const ctxBtn=btn||document.querySelector('.ctx-btn[data-ctx="'+ctx+'"]');
   document.querySelectorAll('.ctx-btn').forEach(b=>{b.classList.remove('on');b.setAttribute('aria-pressed','false');});
@@ -15603,6 +15625,7 @@ function setContext(ctx,btn){
   if(typeof switchTab==='function')switchTab(defaultTab,defaultBtn||null);
 
   if(ctx==='space'){
+    enforceSpaceTabOrder();
     // Ensure panel is rendered after tab switch.
     if(typeof buildGalaxyPanel==='function') setTimeout(buildGalaxyPanel,0);
     if(typeof renderStarSystemMap==='function') setTimeout(renderStarSystemMap,0);

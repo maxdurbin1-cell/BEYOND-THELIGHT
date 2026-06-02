@@ -97,7 +97,7 @@ async function runAssertions(page) {
       window.setContext(ctx, ctxBtn || null);
 
       const tabs = getCtxTabs();
-      const visible = visibleTabIds(tabs).sort();
+      const visible = visibleTabIds(tabs);
 
       const leaked = visible.filter((id) => {
         const el = document.getElementById(id);
@@ -115,9 +115,29 @@ async function runAssertions(page) {
     }
 
     const spaceSummary = summaries.find((s) => s.ctx === "space") || null;
-    const oracleInSpace = !!(spaceSummary && spaceSummary.visible.includes("tabnav-oracle"));
-    if (oracleInSpace) {
-      failures.push({ ctx: "space", missing: [], leaked: ["tabnav-oracle"], reason: "oracle should be hidden in space context" });
+    const expectedSpaceOrder = [
+      "tabnav-oracle",
+      "tabnav-missions",
+      "tabnav-galaxy",
+      "tabnav-worldthatwas",
+      "tabnav-planet",
+      "tabnav-naval",
+      "tabnav-exocrafts",
+      "tabnav-shop"
+    ];
+    if (spaceSummary) {
+      const positions = expectedSpaceOrder.map((id) => spaceSummary.visible.indexOf(id));
+      const missing = expectedSpaceOrder.filter((id) => !spaceSummary.visible.includes(id));
+      const outOfOrder = positions.some((pos, idx) => idx > 0 && pos >= 0 && positions[idx - 1] >= 0 && pos < positions[idx - 1]);
+      if (missing.length || outOfOrder) {
+        failures.push({
+          ctx: "space",
+          missing,
+          expectedSpaceOrder,
+          visible: spaceSummary.visible,
+          reason: outOfOrder ? "space tab order mismatch" : "required space tabs missing"
+        });
+      }
     }
 
     return {

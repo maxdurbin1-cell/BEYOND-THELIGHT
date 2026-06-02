@@ -390,16 +390,24 @@
     }
   }
 
-  function goBackOrCloseModal() {
-    if (typeof goBackModal === 'function') {
-      goBackModal();
-      return true;
-    }
+  function closeOnlyModal() {
     if (typeof closeModal === 'function') {
       closeModal();
       return true;
     }
     return false;
+  }
+
+  function goBackModalOnly() {
+    if (typeof goBackModal === 'function') {
+      goBackModal();
+      return true;
+    }
+    return closeOnlyModal();
+  }
+
+  function goBackOrCloseModal() {
+    return goBackModalOnly();
   }
 
   function buildNestedModalActionRow(actionsHtml, opts) {
@@ -410,8 +418,9 @@
     var includeCancel = options.includeCancel !== false;
     var goBackLabel = options.goBackLabel || 'Go Back';
     var cancelLabel = options.cancelLabel || 'Cancel';
-    var cancelHandler = options.cancelUsesClose ? 'closeModal()' : 'goBackOrCloseModal()';
-    var goBackBtn = '<button class="btn btn-sm" onclick="goBackOrCloseModal()">' + goBackLabel + '</button>';
+    var cancelMode = options.cancelMode || (options.cancelUsesClose ? 'close' : 'close');
+    var cancelHandler = cancelMode === 'back' ? 'goBackModalOnly()' : 'closeOnlyModal()';
+    var goBackBtn = '<button class="btn btn-sm" onclick="goBackModalOnly()">' + goBackLabel + '</button>';
     var cancelBtn = includeCancel ? ('<button class="btn btn-sm" onclick="' + cancelHandler + '">' + cancelLabel + '</button>') : '';
     return '<div style="display:flex;gap:' + gap + ';flex-wrap:' + wrap + ';justify-content:' + justify + ';">'
       + goBackBtn + cancelBtn + String(actionsHtml || '')
@@ -419,6 +428,8 @@
   }
 
   window.goBackOrCloseModal = goBackOrCloseModal;
+  window.closeOnlyModal = closeOnlyModal;
+  window.goBackModalOnly = goBackModalOnly;
 
   function setHoldingGovernancePolicy(field, value) {
     ensureNewFeatureState();
@@ -11160,25 +11171,53 @@
     var requestedKey = String(statKey || '').toLowerCase();
     var key = allowedStats.indexOf(requestedKey) >= 0 ? requestedKey : 'lead';
     var die = (typeof getEffectiveDie === 'function') ? getEffectiveDie(key) : ((S.stats && S.stats[key]) || 4);
-    var a = explodingRoll(die, { type: 'action', major: true, label: 'Downtime ' + key.toUpperCase() + ' d' + die });
-    var d = explodingRoll(evt.dd || 6, { type: 'dread', major: true, label: 'Downtime DD' + Number(evt.dd || 6) });
-    var success = a.total >= d.total;
+    var resolver = (typeof window !== 'undefined' && typeof window.resolveStatVsDreadCheck === 'function') ? window.resolveStatVsDreadCheck : null;
+    var fallbackAction = null;
+    var fallbackDread = null;
+    var result = resolver ? resolver({
+      statKey: key,
+      statLabel: key.toUpperCase(),
+      actionDie: die,
+      dreadDie: Math.max(4, Number(evt.dd || 6)),
+      allowManual: false,
+      context: 'Holding downtime: ' + evt.name,
+      actionAdjusters: [function (payload) {
+        if (typeof applyUtilityRollDarkPenalty !== 'function') return null;
+        var adj = applyUtilityRollDarkPenalty(key, payload.actionTotal);
+        return { delta: Number(adj.total || 0) - Number(payload.actionTotal || 0), note: Number(adj.penalty || 0) < 0 ? ('Day penalty ' + Number(adj.penalty || 0)) : '' };
+      }]
+    }) : null;
+    if (!result || result.pending) {
+      fallbackAction = explodingRoll(die, { type: 'action', major: true, label: 'Downtime ' + key.toUpperCase() + ' d' + die });
+      fallbackDread = explodingRoll(evt.dd || 6, { type: 'dread', major: true, label: 'Downtime DD' + Number(evt.dd || 6) });
+      result = {
+        rawActionTotal: Number(fallbackAction.total || 0),
+        actionTotal: Number(fallbackAction.total || 0),
+        dreadTotal: Number(fallbackDread.total || 0),
+        success: Number(fallbackAction.total || 0) >= Number(fallbackDread.total || 0),
+        modifierNotes: []
+      };
+    }
+    var success = !!result.success;
+    var penaltyNote = Array.isArray(result.modifierNotes)
+      ? (result.modifierNotes.find(function (note) { return /^Day penalty/.test(String(note || '')); }) || '')
+      : '';
     if (success) {
       applyHoldingDowntimeEffect(evt.successEffect);
       if (typeof showDccSuccessOutcome === 'function') {
-        showDccSuccessOutcome(key, Math.max(1, a.total - d.total), {
-          actionTotal: a.total,
-          dreadTotal: d.total,
-          context: 'Holding downtime: ' + evt.name
+        showDccSuccessOutcome(key, Math.max(1, result.actionTotal - result.dreadTotal), {
+          actionTotal: result.actionTotal,
+          dreadTotal: result.dreadTotal,
+          context: 'Holding downtime: ' + evt.name + (penaltyNote ? (' [' + penaltyNote + ']') : '')
         });
       }
       if (typeof addSuccessRoll === 'function') { addSuccessRoll(); }
     } else {
       if (typeof showDccFailureOutcome === 'function') {
-        showDccFailureOutcome(key, Math.max(1, d.total - a.total), {
-          actionTotal: a.total,
-          dreadTotal: d.total,
-          context: 'Holding downtime: ' + evt.name
+        showDccFailureOutcome(key, Math.max(1, result.dreadTotal - result.actionTotal), {
+          actionTotal: result.actionTotal,
+          dreadTotal: result.dreadTotal,
+          context: 'Holding downtime: ' + evt.name + (penaltyNote ? (' [' + penaltyNote + ']') : '')
         });
       }
       applyHoldingDowntimeEffect(evt.failEffect);
@@ -11188,7 +11227,7 @@
     if (out) {
       out.innerHTML = '<div style="padding:.35rem .45rem;border:1px solid '+(success?'rgba(76,175,116,.35)':'rgba(201,64,64,.35)')+';background:'+(success?'rgba(76,175,116,.08)':'rgba(201,64,64,.08)')+';">'
         + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.08em;color:'+(success?'var(--green2)':'var(--red2)')+';">'+evt.name+'</div>'
-        + '<div style="font-size:.76rem;color:var(--text2);margin-top:.15rem;">'+key.toUpperCase()+' d'+die+'='+a.total+' vs DD'+evt.dd+'='+d.total+'</div>'
+        + '<div style="font-size:.76rem;color:var(--text2);margin-top:.15rem;">'+key.toUpperCase()+' d'+die+'='+Number(result.rawActionTotal||0)+(Number(result.rawActionTotal||0)!==Number(result.actionTotal||0)?('→'+Number(result.actionTotal||0)):'')+' vs DD'+evt.dd+'='+Number(result.dreadTotal||0)+(penaltyNote?(' ('+penaltyNote+')'):'')+'</div>'
         + '<div style="font-size:.76rem;color:var(--gold2);margin-top:.15rem;">'+(success?evt.success:evt.failure)+'</div>'
         + '</div>';
     }

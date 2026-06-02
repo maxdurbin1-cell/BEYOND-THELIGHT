@@ -2435,6 +2435,17 @@ function applyLoadedCharacterState(saved) {
   };
   migrateLegacyAdventureStat();
 
+  // Migration guard: keep legacy saves compatible with newer utility/check flows.
+  if (!S.data || typeof S.data !== 'object') S.data = {};
+  if (typeof S.data.haggleDiscount !== 'boolean') S.data.haggleDiscount = !!S.data.haggleDiscount;
+  if (typeof ensureDarkAfflictionState === 'function') {
+    try { ensureDarkAfflictionState(); } catch (_err) {}
+  }
+  if (S.holding && typeof S.holding === 'object') {
+    if (!S.holding.governance || typeof S.holding.governance !== 'object') S.holding.governance = {};
+    if (!Array.isArray(S.holding.crises)) S.holding.crises = [];
+  }
+
   if (typeof window.ensureBackstoryState === 'function') {
     window.ensureBackstoryState();
   }

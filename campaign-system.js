@@ -135,6 +135,14 @@
     readyCheck: true
   };
 
+  // Explicitly local-only character domains (never synced through shared world patches).
+  var PLAYER_LOCAL_ONLY_KEYS = {
+    rival: true,
+    rivals: true,
+    backstory: true,
+    background: true
+  };
+
   function safeNotif(msg, kind) {
     if (typeof window.showNotif === "function") {
       window.showNotif(msg, kind || "");
@@ -869,6 +877,7 @@
     if (!patch || typeof patch !== "object") return {};
     var sanitized = {};
     Object.keys(patch).forEach(function (key) {
+      if (PLAYER_LOCAL_ONLY_KEYS[key]) return;
       if (!PLAYER_SHARED_PATCH_KEYS[key]) return;
       if ((key === "provinceMap" || key === "campaignCombat") && (!patch[key] || typeof patch[key] !== "object")) return;
       if (key === "readyCheck") {

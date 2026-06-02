@@ -4677,6 +4677,100 @@ function applyUtilityRollDarkPenalty(statKey,total){
   if(!Number.isFinite(penalty))penalty=0;
   return {raw:raw,penalty:penalty,total:raw+penalty};
 }
+function normalizeStatVsDreadAdjustment(entry){
+  if(entry==null)return {delta:0,note:''};
+  if(typeof entry==='number'){
+    var n=Number(entry||0);
+    return {delta:Number.isFinite(n)?n:0,note:''};
+  }
+  if(typeof entry==='object'){
+    var delta=Number(entry.delta||0);
+    if(!Number.isFinite(delta))delta=0;
+    return {delta:delta,note:String(entry.note||'')};
+  }
+  return {delta:0,note:''};
+}
+function formatStatVsDreadActionDisplay(result){
+  var raw=Math.max(1,Number(result&&result.rawActionTotal||0));
+  var finalTotal=Math.max(1,Number(result&&result.actionTotal||0));
+  return raw===finalTotal?String(raw):(String(raw)+'→'+String(finalTotal));
+}
+function resolveStatVsDreadCheck(config){
+  var cfg=(config&&typeof config==='object')?config:{};
+  var statKey=String(cfg.statKey||'lead').toLowerCase();
+  var statLabel=String(cfg.statLabel||statKey.charAt(0).toUpperCase()+statKey.slice(1));
+  var actionDie=Math.max(4,Number(cfg.actionDie||((S&&S.stats&&S.stats[statKey])||4)));
+  var dreadDie=Math.max(4,Number(cfg.dreadDie||6));
+  var manualEnabled=cfg.allowManual!==false&&typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled();
+  var adjusters=Array.isArray(cfg.actionAdjusters)?cfg.actionAdjusters:[];
+  function finish(baseOutcome){
+    var manual=!!(baseOutcome&&baseOutcome.manual);
+    var mode=String((baseOutcome&&baseOutcome.mode)||'compare').toLowerCase();
+    var rawAction=Math.max(1,Number((baseOutcome&&baseOutcome.actionTotal)||0));
+    var dreadTotal=Math.max(1,Number((baseOutcome&&baseOutcome.dreadTotal)||dreadDie));
+    var actionTotal=rawAction;
+    var modifierNotes=[];
+    for(var i=0;i<adjusters.length;i++){
+      var fn=adjusters[i];
+      if(typeof fn!=='function')continue;
+      var adj=normalizeStatVsDreadAdjustment(fn({
+        statKey:statKey,
+        actionTotal:actionTotal,
+        rawActionTotal:rawAction,
+        dreadTotal:dreadTotal,
+        manual:manual,
+        mode:mode,
+        actionDie:actionDie,
+        dreadDie:dreadDie
+      }));
+      if(adj.delta!==0)actionTotal+=adj.delta;
+      if(adj.note)modifierNotes.push(adj.note);
+    }
+    actionTotal=Math.max(1,Number(actionTotal||0));
+    var success=(baseOutcome&&typeof baseOutcome.success==='boolean')?!!baseOutcome.success:(actionTotal>=dreadTotal);
+    var resolved={
+      statKey:statKey,
+      statLabel:statLabel,
+      actionDie:actionDie,
+      dreadDie:dreadDie,
+      manual:manual,
+      mode:mode,
+      rawActionTotal:rawAction,
+      actionTotal:actionTotal,
+      dreadTotal:dreadTotal,
+      success:success,
+      modifierNotes:modifierNotes
+    };
+    if(typeof cfg.onResolved==='function'){
+      try{cfg.onResolved(resolved);}catch(_err){}
+    }
+    if(typeof cfg.onResolve==='function')return cfg.onResolve(resolved);
+    return resolved;
+  }
+  if(manualEnabled&&typeof openProvinceManualCheckPrompt==='function'){
+    var opened=!!openProvinceManualCheckPrompt({
+      title:String(cfg.manualTitle||('Manual Roll - '+statLabel)),
+      context:String(cfg.context||((statLabel+' vs DD'+dreadDie))),
+      statKey:statKey,
+      statLabel:statLabel,
+      actionDie:actionDie,
+      dreadDie:dreadDie,
+      modifierLines:Array.isArray(cfg.manualModifierLines)?cfg.manualModifierLines:[],
+      cancelLabel:String(cfg.cancelLabel||'Cancel'),
+      onCancel:typeof cfg.onCancel==='function'?cfg.onCancel:null,
+      onResolve:finish
+    });
+    return {pending:opened,manual:true};
+  }
+  var autoAction=0;
+  if(typeof cfg.rollActionTotal==='function')autoAction=Number(cfg.rollActionTotal({actionDie:actionDie,statKey:statKey})||0);
+  else autoAction=Number((typeof explodingRoll==='function'?explodingRoll(actionDie,{type:'action',major:true,label:String(cfg.actionLabel||((statLabel+' d'+actionDie)))}):{total:roll(actionDie)}).total||0);
+  var autoDread=0;
+  if(typeof cfg.rollDreadTotal==='function')autoDread=Number(cfg.rollDreadTotal({dreadDie:dreadDie,statKey:statKey})||0);
+  else autoDread=Number((typeof explodingRoll==='function'?explodingRoll(dreadDie,{type:'dread',major:true,label:String(cfg.dreadLabel||('DD'+dreadDie))}):{total:roll(dreadDie)}).total||0);
+  return finish({manual:false,mode:'compare',actionTotal:autoAction,dreadTotal:autoDread});
+}
+if(typeof window!=='undefined')window.resolveStatVsDreadCheck=resolveStatVsDreadCheck;
 function applyDarkAfflictionDailyProgress(daysPassed){
   ensureDarkAfflictionState();
   var days=Math.max(1,parseInt(daysPassed,10)||1);
@@ -11025,13 +11119,26 @@ function rollDefend(skipEnemyTurnTick) {
   clearConditionOnUse('defend');
 }
 function rollTraumaCheck(){
-  const a=explodingRoll(S.stats.valor,{type:'action',major:true,label:'Trauma Save'});
-  const d=explodingRoll(S.combat.enemyDread,{type:'dread',major:true,label:'Trauma DD'});
+  const traumaDie=Math.max(4,Number((S&&S.stats&&S.stats.valor)||4));
+  const dreadDie=Math.max(4,Number((S&&S.combat&&S.combat.enemyDread)||6));
   var sceneTraumaMod=getLegacyCombatSceneModifier('trauma',null);
-  const adjustedAction=Math.max(0,Number(a.total||0)+Number(sceneTraumaMod.total||0));
-  const success=adjustedAction>=d.total;
+  const result=resolveStatVsDreadCheck({
+    statKey:'valor',
+    statLabel:'Valor',
+    actionDie:traumaDie,
+    dreadDie:dreadDie,
+    allowManual:false,
+    actionLabel:'Trauma Save',
+    dreadLabel:'Trauma DD',
+    actionAdjusters:[function(){
+      var delta=Number(sceneTraumaMod&&sceneTraumaMod.total||0);
+      return Number.isFinite(delta)&&delta!==0?{delta:delta,note:'Scene '+(delta>0?'+':'')+delta}:null;
+    }]
+  })||{rawActionTotal:0,actionTotal:0,dreadTotal:dreadDie,success:false};
+  const adjustedAction=result.actionTotal;
+  const success=!!result.success;
   const el=document.getElementById('traumaResult');
-  if(el)el.innerHTML=`<span style="color:var(--teal);">${adjustedAction}</span> <span style="font-size:.72rem;color:var(--muted2);">(raw ${a.total}${Number(sceneTraumaMod.total||0)?(', scene '+(sceneTraumaMod.total>=0?'+':'')+sceneTraumaMod.total):''})</span> vs <span style="color:var(--red);">${d.total}</span> — ${success?'<strong style="color:var(--green2);">No Trauma</strong>':'<strong style="color:var(--red);">+1 Trauma!</strong>'}`;
+  if(el)el.innerHTML=`<span style="color:var(--teal);">${adjustedAction}</span> <span style="font-size:.72rem;color:var(--muted2);">(raw ${result.rawActionTotal}${Number(sceneTraumaMod&&sceneTraumaMod.total||0)?(', scene '+(Number(sceneTraumaMod.total||0)>=0?'+':'')+Number(sceneTraumaMod.total||0)):''})</span> vs <span style="color:var(--red);">${result.dreadTotal}</span> — ${success?'<strong style="color:var(--green2);">No Trauma</strong>':'<strong style="color:var(--red);">+1 Trauma!</strong>'}`;
   if(success){
     addSuccessRoll();
   }else{
@@ -15194,26 +15301,37 @@ function useToolkit(statKey, backpackIndex, combatSpendLabel) {
 }
 function rollHaggle(){
   const spiritDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):(S.stats.spirit||4);
-  const a=explodingRoll(spiritDie),d=explodingRoll(8);
-  const adj=applyUtilityRollDarkPenalty('spirit',a.total);
-  const diff=adj.total-d.total;
-  const penaltyNote=adj.penalty<0?` (Day penalty ${adj.penalty})`:'';
-  let result='';
-  if(diff>=7)result='<strong style="color:var(--gold2);">You\'ve tripled the price and everyone is happy!</strong>';
-  else if(diff>=4)result='<strong style="color:var(--gold);">It\'s a deal, but you suck at haggling.</strong>';
-  else if(diff>=2)result='<strong style="color:var(--green2);">The merchant pays with a Strange Item.</strong>';
-  else if(diff>=1)result='<strong style="color:var(--green);">The merchant nods and agrees to a deal.</strong>';
-  else if(diff>=-2)result='<strong style="color:var(--red2);">Hilarious events end with you thrown out of town.</strong>';
-  else result='<strong style="color:var(--red2);">They take it, and you leave. You wake up shackled in a livestock pen.</strong>';
-  openModal('Haggle Check',`<div style="font-size:.9rem;margin-bottom:.5rem;">Spirit d${spiritDie} = <strong style="color:var(--teal);">${adj.raw}</strong>${adj.penalty!==0?` <span style="color:var(--muted2);">→</span> <strong style="color:var(--teal);">${adj.total}</strong>`:''} vs DD8 = <strong style="color:var(--red);">${d.total}</strong>${penaltyNote}</div><div style="font-size:.9rem;line-height:1.6;">${result}</div>`);
+  const checkResult=resolveStatVsDreadCheck({
+    statKey:'spirit',
+    statLabel:'Spirit',
+    actionDie:spiritDie,
+    dreadDie:8,
+    allowManual:false,
+    context:'Haggle check (Spirit vs DD8)',
+    manualTitle:'Manual Roll - Haggle',
+    actionAdjusters:[function(payload){
+      var adj=applyUtilityRollDarkPenalty('spirit',payload.actionTotal);
+      return {delta:adj.total-payload.actionTotal,note:adj.penalty<0?('Day penalty '+adj.penalty):''};
+    }]
+  })||{rawActionTotal:0,actionTotal:0,dreadTotal:8,success:false,modifierNotes:[],manual:false};
+  const diff=checkResult.actionTotal-checkResult.dreadTotal;
+  const penaltyNote=checkResult.modifierNotes.find(function(note){return /^Day penalty/.test(String(note||''));})||'';
+  let outcomeText='';
+  if(diff>=7)outcomeText='<strong style="color:var(--gold2);">You\'ve tripled the price and everyone is happy!</strong>';
+  else if(diff>=4)outcomeText='<strong style="color:var(--gold);">It\'s a deal, but you suck at haggling.</strong>';
+  else if(diff>=2)outcomeText='<strong style="color:var(--green2);">The merchant pays with a Strange Item.</strong>';
+  else if(diff>=1)outcomeText='<strong style="color:var(--green);">The merchant nods and agrees to a deal.</strong>';
+  else if(diff>=-2)outcomeText='<strong style="color:var(--red2);">Hilarious events end with you thrown out of town.</strong>';
+  else outcomeText='<strong style="color:var(--red2);">They take it, and you leave. You wake up shackled in a livestock pen.</strong>';
+  openModal('Haggle Check',`<div style="font-size:.9rem;margin-bottom:.5rem;">Spirit d${spiritDie} = <strong style="color:var(--teal);">${formatStatVsDreadActionDisplay(checkResult)}</strong> vs DD8 = <strong style="color:var(--red);">${checkResult.dreadTotal}</strong>${penaltyNote?` <span style="color:var(--muted2);">(${penaltyNote})</span>`:''}${checkResult.manual?' <span style="color:var(--muted2);">[manual]</span>':''}</div><div style="font-size:.9rem;line-height:1.6;">${outcomeText}</div>`);
   if(diff>=1){
     if(typeof showDccSuccessOutcome==='function'){
-      showDccSuccessOutcome('spirit',Math.max(1,diff),{actionTotal:adj.total,dreadTotal:d.total,context:'Haggle check'+(adj.penalty<0?` [day penalty ${adj.penalty}]`:'')});
+      showDccSuccessOutcome('spirit',Math.max(1,diff),{actionTotal:checkResult.actionTotal,dreadTotal:checkResult.dreadTotal,context:'Haggle check'+(penaltyNote?` [${penaltyNote}]`:'')});
     }
     addSuccessRoll();
   }else{
     if(typeof showDccFailureOutcome==='function'){
-      showDccFailureOutcome('spirit',Math.max(1,d.total-adj.total),{actionTotal:adj.total,dreadTotal:d.total,context:'Haggle check'+(adj.penalty<0?` [day penalty ${adj.penalty}]`:'')});
+      showDccFailureOutcome('spirit',Math.max(1,checkResult.dreadTotal-checkResult.actionTotal),{actionTotal:checkResult.actionTotal,dreadTotal:checkResult.dreadTotal,context:'Haggle check'+(penaltyNote?` [${penaltyNote}]`:'')});
     }
     addTMWOnFail('general-failure');
   }
@@ -18946,19 +19064,29 @@ function buyFromBlackMarket(col,row,hackIdx){
 
 function attemptBlackMarketAccess(col,row){
   const controlDie=(typeof getEffectiveDie==='function')?getEffectiveDie('control'):(S.stats.control||4);
-  const a=explodingRoll(controlDie);
-  const d=explodingRoll(12);
-  const adj=applyUtilityRollDarkPenalty('control',a.total);
-  const success=adj.total>=d.total;
+  const result=resolveStatVsDreadCheck({
+    statKey:'control',
+    statLabel:'Control',
+    actionDie:controlDie,
+    dreadDie:12,
+    allowManual:false,
+    context:'Black market access (Control vs DD12)',
+    actionAdjusters:[function(payload){
+      var adj=applyUtilityRollDarkPenalty('control',payload.actionTotal);
+      return {delta:adj.total-payload.actionTotal,note:adj.penalty<0?('Day penalty '+adj.penalty):''};
+    }]
+  })||{rawActionTotal:0,actionTotal:0,dreadTotal:12,success:false,modifierNotes:[]};
+  const success=!!result.success;
+  const penaltyNote=result.modifierNotes.find(function(note){return /^Day penalty/.test(String(note||''));})||'';
   const hex=mapData.find(h=>h.col===col&&h.row===row);
   if(!hex)return;
 
   let html=`<div style="font-size:.84rem;color:var(--text2);margin-bottom:.35rem;">Control vs DD12 access check</div>`+
-    `<div style="font-size:.86rem;"><strong style="color:var(--teal);">${adj.raw}</strong>${adj.penalty!==0?` <span style="color:var(--muted2);">→</span> <strong style="color:var(--teal);">${adj.total}</strong>`:''} vs <strong style="color:var(--red);">${d.total}</strong>${adj.penalty<0?` <span style="color:var(--muted2);">(Day penalty ${adj.penalty})</span>`:''} — `+
+    `<div style="font-size:.86rem;"><strong style="color:var(--teal);">${result.rawActionTotal}</strong>${result.rawActionTotal!==result.actionTotal?` <span style="color:var(--muted2);">→</span> <strong style="color:var(--teal);">${result.actionTotal}</strong>`:''} vs <strong style="color:var(--red);">${result.dreadTotal}</strong>${penaltyNote?` <span style="color:var(--muted2);">(${penaltyNote})</span>`:''} — `+
     (success?'<strong style="color:var(--green2);">Success</strong>':'<strong style="color:var(--red2);">Failure</strong>')+'</div>';
 
   if(success){
-    if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,adj.total-d.total),{actionTotal:adj.total,dreadTotal:d.total,context:'Black market access'+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});
+    if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,result.actionTotal-result.dreadTotal),{actionTotal:result.actionTotal,dreadTotal:result.dreadTotal,context:'Black market access'+(penaltyNote?(' ['+penaltyNote+']'):'')});
     const bm=initBlackMarketHex(hex);
     const hackNames=(bm.hacks||[]).slice(0,2).map(h=>h.name).join(' • ');
     const osItem=(SHOP_DATA.augmentations||[]).find(a=>a.name==='OPERATING SYSTEM');
@@ -18973,7 +19101,7 @@ function attemptBlackMarketAccess(col,row){
     showNotif('You gain access to the Black Market.','good');
     if(typeof addSuccessRoll==='function')addSuccessRoll();
   }else{
-    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',Math.max(1,d.total-adj.total),{actionTotal:adj.total,dreadTotal:d.total,context:'Black market access'+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});
+    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',Math.max(1,result.dreadTotal-result.actionTotal),{actionTotal:result.actionTotal,dreadTotal:result.dreadTotal,context:'Black market access'+(penaltyNote?(' ['+penaltyNote+']'):'')});
     html+=`<div style="margin-top:.35rem;font-size:.8rem;color:var(--muted2);">Lookouts clock you immediately and throw you out before any deal starts.</div>`;
     showNotif('Black Market access failed. You were thrown out.','warn');
     if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
@@ -19018,28 +19146,36 @@ function attemptEncounterThievery(source,col,row){
   }
   const reward=pickEncounterStealReward(source,col,row);
   const controlDie=(typeof getEffectiveDie==='function')?getEffectiveDie('control'):(S.stats.control||4);
-  const resolveEncounterThieveryOutcome=function(outcome){
-    const manual=!!(outcome&&outcome.manual);
-    let playerTotal=Number((outcome&&outcome.actionTotal)||0);
-    const dreadTotal=Math.max(1,Number((outcome&&outcome.dreadTotal)||12));
-    const rollParts=[];
-    if(manual){
-      rollParts.push(String(playerTotal));
-    }else{
+  let autoRollParts=[];
+  const kickoff=resolveStatVsDreadCheck({
+    statKey:'control',
+    statLabel:'Control',
+    actionDie:controlDie,
+    dreadDie:12,
+    context:'Thievery (Control vs DD12)',
+    manualTitle:'Manual Roll - Thievery',
+    manualModifierLines:[(S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood'))?'Readied Hood: include 1d6 in your manual Action total.':''],
+    rollActionTotal:function(){
+      autoRollParts=[];
       let rollDice=[controlDie];
       if(S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood'))rollDice.push('d6');
-      const rolls=rollDice.map(d=>explodingRoll(d));
-      playerTotal=rolls.reduce((sum,r)=>sum+r.total,0);
-      for(let i=0;i<rolls.length;i++)rollParts.push(String(rolls[i].total));
-    }
-    const adj=applyUtilityRollDarkPenalty('control',playerTotal);
-    const success=(outcome&&typeof outcome.success==='boolean')?!!outcome.success:(adj.total>=dreadTotal);
-    const failBy=Math.max(1,dreadTotal-adj.total);
+      const rolls=rollDice.map(function(d){return explodingRoll(d);});
+      autoRollParts=rolls.map(function(r){return Number(r.total||0);});
+      return autoRollParts.reduce(function(sum,v){return sum+v;},0);
+    },
+    actionAdjusters:[function(payload){
+      var adj=applyUtilityRollDarkPenalty('control',payload.actionTotal);
+      return {delta:adj.total-payload.actionTotal,note:adj.penalty<0?('Day penalty '+adj.penalty):''};
+    }],
+    onResolved:function(result){
+      const penaltyNote=result.modifierNotes.find(function(note){return /^Day penalty/.test(String(note||''));})||'';
+      const failBy=Math.max(1,result.dreadTotal-result.actionTotal);
+      const success=!!result.success;
+      const rollSummary=((result.manual?String(result.rawActionTotal):(autoRollParts.length?autoRollParts.join('+'):String(result.rawActionTotal))))+(result.rawActionTotal!==result.actionTotal?(' → '+result.actionTotal):'')+' vs '+result.dreadTotal+(result.manual?' [manual]':'')+(penaltyNote?(' ['+penaltyNote+']'):'' );
     const hoodBonus=(S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood'))?' + Hood d6':'';
     const controlLabel='Control d'+controlDie+hoodBonus;
-    const rollSummary=(rollParts.length?rollParts.join('+'):String(playerTotal))+(adj.penalty!==0?(' → '+adj.total):'')+' vs '+dreadTotal+(manual?' [manual]':'')+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'');
     if(success){
-      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,adj.total-dreadTotal),{actionTotal:adj.total,dreadTotal:dreadTotal,context:'Encounter thievery: '+source+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});
+      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,result.actionTotal-result.dreadTotal),{actionTotal:result.actionTotal,dreadTotal:result.dreadTotal,context:'Encounter thievery: '+source+(penaltyNote?(' ['+penaltyNote+']'):'')});
       if(typeof addSuccessRoll==='function')addSuccessRoll();
       if(reward.kind==='credits'){
         S.credits=(S.credits||0)+reward.amount;
@@ -19052,26 +19188,14 @@ function attemptEncounterThievery(source,col,row){
         appendQuickPanelNote('[Thievery] Stole '+reward.label+' ('+rollSummary+')');
       }
     }else{
-      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',failBy,{actionTotal:adj.total,dreadTotal:dreadTotal,context:'Encounter thievery: '+source+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});
+      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',failBy,{actionTotal:result.actionTotal,dreadTotal:result.dreadTotal,context:'Encounter thievery: '+source+(penaltyNote?(' ['+penaltyNote+']'):'')});
       showNotif('Thievery failed ('+controlLabel+' vs DD12). Caught! ('+rollSummary+')','warn');
       if(typeof addTMWOnFail==='function')addTMWOnFail('thievery-failure',{failedBy:failBy,actionDie:controlDie,dreadDie:12,actionLabel:'Control Die'});
       appendQuickPanelNote('[Thievery] Caught while stealing from '+source+'. +1 TMW');
     }
-  };
-  if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
-    openProvinceManualCheckPrompt({
-      title:'Manual Roll - Thievery',
-      context:'Thievery (Control vs DD12)',
-      statKey:'control',
-      statLabel:'Control',
-      actionDie:controlDie,
-      dreadDie:12,
-      onResolve:resolveEncounterThieveryOutcome
-    });
-    return;
-  }
-  const dreadRoll=explodingRoll(12);
-  resolveEncounterThieveryOutcome({actionTotal:0,dreadTotal:dreadRoll.total});
+    }
+  });
+  if(kickoff&&kickoff.pending)return;
 }
 
 function showTradeGoods(col,row){
@@ -19108,47 +19232,63 @@ function buyTradeGood(name,costStr){
 
 function haggleMerchantCaravan(col,row){
   const spiritDie=(typeof getEffectiveDie==='function')?getEffectiveDie('spirit'):(S.stats.spirit||4);
-  const roll1=explodingRoll(spiritDie);
-  const roll2=explodingRoll('d8');
-  const adj=applyUtilityRollDarkPenalty('spirit',roll1.total);
-  const success=adj.total>=roll2.total;
+  const result=resolveStatVsDreadCheck({
+    statKey:'spirit',
+    statLabel:'Spirit',
+    actionDie:spiritDie,
+    dreadDie:8,
+    allowManual:false,
+    context:'Caravan haggle',
+    actionAdjusters:[function(payload){
+      var adj=applyUtilityRollDarkPenalty('spirit',payload.actionTotal);
+      return {delta:adj.total-payload.actionTotal,note:adj.penalty<0?('Day penalty '+adj.penalty):''};
+    }]
+  })||{rawActionTotal:0,actionTotal:0,dreadTotal:8,success:false,modifierNotes:[]};
+  const success=!!result.success;
+  const penaltyNote=result.modifierNotes.find(function(note){return /^Day penalty/.test(String(note||''));})||'';
   if(success){
-    if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('spirit',Math.max(1,adj.total-roll2.total),{actionTotal:adj.total,dreadTotal:roll2.total,context:'Caravan haggle'+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});
+    if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('spirit',Math.max(1,result.actionTotal-result.dreadTotal),{actionTotal:result.actionTotal,dreadTotal:result.dreadTotal,context:'Caravan haggle'+(penaltyNote?(' ['+penaltyNote+']'):'')});
     S.data=S.data||{};
     S.data.haggleDiscount=true;
-    showNotif(`Haggle Success! (${adj.penalty!==0?roll1.total+'→'+adj.total:roll1.total} vs DD8=${roll2.total}) 20% Discount Granted!`,'good');
+    showNotif(`Haggle Success! (${formatStatVsDreadActionDisplay(result)} vs DD8=${result.dreadTotal}) 20% Discount Granted!`,'good');
     appendQuickPanelNote(`[Merchant Haggle] Negotiated 20% discount with caravan at [${col+1},${row+1}]`);
   }else{
-    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('spirit',Math.max(1,roll2.total-adj.total),{actionTotal:adj.total,dreadTotal:roll2.total,context:'Caravan haggle'+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});
-    showNotif(`Haggle Failed (${adj.penalty!==0?roll1.total+'→'+adj.total:roll1.total} vs DD8=${roll2.total}). Regular pricing.`,'warn');
+    if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('spirit',Math.max(1,result.dreadTotal-result.actionTotal),{actionTotal:result.actionTotal,dreadTotal:result.dreadTotal,context:'Caravan haggle'+(penaltyNote?(' ['+penaltyNote+']'):'')});
+    showNotif(`Haggle Failed (${formatStatVsDreadActionDisplay(result)} vs DD8=${result.dreadTotal}). Regular pricing.`,'warn');
   }
 }
 
 function attemptThievery(targetName){
   const controlDie=(typeof getEffectiveDie==='function')?getEffectiveDie('control'):(S.stats.control||4);
-  const resolveDirectThieveryOutcome=function(outcome){
-    const manual=!!(outcome&&outcome.manual);
-    let playerTotal=Number((outcome&&outcome.actionTotal)||0);
-    const dreadTotal=Math.max(1,Number((outcome&&outcome.dreadTotal)||12));
-    const rollParts=[];
-    if(manual){
-      rollParts.push(String(playerTotal));
-    }else{
+  let autoRollParts=[];
+  const kickoff=resolveStatVsDreadCheck({
+    statKey:'control',
+    statLabel:'Control',
+    actionDie:controlDie,
+    dreadDie:12,
+    context:'Thievery (Control vs DD12)',
+    manualTitle:'Manual Roll - Thievery',
+    manualModifierLines:[(S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood'))?'Readied Hood: include 1d6 in your manual Action total.':''],
+    rollActionTotal:function(){
+      autoRollParts=[];
       let rollDice=[controlDie];
-      if(S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood')){
-        rollDice.push('d6');
-      }
-      const rolls=rollDice.map(d=>explodingRoll(d));
-      playerTotal=rolls.reduce((sum,r)=>sum+r.total,0);
-      for(let i=0;i<rolls.length;i++)rollParts.push(String(rolls[i].total));
-    }
-    const adj=applyUtilityRollDarkPenalty('control',playerTotal);
-    const success=(outcome&&typeof outcome.success==='boolean')?!!outcome.success:(adj.total>=dreadTotal);
-    const failBy=Math.max(1,dreadTotal-adj.total);
+      if(S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood'))rollDice.push('d6');
+      const rolls=rollDice.map(function(d){return explodingRoll(d);});
+      autoRollParts=rolls.map(function(r){return Number(r.total||0);});
+      return autoRollParts.reduce(function(sum,v){return sum+v;},0);
+    },
+    actionAdjusters:[function(payload){
+      var adj=applyUtilityRollDarkPenalty('control',payload.actionTotal);
+      return {delta:adj.total-payload.actionTotal,note:adj.penalty<0?('Day penalty '+adj.penalty):''};
+    }],
+    onResolved:function(result){
+      const penaltyNote=result.modifierNotes.find(function(note){return /^Day penalty/.test(String(note||''));})||'';
+      const failBy=Math.max(1,result.dreadTotal-result.actionTotal);
+      const success=!!result.success;
+      const rollSummary=((result.manual?String(result.rawActionTotal):(autoRollParts.length?autoRollParts.join('+'):String(result.rawActionTotal))))+(result.rawActionTotal!==result.actionTotal?(' → '+result.actionTotal):'')+' vs '+result.dreadTotal+(result.manual?' [manual]':'')+(penaltyNote?(' ['+penaltyNote+']'):'' );
     const controlLabel='Control d'+controlDie+((S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood'))?' + Hood d6':'');
-    const rollSummary=(rollParts.length?rollParts.join('+'):String(playerTotal))+(adj.penalty!==0?(' → '+adj.total):'')+' vs '+dreadTotal+(manual?' [manual]':'')+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'');
     if(success){
-      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,adj.total-dreadTotal),{actionTotal:adj.total,dreadTotal:dreadTotal,context:'Direct thievery: '+targetName+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});
+      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,result.actionTotal-result.dreadTotal),{actionTotal:result.actionTotal,dreadTotal:result.dreadTotal,context:'Direct thievery: '+targetName+(penaltyNote?(' ['+penaltyNote+']'):'')});
       if(typeof addSuccessRoll==='function')addSuccessRoll();
       if(typeof addToBackpack==='function'){
         const stored=addToBackpack(targetName);
@@ -19158,26 +19298,14 @@ function attemptThievery(targetName){
       }
       appendQuickPanelNote(`[Thievery] Stole ${targetName} (${rollSummary})`);
     }else{
-      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',failBy,{actionTotal:adj.total,dreadTotal:dreadTotal,context:'Direct thievery: '+targetName+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});
+      if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',failBy,{actionTotal:result.actionTotal,dreadTotal:result.dreadTotal,context:'Direct thievery: '+targetName+(penaltyNote?(' ['+penaltyNote+']'):'')});
       showNotif(`Thievery failed (${controlLabel} vs DD12). Caught! (${rollSummary})`, 'warn');
       if(typeof addTMWOnFail==='function')addTMWOnFail('thievery-failure',{failedBy:failBy,actionDie:controlDie,dreadDie:12,actionLabel:'Control Die'});
       appendQuickPanelNote(`[Thievery] Caught attempting to steal ${targetName}. +1 TMW`);
     }
-  };
-  if(typeof isManualRollModeEnabled==='function'&&isManualRollModeEnabled()){
-    openProvinceManualCheckPrompt({
-      title:'Manual Roll - Thievery',
-      context:'Thievery (Control vs DD12)',
-      statKey:'control',
-      statLabel:'Control',
-      actionDie:controlDie,
-      dreadDie:12,
-      onResolve:resolveDirectThieveryOutcome
-    });
-    return;
-  }
-  const dreadRoll=explodingRoll(12);
-  resolveDirectThieveryOutcome({actionTotal:0,dreadTotal:dreadRoll.total});
+    }
+  });
+  if(kickoff&&kickoff.pending)return;
 }
 function formatStatWithModifiers(stat,shortForm){
   const mods=getStatModifiers(stat);
@@ -19447,15 +19575,26 @@ function resolveProvinceHoldingDowntime(col,row,statKey){
   const requestedKey=String(statKey||'').toLowerCase();
   const key=allowedStats.indexOf(requestedKey)>=0?requestedKey:'lead';
   const die=(typeof getEffectiveDie==='function')?getEffectiveDie(key):((S.stats&&S.stats[key])||4);
-  const a=explodingRoll(die),d=explodingRoll(evt.dd||6);
-  const adj=applyUtilityRollDarkPenalty(key,a.total);
-  const success=adj.total>=d.total;
+  const result=resolveStatVsDreadCheck({
+    statKey:key,
+    statLabel:key.toUpperCase(),
+    actionDie:die,
+    dreadDie:Math.max(4,Number(evt.dd||6)),
+    allowManual:false,
+    context:'Province holding downtime: '+String(evt.name||'Downtime'),
+    actionAdjusters:[function(payload){
+      var adj=applyUtilityRollDarkPenalty(key,payload.actionTotal);
+      return {delta:adj.total-payload.actionTotal,note:adj.penalty<0?('Day penalty '+adj.penalty):''};
+    }]
+  })||{rawActionTotal:0,actionTotal:0,dreadTotal:Math.max(4,Number(evt.dd||6)),success:false,modifierNotes:[]};
+  const success=!!result.success;
+  const penaltyNote=result.modifierNotes.find(function(note){return /^Day penalty/.test(String(note||''));})||'';
   let effectExtra='';
-  if(success){effectExtra=applyProvinceHoldingDowntimeEffect(evt.successEffect);if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome(key,Math.max(1,adj.total-d.total),{actionTotal:adj.total,dreadTotal:d.total,context:'Province holding downtime: '+evt.name+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});if(typeof addSuccessRoll==='function')addSuccessRoll();}
-  else{if(typeof showDccFailureOutcome==='function')showDccFailureOutcome(key,Math.max(1,d.total-adj.total),{actionTotal:adj.total,dreadTotal:d.total,context:'Province holding downtime: '+evt.name+(adj.penalty<0?(' [day penalty '+adj.penalty+']'):'')});effectExtra=applyProvinceHoldingDowntimeEffect(evt.failEffect);if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');}
+  if(success){effectExtra=applyProvinceHoldingDowntimeEffect(evt.successEffect);if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome(key,Math.max(1,result.actionTotal-result.dreadTotal),{actionTotal:result.actionTotal,dreadTotal:result.dreadTotal,context:'Province holding downtime: '+evt.name+(penaltyNote?(' ['+penaltyNote+']'):'')});if(typeof addSuccessRoll==='function')addSuccessRoll();}
+  else{if(typeof showDccFailureOutcome==='function')showDccFailureOutcome(key,Math.max(1,result.dreadTotal-result.actionTotal),{actionTotal:result.actionTotal,dreadTotal:result.dreadTotal,context:'Province holding downtime: '+evt.name+(penaltyNote?(' ['+penaltyNote+']'):'')});effectExtra=applyProvinceHoldingDowntimeEffect(evt.failEffect);if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');}
   hex.data.downtimeLastResult={
     success:success,
-    check:key.toUpperCase()+' d'+die+'='+a.total+(adj.penalty!==0?('→'+adj.total):'')+' vs DD'+(evt.dd||6)+'='+d.total,
+    check:key.toUpperCase()+' d'+die+'='+formatStatVsDreadActionDisplay(result)+' vs DD'+(evt.dd||6)+'='+result.dreadTotal,
     text:(success?evt.success:evt.failure)+(effectExtra||'')
   };
   hex.data.pendingDowntimeEvent=null;

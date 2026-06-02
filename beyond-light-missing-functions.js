@@ -1664,9 +1664,14 @@ function workJobDay() {
   }
 
   var bodyDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('body') : ((S.stats && S.stats.body) || 4);
+  var dayPenalty = (typeof getDarkAfflictionPenalty === 'function') ? Number(getDarkAfflictionPenalty('body') || 0) : 0;
+  if (!Number.isFinite(dayPenalty)) dayPenalty = 0;
   var resultEl = document.getElementById('workJobResult');
   var finalizeWorkRoll = function(bodyTotal, dreadTotal, manualFlag) {
-    var success = Number(bodyTotal || 0) >= Number(dreadTotal || 0);
+    var rawBodyTotal = Number(bodyTotal || 0);
+    var effectiveBodyTotal = rawBodyTotal + dayPenalty;
+    var success = effectiveBodyTotal >= Number(dreadTotal || 0);
+    var penaltyNote = dayPenalty < 0 ? (' (Solar/Day penalty ' + dayPenalty + ')') : '';
 
     if (success) {
       var successBefore = S.successRolls || 0;
@@ -1685,10 +1690,10 @@ function workJobDay() {
         if (sr) sr.textContent = S.successRolls;
       }
       if (typeof showDccSuccessOutcome === 'function') {
-        showDccSuccessOutcome('body', Math.max(1, Number(bodyTotal || 0) - Number(dreadTotal || 0)), {
-          actionTotal: Number(bodyTotal || 0),
+        showDccSuccessOutcome('body', Math.max(1, Number(effectiveBodyTotal || 0) - Number(dreadTotal || 0)), {
+          actionTotal: Number(effectiveBodyTotal || 0),
           dreadTotal: Number(dreadTotal || 0),
-          context: 'Work day check'
+          context: 'Work day check' + (dayPenalty < 0 ? (' [day penalty ' + dayPenalty + ']') : '')
         });
       }
 
@@ -1699,18 +1704,18 @@ function workJobDay() {
         : (' (Success Rolls: ' + successBefore + ' -> ' + successAfter + ')');
 
       if (resultEl) {
-        resultEl.innerHTML = '<span style="color:var(--green2);font-weight:700;">SUCCESS ✓</span> Body d' + bodyDie + '=' + Number(bodyTotal || 0) + ' vs Dread d6=' + Number(dreadTotal || 0) + ' -> +100 Credits, +1 Day, +1 Successful Roll.' + rollover + (manualFlag ? ' [manual]' : '');
+        resultEl.innerHTML = '<span style="color:var(--green2);font-weight:700;">SUCCESS ✓</span> Body d' + bodyDie + '=' + rawBodyTotal + (dayPenalty !== 0 ? (' → ' + effectiveBodyTotal) : '') + ' vs Dread d6=' + Number(dreadTotal || 0) + ' -> +100 Credits, +1 Day, +1 Successful Roll.' + rollover + penaltyNote + (manualFlag ? ' [manual]' : '');
       }
       showNotif('Work complete: +100 Credits, +1 day, and +1 Successful Roll.', 'good');
     } else {
       if (resultEl) {
-        resultEl.innerHTML = '<span style="color:var(--red2);font-weight:700;">FAILED ✗</span> Body d' + bodyDie + '=' + Number(bodyTotal || 0) + ' vs Dread d6=' + Number(dreadTotal || 0) + '. No pay.' + (manualFlag ? ' [manual]' : '');
+        resultEl.innerHTML = '<span style="color:var(--red2);font-weight:700;">FAILED ✗</span> Body d' + bodyDie + '=' + rawBodyTotal + (dayPenalty !== 0 ? (' → ' + effectiveBodyTotal) : '') + ' vs Dread d6=' + Number(dreadTotal || 0) + '. No pay.' + penaltyNote + (manualFlag ? ' [manual]' : '');
       }
       if (typeof showDccFailureOutcome === 'function') {
-        showDccFailureOutcome('body', Math.max(1, Number(dreadTotal || 0) - Number(bodyTotal || 0)), {
-          actionTotal: Number(bodyTotal || 0),
+        showDccFailureOutcome('body', Math.max(1, Number(dreadTotal || 0) - Number(effectiveBodyTotal || 0)), {
+          actionTotal: Number(effectiveBodyTotal || 0),
           dreadTotal: Number(dreadTotal || 0),
-          context: 'Work day check'
+          context: 'Work day check' + (dayPenalty < 0 ? (' [day penalty ' + dayPenalty + ']') : '')
         });
       }
       showNotif('Work failed: no Credits earned.', 'warn');
@@ -1723,6 +1728,9 @@ function workJobDay() {
       'Work payout on success: +100 Credits, advance 1 day, and +1 Successful Roll.',
       'On failure: no Credits and +1 Teamwork from failure.'
     ];
+    if (dayPenalty < 0) {
+      extraLines.push('Dark affliction daytime penalty applies: ' + dayPenalty + ' to this Body roll.');
+    }
     openProvinceManualCheckPrompt({
       title: 'Manual Roll - Work Day',
       context: 'Work (Body vs Dread d6)',

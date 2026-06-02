@@ -15595,6 +15595,19 @@ function enforceSpaceTabOrder(){
 
   enforceUtilityTabOrder();
 }
+function enforceTravelTabOrder(){
+  var tablist=document.getElementById('mainNavTablist')||document.getElementById('mainNav');
+  if(!tablist)return;
+
+  // Traveling context order keeps Missions and Merchant aligned with core tabs.
+  var orderedTabs=['character','backstory','dice','codex','rules','combat','scenes','oracle','storyline','factions','trophies','missions','endgame','theos','shop','howto'];
+  orderedTabs.forEach(function(tabId){
+    var btn=document.getElementById('tabnav-'+tabId)||tablist.querySelector('.tab-btn[data-tab="'+tabId+'"]');
+    if(btn&&btn.parentNode===tablist)tablist.appendChild(btn);
+  });
+
+  enforceUtilityTabOrder();
+}
 function enforceUtilityTabOrder(){
   var tools=document.getElementById('mainNavTools')||document.getElementById('mainNav');
   if(!tools)return;
@@ -15643,6 +15656,8 @@ function setContext(ctx,btn){
     if(typeof renderStarSystemMap==='function') setTimeout(renderStarSystemMap,0);
     if(typeof renderNaval==='function') setTimeout(renderNaval,0);
     if(typeof applySpaceNavalPresentation==='function') setTimeout(applySpaceNavalPresentation,0);
+  }else if(ctx==='traveling'){
+    enforceTravelTabOrder();
   }
   enforceUtilityTabOrder();
 }

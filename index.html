@@ -21834,13 +21834,18 @@ function openModal(title, content, restoreCallback, options) {
     if (usePreventScroll && rootEl) rootEl.scrollTop = pageScrollTop;
   });
 }
-function closeModal() {
-  if (window._modalStack && window._modalStack.length > 0 && typeof window.goBackModal === 'function') {
+function closeModal(options) {
+  var opts = (options && typeof options === 'object') ? options : null;
+  var allowBack = !!(opts && opts.goBack);
+  if (allowBack && window._modalStack && window._modalStack.length > 0 && typeof window.goBackModal === 'function') {
     window.goBackModal();
     return;
   }
   if (typeof window !== 'undefined') window._arenaCombatPopupOpen = false;
   document.getElementById('rollModal').classList.remove('open');
+  if (window._modalStack && window._modalStack.length) {
+    window._modalStack = [];
+  }
   if (_modalPrevFocus) {
     try { _modalPrevFocus.focus({ preventScroll: true }); } catch (_err) { _modalPrevFocus.focus(); }
     _modalPrevFocus = null;

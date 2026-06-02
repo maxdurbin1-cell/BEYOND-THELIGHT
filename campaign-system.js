@@ -787,10 +787,56 @@
   function patchCameraLockHooks() {
     if (window._campaignPatchedCameraLockHooks) return;
 
+    var pendingNavigationSync = null;
+    var pendingNavigationTimer = 0;
+
+    function syncCampaignNavigationState(nextContext, nextTab) {
+      if (!state.socket || !state.connected || !state.code) return;
+      if (state.role !== "gm") return;
+      if (state.applyingSharedState) {
+        pendingNavigationSync = {
+          context: String(nextContext || ""),
+          tab: String(nextTab || "")
+        };
+        if (!pendingNavigationTimer) {
+          pendingNavigationTimer = setTimeout(function () {
+            pendingNavigationTimer = 0;
+            var queued = pendingNavigationSync;
+            pendingNavigationSync = null;
+            if (!queued) return;
+            syncCampaignNavigationState(queued.context, queued.tab);
+          }, 80);
+        }
+        return;
+      }
+      var shared = getMutableCampaignSharedState();
+      var travel = shared && shared.campaignTravel && typeof shared.campaignTravel === "object"
+        ? shared.campaignTravel
+        : ensureCampaignTravelState(shared);
+      var context = String(nextContext || travel.context || "traveling");
+      var tab = String(nextTab || travel.tab || "");
+      travel.context = context;
+      if (tab) travel.tab = tab;
+      if (context === "space") travel.region = "space";
+      else if (context === "sea") travel.region = "sea";
+      else if (context === "holding") travel.region = "province";
+      else travel.region = String(travel.region || "province");
+      if (!travel.label || tab) {
+        var tabBtn = tab ? document.getElementById("tabnav-" + tab) : null;
+        travel.label = String((tabBtn && tabBtn.textContent) || travel.label || tab || "Province Map");
+      }
+      travel.reason = String(travel.reason || "navigation");
+      travel.phaseCost = Math.max(0, Number(travel.phaseCost || 0) || 0);
+      travel.updatedAt = Date.now();
+      var out = syncSharedPatch({ campaignTravel: deepCloneJson(travel) || travel }, "navigation-state");
+      if (out && typeof out.catch === "function") out.catch(function () {});
+    }
+
     if (typeof window.switchTab === "function") {
       var baseSwitchTab = window.switchTab;
       window.switchTab = function () {
         var out = baseSwitchTab.apply(this, arguments);
+        syncCampaignNavigationState(window._activeContext || "", String(arguments[0] || ""));
         scheduleGmCameraSync("switch-tab", true);
         return out;
       };
@@ -800,6 +846,8 @@
       var baseSetContext = window.setContext;
       window.setContext = function () {
         var out = baseSetContext.apply(this, arguments);
+        var currentTabBtn = document.querySelector('#mainNavTablist .tab-btn.active[data-tab]');
+        syncCampaignNavigationState(String(arguments[0] || window._activeContext || ""), currentTabBtn ? String(currentTabBtn.getAttribute("data-tab") || "") : "");
         scheduleGmCameraSync("set-context", true);
         return out;
       };

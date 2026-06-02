@@ -100,8 +100,7 @@ async function runScenario(browser) {
     if (typeof window.setSolarCycleStoryModeEnabled === "function") {
       window.setSolarCycleStoryModeEnabled(true);
     }
-    const status = window.getSolarCycleStatus ? (window.getSolarCycleStatus() || {}) : {};
-    if (!status.enabled && typeof window.startSolarCycleMode === "function") {
+    if (typeof window.startSolarCycleMode === "function") {
       window.startSolarCycleMode("relic");
     }
     if (typeof window.setSolarCycleRouteMode === "function") {

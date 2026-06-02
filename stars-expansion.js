@@ -22866,7 +22866,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  const nav = document.getElementById('mainNav');
+  const nav = document.getElementById('mainNavTablist') || document.getElementById('mainNav');
 
   const dedupeNodes = function(selector, keyFn) {
     const seen = new Set();
@@ -22882,7 +22882,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   };
   dedupeNodes('.ctx-btn[data-ctx]', function(node) { return node.getAttribute('data-ctx'); });
-  dedupeNodes('#mainNav .tab-btn', function(node) {
+  dedupeNodes('#mainNavTablist .tab-btn[data-tab]', function(node) {
     return node.getAttribute('data-tab') || node.getAttribute('aria-controls') || node.id || node.textContent;
   });
 
@@ -22939,14 +22939,14 @@ document.addEventListener('DOMContentLoaded', function() {
   if (nav) {
     var orderedTabs = ['oracle', 'missions', 'galaxy', 'worldthatwas', 'planet', 'naval', 'exocrafts', 'yessod', 'shop'];
     orderedTabs.forEach(function(tabId) {
-      var tabBtn = document.getElementById('tabnav-' + tabId) || document.querySelector('#mainNav .tab-btn[data-tab="' + tabId + '"]');
+      var tabBtn = document.getElementById('tabnav-' + tabId) || document.querySelector('#mainNavTablist .tab-btn[data-tab="' + tabId + '"]');
       if (!tabBtn) return;
       if (tabBtn.parentNode !== nav) nav.appendChild(tabBtn);
       nav.appendChild(tabBtn);
     });
   }
 
-  dedupeNodes('#mainNav .tab-btn', function(node) {
+  dedupeNodes('#mainNavTablist .tab-btn[data-tab]', function(node) {
     return node.getAttribute('data-tab') || node.getAttribute('aria-controls') || node.id || node.textContent;
   });
   syncYessodTabVisibility();

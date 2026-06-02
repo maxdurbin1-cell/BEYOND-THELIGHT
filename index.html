@@ -35,6 +35,11 @@ header{background:linear-gradient(180deg,rgba(4,5,8,.98) 0%,rgba(10,12,24,.95) 5
 .logo::after{content:'Digital Companion';font-family:'Rajdhani',sans-serif;font-size:.62rem;letter-spacing:.26em;color:var(--muted2);text-transform:uppercase;}
 .logo span{color:var(--teal);}
 #mainNav{grid-column:1 / -1;display:flex;gap:.32rem;flex-wrap:wrap;align-items:center;padding:.46rem .5rem;background:linear-gradient(180deg,rgba(255,255,255,.035) 0%,rgba(255,255,255,.015) 100%);border:1px solid var(--border2);border-radius:18px;box-shadow:0 0 0 1px rgba(255,255,255,.02) inset;}
+#mainNavTablist{display:flex;gap:.32rem;flex-wrap:wrap;align-items:center;flex:1 1 920px;min-width:0;}
+#mainNavTools{display:flex;gap:.32rem;align-items:center;flex-wrap:nowrap;white-space:nowrap;flex:0 0 auto;order:99;}
+#mainNavTools .gm-dashboard-btn{order:1;}
+#mainNavTools .solo-reference-btn{order:2;}
+#mainNavTools .settings-tab-btn{order:3;}
 #main-content :is([id],button,input,select,textarea,a[href]){scroll-margin-top:var(--sticky-focus-offset,10.5rem);}
 .tab-btn{background:rgba(255,255,255,.01);border:1px solid transparent;color:var(--text2);font-family:'Cinzel',serif;font-size:.80rem;letter-spacing:.10em;padding:.5rem .94rem;cursor:pointer;text-transform:uppercase;transition:all .15s;white-space:nowrap;min-height:2.4rem;border-radius:999px;font-weight:600;}
 .tab-btn:hover{color:var(--gold);border-color:rgba(201,162,39,.26);background:rgba(201,162,39,.05);transform:translateY(-1px);}
@@ -697,7 +702,7 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="tab-btn ctx-traveling" aria-controls="tab-storyline" id="tabnav-storyline" data-tab="storyline">Storyline</button>
     <button class="tab-btn ctx-traveling" aria-controls="tab-factions" id="tabnav-factions" data-tab="factions">Factions</button>
     <button class="tab-btn ctx-traveling" aria-controls="tab-trophies" id="tabnav-trophies" data-tab="trophies">Trophies</button>
-    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" aria-controls="tab-missions" id="tabnav-missions" data-tab="missions">Missions</button>
+    <button class="tab-btn ctx-traveling ctx-holding ctx-sea ctx-space" aria-controls="tab-missions" id="tabnav-missions" data-tab="missions" onclick="openMissionsTab()">Missions</button>
     <button class="tab-btn ctx-traveling" aria-controls="tab-endgame" id="tabnav-endgame" data-tab="endgame">Endgame</button>
     <button class="tab-btn ctx-holding" aria-controls="tab-map" id="tabnav-map" data-tab="map">Province</button>
     <button class="tab-btn ctx-sea" aria-controls="tab-lastsea" id="tabnav-lastsea" style="display:none;" data-tab="lastsea">Sea Region</button>
@@ -715,9 +720,11 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="tab-btn" aria-controls="tab-gmworldbuilder" id="tabnav-gmworldbuilder" style="display:none;" data-tab="gmworldbuilder">GM Forge</button>
     <button class="tab-btn ctx-traveling" aria-controls="tab-howto" id="tabnav-howto" data-tab="howto">How To Use</button>
     </div>
-    <button class="tab-btn solo-reference-btn ctx-traveling" onclick="openSoloReference()">🧭 Solo</button>
-    <button class="tab-btn gm-dashboard-btn" onclick="openGmDashboard()">👥 GM</button>
-    <button class="tab-btn settings-tab-btn" onclick="window.settingsSystem.toggleSettings()">⚙️ Settings</button>
+    <div id="mainNavTools" role="group" aria-label="Utility controls">
+      <button class="tab-btn gm-dashboard-btn" onclick="openGmDashboard()">👥 GM</button>
+      <button class="tab-btn solo-reference-btn ctx-traveling" onclick="openSoloReference()">🧭 Solo</button>
+      <button class="tab-btn settings-tab-btn" onclick="window.settingsSystem.toggleSettings()">⚙️ Settings</button>
+    </div>
   </div>
   <div class="header-credits" onclick="promptCredits()">
     <span class="cl">Credits</span>
@@ -15586,15 +15593,20 @@ function enforceSpaceTabOrder(){
     if(btn&&btn.parentNode===tablist)tablist.appendChild(btn);
   });
 
-  // Keep utility controls after context tabs in Space: GM, Solo, Settings.
-  var navRoot=document.getElementById('mainNav');
-  if(!navRoot)return;
-  var gmBtn=navRoot.querySelector('.gm-dashboard-btn');
-  var soloBtn=navRoot.querySelector('.solo-reference-btn');
-  var settingsBtn=navRoot.querySelector('.settings-tab-btn');
-  if(gmBtn)navRoot.appendChild(gmBtn);
-  if(soloBtn)navRoot.appendChild(soloBtn);
-  if(settingsBtn)navRoot.appendChild(settingsBtn);
+  enforceUtilityTabOrder();
+}
+function enforceUtilityTabOrder(){
+  var tools=document.getElementById('mainNavTools')||document.getElementById('mainNav');
+  if(!tools)return;
+  var gmBtn=tools.querySelector('.gm-dashboard-btn')||document.querySelector('#mainNav .gm-dashboard-btn');
+  var soloBtn=tools.querySelector('.solo-reference-btn')||document.querySelector('#mainNav .solo-reference-btn');
+  var settingsBtn=tools.querySelector('.settings-tab-btn')||document.querySelector('#mainNav .settings-tab-btn');
+  if(gmBtn&&gmBtn.parentNode!==tools)tools.appendChild(gmBtn);
+  if(soloBtn&&soloBtn.parentNode!==tools)tools.appendChild(soloBtn);
+  if(settingsBtn&&settingsBtn.parentNode!==tools)tools.appendChild(settingsBtn);
+  if(gmBtn)tools.appendChild(gmBtn);
+  if(soloBtn)tools.appendChild(soloBtn);
+  if(settingsBtn)tools.appendChild(settingsBtn);
 }
 function setContext(ctx,btn){
   const ctxBtn=btn||document.querySelector('.ctx-btn[data-ctx="'+ctx+'"]');
@@ -15622,7 +15634,7 @@ function setContext(ctx,btn){
   };
   const defaultTab=defaultTabByContext[ctx]||'character';
   const defaultBtn=document.getElementById('tabnav-'+defaultTab);
-  if(typeof switchTab==='function')switchTab(defaultTab,defaultBtn||null);
+  if(typeof window.switchTab==='function')window.switchTab(defaultTab,defaultBtn||null);
 
   if(ctx==='space'){
     enforceSpaceTabOrder();
@@ -15632,6 +15644,7 @@ function setContext(ctx,btn){
     if(typeof renderNaval==='function') setTimeout(renderNaval,0);
     if(typeof applySpaceNavalPresentation==='function') setTimeout(applySpaceNavalPresentation,0);
   }
+  enforceUtilityTabOrder();
 }
 function toggleHeroOverview(forceState){
   var wrap=document.getElementById('heroOverviewBody');
@@ -16709,7 +16722,7 @@ window.getSecretPadNextStage=getSecretPadNextStage;
 
 function travelToGalaxyFromMap(){
   const btn=document.getElementById('tabnav-galaxy');
-  if(typeof switchTab==='function')switchTab('galaxy',btn||null);
+  if(typeof window.switchTab==='function')window.switchTab('galaxy',btn||null);
 }
 
 function travelToWorldThatWas(){
@@ -16718,12 +16731,12 @@ function travelToWorldThatWas(){
     return;
   }
   const btn=document.getElementById('tabnav-worldthatwas');
-  if(typeof switchTab==='function')switchTab('worldthatwas',btn||null);
+  if(typeof window.switchTab==='function')window.switchTab('worldthatwas',btn||null);
 }
 
 function travelToLastSeaFromMap(){
   const btn=document.getElementById('tabnav-lastsea');
-  if(typeof switchTab==='function')switchTab('lastsea',btn||null);
+  if(typeof window.switchTab==='function')window.switchTab('lastsea',btn||null);
 }
 
 function getProvinceSelectionMarkers(){

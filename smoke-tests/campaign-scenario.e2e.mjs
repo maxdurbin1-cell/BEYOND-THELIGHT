@@ -126,6 +126,41 @@ async function collectMapSummary(page) {
   });
 }
 
+async function collectStashSnapshot(page, label) {
+  try {
+    const snapshot = await page.evaluate(() => {
+      const state = (window.campaignSystem && typeof window.campaignSystem.getState === "function")
+        ? window.campaignSystem.getState()
+        : null;
+      const shared = state && state.campaign && state.campaign.shared && state.campaign.shared.state
+        ? state.campaign.shared.state
+        : {};
+      const stash = Array.isArray(shared.partyStash) ? shared.partyStash.slice() : [];
+      return {
+        code: String(state && state.code || ""),
+        role: String(state && state.role || ""),
+        token: String(state && state.token || ""),
+        connected: !!(state && state.connected),
+        syncHealth: String(state && state.syncHealth || ""),
+        syncText: String(state && state.syncText || ""),
+        lastCampaignStateAt: Number(state && state.lastCampaignStateAt || 0),
+        sharedVersion: Number(state && state.lastSharedVersion || 0),
+        pendingSyncCount: Number(state && state.pendingSyncCount || 0),
+        syncConflictCount: Number(state && state.syncConflictCount || 0),
+        partyStash: stash,
+        partyStashCount: stash.length
+      };
+    });
+    return { label, ok: true, snapshot };
+  } catch (err) {
+    return {
+      label,
+      ok: false,
+      error: String(err && err.message ? err.message : err)
+    };
+  }
+}
+
 async function waitForHydratedMaps(page, expected) {
   const goal = {
     provinceCells: Number(expected && expected.provinceCells || 0),
@@ -492,15 +527,32 @@ async function runScenario(browser) {
     throw new Error(`Stash share failed: ${JSON.stringify(shareAck)}`);
   }
 
-  await p2Page.waitForFunction(
-    () => {
-      const st = window.campaignSystem.getState();
-      const shared = st && st.campaign && st.campaign.shared && st.campaign.shared.state ? st.campaign.shared.state : {};
-      return Array.isArray(shared.partyStash) && shared.partyStash.indexOf("Scenario Relic") >= 0;
-    },
-    null,
-    { timeout: STEP_TIMEOUT_MS }
-  );
+  try {
+    await p2Page.waitForFunction(
+      () => {
+        const st = window.campaignSystem.getState();
+        const shared = st && st.campaign && st.campaign.shared && st.campaign.shared.state ? st.campaign.shared.state : {};
+        return Array.isArray(shared.partyStash) && shared.partyStash.indexOf("Scenario Relic") >= 0;
+      },
+      null,
+      { timeout: STEP_TIMEOUT_MS }
+    );
+  } catch (err) {
+    const snapshots = await Promise.all([
+      collectStashSnapshot(gmPage, "gm"),
+      collectStashSnapshot(p1Page, "player1"),
+      collectStashSnapshot(p2Page, "player2")
+    ]);
+    throw new Error(
+      "Stash sync wait timed out for Scenario Relic: "
+      + JSON.stringify({
+        timeoutMs: STEP_TIMEOUT_MS,
+        shareAck,
+        snapshots,
+        error: String(err && err.message ? err.message : err)
+      })
+    );
+  }
 
   const claimAck = await p2Page.evaluate(async () => {
     const st = window.campaignSystem && window.campaignSystem.getState ? window.campaignSystem.getState() : null;

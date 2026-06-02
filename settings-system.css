@@ -872,7 +872,8 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
 
 .campaign-dock-panel {
   width: min(420px, calc(100vw - 1.7rem));
-  height: 420px;
+  height: min(62vh, 560px);
+  min-height: 420px;
   background: rgba(8, 10, 13, 0.95);
   border: 1px solid var(--border2);
   border-radius: 6px;
@@ -888,17 +889,19 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
 
 .campaign-dock-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.45rem;
+  flex-wrap: wrap;
   padding: 0.5rem 0.58rem;
   border-bottom: 1px solid var(--border);
 }
 
 .campaign-dock-title {
   font-family: 'Cinzel', serif;
-  font-size: 0.58rem;
-  letter-spacing: 0.13em;
+  font-size: 0.64rem;
+  letter-spacing: 0.11em;
+  line-height: 1.2;
   text-transform: uppercase;
   color: var(--gold2);
 }

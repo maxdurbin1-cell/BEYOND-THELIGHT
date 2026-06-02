@@ -78,7 +78,9 @@ function quickAccessGo(tabId) {
       btn = getNavTabButton(tabId) || btn;
     }
   }
-  switchTab(tabId, btn || null);
+  if (typeof window.switchTab === 'function') {
+    window.switchTab(tabId, btn || null);
+  }
 }
 
 function renderGlobalQuickAccess() {
@@ -181,6 +183,29 @@ function runContextQuickAction(actionId) {
   return;
 }
 
+function openMissionsTab() {
+  if (typeof window.switchTab !== 'function') return;
+  var missionsBtn = document.getElementById('tabnav-missions');
+  window.switchTab('missions', missionsBtn || null);
+
+  // Campaign sync can briefly replay older travel state during startup.
+  // Re-assert Missions if it gets overwritten right after a user click.
+  [120, 420].forEach(function (delayMs) {
+    setTimeout(function () {
+      var btn = document.getElementById('tabnav-missions');
+      var panel = document.getElementById('tab-missions');
+      if (!btn || !panel) return;
+      if (window.getComputedStyle(btn).display === 'none') return;
+      if (btn.classList.contains('active') && panel.classList.contains('active')) return;
+      if (typeof window.switchTab === 'function') {
+        window.switchTab('missions', btn);
+      }
+    }, delayMs);
+  });
+}
+
+window.openMissionsTab = openMissionsTab;
+
 function renderContextQuickActions(tabId) {
   const root = document.getElementById('contextQuickActions');
   if (!root) return;
@@ -225,8 +250,8 @@ function wireMainUiDelegates() {
     }
 
     var navBtn = ev.target && ev.target.closest ? ev.target.closest('#mainNavTablist .tab-btn[data-tab]') : null;
-    if (navBtn && typeof switchTab === 'function') {
-      switchTab(String(navBtn.getAttribute('data-tab') || ''), navBtn);
+    if (navBtn && typeof window.switchTab === 'function') {
+      window.switchTab(String(navBtn.getAttribute('data-tab') || ''), navBtn);
       return;
     }
 
@@ -275,6 +300,14 @@ function runMainUiBootstrap() {
 
   wireMainUiDelegates();
   applyInitialPanelAccessibility();
+
+  var missionsBtn = document.getElementById('tabnav-missions');
+  if (missionsBtn && !missionsBtn.dataset.directSwitchBound) {
+    missionsBtn.dataset.directSwitchBound = '1';
+    missionsBtn.addEventListener('click', function () {
+      openMissionsTab();
+    });
+  }
 
   if (typeof buildStatRows === 'function') buildStatRows();
   if (typeof updateRenown === 'function') updateRenown();
@@ -370,11 +403,15 @@ function switchTab(tabId, btn) {
     target.setAttribute("aria-hidden", "false");
     target.setAttribute('tabindex', '0');
   }
-  if (btn) {
-    btn.classList.add("active");
-    if (btn.matches && btn.matches('#mainNavTablist .tab-btn[data-tab]')) {
-      btn.setAttribute('aria-current', 'page');
-    }
+
+  var resolvedBtn = btn;
+  if (!resolvedBtn || !resolvedBtn.matches || !resolvedBtn.matches('#mainNavTablist .tab-btn[data-tab]')) {
+    resolvedBtn = document.getElementById('tabnav-' + String(tabId || ''))
+      || document.querySelector('#mainNavTablist .tab-btn[data-tab="' + String(tabId || '').replace(/"/g, '\\"') + '"]');
+  }
+  if (resolvedBtn) {
+    resolvedBtn.classList.add("active");
+    resolvedBtn.setAttribute('aria-current', 'page');
   }
   trackQuickAccessTab(tabId);
   renderGlobalQuickAccess();

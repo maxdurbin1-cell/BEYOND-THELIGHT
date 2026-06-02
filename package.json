@@ -40,6 +40,7 @@
     "smoke:affix-normalization": "node smoke-tests/affix-normalization.smoke.mjs",
     "smoke:save-regression": "node smoke-tests/save-regression.smoke.mjs",
     "smoke:context-tabs": "node smoke-tests/context-tab-visibility.smoke.mjs",
+    "smoke:campaign-missions-context": "node smoke-tests/campaign-missions-context.smoke.mjs",
     "smoke:authority-travel": "node smoke-tests/campaign-authority-travel.smoke.mjs",
     "smoke:portrait-preview": "node smoke-tests/portrait-upload-preview.smoke.mjs",
     "smoke:reconnect": "node smoke-tests/reconnect-churn.smoke.mjs",
@@ -49,7 +50,7 @@
     "smoke:guild-system": "node smoke-tests/guild-system-smoke.mjs",
     "smoke:guild-multiplayer-sync": "node smoke-tests/guild-multiplayer-sync.smoke.mjs",
     "smoke:campaign-shared-origin-and-sheets": "node smoke-tests/campaign-shared-origin-and-sheets.smoke.mjs",
-    "smoke:test": "npm run smoke:clicks && npm run smoke:portrait-preview && npm run smoke:solo-library && npm run smoke:minigames-expedition && npm run smoke:minigames-expedition-campaign && npm run smoke:bone-oracle && npm run smoke:combat-sync && npm run smoke:combat-turns && npm run smoke:token-target-damage && npm run smoke:enemy-loot-drop && npm run smoke:enemy-loot-drop-items && npm run smoke:scenario && npm run smoke:guild-multiplayer-sync && npm run smoke:campaign-shared-origin-and-sheets && npm run smoke:newsun-scheduler && npm run smoke:legacy-raid && npm run smoke:raid-combat-return && npm run smoke:quick-panel-raid-ui && npm run smoke:raid-teleport-choice && npm run smoke:guild-system && npm run smoke:open-world && npm run smoke:maybe-reconnect"
+    "smoke:test": "npm run smoke:clicks && npm run smoke:portrait-preview && npm run smoke:solo-library && npm run smoke:minigames-expedition && npm run smoke:minigames-expedition-campaign && npm run smoke:bone-oracle && npm run smoke:combat-sync && npm run smoke:combat-turns && npm run smoke:token-target-damage && npm run smoke:enemy-loot-drop && npm run smoke:enemy-loot-drop-items && npm run smoke:scenario && npm run smoke:campaign-missions-context && npm run smoke:guild-multiplayer-sync && npm run smoke:campaign-shared-origin-and-sheets && npm run smoke:newsun-scheduler && npm run smoke:legacy-raid && npm run smoke:raid-combat-return && npm run smoke:quick-panel-raid-ui && npm run smoke:raid-teleport-choice && npm run smoke:guild-system && npm run smoke:open-world && npm run smoke:maybe-reconnect"
   },
   "dependencies": {
     "express": "^4.21.2",

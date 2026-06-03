@@ -984,107 +984,218 @@
     return mission;
   }
 
-  function pickRegionalArcId(bias) {
-    var b = bias || {};
-    var verbs = Array.isArray(b.preferredVerbs) ? b.preferredVerbs.join('|').toLowerCase() : '';
-    if (verbs.indexOf('escort') >= 0 || verbs.indexOf('deliver') >= 0 || verbs.indexOf('rebuild') >= 0) return 'reconstruction';
-    if (verbs.indexOf('resist') >= 0 || verbs.indexOf('suppress') >= 0 || verbs.indexOf('patrol') >= 0) return 'occupation';
-    if (verbs.indexOf('negotiate') >= 0 || verbs.indexOf('broker') >= 0 || verbs.indexOf('mediate') >= 0) return 'reconciliation';
-    if (verbs.indexOf('stabilize') >= 0 || verbs.indexOf('repair') >= 0 || verbs.indexOf('recover') >= 0) return 'collapse';
-    if (verbs.indexOf('investigate') >= 0 || verbs.indexOf('expose') >= 0 || verbs.indexOf('track') >= 0) return 'escalation';
-    return pick(Object.keys(REGIONAL_ARC_TEMPLATES)) || 'escalation';
+  function getLegacyRaidUnitIdKey(value) {
+    if (value === null || value === undefined) return '';
+    return String(value);
   }
 
-  function getArcStageConfig(arcId, index) {
-    var arc = REGIONAL_ARC_TEMPLATES[String(arcId || '')];
-    if (!arc || !Array.isArray(arc.steps)) return null;
-    var idx = Math.max(0, Math.min(arc.steps.length - 1, Number(index || 0)));
-    return arc.steps[idx] || null;
+  function getLegacyRaidNumericEnemyId(value) {
+    if (value === null || value === undefined) return null;
+    var raw = String(value).trim();
+    if (!raw) return null;
+    var n = Number(value);
+    return Number.isFinite(n) ? n : null;
   }
 
-  function buildArcJobFromState(state, bias, region, factionData, seedBase, idx) {
-    var arcId = String(state.activeArcId || pickRegionalArcId(bias));
-    state.activeArcId = arcId;
-    var stageCfg = getArcStageConfig(arcId, state.stageIndex || 0);
-    if (!stageCfg) return null;
-    var diffKey = (state.stageIndex || 0) >= 2 ? 'hard' : ((state.stageIndex || 0) === 1 ? 'medium' : 'easy');
-    var diff = DIFFICULTIES[diffKey] || DIFFICULTIES.medium;
-    return {
-      id: seedBase + idx + 1,
-      title: stageCfg.title,
-      difficulty: diffKey,
-      dread: diff.dread,
-      location: getMissionLocationForRegion(region),
-      planetHexId: null,
-      planetName: '',
-      reward: Math.max(40, Number(stageCfg.reward || 50) + Number(bias && bias.rewardBonus || 0)),
-      region: region,
-      missionType: String(stageCfg.missionType || 'arc_chain'),
-      templateId: 'arc_chain_' + arcId,
-      templateLabel: String(stageCfg.templateLabel || 'Arc Chain Contract'),
-      stepNames: stageCfg.stepNames || null,
-      factionGain: factionData.gain,
-      factionLose: factionData.lose,
-      factionGainName: factionData.gainName,
-      factionLoseName: factionData.loseName,
-      lore: 'Arc progression: ' + (REGIONAL_ARC_TEMPLATES[arcId] ? REGIONAL_ARC_TEMPLATES[arcId].label : arcId) + ' · Stage ' + (Number(state.stageIndex || 0) + 1) + '/3',
-      arcChain: {
-        arcId: arcId,
-        stageIndex: Number(state.stageIndex || 0),
-        stageCount: 3
+  function buildLegacyRaidHexCombatBoard(units, options) {
+    var opts = options || {};
+    var title = String(opts.title || 'STARS COMBAT - HEX ZONE MAP');
+    var subtitle = String(opts.subtitle || 'Combat positions, range bands, and cover terrain');
+    var width = 560;
+    var height = 350;
+    var hexSize = 22;
+    var centerX = width / 2;
+    var centerY = height / 2 + 4;
+    var slotsByRange = getLegacyRaidHexSlotsByRange();
+    var grid = [].concat(slotsByRange.Engaged, slotsByRange.Close, slotsByRange.Nearby, slotsByRange.Far);
+    var ringStyles = {
+      0: { fill: 'rgba(201,64,64,.14)', stroke: 'rgba(201,64,64,.35)' },
+      1: { fill: 'rgba(201,162,39,.1)', stroke: 'rgba(201,162,39,.3)' },
+      2: { fill: 'rgba(46,196,182,.09)', stroke: 'rgba(46,196,182,.3)' },
+      3: { fill: 'rgba(122,120,152,.08)', stroke: 'rgba(122,120,152,.25)' }
+    };
+    var toPixel = function (q, r) {
+      var x = centerX + hexSize * Math.sqrt(3) * (Number(q || 0) + Number(r || 0) / 2);
+      var y = centerY + hexSize * 1.5 * Number(r || 0);
+      return { x: x, y: y };
+    };
+    var hexPoints = function (cx, cy) {
+      var pts = [];
+      for (var i = 0; i < 6; i++) {
+        var angle = ((60 * i) - 30) * Math.PI / 180;
+        pts.push((cx + hexSize * Math.cos(angle)).toFixed(2) + ',' + (cy + hexSize * Math.sin(angle)).toFixed(2));
       }
+      return pts.join(' ');
     };
-  }
 
-  function pushNextArcJob(currentMission, success) {
-    ensureState();
-    var chain = currentMission && currentMission.arcChain && typeof currentMission.arcChain === 'object' ? currentMission.arcChain : null;
-    if (!chain) return;
-    var arcId = String(chain.arcId || '');
-    if (!arcId || !REGIONAL_ARC_TEMPLATES[arcId]) return;
-    var nextStage = Number(chain.stageIndex || 0) + 1;
-    if (nextStage >= 3) {
-      var arcStateDone = ensureMissionDirectorState();
-      arcStateDone.history.unshift({
-        arcId: arcId,
-        completedAt: new Date().toISOString(),
-        outcome: success ? 'completed' : 'fractured'
-      });
-      if (arcStateDone.history.length > 12) arcStateDone.history.length = 12;
-      arcStateDone.activeArcId = '';
-      arcStateDone.stageIndex = 0;
-      arcStateDone.momentum = success ? Number(arcStateDone.momentum || 0) + 1 : Math.max(0, Number(arcStateDone.momentum || 0) - 1);
-      return;
+    var occupied = {};
+    var rangeCounts = { Engaged: 0, Close: 0, Nearby: 0, Far: 0 };
+    var placedUnits = (Array.isArray(units) ? units : []).map(function (u) {
+      var unit = u || {};
+      var range = normalizeLegacyRaidRange(unit.range || unit.zone || 'Close');
+      var slots = slotsByRange[range] || slotsByRange.Close;
+      var idx = Number(rangeCounts[range] || 0);
+      rangeCounts[range] = idx + 1;
+      var slot = slots[idx % Math.max(1, slots.length)] || { q: 0, r: 0 };
+      var key = String(slot.q) + ',' + String(slot.r);
+      if (occupied[key]) {
+        var alt = slots[(idx + 1) % Math.max(1, slots.length)] || slot;
+        slot = { q: Number(alt.q || 0), r: Number(alt.r || 0) };
+      }
+      occupied[String(slot.q) + ',' + String(slot.r)] = true;
+      var p = toPixel(slot.q, slot.r);
+      return {
+        id: getLegacyRaidUnitIdKey(unit.id),
+        name: String(unit.name || 'Unit'),
+        side: String(unit.side || 'ally'),
+        isPlayer: !!unit.isPlayer,
+        hp: Math.max(0, Number(unit.hp || 0)),
+        dread: Math.max(0, Number(unit.dread || 0)),
+        range: range,
+        q: Number(slot.q || 0),
+        r: Number(slot.r || 0),
+        x: p.x,
+        y: p.y
+      };
+    });
+
+    var terrainSeed = getLegacyRaidStableIndex(String(opts.seed || 'raid-hex-terrain'), 9999);
+    var terrainCoords = [
+      { q: 2, r: -1, icon: 'x' },
+      { q: -1, r: -2, icon: '^' },
+      { q: -2, r: 2, icon: '#' },
+      { q: 1, r: 2, icon: '~' }
+    ];
+    var terrain = terrainCoords.filter(function (_c, i) {
+      return ((terrainSeed + i) % 2) === 0;
+    }).map(function (c) {
+      var p = toPixel(c.q, c.r);
+      return '<text x="' + p.x.toFixed(2) + '" y="' + (p.y + 4).toFixed(2) + '" text-anchor="middle" font-size="11" opacity=".82" fill="var(--muted2)">' + c.icon + '</text>';
+    }).join('');
+
+    var gridSvg = grid.map(function (hex) {
+      var p = toPixel(hex.q, hex.r);
+      var ring = getLegacyRaidHexDistance(hex.q, hex.r);
+      var style = ringStyles[ring] || ringStyles[3];
+      return '<polygon points="' + hexPoints(p.x, p.y) + '" fill="' + style.fill + '" stroke="' + style.stroke + '" stroke-width="1.1"/>';
+    }).join('');
+    var clickHandler = (typeof opts.clickHandler === 'string' && opts.clickHandler) ? opts.clickHandler : '';
+    var moveHandler = (typeof opts.moveHandler === 'string' && opts.moveHandler) ? opts.moveHandler : '';
+    var modeArg = String(opts.mode || 'wing').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    var missionArg = Number(opts.missionId || 0);
+    var wingArg = Number(opts.wingNum || 0);
+    var mapTheme = String(opts.mapTheme || 'raid-wing').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    var selectedUnit = opts.selectedUnit && typeof opts.selectedUnit === 'object' ? opts.selectedUnit : null;
+    var selectedPlaced = null;
+    if (selectedUnit) {
+      selectedPlaced = placedUnits.find(function (u) {
+        if (!u) return false;
+        if (selectedUnit.isPlayer && u.isPlayer) return true;
+        if (selectedUnit.side && String(u.side || '') !== String(selectedUnit.side || '')) return false;
+        if (selectedUnit.id !== null && selectedUnit.id !== undefined && selectedUnit.id !== '') {
+          return getLegacyRaidUnitIdKey(selectedUnit.id) === getLegacyRaidUnitIdKey(u.id);
+        }
+        return !!(selectedUnit.name && String(u.name || '') === String(selectedUnit.name || ''));
+      }) || null;
     }
-    var cfg = getArcStageConfig(arcId, nextStage);
-    if (!cfg) return;
-    var diffKey = nextStage >= 2 ? 'hard' : 'medium';
-    var diff = DIFFICULTIES[diffKey] || DIFFICULTIES.medium;
-    var f = {
-      gain: currentMission.factionGain || 'political',
-      lose: currentMission.factionLose || 'underworld',
-      gainName: currentMission.factionGainName || 'Political Groups',
-      loseName: currentMission.factionLoseName || 'The Underworld'
-    };
-    var arcState = ensureMissionDirectorState();
-    arcState.activeArcId = arcId;
-    arcState.stageIndex = nextStage;
-    arcState.momentum = success ? Number(arcState.momentum || 0) + 1 : Math.max(0, Number(arcState.momentum || 0) - 1);
 
-    S.availableJobs = S.availableJobs || [];
-    S.availableJobs.push({
-      id: Date.now() + Math.floor(Math.random() * 9000),
-      title: cfg.title,
-      difficulty: diffKey,
-      dread: diff.dread,
-      location: currentMission.location || getMissionLocationForRegion(currentMission.region || 'province'),
-      planetHexId: currentMission.planetHexId || null,
-      planetName: currentMission.planetName || '',
-      reward: Math.max(45, Number(cfg.reward || 60) + (success ? 15 : 0)),
-      region: currentMission.region || 'province',
-      missionType: String(cfg.missionType || 'arc_chain'),
-      templateId: 'arc_chain_' + arcId,
-      templateLabel: String(cfg.templateLabel || 'Arc Chain Contract'),
+    var destinationSvg = '';
+    if (selectedPlaced && opts.showMoveOverlay !== false) {
+      var destinations = [];
+      var allowAnyMove = !!opts.allowAnyMove;
+      if (allowAnyMove) {
+        for (var gi = 0; gi < grid.length; gi += 1) {
+          var anySlot = grid[gi] || { q: 0, r: 0 };
+          var anyKey = String(anySlot.q) + ',' + String(anySlot.r);
+          if (occupied[anyKey] && anyKey !== (String(selectedPlaced.q) + ',' + String(selectedPlaced.r))) continue;
+          if (Number(anySlot.q || 0) === Number(selectedPlaced.q || 0) && Number(anySlot.r || 0) === Number(selectedPlaced.r || 0)) continue;
+          destinations.push({
+            q: Number(anySlot.q || 0),
+            r: Number(anySlot.r || 0),
+            range: normalizeLegacyRaidRange(getLegacyRaidRangeFromHex(anySlot.q, anySlot.r))
+          });
+        }
+      } else {
+        var allowedRanges = getLegacyRaidAdjacentRanges(selectedPlaced.range);
+        for (var ar = 0; ar < allowedRanges.length; ar += 1) {
+          var rangeKey = allowedRanges[ar];
+          var rangeSlots = slotsByRange[rangeKey] || [];
+          for (var si = 0; si < rangeSlots.length; si += 1) {
+            var rangeSlot = rangeSlots[si];
+            var occKey = String(rangeSlot.q) + ',' + String(rangeSlot.r);
+            if (occupied[occKey]) continue;
+            destinations.push({ q: Number(rangeSlot.q || 0), r: Number(rangeSlot.r || 0), range: rangeKey });
+          }
+        }
+      }
+      destinationSvg = destinations.map(function (dest) {
+        var p = toPixel(dest.q, dest.r);
+        var click = '';
+        if (moveHandler) {
+          var selectedIdArg = getLegacyRaidUnitIdKey(selectedPlaced.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+          click = ' style="cursor:pointer;" onclick="' + moveHandler + '(\'' + modeArg + '\',' + missionArg + ',' + wingArg + ',\'' + String(selectedPlaced.side || 'ally') + '\',\'' + selectedIdArg + '\',\'' + String(selectedPlaced.name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\',' + (selectedPlaced.isPlayer ? 'true' : 'false') + ',' + Number(dest.q || 0) + ',' + Number(dest.r || 0) + ',\'' + String(dest.range || 'Close') + '\')"';
+        }
+        return '<g>'
+          + '<polygon points="' + hexPoints(p.x, p.y) + '" fill="rgba(126,215,255,.26)" stroke="rgba(126,215,255,.78)" stroke-width="1.7" stroke-dasharray="4 3"' + click + '/>'
+          + '<text x="' + p.x.toFixed(2) + '" y="' + (p.y + 4).toFixed(2) + '" text-anchor="middle" font-size="10" fill="#bfefff">↔</text>'
+          + '</g>';
+      }).join('');
+    }
+
+    var isSelected = typeof opts.isSelected === 'function' ? opts.isSelected : function () { return false; };
+    var unitSvg = placedUnits.map(function (u) {
+      var fill = u.side === 'enemy' ? 'rgba(201,64,64,.9)' : 'rgba(46,196,182,.9)';
+      var stroke = u.isPlayer ? 'var(--gold2)' : (u.side === 'enemy' ? 'rgba(255,180,180,.8)' : 'rgba(170,255,245,.8)');
+      if (isSelected(u)) stroke = 'var(--gold2)';
+      var hpText = u.hp > 0 ? ('HP ' + u.hp) : 'DOWN';
+      var detailText = u.dread > 0 ? (' · Dread d' + u.dread) : '';
+      var nameArg = String(u.name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      var clickAttr = '';
+      if (clickHandler) {
+        var unitIdArg = getLegacyRaidUnitIdKey(u.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        clickAttr = ' style="cursor:pointer;" onclick="' + clickHandler + '(\'' + modeArg + '\',' + missionArg + ',' + wingArg + ',\'' + String(u.side || 'ally') + '\',\'' + unitIdArg + '\',\'' + nameArg + '\',' + (u.isPlayer ? 'true' : 'false') + ')"';
+      }
+      return '<g>'
+        + '<title>' + u.name + ' · ' + u.range + ' · ' + hpText + detailText + '</title>'
+        + '<circle cx="' + u.x.toFixed(2) + '" cy="' + u.y.toFixed(2) + '" r="10.2" fill="' + fill + '" stroke="' + stroke + '" stroke-width="1.6"' + clickAttr + '/>'
+        + '<text x="' + u.x.toFixed(2) + '" y="' + (u.y + 3.4).toFixed(2) + '" text-anchor="middle" font-size="8" fill="#fff">' + String(u.name || 'U').slice(0, 2).toUpperCase() + '</text>'
+        + '</g>';
+    }).join('');
+    var legend = '<div style="display:flex;gap:.28rem;flex-wrap:wrap;font-size:.6rem;color:var(--muted2);margin-top:.12rem;">'
+      + '<span><strong style="color:var(--red2);">Engaged</strong> ring 0</span>'
+      + '<span><strong style="color:var(--gold2);">Close</strong> ring 1</span>'
+      + '<span><strong style="color:var(--teal);">Nearby</strong> ring 2</span>'
+      + '<span><strong style="color:var(--muted3);">Far</strong> ring 3</span>'
+      + '<span><strong style="color:#7ed7ff;">Blue hexes</strong> = legal move destinations</span>'
+      + '<span>Terrain creates movement pressure.</span>'
+      + '</div>';
+
+    var interactables = Array.isArray(opts.interactables) ? opts.interactables : getStarsThemeInteractables(opts.mapTheme || 'raid-wing');
+    var interactableSvg = interactables.map(function (node) {
+      var p = toPixel(Number(node && node.q || 0), Number(node && node.r || 0));
+      return '<g>'
+        + '<circle cx="' + p.x.toFixed(2) + '" cy="' + p.y.toFixed(2) + '" r="7.8" fill="rgba(30,30,30,.78)" stroke="rgba(255,255,255,.36)" stroke-width="1.1"/>'
+        + '<text x="' + p.x.toFixed(2) + '" y="' + (p.y + 3.2).toFixed(2) + '" text-anchor="middle" font-size="9">' + String(node.icon || '✦') + '</text>'
+        + '</g>';
+    }).join('');
+    var interactableButtons = interactables.map(function (node) {
+      return '<button class="btn btn-xs" onclick="window.resolveStarsMapInteractable(\'' + modeArg + '\',' + missionArg + ',' + wingArg + ',\'' + mapTheme + '\',\'' + String(node.id || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')">' + String(node.icon || '✦') + ' ' + String(node.label || 'Interactable') + '</button>';
+    }).join('');
+    var interactableNotes = interactables.map(function (node) {
+      return '<div style="font-size:.62rem;color:var(--muted2);line-height:1.35;">' + String(node.icon || '✦') + ' <strong style="color:var(--text2);">' + String(node.label || 'Node') + ':</strong> ' + String(node.effect || '') + '</div>';
+    }).join('');
+
+    return '<div style="margin:.15rem 0;border:1px solid var(--border2);padding:.28rem .3rem;background:rgba(255,255,255,.02);">'
+      + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.2rem;">' + title + '</div>'
+      + '<div style="font-size:.62rem;color:var(--muted2);margin-bottom:.16rem;">' + subtitle + '</div>'
+      + '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="xMidYMid meet" style="width:100%;max-width:640px;height:auto;display:block;margin:0 auto;">'
+      + gridSvg + terrain + interactableSvg + destinationSvg + unitSvg
+      + '</svg>'
+      + legend
+      + '<div style="margin-top:.14rem;display:flex;gap:.2rem;flex-wrap:wrap;">' + interactableButtons + '</div>'
+      + '<div style="margin-top:.14rem;display:flex;flex-direction:column;gap:.12rem;">' + interactableNotes + '</div>'
+      + '</div>';
+  }
       stepNames: cfg.stepNames || null,
       factionGain: f.gain,
       factionLose: f.lose,
@@ -6123,202 +6234,6 @@
     ];
   }
 
-  function buildLegacyRaidHexCombatBoard(units, options) {
-    var opts = options || {};
-    var title = String(opts.title || 'STARS COMBAT - HEX ZONE MAP');
-    var subtitle = String(opts.subtitle || 'Combat positions, range bands, and cover terrain');
-    var width = 560;
-    var height = 350;
-    var hexSize = 22;
-    var centerX = width / 2;
-    var centerY = height / 2 + 4;
-    var slotsByRange = getLegacyRaidHexSlotsByRange();
-    var grid = [].concat(slotsByRange.Engaged, slotsByRange.Close, slotsByRange.Nearby, slotsByRange.Far);
-    var ringStyles = {
-      0: { fill: 'rgba(201,64,64,.14)', stroke: 'rgba(201,64,64,.35)' },
-      1: { fill: 'rgba(201,162,39,.1)', stroke: 'rgba(201,162,39,.3)' },
-      2: { fill: 'rgba(46,196,182,.09)', stroke: 'rgba(46,196,182,.3)' },
-      3: { fill: 'rgba(122,120,152,.08)', stroke: 'rgba(122,120,152,.25)' }
-    };
-    var toPixel = function (q, r) {
-      var x = centerX + hexSize * Math.sqrt(3) * (Number(q || 0) + Number(r || 0) / 2);
-      var y = centerY + hexSize * 1.5 * Number(r || 0);
-      return { x: x, y: y };
-    };
-    var hexPoints = function (cx, cy) {
-      var pts = [];
-      for (var i = 0; i < 6; i++) {
-        var angle = ((60 * i) - 30) * Math.PI / 180;
-        pts.push((cx + hexSize * Math.cos(angle)).toFixed(2) + ',' + (cy + hexSize * Math.sin(angle)).toFixed(2));
-      }
-      return pts.join(' ');
-    };
-
-    var occupied = {};
-    var rangeCounts = { Engaged: 0, Close: 0, Nearby: 0, Far: 0 };
-    var placedUnits = (Array.isArray(units) ? units : []).map(function (u) {
-      var unit = u || {};
-      var range = normalizeLegacyRaidRange(unit.range || unit.zone || 'Close');
-      var slots = slotsByRange[range] || slotsByRange.Close;
-      var idx = Number(rangeCounts[range] || 0);
-      rangeCounts[range] = idx + 1;
-      var slot = slots[idx % Math.max(1, slots.length)] || { q: 0, r: 0 };
-      var key = String(slot.q) + ',' + String(slot.r);
-      if (occupied[key]) {
-        var alt = slots[(idx + 1) % Math.max(1, slots.length)] || slot;
-        slot = { q: Number(alt.q || 0), r: Number(alt.r || 0) };
-      }
-      occupied[String(slot.q) + ',' + String(slot.r)] = true;
-      var p = toPixel(slot.q, slot.r);
-      return {
-        id: Number(unit.id || 0),
-        name: String(unit.name || 'Unit'),
-        side: String(unit.side || 'ally'),
-        isPlayer: !!unit.isPlayer,
-        hp: Math.max(0, Number(unit.hp || 0)),
-        dread: Math.max(0, Number(unit.dread || 0)),
-        range: range,
-        q: Number(slot.q || 0),
-        r: Number(slot.r || 0),
-        x: p.x,
-        y: p.y
-      };
-    });
-
-    var terrainSeed = getLegacyRaidStableIndex(String(opts.seed || 'raid-hex-terrain'), 9999);
-    var terrainCoords = [
-      { q: 2, r: -1, icon: 'x' },
-      { q: -1, r: -2, icon: '^' },
-      { q: -2, r: 2, icon: '#' },
-      { q: 1, r: 2, icon: '~' }
-    ];
-    var terrain = terrainCoords.filter(function (_c, i) {
-      return ((terrainSeed + i) % 2) === 0;
-    }).map(function (c) {
-      var p = toPixel(c.q, c.r);
-      return '<text x="' + p.x.toFixed(2) + '" y="' + (p.y + 4).toFixed(2) + '" text-anchor="middle" font-size="11" opacity=".82" fill="var(--muted2)">' + c.icon + '</text>';
-    }).join('');
-
-    var gridSvg = grid.map(function (hex) {
-      var p = toPixel(hex.q, hex.r);
-      var ring = getLegacyRaidHexDistance(hex.q, hex.r);
-      var style = ringStyles[ring] || ringStyles[3];
-      return '<polygon points="' + hexPoints(p.x, p.y) + '" fill="' + style.fill + '" stroke="' + style.stroke + '" stroke-width="1.1"/>';
-    }).join('');
-    var clickHandler = (typeof opts.clickHandler === 'string' && opts.clickHandler) ? opts.clickHandler : '';
-    var moveHandler = (typeof opts.moveHandler === 'string' && opts.moveHandler) ? opts.moveHandler : '';
-    var modeArg = String(opts.mode || 'wing').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    var missionArg = Number(opts.missionId || 0);
-    var wingArg = Number(opts.wingNum || 0);
-    var mapTheme = String(opts.mapTheme || 'raid-wing').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    var selectedUnit = opts.selectedUnit && typeof opts.selectedUnit === 'object' ? opts.selectedUnit : null;
-    var selectedPlaced = null;
-    if (selectedUnit) {
-      selectedPlaced = placedUnits.find(function (u) {
-        if (!u) return false;
-        if (selectedUnit.isPlayer && u.isPlayer) return true;
-        if (selectedUnit.side && String(u.side || '') !== String(selectedUnit.side || '')) return false;
-        if (selectedUnit.id && Number(selectedUnit.id || 0) === Number(u.id || 0)) return true;
-        return !!(selectedUnit.name && String(u.name || '') === String(selectedUnit.name || ''));
-      }) || null;
-    }
-
-    var destinationSvg = '';
-    if (selectedPlaced && opts.showMoveOverlay !== false) {
-      var destinations = [];
-      var allowAnyMove = !!opts.allowAnyMove;
-      if (allowAnyMove) {
-        for (var gi = 0; gi < grid.length; gi += 1) {
-          var anySlot = grid[gi] || { q: 0, r: 0 };
-          var anyKey = String(anySlot.q) + ',' + String(anySlot.r);
-          if (occupied[anyKey] && anyKey !== (String(selectedPlaced.q) + ',' + String(selectedPlaced.r))) continue;
-          if (Number(anySlot.q || 0) === Number(selectedPlaced.q || 0) && Number(anySlot.r || 0) === Number(selectedPlaced.r || 0)) continue;
-          destinations.push({
-            q: Number(anySlot.q || 0),
-            r: Number(anySlot.r || 0),
-            range: normalizeLegacyRaidRange(getLegacyRaidRangeFromHex(anySlot.q, anySlot.r))
-          });
-        }
-      } else {
-        var allowedRanges = getLegacyRaidAdjacentRanges(selectedPlaced.range);
-        for (var ar = 0; ar < allowedRanges.length; ar += 1) {
-          var rangeKey = allowedRanges[ar];
-          var slots = slotsByRange[rangeKey] || [];
-          for (var si = 0; si < slots.length; si += 1) {
-            var slot = slots[si];
-            var occKey = String(slot.q) + ',' + String(slot.r);
-            if (occupied[occKey]) continue;
-            destinations.push({ q: Number(slot.q || 0), r: Number(slot.r || 0), range: rangeKey });
-          }
-        }
-      }
-      destinationSvg = destinations.map(function (dest) {
-        var p = toPixel(dest.q, dest.r);
-        var click = '';
-        if (moveHandler) {
-          click = ' style="cursor:pointer;" onclick="' + moveHandler + '(\'' + modeArg + '\',' + missionArg + ',' + wingArg + ',\'' + String(selectedPlaced.side || 'ally') + '\',' + Number(selectedPlaced.id || 0) + ',\'' + String(selectedPlaced.name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\',' + (selectedPlaced.isPlayer ? 'true' : 'false') + ',' + Number(dest.q || 0) + ',' + Number(dest.r || 0) + ',\'' + String(dest.range || 'Close') + '\')"';
-        }
-        return '<g>'
-          + '<polygon points="' + hexPoints(p.x, p.y) + '" fill="rgba(126,215,255,.26)" stroke="rgba(126,215,255,.78)" stroke-width="1.7" stroke-dasharray="4 3"' + click + '/>'
-          + '<text x="' + p.x.toFixed(2) + '" y="' + (p.y + 4).toFixed(2) + '" text-anchor="middle" font-size="10" fill="#bfefff">↔</text>'
-          + '</g>';
-      }).join('');
-    }
-
-    var isSelected = typeof opts.isSelected === 'function' ? opts.isSelected : function () { return false; };
-    var unitSvg = placedUnits.map(function (u) {
-      var fill = u.side === 'enemy' ? 'rgba(201,64,64,.9)' : 'rgba(46,196,182,.9)';
-      var stroke = u.isPlayer ? 'var(--gold2)' : (u.side === 'enemy' ? 'rgba(255,180,180,.8)' : 'rgba(170,255,245,.8)');
-      if (isSelected(u)) stroke = 'var(--gold2)';
-      var hpText = u.hp > 0 ? ('HP ' + u.hp) : 'DOWN';
-      var detailText = u.dread > 0 ? (' · Dread d' + u.dread) : '';
-      var nameArg = String(u.name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-      var clickAttr = '';
-      if (clickHandler) {
-        clickAttr = ' style="cursor:pointer;" onclick="' + clickHandler + '(\'' + modeArg + '\',' + missionArg + ',' + wingArg + ',\'' + String(u.side || 'ally') + '\',' + Number(u.id || 0) + ',\'' + nameArg + '\',' + (u.isPlayer ? 'true' : 'false') + ')"';
-      }
-      return '<g>'
-        + '<title>' + u.name + ' · ' + u.range + ' · ' + hpText + detailText + '</title>'
-        + '<circle cx="' + u.x.toFixed(2) + '" cy="' + u.y.toFixed(2) + '" r="10.2" fill="' + fill + '" stroke="' + stroke + '" stroke-width="1.6"' + clickAttr + '/>'
-        + '<text x="' + u.x.toFixed(2) + '" y="' + (u.y + 3.4).toFixed(2) + '" text-anchor="middle" font-size="8" fill="#fff">' + String(u.name || 'U').slice(0, 2).toUpperCase() + '</text>'
-        + '</g>';
-    }).join('');
-    var legend = '<div style="display:flex;gap:.28rem;flex-wrap:wrap;font-size:.6rem;color:var(--muted2);margin-top:.12rem;">'
-      + '<span><strong style="color:var(--red2);">Engaged</strong> ring 0</span>'
-      + '<span><strong style="color:var(--gold2);">Close</strong> ring 1</span>'
-      + '<span><strong style="color:var(--teal);">Nearby</strong> ring 2</span>'
-      + '<span><strong style="color:var(--muted3);">Far</strong> ring 3</span>'
-      + '<span><strong style="color:#7ed7ff;">Blue hexes</strong> = legal move destinations</span>'
-      + '<span>Terrain creates movement pressure.</span>'
-      + '</div>';
-
-    var interactables = Array.isArray(opts.interactables) ? opts.interactables : getStarsThemeInteractables(opts.mapTheme || 'raid-wing');
-    var interactableSvg = interactables.map(function (node) {
-      var p = toPixel(Number(node && node.q || 0), Number(node && node.r || 0));
-      return '<g>'
-        + '<circle cx="' + p.x.toFixed(2) + '" cy="' + p.y.toFixed(2) + '" r="7.8" fill="rgba(30,30,30,.78)" stroke="rgba(255,255,255,.36)" stroke-width="1.1"/>'
-        + '<text x="' + p.x.toFixed(2) + '" y="' + (p.y + 3.2).toFixed(2) + '" text-anchor="middle" font-size="9">' + String(node.icon || '✦') + '</text>'
-        + '</g>';
-    }).join('');
-    var interactableButtons = interactables.map(function (node) {
-      return '<button class="btn btn-xs" onclick="window.resolveStarsMapInteractable(\'' + modeArg + '\',' + missionArg + ',' + wingArg + ',\'' + mapTheme + '\',\'' + String(node.id || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'") + '\')">' + String(node.icon || '✦') + ' ' + String(node.label || 'Interactable') + '</button>';
-    }).join('');
-    var interactableNotes = interactables.map(function (node) {
-      return '<div style="font-size:.62rem;color:var(--muted2);line-height:1.35;">' + String(node.icon || '✦') + ' <strong style="color:var(--text2);">' + String(node.label || 'Node') + ':</strong> ' + String(node.effect || '') + '</div>';
-    }).join('');
-
-    return '<div style="margin:.15rem 0;border:1px solid var(--border2);padding:.28rem .3rem;background:rgba(255,255,255,.02);">'
-      + '<div style="font-family:\'Cinzel\',serif;font-size:.62rem;letter-spacing:.1em;color:var(--gold2);text-transform:uppercase;margin-bottom:.2rem;">' + title + '</div>'
-      + '<div style="font-size:.62rem;color:var(--muted2);margin-bottom:.16rem;">' + subtitle + '</div>'
-      + '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="xMidYMid meet" style="width:100%;max-width:640px;height:auto;display:block;margin:0 auto;">'
-      + gridSvg + terrain + interactableSvg + destinationSvg + unitSvg
-      + '</svg>'
-      + legend
-      + '<div style="margin-top:.14rem;display:flex;gap:.2rem;flex-wrap:wrap;">' + interactableButtons + '</div>'
-      + '<div style="margin-top:.14rem;display:flex;flex-direction:column;gap:.12rem;">' + interactableNotes + '</div>'
-      + '</div>';
-  }
-
   function buildLegacyRaidBossZoneMap(mission) {
     var zones = ['Engaged', 'Close', 'Nearby', 'Far'];
     var units = [];
@@ -7800,14 +7715,15 @@
         var firstHostile = Array.isArray(S.enemies) ? S.enemies.find(function (enemy) { return enemy && !enemy.ally; }) : null;
         if (Array.isArray(S.enemies)) {
           S.enemies.filter(function (enemy) { return enemy && !enemy.ally; }).forEach(function (enemy) {
-            var key = String(Number(enemy && enemy.id || 0));
+            var key = getLegacyRaidUnitIdKey(enemy && enemy.id);
             if (!S.combat.raidFlow.hostileRangeById[key]) S.combat.raidFlow.hostileRangeById[key] = 'Engaged';
           });
         }
         if (firstHostile) {
-          S.combat.raidFlow.selectedHostileId = Number(firstHostile.id || 0);
+          S.combat.raidFlow.selectedHostileId = getLegacyRaidUnitIdKey(firstHostile.id);
           S.combat.raidFlow.selectedHostileName = String(firstHostile.name || 'Hostile');
-          if (typeof window.setCombatFocusEnemy === 'function') window.setCombatFocusEnemy(Number(firstHostile.id || 0));
+          var firstEnemyNumericId = getLegacyRaidNumericEnemyId(firstHostile.id);
+          if (firstEnemyNumericId !== null && typeof window.setCombatFocusEnemy === 'function') window.setCombatFocusEnemy(firstEnemyNumericId);
         }
         S.combat.raidFlow.selectedEnemyTargetType = allies.length ? 'ally' : 'player';
         S.combat.raidFlow.selectedAllyName = allies.length ? String(allies[0].name || 'Wayfarer') : '';
@@ -7940,7 +7856,7 @@
       });
     });
     hostiles.forEach(function (enemy) {
-      var enemyId = Number(enemy && enemy.id || 0);
+      var enemyId = getLegacyRaidUnitIdKey(enemy && enemy.id);
       boardUnits.push({
         id: enemyId,
         name: String(enemy && enemy.name || 'Hostile'),
@@ -8363,7 +8279,7 @@
     if (act === 'titan_titans_fury') {
       if (!spendLegacyRaidPlayerPanelActions(flow, 1)) return false;
       var engaged = (Array.isArray(hostiles) ? hostiles : []).filter(function (enemy) {
-        return getLegacyRaidHostileRange(flow, Number(enemy && enemy.id || 0)) === 'Engaged';
+        return getLegacyRaidHostileRange(flow, enemy && enemy.id) === 'Engaged';
       });
       if (!engaged.length) {
         if (typeof showNotif === 'function') showNotif("Titan's Fury found no Engaged enemies.", 'info');
@@ -8448,7 +8364,7 @@
       if (typeof changeCounter === 'function') changeCounter('tmw', -tmwNeed);
       else if (typeof S !== 'undefined' && S) S.tmw = Math.max(0, Number(S.tmw || 0) - tmwNeed);
       var sameZone = (Array.isArray(hostiles) ? hostiles : []).filter(function (enemy) {
-        return getLegacyRaidHostileRange(flow, Number(enemy && enemy.id || 0)) === normalizeLegacyRaidRange(flow.playerRange || 'Close');
+        return getLegacyRaidHostileRange(flow, enemy && enemy.id) === normalizeLegacyRaidRange(flow.playerRange || 'Close');
       });
       sameZone.forEach(function (enemy) {
         if (!enemy) return;
@@ -8519,7 +8435,9 @@
     if (aliasMap[act]) act = aliasMap[act];
     if (!act) return false;
     var hostiles = getLegacyRaidSceneHostiles();
-    var selected = hostiles.find(function (h) { return Number(h && h.id || 0) === Number(flow.selectedHostileId || 0); }) || hostiles[0] || null;
+    var selected = hostiles.find(function (h) {
+      return getLegacyRaidUnitIdKey(h && h.id) === getLegacyRaidUnitIdKey(flow.selectedHostileId || '');
+    }) || hostiles[0] || null;
     var selectedRange = selected ? getLegacyRaidHostileRange(flow, selected.id) : 'Engaged';
     if (act.indexOf('titan_') === 0) {
       var titanHandled = executeTitanRaidPlayerAction(act, flow, selected, hostiles);
@@ -8789,7 +8707,7 @@
     var flow = S.combat && S.combat.raidFlow ? S.combat.raidFlow : null;
     var role = String(side || 'ally');
     var name = String(unitName || '');
-    var id = Number(unitId || 0);
+    var id = getLegacyRaidUnitIdKey(unitId);
     var playerToken = !!isPlayer;
 
     if (flow) {
@@ -8802,7 +8720,8 @@
     }
 
     if (role === 'enemy') {
-      if (typeof window.setCombatFocusEnemy === 'function') window.setCombatFocusEnemy(id);
+      var numericFocusId = getLegacyRaidNumericEnemyId(id);
+      if (numericFocusId !== null && typeof window.setCombatFocusEnemy === 'function') window.setCombatFocusEnemy(numericFocusId);
       if (flow) {
         flow.selectedHostileId = id;
         flow.selectedHostileName = name;
@@ -8838,7 +8757,7 @@
     var wNum = Number(wingNum || 1);
 
     if (role === 'enemy') {
-      if (typeof window.setLegacyRaidHostileRange === 'function') window.setLegacyRaidHostileRange(Number(unitId || 0), destination);
+      if (typeof window.setLegacyRaidHostileRange === 'function') window.setLegacyRaidHostileRange(unitId, destination);
     } else if (!!isPlayer) {
       if (typeof consumeCombatAction === 'function' && !consumeCombatAction('Move Zone')) {
         return false;
@@ -8873,7 +8792,7 @@
       focusEnemy.stress = Math.min(Number(focusEnemy.maxStress || 8), Number(focusEnemy.stress || 0) + dealt);
     }
     if ((id === 'chain_winch' || id === 'sand_trap') && focusEnemy && typeof window.setLegacyRaidHostileRange === 'function') {
-      window.setLegacyRaidHostileRange(Number(focusEnemy.id || 0), id === 'chain_winch' ? 'Engaged' : 'Nearby');
+      window.setLegacyRaidHostileRange(focusEnemy.id, id === 'chain_winch' ? 'Engaged' : 'Nearby');
     }
     if (id === 'aether_font' && S && S.conditions && typeof S.conditions === 'object') {
       Object.keys(S.conditions).forEach(function (k) {

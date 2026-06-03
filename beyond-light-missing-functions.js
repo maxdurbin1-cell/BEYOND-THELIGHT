@@ -1260,7 +1260,7 @@ function openFailedRollFollowup(reason) {
     + '<button class="btn btn-sm btn-teal" ' + (canBoost ? '' : 'disabled title="Need enough Teamwork to cover the gap"') + ' onclick="applyFailedRollRecovery(\'convert\')">Spend Teamwork to Succeed</button>'
     + '<button class="btn btn-sm btn-primary" ' + (canPush ? '' : 'disabled title="Need 2 Teamwork"') + ' onclick="applyFailedRollRecovery(\'reroll\')">Push Your Luck Reroll</button>'
     + '</div>';
-  openModal('Failed Roll Options', html, null, { preventScroll: true, focusTrap: true });
+  openModal('Failed Roll Options', html, null, { preventScroll: false, focusTrap: false });
 }
 
 function addTMWOnFail(reason, opts) {
@@ -1354,7 +1354,7 @@ window.applyFailedRollRecovery = function(mode) {
       + '<div><div style="font-size:.68rem;color:var(--muted2);">Dread</div><div style="font-size:1.35rem;color:var(--red2);font-family:Rajdhani,sans-serif;font-weight:700;">' + dreadRoll.total + '</div></div>'
       + '</div>'
       + '<div style="margin-top:.4rem;font-size:.9rem;font-weight:700;color:' + (success ? 'var(--green2)' : 'var(--red2)') + ';">' + (success ? 'Success' : 'Failure') + '</div>';
-    if (typeof openModal === 'function') openModal('Push Your Luck Result', html, null, { preventScroll: true, focusTrap: true });
+    if (typeof openModal === 'function') openModal('Push Your Luck Result', html, null, { preventScroll: false, focusTrap: false });
     if (!success && typeof addTMWOnFail === 'function') addTMWOnFail('push-luck-failure', { skipPrompt: true });
     _failedRollContext = null;
     return;

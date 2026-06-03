@@ -17561,7 +17561,7 @@ function renderPlanetExplorationPanel() {
   const isWildernessIntel = !!(selected && !isPlanetLocationHex(selected) && !selected.tradeRoute);
   const narrative = buildPlanetNarrativeLines(state, selected);
 
-  target.innerHTML = `<div style="max-width:1180px;padding:.85rem;display:grid;gap:.65rem;">
+  target.innerHTML = `<div style="width:100%;max-width:none;padding:.85rem 0;display:grid;gap:.65rem;">
     <div class="ship-banner">
       <h3>Planet Exploration: ${state.profile.planetName}</h3>
       <p>Landed Surface Zone · Surface DD${state.difficulty} · ${state.profile.planetType} (${state.profile.biome})</p>

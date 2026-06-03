@@ -1196,22 +1196,6 @@
       + '<div style="margin-top:.14rem;display:flex;flex-direction:column;gap:.12rem;">' + interactableNotes + '</div>'
       + '</div>';
   }
-      stepNames: cfg.stepNames || null,
-      factionGain: f.gain,
-      factionLose: f.lose,
-      factionGainName: f.gainName,
-      factionLoseName: f.loseName,
-      lore: 'Arc progression: ' + (REGIONAL_ARC_TEMPLATES[arcId] ? REGIONAL_ARC_TEMPLATES[arcId].label : arcId) + ' · Stage ' + (nextStage + 1) + '/3',
-      arcChain: {
-        arcId: arcId,
-        stageIndex: nextStage,
-        stageCount: 3
-      }
-    });
-    if (typeof showNotif === 'function') {
-      showNotif('Arc advanced: ' + (REGIONAL_ARC_TEMPLATES[arcId] ? REGIONAL_ARC_TEMPLATES[arcId].label : arcId) + ' Stage ' + (nextStage + 1) + ' posted.', success ? 'good' : 'warn');
-    }
-  }
 
   var DEITY_PACT_PATHWAYS = {
     mercy: {
@@ -16518,7 +16502,9 @@
       try { window.factionSystem.onMissionResolved(mission, success); } catch (err) {}
     }
     onDeityPactMissionResolved(mission, success);
-    pushNextArcJob(mission, success);
+    if (typeof pushNextArcJob === 'function') {
+      pushNextArcJob(mission, success);
+    }
   }
 
   function applyHoldingCrisisMissionOutcome(mission, success) {

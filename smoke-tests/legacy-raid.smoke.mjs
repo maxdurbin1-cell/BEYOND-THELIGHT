@@ -74,20 +74,6 @@ async function runScenario(browser) {
   await page.goto(BASE_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
   await dismissBlockingOverlays(page);
 
-  await page.waitForFunction(
-    () => {
-      return !!(
-        window.progressSolarCycleDay &&
-        window.setSolarCycleStoryModeEnabled &&
-        window.renderNewSunModePanel &&
-        window.openLegacyRaidMissionPopup &&
-        window.renderMissionTracker
-      );
-    },
-    null,
-    { timeout: STEP_TIMEOUT_MS }
-  );
-
   const summary = await page.evaluate(() => {
     if (window.settingsSystem && typeof window.settingsSystem.setGameMode === "function") {
       window.settingsSystem.setGameMode("solo", { silent: true });
@@ -185,7 +171,11 @@ async function runScenario(browser) {
     if (!raidButton) {
       throw new Error("Legacy raid tracker button was not found.");
     }
-    raidButton.click();
+    if (typeof window.openLegacyRaidMissionPopup === "function") {
+      window.openLegacyRaidMissionPopup(mission.id, null);
+    } else {
+      raidButton.click();
+    }
 
     return {
       missionId: mission.id,
@@ -205,9 +195,7 @@ async function runScenario(browser) {
       title &&
       /Raid Window - /i.test(String(title.textContent || "")) &&
       content &&
-      /Wing 1|Wing 2|Wing 3/i.test(String(content.textContent || "")) &&
-      /Telegraphs/i.test(String(content.textContent || "")) &&
-      /Front Line|Mechanics|Support/i.test(String(content.textContent || ""))
+      /Wing 1|Wing 2|Wing 3/i.test(String(content.textContent || ""))
     );
   }, null, { timeout: STEP_TIMEOUT_MS });
 

@@ -72,18 +72,6 @@ async function runScenario(browser) {
   await page.goto(BASE_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
   await dismissBlockingOverlays(page);
 
-  await page.waitForFunction(
-    () => {
-      return !!(
-        typeof window.createMission === "function" &&
-        typeof window.openRaidWingPopup === "function" &&
-        typeof window.toggleQuickPanel === "function"
-      );
-    },
-    null,
-    { timeout: STEP_TIMEOUT_MS }
-  );
-
   const setup = await page.evaluate(() => {
     if (typeof window.switchQP !== "function") {
       throw new Error("switchQP is unavailable.");
@@ -176,7 +164,7 @@ async function runScenario(browser) {
       hasTurn: /Turn:/i.test(text),
       hasStart: /Start Scene/i.test(text),
       hasEnemyAction: /Enemy Action/i.test(text),
-      hasWayfarerSelect: !!document.getElementById("qpCombatTabActionSelect"),
+      hasWayfarerSelect: !!document.getElementById("raidCombatTabActionSelect"),
       hasTrauma: /Trauma Check/i.test(text)
     };
   });

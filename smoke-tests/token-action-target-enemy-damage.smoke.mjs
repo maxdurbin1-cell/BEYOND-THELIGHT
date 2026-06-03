@@ -74,7 +74,11 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
   const pageErrors = [];
-  page.on("pageerror", (err) => pageErrors.push(String(err && err.message ? err.message : err)));
+  page.on("pageerror", (err) => {
+    const message = String(err && err.message ? err.message : err);
+    const stack = err && err.stack ? String(err.stack) : "";
+    pageErrors.push(stack ? `${message}\n${stack}` : message);
+  });
 
   try {
     await waitForServer(baseUrl, child);
@@ -210,7 +214,7 @@ async function run() {
       throw new Error(`Targeted enemy token did not lose HP after Token Action: before=${JSON.stringify(before)} after=${JSON.stringify(summary)}`);
     }
     if (summary.vineHp !== 0 || !summary.vineDead) {
-      throw new Error(`Targeted enemy token did not take lethal damage: ${JSON.stringify(summary)}`);
+      throw new Error(`Targeted enemy token did not resolve to the expected lethal state: ${JSON.stringify(summary)}`);
     }
     if (summary.vineSourceEnemyId !== 0) {
       throw new Error(`Target token unexpectedly bound to a legacy enemy: ${JSON.stringify(summary)}`);
@@ -250,6 +254,7 @@ async function run() {
   }
 
   if (pageErrors.length) {
+    console.error(`Token target smoke page errors: ${pageErrors.join(" | ")}`);
     throw new Error(`Encountered page errors during smoke run: ${pageErrors.join(" | ")}`);
   }
 }

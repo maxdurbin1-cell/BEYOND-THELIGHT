@@ -16095,6 +16095,7 @@ function createYessodState() {
   state.tasks = [];
   state.missions = [];
   state.pendingMonster = null;
+  state.pendingCombatOutcome = null;
 
   rollYessodWeather(state);
   return state;
@@ -16416,6 +16417,7 @@ function toggleYessodManualRollMode() {
 function clearYessodTrial() {
   const state = ensureYessodState();
   state.pendingMonster = null;
+  state.pendingCombatOutcome = null;
   state.lastEncounter = '';
   const out = document.getElementById('yessodEncResult');
   if (out) out.innerHTML = '';
@@ -16594,11 +16596,11 @@ function yessodRollWeatherCheck() {
         const actionTotal = Number((outcome && outcome.actionTotal) || 0);
         const dreadTotal = Number((outcome && outcome.dreadTotal) || 0);
         if (success) {
-          showNotif(`Weather check passed (${actionTotal} vs ${dreadTotal}). Safe passage.`, 'good');
+          showNotif(`Weather check passed (${actionTotal} vs ${dreadTotal}). Margin +${Math.max(0, actionTotal - dreadTotal)}. Safe passage.`, 'good');
         } else {
           const diff = Math.max(1, dreadTotal - actionTotal);
           if (typeof changeStress === 'function') changeStress(diff);
-          showNotif(`Weather check failed (${actionTotal} vs ${dreadTotal}). ${weather.failure || `+${diff} Stress`}`, 'warn');
+          showNotif(`Weather check failed (${actionTotal} vs ${dreadTotal}). Failure Margin ${diff}: +${diff} Stress. ${weather.failure || ''}`.trim(), 'warn');
         }
       }
     });
@@ -16606,11 +16608,11 @@ function yessodRollWeatherCheck() {
   }
   const result = roll(12);
   if (result >= weather.dd) {
-    showNotif(`Weather check passed (d12: ${result} vs DD${weather.dd}). Safe passage.`, 'good');
+    showNotif(`Weather check passed (d12: ${result} vs DD${weather.dd}). Margin +${Math.max(0, result - weather.dd)}. Safe passage.`, 'good');
   } else {
     const diff = weather.dd - result;
     if (typeof changeStress === 'function') changeStress(diff);
-    showNotif(`Weather check failed (d12: ${result} vs DD${weather.dd}). ${weather.failure || `+${diff} Stress`}`, 'warn');
+    showNotif(`Weather check failed (d12: ${result} vs DD${weather.dd}). Failure Margin ${diff}: +${diff} Stress. ${weather.failure || ''}`.trim(), 'warn');
   }
 }
 
@@ -16637,8 +16639,81 @@ function rollYessodMonsterEncounter(cellId) {
   renderYessodHexInfo(yessodGetCell(state, state.selectedCellId));
 }
 
+function yessodBuildCombatOutcomeContract(type, dread, count) {
+  const dd = snapToValidDreadDie(dread || 8);
+  const enemies = Math.max(1, Number(count || 1));
+  if (String(type || '') === 'boss') {
+    return {
+      victoryCredits: (dd * 20) + (enemies * 10),
+      defeatHealth: Math.max(2, Math.ceil(dd / 5)),
+      defeatStress: Math.max(2, Math.ceil(dd / 6)),
+      renownOnVictory: 2
+    };
+  }
+  return {
+    victoryCredits: (dd * 8) + (enemies * 12),
+    defeatHealth: Math.max(1, Math.ceil(dd / 6)),
+    defeatStress: Math.max(1, Math.ceil(enemies / 2)),
+    renownOnVictory: 0
+  };
+}
+
+function yessodOpenCombatAndQuickAccess() {
+  const combatBtn = document.getElementById('tabnav-combat') || document.querySelector('#mainNav .tab-btn[data-tab="combat"]');
+  if (typeof switchTab === 'function' && combatBtn) switchTab('combat', combatBtn);
+  if (typeof openQuickPanelTab === 'function') openQuickPanelTab('combat');
+}
+
+function yessodOpenPendingCombatOutcomeModal() {
+  const state = ensureYessodState();
+  const pending = state && state.pendingCombatOutcome ? state.pendingCombatOutcome : null;
+  if (!pending || typeof openModal !== 'function') return;
+  const contract = pending.contract || yessodBuildCombatOutcomeContract(pending.type, pending.dread, pending.enemyCount);
+  const title = pending.type === 'boss' ? 'Yessod Boss Combat Outcome' : 'Yessod Monster Combat Outcome';
+  const html = `<div style="font-size:.84rem;color:var(--text2);line-height:1.58;">
+    <strong style="color:var(--gold2);">${title}</strong><br>
+    ${pending.enemyCount} ${pending.enemyName}${pending.enemyCount > 1 ? 's' : ''} (DD${pending.dread} | ${pending.enemyHealth} HP each | Death Number ${pending.deathNumber})<br>
+    <em>After resolving combat in Combat + Quick Access, choose Victory or Defeat to close this encounter.</em><br>
+    <div style="font-size:.76rem;color:var(--muted2);margin-top:.28rem;">Outcome Contract: Victory +${contract.victoryCredits} Cr${contract.renownOnVictory ? `, +${contract.renownOnVictory} Renown` : ''}. Defeat +${contract.defeatHealth} Health damage and +${contract.defeatStress} Stress.</div>
+    <div style="display:flex;gap:.28rem;flex-wrap:wrap;margin-top:.4rem;">
+      <button class="btn btn-xs btn-warn" onclick="yessodOpenCombatAndQuickAccess()">Open Combat + Quick Access</button>
+      <button class="btn btn-xs btn-teal" onclick="yessodResolvePendingCombatOutcome(true)">Victory</button>
+      <button class="btn btn-xs btn-red" onclick="yessodResolvePendingCombatOutcome(false)">Defeat</button>
+    </div>
+  </div>`;
+  openModal('Yessod Combat Outcome', html);
+}
+
+function yessodResolvePendingCombatOutcome(success) {
+  const state = ensureYessodState();
+  const pending = state && state.pendingCombatOutcome ? state.pendingCombatOutcome : null;
+  if (!pending) {
+    showNotif('No pending Yessod combat outcome to resolve.', 'warn');
+    return;
+  }
+  const contract = pending.contract || yessodBuildCombatOutcomeContract(pending.type, pending.dread, pending.enemyCount);
+  state.pendingCombatOutcome = null;
+  if (pending.type === 'monster') state.pendingMonster = null;
+  if (success) {
+    if (typeof changeCredits === 'function') changeCredits(contract.victoryCredits || 0);
+    if (contract.renownOnVictory && typeof changeCounter === 'function') changeCounter('renown', contract.renownOnVictory);
+    showNotif(`${pending.enemyName} defeated. Outcome Contract applied: +${contract.victoryCredits} Cr${contract.renownOnVictory ? `, +${contract.renownOnVictory} Renown` : ''}.`, 'good');
+  } else {
+    if (typeof changeHealth === 'function') changeHealth(contract.defeatHealth || 1);
+    if (typeof changeStress === 'function') changeStress(contract.defeatStress || 1);
+    showNotif(`Retreated from ${pending.enemyName}. Outcome Contract applied: +${contract.defeatHealth} Health damage, +${contract.defeatStress} Stress.`, 'warn');
+  }
+  if (typeof closeModal === 'function') closeModal();
+  renderYessodPanel();
+}
+
 function yessodEngageMonster() {
   const state = ensureYessodState();
+  if (state.pendingCombatOutcome && state.pendingCombatOutcome.resolutionPending) {
+    showNotif('Resolve the active Yessod combat outcome before starting another combat.', 'warn');
+    yessodOpenPendingCombatOutcomeModal();
+    return;
+  }
   const monster = state.pendingMonster;
   if (!monster) return showNotif('No active monster encounter.', 'warn');
   const dread = snapToValidDreadDie(monster.dread || 6);
@@ -16653,12 +16728,25 @@ function yessodEngageMonster() {
   else S.combat.enemyDread = dread;
   if (typeof startCombat === 'function') startCombat();
   if (typeof renderEnemies === 'function') renderEnemies();
+  const contract = yessodBuildCombatOutcomeContract('monster', dread, count);
+  state.pendingCombatOutcome = {
+    id: `yessod-monster-${Date.now()}`,
+    type: 'monster',
+    cellId: Number(monster.cellId || state.selectedCellId),
+    enemyName: String(monster.name || 'Yessod Monster'),
+    enemyCount: count,
+    dread,
+    enemyHealth: dread * 2,
+    deathNumber: Math.max(1, Math.ceil((dread * 2) / 2)),
+    contract,
+    resolutionPending: true,
+    startedAt: Date.now()
+  };
   state.pendingMonster.combatStarted = true;
   state.pendingMonster.resolving = true;
-  showNotif(`Combat started: ${count} × ${monster.name}. Check Combat tab or Quick Panel.`, 'warn');
-  const combatBtn = document.getElementById('tabnav-combat') || document.querySelector('#mainNav .tab-btn[data-tab="combat"]');
-  if (typeof switchTab === 'function' && combatBtn) switchTab('combat', combatBtn);
-  if (typeof openQuickPanelTab === 'function') openQuickPanelTab('combat');
+  showNotif(`Combat started: ${count} × ${monster.name}. Open Combat + Quick Access, then choose Victory or Defeat to close this encounter.`, 'warn');
+  yessodOpenCombatAndQuickAccess();
+  yessodOpenPendingCombatOutcomeModal();
 }
 
 function yessodAvoidMonster() {
@@ -16669,32 +16757,45 @@ function yessodAvoidMonster() {
   const result = roll(12);
   if (result >= dd) {
     state.pendingMonster = null;
-    showNotif(`Monster avoided (d12: ${result} vs DD${dd}). You slip past unseen.`, 'good');
+    showNotif(`Monster avoided (d12: ${result} vs DD${dd}). Margin +${Math.max(0, result - dd)}. You slip past unseen.`, 'good');
   } else {
-    if (typeof changeStress === 'function') changeStress(roll(4));
-    showNotif(`Failed to avoid (d12: ${result} vs DD${dd}). +1d4 Stress from close encounter. Monster is still here.`, 'warn');
+    const diff = Math.max(1, dd - result);
+    if (typeof changeStress === 'function') changeStress(diff);
+    showNotif(`Failed to avoid (d12: ${result} vs DD${dd}). Failure Margin ${diff}: +${diff} Stress. Monster is still here.`, 'warn');
   }
   renderYessodHexInfo(yessodGetCell(state, state.selectedCellId));
 }
 
 function yessodResolveMonsterCombat(success) {
   const state = ensureYessodState();
-  if (!state.pendingMonster) return;
+  if (!state.pendingCombatOutcome && !state.pendingMonster) return;
+  if (state.pendingCombatOutcome && state.pendingCombatOutcome.type === 'monster') {
+    yessodResolvePendingCombatOutcome(!!success);
+    return;
+  }
   const monster = state.pendingMonster;
+  if (!monster) return;
   state.pendingMonster = null;
   if (success) {
-    const reward = roll(6) * 10;
+    const reward = 80;
     if (typeof changeCredits === 'function') changeCredits(reward);
-    showNotif(`${monster.name} defeated. +${reward} Cr salvage recovered.`, 'good');
+    showNotif(`${monster.name} defeated. Outcome Contract fallback: +${reward} Cr.`, 'good');
   } else {
-    if (typeof changeHealth === 'function') changeHealth(roll(4));
-    showNotif(`Retreated from ${monster.name}. -1d4 Health from injuries.`, 'warn');
+    if (typeof changeHealth === 'function') changeHealth(2);
+    if (typeof changeStress === 'function') changeStress(1);
+    showNotif(`Retreated from ${monster.name}. Outcome Contract fallback: +2 Health damage, +1 Stress.`, 'warn');
   }
   renderYessodPanel();
 }
 
 // ── YESSOD BOSS TOWERS ────────────────────────────────────────────────────────
 function enterYessodBossTower(towerId) {
+  const state = ensureYessodState();
+  if (state.pendingCombatOutcome && state.pendingCombatOutcome.resolutionPending) {
+    showNotif('Resolve the active Yessod combat outcome before starting another combat.', 'warn');
+    yessodOpenPendingCombatOutcomeModal();
+    return;
+  }
   const bossData = towerId === 'mephisto_tower' ? YESSOD_STRATA_FLAVOR[0].boss : YESSOD_STRATA_FLAVOR[5].boss;
   const dread = towerId === 'mephisto_tower' ? 12 : 20;
   const count = 6;
@@ -16710,10 +16811,24 @@ function enterYessodBossTower(towerId) {
   S.combat.bossRaid = { towerId, questGate: bossData.questGate, label: bossData.label };
   if (typeof startCombat === 'function') startCombat();
   if (typeof renderEnemies === 'function') renderEnemies();
-  showNotif(`Entering ${bossData.name}. ${bossData.label} Raid encounter started. This is a Gate Endgame Mission.`, 'warn');
-  const combatBtn = document.getElementById('tabnav-combat') || document.querySelector('#mainNav .tab-btn[data-tab="combat"]');
-  if (typeof switchTab === 'function' && combatBtn) switchTab('combat', combatBtn);
-  if (typeof openQuickPanelTab === 'function') openQuickPanelTab('combat');
+  const contract = yessodBuildCombatOutcomeContract('boss', dread, count + 1);
+  state.pendingCombatOutcome = {
+    id: `yessod-boss-${towerId}-${Date.now()}`,
+    type: 'boss',
+    cellId: Number(state.selectedCellId || 0),
+    towerId: String(towerId || ''),
+    enemyName: String(bossData.label || 'Yessod Boss'),
+    enemyCount: count + 1,
+    dread,
+    enemyHealth: dread * 3,
+    deathNumber: Math.max(1, Math.ceil((dread * 3) / 2)),
+    contract,
+    resolutionPending: true,
+    startedAt: Date.now()
+  };
+  showNotif(`Entering ${bossData.name}. Raid seeded in Combat + Quick Access. Choose Victory or Defeat to close this encounter.`, 'warn');
+  yessodOpenCombatAndQuickAccess();
+  yessodOpenPendingCombatOutcomeModal();
 }
 
 // ── YESSOD TASKS & MISSIONS ───────────────────────────────────────────────────
@@ -16923,6 +17038,9 @@ function renderYessodHexInfo(cell) {
 
   // Pending monster combat
   const pendingMonster = state.pendingMonster && state.pendingMonster.cellId === cell.id ? state.pendingMonster : null;
+  const pendingCombatOutcome = state.pendingCombatOutcome && state.pendingCombatOutcome.cellId === cell.id
+    ? state.pendingCombatOutcome
+    : null;
 
   // Feature-specific info HTML
   let featureHtml = '';
@@ -17070,8 +17188,22 @@ function renderYessodHexInfo(cell) {
       <div class="ss-title" style="color:var(--red2);">⚔ Monster Encounter — ${pendingMonster.name}</div>
       <div class="ss-text">${pendingMonster.desc || 'A creature of Yessod blocks your path.'}</div>
       <div style="margin-top:.32rem;display:flex;gap:.28rem;flex-wrap:wrap;">
-        <button class="btn btn-sm btn-warn" onclick="yessodEngageMonster()">⚔ Engage — Combat Tab</button>
+        <button class="btn btn-sm btn-warn" onclick="yessodEngageMonster()">⚔ Engage — Combat + Quick Access</button>
         <button class="btn btn-sm btn-primary" onclick="yessodAvoidMonster()">🚫 Attempt to Avoid (Lead vs DD${pendingMonster.dd || 8})</button>
+      </div>
+    </div>`;
+  }
+
+  if (pendingCombatOutcome) {
+    const contract = pendingCombatOutcome.contract || yessodBuildCombatOutcomeContract(pendingCombatOutcome.type, pendingCombatOutcome.dread, pendingCombatOutcome.enemyCount);
+    featureHtml += `<div class="sea-site" style="margin-bottom:.35rem;border-color:var(--gold2);background:rgba(201,162,39,.08);">
+      <div class="ss-title" style="color:var(--gold2);">⚖ Combat Outcome Pending — ${pendingCombatOutcome.enemyName}</div>
+      <div class="ss-text">Resolve combat in Combat + Quick Access, then record Victory or Defeat to close this encounter.</div>
+      <div style="font-size:.74rem;color:var(--muted2);margin-top:.2rem;">Outcome Contract: Victory +${contract.victoryCredits} Cr${contract.renownOnVictory ? `, +${contract.renownOnVictory} Renown` : ''}. Defeat +${contract.defeatHealth} Health damage, +${contract.defeatStress} Stress.</div>
+      <div style="margin-top:.32rem;display:flex;gap:.28rem;flex-wrap:wrap;">
+        <button class="btn btn-sm btn-warn" onclick="yessodOpenCombatAndQuickAccess()">Open Combat + Quick Access</button>
+        <button class="btn btn-sm btn-teal" onclick="yessodResolvePendingCombatOutcome(true)">Victory</button>
+        <button class="btn btn-sm btn-red" onclick="yessodResolvePendingCombatOutcome(false)">Defeat</button>
       </div>
     </div>`;
   }
@@ -23080,6 +23212,9 @@ window.rollYessodMonsterEncounter = rollYessodMonsterEncounter;
 window.yessodEngageMonster = yessodEngageMonster;
 window.yessodAvoidMonster = yessodAvoidMonster;
 window.yessodResolveMonsterCombat = yessodResolveMonsterCombat;
+window.yessodOpenCombatAndQuickAccess = yessodOpenCombatAndQuickAccess;
+window.yessodOpenPendingCombatOutcomeModal = yessodOpenPendingCombatOutcomeModal;
+window.yessodResolvePendingCombatOutcome = yessodResolvePendingCombatOutcome;
 window.enterYessodBossTower = enterYessodBossTower;
 window.rollYessodTaskGeneration = rollYessodTaskGeneration;
 window.createYessodTask = createYessodTask;

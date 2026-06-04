@@ -8844,7 +8844,7 @@ function applyStressToEnemy(enemy, stress, source){
   enemy.deathNumber=deathNumber;
   enemy.maxStress=maxHealth;
   enemy.stress=Math.min(maxHealth,Number(enemy.stress||0)+dmg);
-  var deathByThreshold=enemy.stress>=deathNumber;
+  var deathByThreshold=dmg>=deathNumber;
 
   if(deathByThreshold||enemy.stress>=maxHealth){
     var defeated=enemy.name;
@@ -8858,7 +8858,9 @@ function applyStressToEnemy(enemy, stress, source){
     }
     var next=getPrimaryCombatEnemy();
     var nextText=next?(' Next target: '+next.name+'.'):'';
-    var deathText=' Death Number hit ('+deathNumber+'/'+maxHealth+'): instant kill.';
+    var deathText=deathByThreshold
+      ? (' Death Number hit on a single strike ('+dmg+' >= '+deathNumber+'): instant kill.')
+      : (' HP depleted ('+maxHealth+'/'+maxHealth+').');
     showNotif(defeated+' eliminated!'+deathText+nextText,'good');
     maybeDropAfflictionCureItem(defeated);
     promptConsumeAfterEnemyDefeat(defeated);
@@ -21414,6 +21416,7 @@ function lcPressOn(col,row,idx){
     if(typeof setEnemyDread==='function')setEnemyDread(dd);
     if(typeof renderEnemies==='function')renderEnemies();
     if(typeof renderQP==='function')renderQP('combat');
+    if(typeof openQuickPanelTab==='function')openQuickPanelTab('combat');
   }
 
 function lcTriggerTrap(col,row,idx){
@@ -21429,7 +21432,7 @@ function lcTriggerTrap(col,row,idx){
       if(typeof changeHealth==='function')changeHealth(Math.max(1,d.total-a.total));
       if(typeof showNotif==='function')showNotif('Trap triggered!','warn');
     }
-    openModal('Trap Check',`<div style="font-size:.83rem;color:var(--text2);line-height:1.6;">AD${ad} ${a.total} vs DD8 ${d.total} — <strong style="color:${success?'var(--green2)':'var(--red2)'};">${resultMsg}</strong><div style="display:flex;gap:.28rem;justify-content:flex-end;margin-top:.42rem;"><button class="btn btn-sm btn-primary" onclick="openLostCityBuildingHexcrawl(${col},${row})">Go Back</button></div></div>`);
+    openModal('Trap Check',`<div style="font-size:.83rem;color:var(--text2);line-height:1.6;">VD${ad} ${a.total} vs DD8 ${d.total} — <strong style="color:${success?'var(--green2)':'var(--red2)'};">${resultMsg}</strong><div style="display:flex;gap:.28rem;justify-content:flex-end;margin-top:.42rem;"><button class="btn btn-sm btn-primary" onclick="openLostCityBuildingHexcrawl(${col},${row})">Go Back</button></div></div>`);
 }
 
 function generateTask(){
@@ -22243,6 +22246,18 @@ function runWhenIdle(fn, timeoutMs){
     });
     if (el) { el.classList.add('on'); el.setAttribute('aria-current', 'page'); }
     renderQP(tab);
+  };
+
+  window.openQuickPanelTab = function(tab) {
+    var panel = document.getElementById('quickPanel');
+    var btn = document.getElementById('quickPanelToggle');
+    if (!panel || !btn) return;
+    panel.classList.add('open');
+    btn.classList.add('open');
+    btn.setAttribute('aria-expanded', 'true');
+    var tabName = String(tab || 'dice');
+    var tabBtn = document.querySelector('.qp-tab[onclick*="\''+tabName+'\'"]');
+    switchQP(tabName, tabBtn || null);
   };
 
   function buildQPFlavorCueFeed(){
@@ -24197,7 +24212,7 @@ function runWhenIdle(fn, timeoutMs){
       var relation = relationForEntry(e);
       return '<div style="display:flex;justify-content:space-between;align-items:center;gap:.3rem;padding:.18rem 0;border-bottom:1px solid rgba(255,255,255,.04);">'
         + '<span style="font-size:.76rem;color:'+(e.ally?'var(--teal)':'var(--text2)')+';">'+(e.name||('Unit '+(idx+1)))+' ('+relation+')</span>'
-        + '<span style="font-family:Rajdhani,sans-serif;font-size:.76rem;color:'+(e.ally?'var(--teal)':'var(--red2)')+';">'+Number(e.stress||0)+'/'+Number(e.maxStress||0)+' Stress • d'+Number((e&&e.dread)||dread)+'</span>'
+        + '<span style="font-family:Rajdhani,sans-serif;font-size:.76rem;color:'+(e.ally?'var(--teal)':'var(--red2)')+';">HP '+Math.max(0,Number(e.maxStress||0)-Number(e.stress||0))+'/'+Number(e.maxStress||0)+' • d'+Number((e&&e.dread)||dread)+'</span>'
       + '</div>';
     }).join('') || '<div style="font-size:.78rem;color:var(--muted2);">No allies or enemies in scene.</div>';
     var enemyTargetOptions = ['<option value="">Closest hostile</option>']

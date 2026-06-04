@@ -723,8 +723,8 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="tab-btn ctx-traveling" aria-controls="tab-howto" id="tabnav-howto" data-tab="howto">How To Use</button>
     </div>
     <div id="mainNavTools" role="group" aria-label="Utility controls">
-      <button class="tab-btn gm-dashboard-btn" onclick="openGmDashboard()">👥 GM</button>
       <button class="tab-btn solo-reference-btn ctx-traveling" onclick="openSoloReference()">🧭 Solo</button>
+      <button class="tab-btn gm-dashboard-btn" onclick="openGmDashboard()">👥 GM</button>
       <button class="tab-btn settings-tab-btn" onclick="window.settingsSystem.toggleSettings()">⚙️ Settings</button>
     </div>
   </div>
@@ -15750,8 +15750,8 @@ function enforceTravelTabOrder(){
   var tablist=document.getElementById('mainNavTablist')||document.getElementById('mainNav');
   if(!tablist)return;
 
-  // Traveling context order keeps Missions and Merchant near core play loops.
-  var orderedTabs=['character','backstory','dice','codex','rules','combat','missions','shop','scenes','oracle','storyline','factions','trophies','endgame','theos','howto'];
+  // Traveling context order uses the original preferred progression.
+  var orderedTabs=['character','backstory','dice','codex','rules','combat','scenes','oracle','storyline','newsun','factions','trophies','missions','endgame','theos','shop','howto'];
   orderedTabs.forEach(function(tabId){
     var btn=document.getElementById('tabnav-'+tabId)||tablist.querySelector('.tab-btn[data-tab="'+tabId+'"]');
     if(btn&&btn.parentNode===tablist)tablist.appendChild(btn);
@@ -15768,8 +15768,8 @@ function enforceUtilityTabOrder(){
   if(gmBtn&&gmBtn.parentNode!==tools)tools.appendChild(gmBtn);
   if(soloBtn&&soloBtn.parentNode!==tools)tools.appendChild(soloBtn);
   if(settingsBtn&&settingsBtn.parentNode!==tools)tools.appendChild(settingsBtn);
-  if(gmBtn)tools.appendChild(gmBtn);
   if(soloBtn)tools.appendChild(soloBtn);
+  if(gmBtn)tools.appendChild(gmBtn);
   if(settingsBtn)tools.appendChild(settingsBtn);
 }
 function setContext(ctx,btn){
@@ -19774,7 +19774,9 @@ function resolveWorldStateActionAtKeyForRegion(region,key,action){
     var tension=Number(overlay&&overlay.tension||0);
     var safety=Number(overlay&&overlay.safety||0);
     var modifier=(safety-tension);
-    var adjustedLead=leadRoll.total+modifier;
+    var adjustedLead=Math.max(1,leadRoll.total+modifier);
+    var modifierSource=' (Safety '+safety+' - Tension '+tension+' = '+(modifier>=0?'+':'')+modifier+')';
+    var leadSummary='LEAD '+leadRoll.total+(leadRoll.total!==adjustedLead?('→'+adjustedLead):'')+(modifier===0?'':(modifier>=0?(' +'+modifier):(' '+modifier)));
     var success=adjustedLead>=ddRoll.total;
     if(success){
       window.applyWorldConsequence({
@@ -19789,7 +19791,7 @@ function resolveWorldStateActionAtKeyForRegion(region,key,action){
         tags:['negotiate','opened-border']
       });
       if(regionName==='province')clearWorldStatePressureAtKey(locationKey,{routeSafe:true});
-      showNotif('Negotiate Control success: LEAD '+leadRoll.total+(modifier>=0?(' +'+modifier):(' '+modifier))+' vs DD8 '+ddRoll.total+'.','good');
+      showNotif('Negotiate Control success: '+leadSummary+' vs DD8 '+ddRoll.total+'.'+modifierSource,'good');
     }else{
       window.applyWorldConsequence({
         system:'player-action',
@@ -19802,7 +19804,7 @@ function resolveWorldStateActionAtKeyForRegion(region,key,action){
         deltas:{factionHeat:1,tension:1,stability:-1},
         tags:['faction-operation','negotiation-failed']
       });
-      showNotif('Negotiate Control failed: LEAD '+leadRoll.total+(modifier>=0?(' +'+modifier):(' '+modifier))+' vs DD8 '+ddRoll.total+'.','warn');
+      showNotif('Negotiate Control failed: '+leadSummary+' vs DD8 '+ddRoll.total+'.'+modifierSource,'warn');
     }
   }
   if(regionName==='province'&&hex&&hex.data&&hex.data.mood&&choice==='stabilize'){
@@ -22134,7 +22136,7 @@ function showNotif(msg,type=''){
   setTimeout(function(){
     n.classList.remove('show');
     setTimeout(function(){if(n&&n.parentNode)n.parentNode.removeChild(n);},260);
-  },3000);
+  },5000);
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────

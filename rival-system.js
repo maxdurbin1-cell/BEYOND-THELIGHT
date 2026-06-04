@@ -414,6 +414,16 @@
     syncRivalStatus();
     renderRivalCombatStatus();
     if(typeof closeModal==='function')closeModal();
+    if(!success&&typeof addTMWOnFail==='function'){
+      var failBy=Math.max(1,Number(rollOut&&rollOut.dreadTotal||0)-Number(rollOut&&rollOut.actorTotal||0));
+      if(rollOut&&rollOut.manual)failBy=1;
+      addTMWOnFail('rival-interaction-failure',{
+        failedBy:failBy,
+        actionDie:Math.max(4,Number(rollOut&&rollOut.die||4)),
+        dreadDie:Math.max(4,Number(rollOut&&rollOut.dreadDie||dread||8)),
+        actionLabel:String(stat||'lead').toUpperCase()+' Die'
+      });
+    }
     if(typeof showNotif==='function'){
       showNotif('Rival '+label+': '+(success?'success':'failure')+(rollOut.manual?' (manual)':'')+'. '+drift,success?'good':'warn');
     }

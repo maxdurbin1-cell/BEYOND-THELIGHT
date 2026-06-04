@@ -19103,7 +19103,18 @@ function attemptBlackMarketAccess(col,row){
     if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',Math.max(1,result.dreadTotal-result.actionTotal),{actionTotal:result.actionTotal,dreadTotal:result.dreadTotal,context:'Black market access'+(penaltyNote?(' ['+penaltyNote+']'):'')});
     html+=`<div style="margin-top:.35rem;font-size:.8rem;color:var(--muted2);">Lookouts clock you immediately and throw you out before any deal starts.</div>`;
     showNotif('Black Market access failed. You were thrown out.','warn');
-    if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
+    if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure',{
+      failedBy:Math.max(1,result.dreadTotal-result.actionTotal),
+      actionDie:controlDie,
+      dreadDie:12,
+      actionLabel:'Control Die',
+      onConvert:function(){
+        if(typeof addSuccessRoll==='function')addSuccessRoll();
+        if(typeof showNotif==='function')showNotif('Black Market access converted to success. Entry granted.','good');
+        if(typeof setTimeout==='function')setTimeout(function(){ if(typeof showBlackMarket==='function')showBlackMarket(col,row); },0);
+        return true;
+      }
+    });
   }
 
   openModal('Black Market Access ['+(col+1)+','+(row+1)+']',html);
@@ -19171,27 +19182,31 @@ function attemptEncounterThievery(source,col,row){
       const failBy=Math.max(1,result.dreadTotal-result.actionTotal);
       const success=!!result.success;
       const rollSummary=((result.manual?String(result.rawActionTotal):(autoRollParts.length?autoRollParts.join('+'):String(result.rawActionTotal))))+(result.rawActionTotal!==result.actionTotal?(' → '+result.actionTotal):'')+' vs '+result.dreadTotal+(result.manual?' [manual]':'')+(penaltyNote?(' ['+penaltyNote+']'):'' );
-    const hoodBonus=(S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood'))?' + Hood d6':'';
-    const controlLabel='Control d'+controlDie+hoodBonus;
-    if(success){
-      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,result.actionTotal-result.dreadTotal),{actionTotal:result.actionTotal,dreadTotal:result.dreadTotal,context:'Encounter thievery: '+source+(penaltyNote?(' ['+penaltyNote+']'):'')});
-      if(typeof addSuccessRoll==='function')addSuccessRoll();
-      if(reward.kind==='credits'){
-        S.credits=(S.credits||0)+reward.amount;
-        if(typeof updateCreditsUI==='function')updateCreditsUI();
-        showNotif('Thievery success ('+controlLabel+' vs DD12): '+reward.amount+'₵ from '+reward.label,'good');
-        appendQuickPanelNote('[Thievery] Stole '+reward.amount+'₵ from '+reward.label+' ('+rollSummary+')');
-      }else{
+      const hoodBonus=(S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood'))?' + Hood d6':'';
+      const controlLabel='Control d'+controlDie+hoodBonus;
+      function applyEncounterThieverySuccess(tag){
+        if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,result.actionTotal-result.dreadTotal),{actionTotal:result.actionTotal,dreadTotal:result.dreadTotal,context:'Encounter thievery: '+source+(penaltyNote?(' ['+penaltyNote+']'):'')});
+        if(typeof addSuccessRoll==='function')addSuccessRoll();
+        var suffix=tag?(' ['+tag+']'):'';
+        if(reward.kind==='credits'){
+          S.credits=(S.credits||0)+reward.amount;
+          if(typeof updateCreditsUI==='function')updateCreditsUI();
+          showNotif('Thievery success ('+controlLabel+' vs DD12): '+reward.amount+'₵ from '+reward.label,'good');
+          appendQuickPanelNote('[Thievery] Stole '+reward.amount+'₵ from '+reward.label+' ('+rollSummary+')'+suffix);
+          return;
+        }
         const stored=(typeof addToBackpack==='function')?addToBackpack(reward.label):false;
         showNotif('Thievery success ('+controlLabel+' vs DD12): '+reward.label+(stored?' (backpack)':''),'good');
-        appendQuickPanelNote('[Thievery] Stole '+reward.label+' ('+rollSummary+')');
+        appendQuickPanelNote('[Thievery] Stole '+reward.label+' ('+rollSummary+')'+suffix);
       }
-    }else{
+      if(success){
+        applyEncounterThieverySuccess('rolled');
+      }else{
       if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',failBy,{actionTotal:result.actionTotal,dreadTotal:result.dreadTotal,context:'Encounter thievery: '+source+(penaltyNote?(' ['+penaltyNote+']'):'')});
       showNotif('Thievery failed ('+controlLabel+' vs DD12). Caught! ('+rollSummary+')','warn');
-      if(typeof addTMWOnFail==='function')addTMWOnFail('thievery-failure',{failedBy:failBy,actionDie:controlDie,dreadDie:12,actionLabel:'Control Die'});
+      if(typeof addTMWOnFail==='function')addTMWOnFail('thievery-failure',{failedBy:failBy,actionDie:controlDie,dreadDie:12,actionLabel:'Control Die',onConvert:function(){applyEncounterThieverySuccess('teamwork-convert');return true;}});
       appendQuickPanelNote('[Thievery] Caught while stealing from '+source+'. +1 TMW');
-    }
+      }
     }
   });
   if(kickoff&&kickoff.pending)return;
@@ -19285,23 +19300,26 @@ function attemptThievery(targetName){
       const failBy=Math.max(1,result.dreadTotal-result.actionTotal);
       const success=!!result.success;
       const rollSummary=((result.manual?String(result.rawActionTotal):(autoRollParts.length?autoRollParts.join('+'):String(result.rawActionTotal))))+(result.rawActionTotal!==result.actionTotal?(' → '+result.actionTotal):'')+' vs '+result.dreadTotal+(result.manual?' [manual]':'')+(penaltyNote?(' ['+penaltyNote+']'):'' );
-    const controlLabel='Control d'+controlDie+((S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood'))?' + Hood d6':'');
-    if(success){
-      if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,result.actionTotal-result.dreadTotal),{actionTotal:result.actionTotal,dreadTotal:result.dreadTotal,context:'Direct thievery: '+targetName+(penaltyNote?(' ['+penaltyNote+']'):'')});
-      if(typeof addSuccessRoll==='function')addSuccessRoll();
-      if(typeof addToBackpack==='function'){
-        const stored=addToBackpack(targetName);
-        showNotif(`Thievery success (${controlLabel} vs DD12): ${targetName}${stored?' (backpack)':' (no space)'}`, 'good');
-      }else{
-        showNotif(`Thievery success (${controlLabel} vs DD12): ${targetName}`, 'good');
+      const controlLabel='Control d'+controlDie+((S.equipment&&S.equipment.readied&&S.equipment.readied.toLowerCase().includes('hood'))?' + Hood d6':'');
+      function applyDirectThieverySuccess(tag){
+        if(typeof showDccSuccessOutcome==='function')showDccSuccessOutcome('control',Math.max(1,result.actionTotal-result.dreadTotal),{actionTotal:result.actionTotal,dreadTotal:result.dreadTotal,context:'Direct thievery: '+targetName+(penaltyNote?(' ['+penaltyNote+']'):'')});
+        if(typeof addSuccessRoll==='function')addSuccessRoll();
+        if(typeof addToBackpack==='function'){
+          const stored=addToBackpack(targetName);
+          showNotif(`Thievery success (${controlLabel} vs DD12): ${targetName}${stored?' (backpack)':' (no space)'}`, 'good');
+        }else{
+          showNotif(`Thievery success (${controlLabel} vs DD12): ${targetName}`, 'good');
+        }
+        appendQuickPanelNote(`[Thievery] Stole ${targetName} (${rollSummary})${tag?(' ['+tag+']'):''}`);
       }
-      appendQuickPanelNote(`[Thievery] Stole ${targetName} (${rollSummary})`);
-    }else{
+      if(success){
+        applyDirectThieverySuccess('rolled');
+      }else{
       if(typeof showDccFailureOutcome==='function')showDccFailureOutcome('control',failBy,{actionTotal:result.actionTotal,dreadTotal:result.dreadTotal,context:'Direct thievery: '+targetName+(penaltyNote?(' ['+penaltyNote+']'):'')});
       showNotif(`Thievery failed (${controlLabel} vs DD12). Caught! (${rollSummary})`, 'warn');
-      if(typeof addTMWOnFail==='function')addTMWOnFail('thievery-failure',{failedBy:failBy,actionDie:controlDie,dreadDie:12,actionLabel:'Control Die'});
+      if(typeof addTMWOnFail==='function')addTMWOnFail('thievery-failure',{failedBy:failBy,actionDie:controlDie,dreadDie:12,actionLabel:'Control Die',onConvert:function(){applyDirectThieverySuccess('teamwork-convert');return true;}});
       appendQuickPanelNote(`[Thievery] Caught attempting to steal ${targetName}. +1 TMW`);
-    }
+      }
     }
   });
   if(kickoff&&kickoff.pending)return;
@@ -19447,7 +19465,34 @@ function resolveEventLeadAction(col,row){
   }
   if(!success){
     if(typeof showDccFailureOutcome==='function')showDccFailureOutcome(statKey,Math.max(1,d.total-a.total),{actionTotal:a.total,dreadTotal:d.total,context:'Event lead action: '+lead.eventName});
-    if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure');
+    if(typeof addTMWOnFail==='function')addTMWOnFail('general-failure',{
+      failedBy:Math.max(1,d.total-a.total),
+      actionDie:die,
+      dreadDie:Math.max(4,Number(ch&&ch.dread||8)),
+      actionLabel:String(statKey||'lead').toUpperCase()+' Die',
+      onConvert:function(){
+        ch.dread=stepDown(stepDown(ch.dread||8));
+        recordEventMysteryRoll(eventHex,statKey,true,a.total,d.total);
+        const convertResult=advanceEventMystery(eventHex,`Lead Hex [${col+1},${row+1}] (Teamwork Convert)`);
+        if(typeof registerSecretPadClue==='function')registerSecretPadClue('province','event');
+        clearEventLeadFromHex(col,row);
+        if(eventHex.data&&eventHex.data.activeLead&&eventHex.data.activeLead.targetCol===col&&eventHex.data.activeLead.targetRow===row){
+          delete eventHex.data.activeLead;
+        }
+        if(leadEl&&convertResult){
+          leadEl.innerHTML=`<div class="venture-result"><div class="vr-type">${lead.eventName} — Teamwork Conversion</div><strong style="color:var(--green2);">Success</strong> via converted failure.<br><span style="font-size:.75rem;color:var(--muted2);">Dread now ${ch.dread} · Mysteries Solved ${getEventMysteryProgress(eventHex).completed}/6</span></div>`+
+            `<div class="venture-result" style="margin-top:.28rem;"><div class="vr-type">${lead.eventName} — Mystery ${convertResult.idx} of ${convertResult.total}</div>${convertResult.text}</div>`+
+            (convertResult.leadText?`<div class="npc-block" style="margin-top:.3rem;"><div class="nb-label">🧭 New Lead</div><div style="font-size:.8rem;color:var(--muted3);">${convertResult.leadText}</div></div>`:'');
+        }
+        appendHexNote(col,row,`[Lead ${lead.eventName}] Teamwork conversion: success (dread ${ch.dread}).`);
+        appendQuickPanelNote(`[Lead ${lead.eventName}] Teamwork conversion resolved as success.`);
+        if(typeof addSuccessRoll==='function')addSuccessRoll();
+        if(getEventMysteryProgress(eventHex).completed>=6){completeEventChallenge(eventHex,'lead teamwork convert');}
+        if(typeof renderHexMap==='function')renderHexMap();
+        if(typeof showNotif==='function')showNotif('Active Lead converted to success via Teamwork. Mystery chain advanced.','good');
+        return true;
+      }
+    });
   }
   if(typeof clearConditionOnUse==='function')clearConditionOnUse(statKey);
   if(getEventMysteryProgress(eventHex).completed>=6){completeEventChallenge(eventHex,'lead action');}

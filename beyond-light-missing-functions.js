@@ -1322,9 +1322,12 @@ window.applyFailedRollRecovery = function(mode) {
           convertApplied = false;
         }
       }
+      if (!convertApplied && typeof addSuccessRoll === 'function') {
+        addSuccessRoll();
+      }
       if (typeof showNotif === 'function') showNotif('Spent ' + spend + ' Teamwork: failure converted to success.', 'good');
       if (!convertApplied && typeof showNotif === 'function') {
-        showNotif('Converted for this check, but some screens may still need manual refresh.', 'info');
+        showNotif('Converted using default recovery flow. Re-run the original action if this screen has custom rewards.', 'info');
       }
     } else {
       if (typeof showNotif === 'function') showNotif('Spent ' + spend + ' Teamwork, but you still need +' + (failedBy - spend) + ' to convert this fail.', 'warn');

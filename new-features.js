@@ -13904,8 +13904,10 @@
 
     var malwareHtml = '';
     var malwareBy = Math.max(1, (high - low) || 1);
+    var malwareDmg = 0;
+    var hadDistractedBefore = !!(S && S.conditions && S.conditions.distracted);
     if (!success) {
-      var malwareDmg = roll(6);
+      malwareDmg = roll(6);
       malwareBy = Math.max(1, malwareBy + malwareDmg);
       S.tmw = Math.max(0, (S.tmw || 0) - 1);
       if (typeof updateTMWPool === 'function') updateTMWPool();
@@ -13948,12 +13950,62 @@
         });
       }
       if (typeof addSuccessRoll === 'function') addSuccessRoll();
-    } else if (typeof showDccFailureOutcome === 'function') {
-      showDccFailureOutcome('spell', Math.max(1, malwareBy), {
-        actionTotal: valorVal,
-        dreadTotal: actual === 'below' ? low : (actual === 'above' ? high : Math.round((low + high) / 2)),
-        context: 'Hack cast: ' + hackName
-      });
+    } else {
+      if (typeof showDccFailureOutcome === 'function') {
+        showDccFailureOutcome('spell', Math.max(1, malwareBy), {
+          actionTotal: valorVal,
+          dreadTotal: actual === 'below' ? low : (actual === 'above' ? high : Math.round((low + high) / 2)),
+          context: 'Hack cast: ' + hackName
+        });
+      }
+      if (typeof addTMWOnFail === 'function') {
+        addTMWOnFail('hack-cast-failure', {
+          failedBy: Math.max(1, malwareBy),
+          actionDie: valorDie,
+          dreadDie: dreadDie,
+          actionLabel: 'Valor Die',
+          onConvert: function () {
+            if (typeof changeCounter === 'function') {
+              changeCounter('tmw', 1);
+            } else {
+              S.tmw = Math.max(0, Number(S.tmw || 0) + 1);
+              if (typeof updateTMWPool === 'function') updateTMWPool();
+            }
+            if (malwareDmg > 0 && typeof changeHealth === 'function') {
+              changeHealth(-malwareDmg);
+            }
+            if (!hadDistractedBefore && S && S.conditions) {
+              S.conditions.distracted = false;
+              if (typeof updateConditionButtons === 'function') updateConditionButtons();
+              if (typeof updateAllStatDisplays === 'function') updateAllStatDisplays();
+            }
+            if (hackData && hackData.effect) {
+              var convertedEffect = (S.combat && S.combat.active && combatEnemy && typeof applyCombatHackEffect === 'function')
+                ? (applyCombatHackEffect(hackName) || hackData.effect())
+                : hackData.effect();
+              effectHtml = '<br><span style="color:var(--teal);">' + convertedEffect + '</span>';
+            }
+            var convertEl = document.getElementById('hackRollResult');
+            if (convertEl) {
+              convertEl.innerHTML = '<div class="gamble-outcome good" style="margin-top:.4rem;">'
+                + '<strong style="color:var(--green2);">Hack Converted To Success!</strong><br>'
+                + 'Original roll was recovered with Teamwork.'
+                + effectHtml
+                + '</div>';
+            }
+            if (typeof showDccSuccessOutcome === 'function') {
+              showDccSuccessOutcome('spell', Math.max(1, malwareBy), {
+                actionTotal: valorVal,
+                dreadTotal: actual === 'below' ? low : (actual === 'above' ? high : Math.round((low + high) / 2)),
+                context: 'Hack cast (teamwork convert): ' + hackName
+              });
+            }
+            if (typeof addSuccessRoll === 'function') addSuccessRoll();
+            if (typeof showNotif === 'function') showNotif('Hack failure converted to success via Teamwork.', 'good');
+            return true;
+          }
+        });
+      }
     }
 
     if (spellMeta && spellMeta.profile) {

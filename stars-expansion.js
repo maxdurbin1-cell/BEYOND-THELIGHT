@@ -22937,7 +22937,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   if (nav) {
-    var orderedTabs = ['oracle', 'missions', 'galaxy', 'worldthatwas', 'planet', 'naval', 'exocrafts', 'yessod', 'shop'];
+    var orderedTabs = ['galaxy', 'worldthatwas', 'planet', 'naval', 'exocrafts', 'yessod'];
     orderedTabs.forEach(function(tabId) {
       var tabBtn = document.getElementById('tabnav-' + tabId) || document.querySelector('#mainNavTablist .tab-btn[data-tab="' + tabId + '"]');
       if (!tabBtn) return;

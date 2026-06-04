@@ -588,6 +588,8 @@ body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr 1f
 #quickPanelToggle:hover,#quickPanelToggle.open{border-color:var(--gold);background:rgba(201,162,39,.08);box-shadow:0 10px 28px rgba(201,162,39,.2);}
 #quickPanel{position:fixed;bottom:3.8rem;right:.85rem;width:432px;max-height:calc(100vh - 6rem);background:rgba(11,12,26,.97);border:1px solid var(--border2);z-index:20000;display:none;flex-direction:column;backdrop-filter:blur(12px);box-shadow:0 10px 38px rgba(0,0,0,.62);border-radius:12px;overflow:hidden;}
 #quickPanel.open{display:flex;}
+body.modal-open #quickPanel,
+body.modal-open #quickPanelToggle{z-index:5100;}
 .qp-header{display:flex;gap:0;border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;background:linear-gradient(180deg,rgba(255,255,255,.035) 0%,rgba(255,255,255,.01) 100%);}
 .qp-tab{flex:0 0 auto;min-width:4.4rem;background:transparent;border:none;border-right:1px solid var(--border);color:var(--muted2);font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.08em;padding:.46rem .3rem;cursor:pointer;text-transform:uppercase;transition:all .12s;line-height:1.25;}
 .qp-tab:last-child{border-right:none;}
@@ -1191,7 +1193,6 @@ nav{padding:.28rem;gap:.16rem;border-radius:12px;}
     <button class="btn btn-sm" id="nightModeToggleBtn" onclick="toggleNightMode()">Night Mode: Off</button>
     <button class="btn btn-sm btn-teal" id="mapClickModeBtn" onclick="toggleMapClickMode()">Map Mode: Travel</button>
     <button class="btn btn-sm" id="campaignFogVisionBtn" onclick="toggleCampaignFogPlayerVision()">Campaign Player Vision: Path</button>
-    <button class="btn btn-sm btn-teal" id="longRestPhaseBtn" style="display:none;" onclick="takeLongRestAtCamp()">Take a Long Rest</button>
     <select id="mapHexStyleSel" onchange="setMapHexStyle(this.value)" style="background:var(--surface);border:1px solid var(--border2);color:var(--text2);padding:.16rem .32rem;font-size:.75rem;border-radius:3px;">
       <option value="classic">Hex Style: Classic</option>
     </select>
@@ -15886,7 +15887,7 @@ try{
 try{applyHomepageCopyVariant();}catch(_err){}
 function ensureMapClickMode(){
   if(!S.mapClickMode)S.mapClickMode='travel';
-  if(['travel','inspect','fog'].indexOf(String(S.mapClickMode))<0)S.mapClickMode='travel';
+  if(['travel','inspect'].indexOf(String(S.mapClickMode))<0)S.mapClickMode='travel';
   return S.mapClickMode;
 }
 function ensureMapFogState(){
@@ -16051,22 +16052,20 @@ function updateMapClickModeUI(){
   const b=document.getElementById('mapClickModeBtn');
   if(!b)return;
   const m=ensureMapClickMode();
-  const label=(m==='travel')?'Travel':(m==='inspect'?'Inspect':'Fog');
+  const label=(m==='travel')?'Travel':'Inspect';
   b.textContent='Map Mode: '+label;
-  if(m==='travel'||m==='fog'){b.classList.add('btn-teal');}else{b.classList.remove('btn-teal');}
+  if(m==='travel'){b.classList.add('btn-teal');}else{b.classList.remove('btn-teal');}
   updateCampaignFogPlayerVisionUI();
 }
 function toggleMapClickMode(){
   ensureMapClickMode();
-  const order=['travel','inspect','fog'];
+  const order=['travel','inspect'];
   const idx=order.indexOf(String(S.mapClickMode));
   S.mapClickMode=order[(idx+1)%order.length];
-  if(S.mapClickMode==='fog')getMapFogConfig('province').enabled=true;
   updateMapClickModeUI();
-  if(S.mapClickMode!=='fog')getMapFogConfig('province').enabled=false;
   showNotif(
     S.mapClickMode==='travel'?'Province clicks now advance travel time.':
-    (S.mapClickMode==='inspect'?'Province clicks now inspect only.':'Province clicks now reveal fog.'),
+    'Province clicks now inspect only.',
     'good'
   );
   if(typeof renderHexMap==='function')renderHexMap();
@@ -22007,6 +22006,7 @@ function openModal(title, content, restoreCallback, options) {
   var overlay = document.getElementById('rollModal');
   if (overlay) overlay.style.zIndex = '5200';
   overlay.classList.add('open');
+  if (document.body) document.body.classList.add('modal-open');
   // Keep the page anchored while opening overlays.
   var rootEl = document.scrollingElement || document.documentElement || document.body;
   var pageScrollTop = rootEl ? Number(rootEl.scrollTop || 0) : 0;
@@ -22034,6 +22034,7 @@ function closeModal(options) {
   }
   if (typeof window !== 'undefined') window._arenaCombatPopupOpen = false;
   document.getElementById('rollModal').classList.remove('open');
+  if (document.body) document.body.classList.remove('modal-open');
   if (window._modalStack && window._modalStack.length) {
     window._modalStack = [];
   }

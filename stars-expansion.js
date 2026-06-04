@@ -2882,7 +2882,7 @@ function createLegacyRaidEvent(legacy, region) {
         checkpoints: [
           'Recover the raid lore cache before the marker cools.',
           puzzleText,
-          'Face ' + String(boss.name || 'the raid boss') + ' with three allied Traveling Wayfarers (DD6 | 12 Stress each). Profile: ' + String(raidProfile.label || 'Normal Raid') + ' · Curve: ' + String(raidProfile.curve || 'adaptive') + '.'
+          'Face ' + String(boss.name || 'the raid boss') + ' with three allied Traveling Wayfarers (DD6 | 12 HP each). Profile: ' + String(raidProfile.label || 'Normal Raid') + ' · Curve: ' + String(raidProfile.curve || 'adaptive') + '.'
         ],
         step1Intro: flavor + ' Allied support: three Traveling Wayfarers arrive to reinforce the raid.',
         lore: flavor + ' Boss actions: ' + String((boss.actions || []).join('; '))
@@ -2949,7 +2949,7 @@ function createLegacyRaidEvent(legacy, region) {
     rewardProcessed: false,
     medalReward: 1,
     pointReward: legacy && legacy.raidTree && legacy.raidTree.trophy_claim ? 2 : 1,
-    allyText: 'Three Traveling Wayfarers (DD6 | 12 Stress) join the assault as allies.',
+    allyText: 'Three Traveling Wayfarers (DD6 | 12 HP) join the assault as allies.',
     locationLabel: String(mission.location || getLegacyRaidRegionLabel(targetRegion))
   };
 
@@ -3246,7 +3246,7 @@ function buildLegacyRaidPanelHtml() {
   return '<div style="background:var(--surface2);border:1px solid var(--border2);padding:.75rem .8rem;margin-bottom:.6rem;">'
     + '<div style="font-size:1rem;color:var(--text);margin-bottom:.24rem;"><strong>Legacy Raid Board</strong></div>'
     + '<div style="font-size:.82rem;color:var(--text2);line-height:1.62;margin-bottom:.38rem;">In Legacy Mode, world-boss raid events can surface across the Province, Sea Region, Galaxy, and planet routes. Each one is a three-step mission with lore, intricate puzzles, and a mythic boss. If Step 1 is not started within 3 in-game days, the marker withdraws and only reappears after one in-game month.</div>'
-    + '<div style="font-size:.8rem;color:var(--gold2);margin-bottom:.32rem;">Allied support: three Traveling Wayfarers (DD6 | 12 Stress) join every raid.</div>'
+    + '<div style="font-size:.8rem;color:var(--gold2);margin-bottom:.32rem;">Allied support: three Traveling Wayfarers (DD6 | 12 HP) join every raid.</div>'
     + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.3rem;margin-bottom:.38rem;">'
     + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;"><div style="font-size:.66rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Medals</div><div style="font-size:.9rem;color:var(--gold2);">' + Number(legacy.medals || 0) + '</div></div>'
     + '<div style="background:var(--surface);border:1px solid var(--border2);padding:.45rem .5rem;"><div style="font-size:.66rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Raid Points</div><div style="font-size:.9rem;color:var(--teal);">' + Number(legacy.raidPoints || 0) + '</div></div>'
@@ -4853,7 +4853,7 @@ function completeSolarCycleMarkerInteraction(hex, markerToken, approach, manualO
       + '<div style="font-size:.74rem;color:var(--muted2);margin-bottom:.35rem;">' + escapeSolarCycleHtml(resolutionCopy.detail) + '</div>'
       + '<div style="font-size:.74rem;color:' + (contest.success ? 'var(--green2)' : 'var(--red2)') + ';margin-bottom:.35rem;">'
       + (contest.manual
-        ? ('Manual result: <strong>' + (contest.success ? 'SUCCESS' : 'FAILURE') + '</strong> (' + String(profile.stat).toUpperCase() + ' d' + Number(contest.actionDie || 4) + ' vs Dread d' + Number(contest.dreadDie || 4) + ')')
+        ? ('Manual result: <strong>' + (contest.success ? 'SUCCESS' : 'FAILURE') + '</strong> (' + String(profile.stat).toUpperCase() + ' d' + Number(contest.actionDie || 4) + ' vs DD' + Number(contest.dreadDie || 4) + ')')
         : (String(profile.stat).toUpperCase() + ' d' + Number(contest.actionDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(contest.actionRoll)
           + ' vs Dread d' + Number(contest.dreadDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(contest.dreadRoll)))
       + '</div>'
@@ -7275,7 +7275,7 @@ function applySolarCycleQuestChallengeOutcome(quest, rollResult, misled) {
     if (typeof switchTab === 'function') switchTab('combat', btn || null);
     if (typeof openQuickPanelTab === 'function') openQuickPanelTab('combat');
     if (typeof showNotif === 'function') {
-      showNotif(foeName + ' engages: DD' + foeDread + ' | ' + foeHealth + ' Health | Death Number ' + deathNumber + '. ' + foeDesc, 'warn');
+      showNotif(foeName + ' engages: DD' + foeDread + ' | ' + foeHealth + ' HP | Death Number ' + deathNumber + '. ' + foeDesc, 'warn');
     }
     if (misled) {
       if (typeof changeHealth === 'function') changeHealth(-1);
@@ -7531,7 +7531,7 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat, manualOu
     showNotif((misled ? 'Contested' : 'Confirmed') + ' New Sun clue: ' + quest.methodTitle + (rollResult.autoFracture
       ? ' (Time Fracture auto-success, 1 charge spent)'
       : (rollResult.manual
-        ? (' (Manual ' + (rollResult.success ? 'SUCCESS' : 'FAILURE') + ': ' + String(rollResult.stat).toUpperCase() + ' d' + Number(rollResult.actionDie || 4) + ' vs Dread d' + Number(rollResult.dreadDie || 4) + ')')
+        ? (' (Manual result: ' + (rollResult.success ? 'SUCCESS' : 'FAILURE') + ' (' + String(rollResult.stat).toUpperCase() + ' d' + Number(rollResult.actionDie || 4) + ' vs DD' + Number(rollResult.dreadDie || 4) + '))')
         : (' (' + String(rollResult.stat).toUpperCase() + ' ' + getSolarCycleRollTotal(rollResult.actionRoll) + ' vs Dread ' + getSolarCycleRollTotal(rollResult.dreadRoll) + ')' + getSolarCycleRollPenaltyNote(rollResult.actionRoll)))) + (socialStyle ? (' | ' + socialStyle.label) : '') + (tensionReward ? (' | Pressure payout ' + (misled ? Math.floor(tensionReward / 3) : tensionReward) + '₵') : '') + '.', misled ? 'warn' : 'good');
   }
   var _isPuzzleChallenge = String(quest.challengeType || '') === 'puzzle';
@@ -7621,7 +7621,7 @@ function resolveSolarCycleSchedulerQuest(questId, approach, actionStat, manualOu
       + (rollResult.autoFracture
         ? ('TIME FRACTURE spent 1 charge for automatic success. Paradox strain increased.')
         : (rollResult.manual
-          ? ('Manual result: <strong>' + (rollResult.success ? 'SUCCESS' : 'FAILURE') + '</strong> (' + String(rollResult.stat).toUpperCase() + ' d' + Number(rollResult.actionDie || 4) + ' vs Dread d' + Number(rollResult.dreadDie || 4) + ')')
+          ? ('Manual result: <strong>' + (rollResult.success ? 'SUCCESS' : 'FAILURE') + '</strong> (' + String(rollResult.stat).toUpperCase() + ' d' + Number(rollResult.actionDie || 4) + ' vs DD' + Number(rollResult.dreadDie || 4) + ')')
           : (String(rollResult.stat).toUpperCase() + ' d' + Number(rollResult.actionDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(rollResult.actionRoll)
             + ' vs Dread d' + Number(rollResult.dreadDie || 4) + ' = ' + formatSolarCycleRollTotalHtml(rollResult.dreadRoll))))
       + '</div>'
@@ -10485,25 +10485,25 @@ const DEAD_MOON_TRAVEL_EVENTS = {
     'Purple lightning tears through the sky; Body save or suffer 2 stress.',
     'Skull shards crash from elevated ruins; Body vs DD6 or take d6 damage.',
     'Yellow hull fungus pulses in a black cloud; +1 Action cost for this leg.',
-    'Insectoid swarm DD4 | 8 Health appears among twisted roots.',
+    'Insectoid swarm DD4 | 8 HP appears among twisted roots.',
   ],
   south: [
-    'Slime-like moth swarm DD8 | 8 Health crawls from broken ducts.',
+    'Slime-like moth swarm DD8 | 8 HP crawls from broken ducts.',
     'Chunks of metal rain down; Body save or struck for d10 damage.',
     'Echoing warning: execute lockdown. Automated wardens activate.',
-    'Sire-Moths emerging from wreckage: DD8 | 8 Health.',
+    'Sire-Moths emerging from wreckage: DD8 | 8 HP.',
   ],
   east: [
     'Bone-shard winds strip exposed armor, movement slowed.',
     'Howl echoes in the distance: all gain +10 stress.',
-    'Gaunt hounds descend from ribbed structures DD12 | 12 Health.',
+    'Gaunt hounds descend from ribbed structures DD12 | 12 HP.',
     'Lifelike statues ignite with pale fire, forcing retreat lines.',
   ],
   west: [
     'Corpse of d10 grabber trees appears in the fog.',
     'Tirelike mutant striders and husked bodies block the path.',
     'Sonic-laced wind induces sudden fatigue for one phase.',
-    'Insectoid tree colony DD10 | 20 Health stirs near black water.',
+    'Insectoid tree colony DD10 | 20 HP stirs near black water.',
   ],
 };
 
@@ -10536,14 +10536,14 @@ const DERELICT_MODULE_TABLE = [
   'MEDBAY: stocked but partially powered.',
   'LAB: quarantine zone, Body vs DD10 to enter safely.',
   'C-CHAMBER: filled with corpses. +10 Stress.',
-  'CARGO HOLD: scavengers DD4 | 8 Health guarding cargo.',
+  'CARGO HOLD: scavengers DD4 | 8 HP guarding cargo.',
   'ENGINE: d12 squatter cluster around warm conduits.',
 ];
 
 const FACILITY_CHALLENGES = [
   'The site is in deep debt. Pay Debt: 2d6x10 Credits | Gain 1x Loot.',
   '1d6 Missing Person(s). 1-in-6 chance of encountering them in a Module.',
-  '1 Grifter & d4 Goons (DD4 | 8 Health) seized resources and hide in a random Module.',
+  '1 Grifter & d4 Goons (DD4 | 8 HP) seized resources and hide in a random Module.',
   'Acquire Resources. Gain credits based on the amount of Resources found.',
   'Eliminate Antagonist. A strange creature resides in a random Module.',
   'Find Missing Item. A Traveling Wayfarer lost a Random Item. 1-in-6 chance per Module.',
@@ -10565,7 +10565,7 @@ const FACILITY_DREAD_EVENTS = [
   'All characters spend 1 Day Phase shooting at shadows.',
   'A random character hyperventilates, spending 1 Oxygen Pellet.',
   'A cosmic panic wave hits the crew. All characters gain +15 Stress.',
-  'Shadows ambush the crew: d6 Shadows DD4 | 8 Health.',
+  'Shadows ambush the crew: d6 Shadows DD4 | 8 HP.',
   'Pain twists the soul. All characters take +1 Trauma.',
 ];
 const FACILITY_TAINT = [
@@ -11172,10 +11172,10 @@ function exploreDeadMoonSite() {
   const direction = dm.direction || 'north';
   const room = pick(DEAD_MOON_SITE_ENCOUNTERS[direction]);
   const encounter = pick([
-    'd10 Simiic Moths DD8 | 8 Health',
-    'd6 Gaunt Hounds DD12 | 12 Health',
-    'd10 Grabber Trees DD10 | 20 Health',
-    'd4 Rust Sentinels DD12 | 24 Health',
+    'd10 Simiic Moths DD8 | 8 HP',
+    'd6 Gaunt Hounds DD12 | 12 HP',
+    'd10 Grabber Trees DD10 | 20 HP',
+    'd4 Rust Sentinels DD12 | 24 HP',
     'No combat: echoes of the past (+5 Stress).',
     'A wandering Antagonist crosses the corridor.',
   ]);
@@ -12266,14 +12266,14 @@ function getPlanetBeastEncounterText(state, selected) {
   const dread = 8;
   const hp = 16;
   const beastName = pick((PLANET_ENCOUNTER_ARCHETYPES.beast || ['Hostile Beasts'])).toLowerCase();
-  return `${count} ${beastName} prowl this route. DD${dread} | ${hp} Health each.`;
+  return `${count} ${beastName} prowl this route. DD${dread} | ${hp} HP each.`;
 }
 
 function getPlanetPirateEncounterText() {
   const count = roll(4);
   const dread = 8;
   const hp = 16;
-  return `${count} pirate raider${count !== 1 ? 's' : ''} lock this lane. DD${dread} | ${hp} Health each.`;
+  return `${count} pirate raider${count !== 1 ? 's' : ''} lock this lane. DD${dread} | ${hp} HP each.`;
 }
 
 function hasAnyPlanetSuitProtection() {
@@ -12966,7 +12966,7 @@ function rollPlanetLostCityTravel() {
   if (!state) return;
   const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
   let text = '';
-  if (r <= 2) text = 'Irradiated patrol encountered. DD4 | 8 Stress if you engage.';
+  if (r <= 2) text = 'Irradiated patrol encountered. DD4 | 8 HP each if you engage.';
   else if (r <= 4) text = 'Collapsed sector crossing. Control vs DD6 or lose 1 Phase.';
   else text = 'Safe district corridor found.';
   state.lastEvent = {
@@ -12989,7 +12989,7 @@ function rollPlanetLostCityIrradiatedPatrol() {
   const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
   if (!selected || selected.marker !== 'empty_colony') return;
   const count = roll(6);
-  const text = `${count} Irradiated emerge from collapsed service tunnels — d4 | 8 Stress.`;
+  const text = `${count} Irradiated emerge from collapsed service tunnels — DD4 | 8 HP each.`;
   state.lastEvent = {
     timestamp: Date.now(),
     d10: 4,
@@ -13368,7 +13368,7 @@ function resolvePlanetRuinRoom(cellId, roomId) {
         setPositiveGalaxyCondition(pick(['focused', 'empowered', 'protected', 'bolstered']));
       }
       if (outcome && outcome.manual) {
-        room.result = 'Manual SUCCESS: Valor d' + vdDie + ' vs Dread d' + Number(outcome.dreadDie || dread) + (outcome.pushLuck ? ' (Push Luck)' : '') + '. Loot secured: ' + room.loot;
+        room.result = 'Manual result: SUCCESS (Valor d' + vdDie + ' vs DD' + Number(outcome.dreadDie || dread) + (outcome.pushLuck ? ', Push Luck' : '') + '). Loot secured: ' + room.loot;
       } else {
         room.result = 'VD d' + vdDie + ' success vs DD' + dread + '. Loot secured: ' + room.loot;
       }
@@ -13390,7 +13390,7 @@ function resolvePlanetRuinRoom(cellId, roomId) {
         actionLabel: 'Valor Die'
       });
       if (outcome && outcome.manual) {
-        room.result = 'Manual FAILURE: Valor d' + vdDie + ' vs Dread d' + Number(outcome.dreadDie || dread) + (outcome.pushLuck ? ' (Push Luck)' : '') + '. Take ' + loss + ' Stress.';
+        room.result = 'Manual result: FAILURE (Valor d' + vdDie + ' vs DD' + Number(outcome.dreadDie || dread) + (outcome.pushLuck ? ', Push Luck' : '') + '). Take ' + loss + ' Stress.';
       } else {
         room.result = 'VD d' + vdDie + ' failed vs DD' + dread + '. Take ' + loss + ' Stress.';
       }
@@ -14477,7 +14477,7 @@ function observePlanetAdjacentDirection(directionKey) {
     const success = !!(outcome && outcome.success);
     let body = '';
     if (outcome && outcome.manual) {
-      body = `<div style="font-size:.8rem;color:var(--muted2);margin-bottom:.35rem;">Manual result: ${success ? 'SUCCESS' : 'FAILURE'} (Lead d${leadDie} vs Dread d${Number(outcome.dreadDie || 6)}${outcome.pushLuck ? ', Push Luck' : ''}).</div>`;
+      body = `<div style="font-size:.8rem;color:var(--muted2);margin-bottom:.35rem;">Manual result: ${success ? 'SUCCESS' : 'FAILURE'} (Lead d${leadDie} vs DD${Number(outcome.dreadDie || 6)}${outcome.pushLuck ? ', Push Luck' : ''}).</div>`;
     }
     if (success) {
       body += `<div class="info-cell"><span class="ic-label">✓ ${dir.label}</span>${summarizePlanetCell(target)}</div>`;
@@ -14631,6 +14631,11 @@ function rollPlanetHexEncounter() {
   const hex = getActivePlanetHex();
   const state = ensurePlanetSurfaceState(hex);
   if (!state) return;
+  if (state.pendingSkirmishCombat) {
+    showNotif('Resolve the active planet skirmish outcome before rolling a new encounter.', 'warn');
+    openPlanetSkirmishOutcomeModal();
+    return;
+  }
   const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
   if (!selected) return;
 
@@ -14650,11 +14655,11 @@ function rollPlanetHexEncounter() {
   } else if (d10 === 3) {
     const beasts = roll(6) + 2;
     title = `${beasts} Hostile Beasts`;
-    text = 'Their jaws click in perfect rhythm while they drag fresh bones through the brush — DD4 | 8 Stress.';
+    text = 'Their jaws click in perfect rhythm while they drag fresh bones through the brush — DD4 | 8 HP each.';
   } else if (d10 === 4) {
     const pirates = roll(4) + 1;
     title = `${pirates} Pirates`;
-    text = 'They wear trophy masks made from prior crews and broadcast screams on open comms — DD4 | 8 Stress.';
+    text = 'They wear trophy masks made from prior crews and broadcast screams on open comms — DD4 | 8 HP each.';
   } else if (d10 === 5) {
     const groupA = roll(6) + 2;
     const groupB = roll(6) + 2;
@@ -14663,7 +14668,7 @@ function rollPlanetHexEncounter() {
     title = 'Skirmish';
     text = `${groupA} ${factionA} clash with ${groupB} ${factionB}. Gunfire and distress pings saturate the district.`;
     if (typeof openModal === 'function') {
-      openModal('Skirmish', `<div style='font-size:.84rem;color:var(--text2);line-height:1.55;'><strong style='color:var(--gold2);'>Skirmish</strong><br>${text}<br><br>Pick which side you back, then resolve combat in the Combat tab.<div style='display:grid;grid-template-columns:1fr 1fr;gap:.3rem;margin-top:.45rem;'><button class='btn btn-xs btn-warn' onclick='resolvePlanetSkirmishChoice("intervene",${groupA},${groupB},"${factionA}","${factionB}","A")'>Back ${factionA}</button><button class='btn btn-xs btn-red' onclick='resolvePlanetSkirmishChoice("intervene",${groupA},${groupB},"${factionA}","${factionB}","B")'>Back ${factionB}</button></div><div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;'><button class='btn btn-xs' onclick='resolvePlanetSkirmishChoice("avoid",${groupA},${groupB},"${factionA}","${factionB}")'>Avoid</button></div></div>`);
+      openModal('Skirmish', `<div style='font-size:.84rem;color:var(--text2);line-height:1.55;'><strong style='color:var(--gold2);'>Skirmish</strong><br>${text}<br><br>Pick which side you back, then resolve combat in Combat + Quick Access and record Victory or Defeat.<div style='display:grid;grid-template-columns:1fr 1fr;gap:.3rem;margin-top:.45rem;'><button class='btn btn-xs btn-warn' onclick='resolvePlanetSkirmishChoice("intervene",${groupA},${groupB},"${factionA}","${factionB}","A")'>Back ${factionA}</button><button class='btn btn-xs btn-red' onclick='resolvePlanetSkirmishChoice("intervene",${groupA},${groupB},"${factionA}","${factionB}","B")'>Back ${factionB}</button></div><div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;'><button class='btn btn-xs' onclick='resolvePlanetSkirmishChoice("avoid",${groupA},${groupB},"${factionA}","${factionB}")'>Avoid</button></div></div>`);
     }
   } else if (d10 === 6) {
     title = 'Merchant Caravan';
@@ -14851,6 +14856,11 @@ function resolvePlanetSkirmishChoice(choice, groupA, groupB, factionA, factionB,
   const hex = getActivePlanetHex();
   const state = ensurePlanetSurfaceState(hex);
   if (!state) return;
+  if (state.pendingSkirmishCombat) {
+    showNotif('Resolve the active planet skirmish outcome before seeding another one.', 'warn');
+    openPlanetSkirmishOutcomeModal();
+    return;
+  }
   const selected = state.cells.find((cell) => cell.id === state.selectedCellId);
   if (!selected) return;
   if (choice === 'avoid') {
@@ -14901,7 +14911,7 @@ function resolvePlanetSkirmishChoice(choice, groupA, groupB, factionA, factionB,
   const btn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('combat'\"]");
   if (typeof switchTab === 'function') switchTab('combat', btn || null);
   if (typeof openQuickPanelTab === 'function') openQuickPanelTab('combat');
-  showNotif('Planet skirmish seeded in Combat tab. Resolve and mark outcome.', 'warn');
+  showNotif('Planet skirmish seeded in Combat + Quick Access. Resolve and record Victory or Defeat.', 'warn');
   openPlanetSkirmishOutcomeModal();
   renderPlanetExplorationPanel();
 }
@@ -14911,7 +14921,7 @@ function openPlanetSkirmishOutcomeModal() {
   const state = ensurePlanetSurfaceState(hex);
   const pending = state && state.pendingSkirmishCombat ? state.pendingSkirmishCombat : null;
   if (!pending || typeof openModal !== 'function') return;
-  openModal('Planet Skirmish Outcome', `<div style='font-size:.84rem;color:var(--text2);line-height:1.55;'><strong style='color:var(--gold2);'>Combat Outcome</strong><br>${pending.factionA} vs ${pending.factionB}.<br><strong style='color:var(--teal);'>You backed: ${pending.joinedFaction}</strong><br><em>After finishing the fight in Combat tab, record the result for your chosen side:</em><div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;'><button class='btn btn-xs btn-teal' onclick='resolvePlanetSkirmishCombatOutcome("success")'>${pending.joinedFaction} Won</button><button class='btn btn-xs btn-red' onclick='resolvePlanetSkirmishCombatOutcome("failure")'>${pending.joinedFaction} Lost</button></div></div>`);
+  openModal('Planet Skirmish Outcome', `<div style='font-size:.84rem;color:var(--text2);line-height:1.55;'><strong style='color:var(--gold2);'>Combat Outcome</strong><br>${pending.factionA} vs ${pending.factionB}.<br><strong style='color:var(--teal);'>You backed: ${pending.joinedFaction}</strong><br><em>After finishing the fight in Combat + Quick Access, record the result for your chosen side:</em><div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;'><button class='btn btn-xs btn-teal' onclick='resolvePlanetSkirmishCombatOutcome("success")'>${pending.joinedFaction} Victory</button><button class='btn btn-xs btn-red' onclick='resolvePlanetSkirmishCombatOutcome("failure")'>${pending.joinedFaction} Defeat</button></div></div>`);
 }
 
 function resolvePlanetSkirmishCombatOutcome(outcome) {
@@ -15486,7 +15496,7 @@ function createPlanetSurfaceState(hex) {
         peril: marker === 'peril' ? { name: pick(['Storm Crater', 'Electro Rift', 'Acid Shelf']), desc: pick(['Lead or Survival vs DD6 to pass.', 'Control vs DD8 to avoid system strain.', 'Body vs DD8 or take stress from exposure.']) } : null,
         gate: marker === 'gate' ? { name: pick(['Transit Gate', 'Ancient Orbital Gate', 'Derelict Jump Gate']), leads: pick(['Dead Moon lanes', 'Outer colony routes', 'Unknown fringe corridor']) } : null,
         lostCity: marker === 'empty_colony' ? {
-          watch: 'Irradiated Ones (DD4 | 8 Stress) patrol this district.',
+          watch: 'Irradiated Ones (DD4 | 8 HP each) patrol this district.',
           buildingCondition: pick(['Collapsed', 'Flooded', 'Partially Intact', 'Sealed']),
           buildingThis: pick(['Arcology block', 'Transit station', 'Archive tower', 'Habitat ring segment']),
           buildingMade: pick(['Steel and ceramic', 'Reinforced concrete', 'Carbon lattice', 'Basalt-composite']),

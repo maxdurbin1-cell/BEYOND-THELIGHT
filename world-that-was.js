@@ -2648,6 +2648,11 @@
     const evt = hex.narrative.event;
 
     if (evt.mode === "combat") {
+      if (w.pendingCombatOutcome) {
+        if (typeof showNotif === 'function') showNotif('Resolve the active World That Was combat outcome before starting another combat.', 'warn');
+        openWtwCombatOutcomeModal();
+        return;
+      }
       const profile = getWorldNamedEnemyProfile({
         name: evt.enemyName,
         desc: evt.enemyDesc,
@@ -2671,6 +2676,7 @@
         enemyHealth: enemyHealth,
         enemyName: enemyName,
         enemyDesc: evt.enemyDesc,
+        sourceType: 'event',
         sourceHexId: hex.id,
       });
       return;
@@ -2734,6 +2740,10 @@
   function completeCombatEventVictory(hexId) {
     const hex = hexById(hexId);
     if (!hex || !hex.narrative || !hex.narrative.event || hex.narrative.event.mode !== "combat") return;
+    const w = ensureWorldState();
+    if (w && w.pendingCombatOutcome && String(w.pendingCombatOutcome.sourceHexId || '') === String(hexId || '') && String(w.pendingCombatOutcome.sourceType || '') === 'event') {
+      w.pendingCombatOutcome = null;
+    }
     const zone = zoneForHex(hex);
     addPowerRenown(zone ? zone.leader : MAJOR_POWERS[0], 1);
     addZoneReputation(hex.zone, 2);
@@ -2753,6 +2763,10 @@
   function completeCombatEventFailure(hexId) {
     const hex = hexById(hexId);
     if (!hex || !hex.narrative || !hex.narrative.event || hex.narrative.event.mode !== "combat") return;
+    const w = ensureWorldState();
+    if (w && w.pendingCombatOutcome && String(w.pendingCombatOutcome.sourceHexId || '') === String(hexId || '') && String(w.pendingCombatOutcome.sourceType || '') === 'event') {
+      w.pendingCombatOutcome = null;
+    }
     hex.skirmish = true;
     if (typeof changeCounter === 'function') changeCounter('tmw', 1);
     if (typeof showNotif === 'function') showNotif('Combat event failed: district skirmish escalates and +1 Teamwork.', 'warn');
@@ -2767,6 +2781,10 @@
   function completeCombatEncounterFailure(hexId) {
     const hex = hexById(hexId);
     if (!hex || !hex.encounter || hex.encounter.mode !== 'combat') return;
+    const w = ensureWorldState();
+    if (w && w.pendingCombatOutcome && String(w.pendingCombatOutcome.sourceHexId || '') === String(hexId || '') && String(w.pendingCombatOutcome.sourceType || '') !== 'event') {
+      w.pendingCombatOutcome = null;
+    }
     hex.skirmish = true;
     hex.encounter = null;
     if (typeof changeCounter === 'function') changeCounter('tmw', 1);
@@ -2781,6 +2799,10 @@
   function completeCombatEncounterVictory(hexId) {
     const hex = hexById(hexId);
     if (!hex || !hex.encounter || hex.encounter.mode !== "combat") return;
+    const w = ensureWorldState();
+    if (w && w.pendingCombatOutcome && String(w.pendingCombatOutcome.sourceHexId || '') === String(hexId || '') && String(w.pendingCombatOutcome.sourceType || '') !== 'event') {
+      w.pendingCombatOutcome = null;
+    }
     addZoneReputation(hex.zone, 2);
     addWorldItem("scrap", 2);
     setCredits(getCredits() + 80);
@@ -2876,6 +2898,11 @@
       return;
     }
     if (hex.encounter.mode === "combat") {
+      if (w.pendingCombatOutcome) {
+        if (typeof showNotif === 'function') showNotif('Resolve the active World That Was combat outcome before starting another combat.', 'warn');
+        openWtwCombatOutcomeModal();
+        return;
+      }
       const profile = getWorldNamedEnemyProfile({
         name: hex.encounter.enemyName,
         desc: hex.encounter.enemyDesc,
@@ -2899,6 +2926,7 @@
         enemyHealth: enemyHealth,
         enemyName: enemyName,
         enemyDesc: hex.encounter.enemyDesc,
+        sourceType: 'encounter',
         sourceHexId: hex.id,
       });
       return;
@@ -3244,8 +3272,10 @@
     });
     const w = ensureWorldState();
     if (w) {
+      const sourceType = String((config && config.sourceType) || '').toLowerCase() === 'event' ? 'event' : 'encounter';
       w.pendingCombatOutcome = {
         sourceHexId: String(sourceHexId || (getSelectedHex() && getSelectedHex().id) || ''),
+        sourceType: sourceType,
         enemies: seeded.count,
         dread: seeded.dd,
         enemyHealth: seeded.hp,
@@ -3255,6 +3285,49 @@
       };
     }
     return seeded;
+  }
+
+  function openWtwCombatOutcomeModal() {
+    const w = ensureWorldState();
+    const pending = w && w.pendingCombatOutcome ? w.pendingCombatOutcome : null;
+    if (!pending || typeof openModal !== 'function') return;
+    const targetHex = pending.sourceHexId ? hexById(String(pending.sourceHexId)) : null;
+    const label = pending.sourceType === 'event' ? 'Event Combat Outcome' : 'Encounter Combat Outcome';
+    const locationLabel = targetHex ? (String(targetHex.zone || 'Unknown Zone') + ' / ' + String(targetHex.district || targetHex.id || 'District')) : 'Current District';
+    const enemyCount = Math.max(1, Number(pending.enemies || 2));
+    const enemyName = String(pending.enemyName || 'Ash Revenant');
+    const dread = normalizeDreadDie(pending.dread || 8, 8);
+    const enemyHealth = Math.max(4, Number(pending.enemyHealth || (dread * 2)));
+    const deathNumber = Math.max(1, Number(pending.deathNumber || Math.ceil(enemyHealth / 2)));
+    const html = "<div style='font-size:.84rem;color:var(--text2);line-height:1.58;'>"
+      + "<strong style='color:var(--gold2);'>" + label + "</strong><br>"
+      + locationLabel + "<br>"
+      + enemyCount + " " + enemyName + (enemyCount > 1 ? "s" : "") + " (DD" + dread + " | " + enemyHealth + " HP each | Death Number " + deathNumber + ")<br><br>"
+      + "After resolving the fight in Combat + Quick Access, choose the explicit result to close this combat:\n"
+      + "<div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;'>"
+      + "<button class='btn btn-xs btn-teal' onclick='wtwResolvePendingCombatOutcome(\"success\")'>Victory</button>"
+      + "<button class='btn btn-xs btn-red' onclick='wtwResolvePendingCombatOutcome(\"failure\")'>Defeat</button>"
+      + "</div></div>";
+    openModal('WTW Combat Outcome', html);
+  }
+
+  function resolveWtwPendingCombatOutcome(outcome) {
+    const w = ensureWorldState();
+    const pending = w && w.pendingCombatOutcome ? w.pendingCombatOutcome : null;
+    if (!pending) {
+      if (typeof showNotif === 'function') showNotif('No pending World That Was combat outcome to resolve.', 'warn');
+      return;
+    }
+    const sourceHexId = String(pending.sourceHexId || (getSelectedHex() && getSelectedHex().id) || '');
+    const sourceType = String(pending.sourceType || '').toLowerCase() === 'event' ? 'event' : 'encounter';
+    if (String(outcome || '') === 'success') {
+      if (sourceType === 'event') completeCombatEventVictory(sourceHexId);
+      else completeCombatEncounterVictory(sourceHexId);
+    } else {
+      if (sourceType === 'event') completeCombatEventFailure(sourceHexId);
+      else completeCombatEncounterFailure(sourceHexId);
+    }
+    if (typeof closeModal === 'function') closeModal();
   }
 
   function openWorldSkirmishCombat(config) {
@@ -3273,7 +3346,8 @@
     if (typeof switchTab === "function") switchTab("combat", btn || null);
     if (typeof openQuickPanelTab === 'function') openQuickPanelTab('combat');
     if (config && typeof showNotif === 'function') {
-      showNotif('World combat seeded: ' + (seeded ? seeded.count : Math.max(1, Number(config.enemies || 2))) + ' enemies in Combat tab.', 'warn');
+      showNotif('World combat seeded: ' + (seeded ? seeded.count : Math.max(1, Number(config.enemies || 2))) + ' enemies in Combat + Quick Access. Choose Victory or Defeat to close this combat.', 'warn');
+      openWtwCombatOutcomeModal();
     }
   }
 
@@ -3649,7 +3723,7 @@
         + "<div class='wtw-card-text'>Initialize skirmish controls in this panel, or open full Combat tab.</div>"
         + "<div class='wtw-card-actions'>"
         + "<button class='btn btn-xs btn-red' onclick='wtwInitSkirmish()'>Init Skirmish Controls</button>"
-        + "<button class='btn btn-xs btn-teal' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button>"
+        + "<button class='btn btn-xs btn-teal' onclick='openWorldSkirmishCombat()'>Open Combat + Quick Access</button>"
         + "<button class='btn btn-xs' onclick='resolveWorldSkirmish()'>Quick Resolve</button>"
         + "</div>"
         + "</div>";
@@ -3680,7 +3754,7 @@
       + "</div>"
       + "</div>"
       + "<div class='wtw-card-actions'>"
-      + "<button class='btn btn-xs btn-red' onclick='openWorldSkirmishCombat()'>Open Combat Tab</button>"
+      + "<button class='btn btn-xs btn-red' onclick='openWorldSkirmishCombat()'>Open Combat + Quick Access</button>"
       + "<button class='btn btn-xs' onclick='resolveWorldSkirmish()'>Quick Resolve</button>"
       + "</div>"
       + "</div>";
@@ -3838,7 +3912,7 @@
     const encounterPressure = getWtwEncounterPressureSummary(hex);
     const encounterActions = hex.encounter
       ? (hex.encounter.mode === "combat"
-        ? ("<button class='btn btn-xs btn-red' onclick='wtwResolveEncounter()'>Open Combat Tab</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEncounter(\"" + hex.id + "\")'>Victory</button><button class='btn btn-xs btn-warn' onclick='wtwFailCombatEncounter(\"" + hex.id + "\")'>Failure</button>")
+        ? ("<button class='btn btn-xs btn-red' onclick='wtwResolveEncounter()'>Open Combat + Quick Access</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEncounter(\"" + hex.id + "\")'>Victory</button><button class='btn btn-xs btn-warn' onclick='wtwFailCombatEncounter(\"" + hex.id + "\")'>Defeat</button>")
         : ("<button class='btn btn-xs btn-teal' onclick='wtwResolveEncounter()'>Resolve Encounter</button><button class='btn btn-xs btn-primary' onclick='wtwResolveEncounterAs(\"success\")'>Manual Success</button><button class='btn btn-xs btn-warn' onclick='wtwResolveEncounterAs(\"failure\")'>Manual Failure</button>" + gmEncounterControls))
       : "";
     const encounterHtml = hex.encounter
@@ -3993,7 +4067,7 @@
       + "<div class='wtw-card-text'><strong>" + evt.title + "</strong><br>" + evt.text + "<br><br><strong>Action:</strong> " + evt.action + "<br>" + eventCheck + "<br><strong>Reward:</strong> " + evt.reward + "</div>"
       + "<div class='wtw-card-actions'>"
       + (evt.mode === "combat"
-        ? ("<button class='btn btn-xs btn-red' onclick='wtwResolveEvent(\"" + hex.id + "\")'>Open Combat Tab</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEvent(\"" + hex.id + "\")'>Mark Combat Victory</button><button class='btn btn-xs btn-warn' onclick='wtwFailCombatEvent(\"" + hex.id + "\")'>Mark Combat Failure</button>")
+        ? ("<button class='btn btn-xs btn-red' onclick='wtwResolveEvent(\"" + hex.id + "\")'>Open Combat + Quick Access</button><button class='btn btn-xs btn-teal' onclick='wtwWinCombatEvent(\"" + hex.id + "\")'>Victory</button><button class='btn btn-xs btn-warn' onclick='wtwFailCombatEvent(\"" + hex.id + "\")'>Defeat</button>")
         : ("<button class='btn btn-xs btn-primary' onclick='wtwResolveEvent(\"" + hex.id + "\")'>Resolve Event</button>"))
       + "<button class='btn btn-xs' onclick='wtwRollEncounter()'>Roll Encounter</button></div>"
       + "</div>";
@@ -4307,6 +4381,7 @@
   window.wtwResolveCelebration = resolveWorldCelebrationEvent;
   window.wtwResolveEncounter = resolveDistrictEncounterWithJoin;
   window.wtwResolveEncounterAs = resolveDistrictEncounterAs;
+  window.wtwResolvePendingCombatOutcome = resolveWtwPendingCombatOutcome;
   window.wtwWinCombatEvent = completeCombatEventVictory;
   window.wtwFailCombatEvent = completeCombatEventFailure;
   window.wtwWinCombatEncounter = completeCombatEncounterVictory;

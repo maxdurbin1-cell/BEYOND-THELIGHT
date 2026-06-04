@@ -2003,7 +2003,7 @@
     var imagePreview = active && active.image
       ? '<div style="margin-top:.3rem;"><img src="' + String(active.image) + '" alt="Scene image" style="width:100%;max-height:120px;object-fit:cover;border:1px solid var(--border2);border-radius:4px;"></div>'
       : '<div style="margin-top:.3rem;font-size:.72rem;color:var(--muted2);">No scene image attached yet.</div>';
-    return '<details class="npc-block" open style="margin-bottom:.45rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);">'
+    return '<details class="npc-block" style="margin-bottom:.45rem;border-color:rgba(46,196,182,.45);background:rgba(46,196,182,.06);">'
       + '<summary class="nb-label" style="color:var(--teal);cursor:pointer;list-style:none;">🎬 Travel Scene [' + escapeHtmlLite(scopeLabel) + ']</summary>'
       + '<div style="margin-top:.28rem;">'
       + '<div style="font-size:.76rem;color:var(--text2);line-height:1.55;margin-bottom:.35rem;">' + escapeHtmlLite(intro) + '</div>'
@@ -3045,6 +3045,28 @@
     return false;
   }
 
+  function stepSeaSkirmishDreadDie(current, delta) {
+    var chain = [4, 6, 8, 10, 12, 20];
+    var die = Math.max(4, Number(current || 6));
+    var idx = chain.indexOf(die);
+    if (idx < 0) idx = 1;
+    var next = Math.max(0, Math.min(chain.length - 1, idx + Number(delta || 0)));
+    return chain[next];
+  }
+
+  function getSeaSkirmishEffectiveDread(army) {
+    if (!army || typeof army !== 'object') return 6;
+    var shift = Number(army.tempDreadShift || 0);
+    return stepSeaSkirmishDreadDie(Number(army.dread || 6), shift);
+  }
+
+  function getSeaSkirmishDreadShiftLabel(army) {
+    if (!army || !army.tempDreadShift) return '';
+    return Number(army.tempDreadShift) > 0
+      ? ' (next roll +1 step from Parry)'
+      : ' (next roll -1 step from Frighten)';
+  }
+
   function renderSeaSkirmishControls(col, row) {
     var hex = seaHexByCoord(col, row);
     if (!hex || !hex.pendingSeaSkirmish || !hex.pendingSeaSkirmish.joined) return '';
@@ -3064,7 +3086,7 @@
       + '<div>'
       + '<div style="font-size:.74rem;color:var(--text2);">Your Side: <strong style="color:var(--teal);">' + sanitizeInlineText(mineName) + '</strong></div>'
       + '<div style="font-size:.74rem;color:var(--text2);">Stress: <strong style="color:var(--teal);">' + Number(mine.stress || 0) + '</strong></div>'
-      + '<div style="font-size:.72rem;color:var(--muted2);">Actions: ' + Number(mine.actions || 0) + ' · Dread: d' + Number(mine.dread || 6) + '</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);">Actions: ' + Number(mine.actions || 0) + ' · Dread: d' + Number(getSeaSkirmishEffectiveDread(mine) || 6) + getSeaSkirmishDreadShiftLabel(mine) + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">'
       + '<button class="btn btn-xs btn-primary" onclick="seaSkirmishAction(' + col + ',' + row + ',\'' + mineSide + '\',\'strike\')">Strike</button>'
       + '<button class="btn btn-xs btn-teal" onclick="seaSkirmishAction(' + col + ',' + row + ',\'' + mineSide + '\',\'parry\')">Parry</button>'
@@ -3074,7 +3096,7 @@
       + '<div>'
       + '<div style="font-size:.74rem;color:var(--text2);">Enemy: <strong style="color:var(--red2);">' + sanitizeInlineText(oppName) + '</strong></div>'
       + '<div style="font-size:.74rem;color:var(--text2);">Stress: <strong style="color:var(--red2);">' + Number(opp.stress || 0) + '</strong></div>'
-      + '<div style="font-size:.72rem;color:var(--muted2);">Actions: ' + Number(opp.actions || 0) + ' · Dread: d' + Number(opp.dread || 6) + '</div>'
+      + '<div style="font-size:.72rem;color:var(--muted2);">Actions: ' + Number(opp.actions || 0) + ' · Dread: d' + Number(getSeaSkirmishEffectiveDread(opp) || 6) + getSeaSkirmishDreadShiftLabel(opp) + '</div>'
       + '<div style="display:flex;gap:.2rem;flex-wrap:wrap;margin-top:.2rem;">'
       + '<button class="btn btn-xs btn-red" onclick="seaSkirmishAction(' + col + ',' + row + ',\'' + oppSide + '\',\'strike\')">Strike</button>'
       + '<button class="btn btn-xs" onclick="seaSkirmishAction(' + col + ',' + row + ',\'' + oppSide + '\',\'parry\')">Parry</button>'
@@ -3135,6 +3157,8 @@
     if (!mine || !opp) return;
     if (typeof mine.actions !== 'number') mine.actions = 2;
     if (typeof opp.actions !== 'number') opp.actions = 2;
+    if (typeof mine.tempDreadShift !== 'number') mine.tempDreadShift = 0;
+    if (typeof opp.tempDreadShift !== 'number') opp.tempDreadShift = 0;
     if (mine.actions <= 0) {
       showNotif('No actions left for that side.', 'warn');
       return;
@@ -3142,17 +3166,32 @@
 
     mine.actions -= 1;
     var rollVal = roll(12);
-    var dread = Number(mine.dread || 6);
+    var consumedShift = Number(mine.tempDreadShift || 0);
+    var dread = Number(getSeaSkirmishEffectiveDread(mine) || 6);
+    var note = '';
     if (action === 'strike' && rollVal >= dread) {
       opp.stress = Math.max(0, Number(opp.stress || 0) - Math.max(1, rollVal - dread));
+      note = 'Strike landed.';
+    } else if (action === 'parry' && rollVal >= dread) {
+      mine.tempDreadShift = 1;
+      note = 'Parry held: next ' + (side === 'A' ? st.sideA : st.sideB) + ' roll uses +1 Dread step.';
     } else if (action === 'frighten' && roll(12) >= dread) {
       opp.stress = Math.max(0, Number(opp.stress || 0) - 1);
+      opp.tempDreadShift = -1;
+      note = 'Frighten landed: next ' + (side === 'A' ? st.sideB : st.sideA) + ' roll uses -1 Dread step.';
+    } else {
+      note = capitalize(String(action || 'action')) + ' missed.';
     }
+
+    if (consumedShift !== 0) mine.tempDreadShift = 0;
+    if (note && typeof showNotif === 'function') showNotif(note, note.indexOf('missed') >= 0 ? 'warn' : 'good');
 
     if ((st.armyA.actions || 0) <= 0 && (st.armyB.actions || 0) <= 0) {
       st.round = Number(st.round || 1) + 1;
       st.armyA.actions = 2;
       st.armyB.actions = 2;
+      st.armyA.tempDreadShift = 0;
+      st.armyB.tempDreadShift = 0;
     }
 
     if ((st.armyA.stress || 0) <= 0 || (st.armyB.stress || 0) <= 0) {
@@ -3258,8 +3297,11 @@
           { id: 'airlock', label: 'Airlock', kind: 'hazard', explored: false, dd: 6 },
           { id: 'cargo', label: 'Cargo Spine', kind: 'salvage', explored: false, dd: 8 },
           { id: 'quarters', label: 'Crew Quarters', kind: 'lore', explored: false, dd: 6 },
+          { id: 'medbay', label: 'Medbay Pods', kind: 'cache', explored: false, dd: 6 },
           { id: 'reactor', label: 'Reactor Crawlspace', kind: 'hazard', explored: false, dd: 8 },
+          { id: 'armory', label: 'Sealed Armory', kind: 'salvage', explored: false, dd: 10 },
           { id: 'bridge', label: 'Bridge Console', kind: 'task', explored: false, dd: 8 },
+          { id: 'chapel', label: 'Silent Chapel', kind: 'lore', explored: false, dd: 8 },
           { id: 'nest', label: 'Dark Nest', kind: 'vampire', explored: false, dd: 10 }
         ]
       };
@@ -3318,6 +3360,10 @@
           const gain = Math.max(10, Number(crawl.salvageCredits || 40));
           if (typeof resolveSeaEncounter === 'function') resolveSeaEncounter('salvage', String(crawl.salvageItem || 'Derelict Salvage'), { credits: gain, item: String(crawl.salvageItem || 'Derelict Salvage') });
           line += 'Salvage secured.';
+        } else if (node.kind === 'cache') {
+          if (typeof changeCounter === 'function') changeCounter('rations', 1);
+          if (typeof changeCounter === 'function') changeCounter('tmw', 1);
+          line += 'Emergency stores recovered. +1 Rations, +1 Teamwork.';
         } else if (node.kind === 'task') {
           if (typeof changeCounter === 'function') changeCounter('tmw', 1);
           line += 'Ship logs decrypted. +1 Teamwork.';

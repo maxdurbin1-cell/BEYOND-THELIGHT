@@ -11830,6 +11830,40 @@ function resolveSpaceEncounterOption(optionId) {
       renderStarSystemMap();
       updateStarSystemReadouts();
     }
+    if (typeof addTMWOnFail === 'function') {
+      const failedBy = Math.max(1, Number((check && check.dreadTotal) || 0) - Number((check && check.actionTotal) || 0) || 1);
+      const primary = option.stat || 'lead';
+      const secondary = option.stat === 'lead' ? 'mind' : 'lead';
+      const actionDie = Math.max(
+        (typeof getEffectiveDie === 'function') ? getEffectiveDie(primary) : ((S.stats && S.stats[primary]) || 4),
+        (typeof getEffectiveDie === 'function') ? getEffectiveDie(secondary) : ((S.stats && S.stats[secondary]) || 4),
+        4
+      );
+      const dreadDie = Math.max(4, Number(option.dd || 6));
+      addTMWOnFail('galaxy-space-encounter-failure', {
+        failedBy,
+        actionDie,
+        dreadDie,
+        actionLabel: String(primary).charAt(0).toUpperCase() + String(primary).slice(1) + ' Die',
+        onConvert: function () {
+          let rewardText = '';
+          try {
+            rewardText = applyEncounterRewards(option.success);
+          } catch (_err) {
+            rewardText = 'Encounter recovered via Teamwork.';
+          }
+          const bonusText = grantResolveOptionSuccessBonus();
+          if (out) {
+            out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">Encounter Recovered: ${encounter.title}</div><div style="font-size:.74rem;color:var(--muted2);line-height:1.5;">Teamwork conversion applied. ${rewardText}${bonusText ? ` ${bonusText}.` : ''}</div>`;
+          }
+          renderStarSystemMap();
+          updateStarSystemReadouts();
+          syncCampaignSharedWorldSoon('resolve-space-encounter-teamwork');
+          showNotif(`Teamwork conversion: ${encounter.title} recovered to success.`, 'good');
+          return true;
+        }
+      });
+    }
     syncCampaignSharedWorldSoon('resolve-space-encounter');
     showNotif(`Encounter failed: ${encounter.title}`, 'warn');
   };

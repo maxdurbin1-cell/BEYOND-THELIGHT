@@ -1252,18 +1252,6 @@ function awardTeamworkOnFailure(reason, opts) {
 function openFailedRollFollowup(reason) {
   if (typeof openModal !== 'function' || typeof S === 'undefined' || !S) return;
   if (window._pendingStoryRoll || window._pendingWtwTaskRoll) return;
-  if (isModalCurrentlyOpen()) {
-    _tmwQueuedPrompt = {
-      reason: String(reason || 'failed-roll'),
-      context: _failedRollContext ? Object.assign({}, _failedRollContext) : null,
-      queuedAt: Date.now()
-    };
-    scheduleQueuedFailedRollPrompt();
-    if (typeof showNotif === 'function') {
-      showNotif('Failed roll: +Teamwork applied. Recovery prompt will open when this window closes.', 'info');
-    }
-    return;
-  }
   var now = Date.now();
   if ((now - Number(_tmwFailPromptGuard.at || 0)) < 500) return;
   _tmwFailPromptGuard.at = now;
@@ -1291,7 +1279,7 @@ function openFailedRollFollowup(reason) {
     + '<label style="font-size:.74rem;color:var(--muted2);">Current Dread Die<input id="failRecoveryDreadDie" type="number" min="4" max="20" step="2" value="' + baseDread + '" style="width:100%;"></label>'
     + '</div>'
     + '<div style="display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;margin-top:.6rem;">'
-    + '<button class="btn btn-sm" onclick="closeModal()">Keep Failure</button>'
+    + '<button class="btn btn-sm" onclick="closeModal({goBack:true})">Keep Failure (Return)</button>'
     + '<button class="btn btn-sm btn-teal" ' + (canBoost ? '' : 'disabled title="Need enough Teamwork to cover the gap"') + ' onclick="applyFailedRollRecovery(\'convert\')">Spend Teamwork to Succeed</button>'
     + '<button class="btn btn-sm btn-primary" ' + (canPush ? '' : 'disabled title="Need 2 Teamwork"') + ' onclick="applyFailedRollRecovery(\'reroll\')">Push Your Luck Reroll</button>'
     + '</div>';
@@ -1368,7 +1356,7 @@ window.applyFailedRollRecovery = function(mode) {
       if (typeof showNotif === 'function') showNotif('Spent ' + spend + ' Teamwork, but you still need +' + (failedBy - spend) + ' to convert this fail.', 'warn');
     }
     _failedRollContext = null;
-    if (typeof closeModal === 'function') closeModal();
+    if (typeof closeModal === 'function') closeModal({ goBack: true });
     return;
   }
 

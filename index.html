@@ -589,7 +589,8 @@ body.text-size-large .equipment-card .backpack-grid{grid-template-columns:1fr 1f
 #quickPanel{position:fixed;bottom:3.8rem;right:.85rem;width:432px;max-height:calc(100vh - 6rem);background:rgba(11,12,26,.97);border:1px solid var(--border2);z-index:20000;display:none;flex-direction:column;backdrop-filter:blur(12px);box-shadow:0 10px 38px rgba(0,0,0,.62);border-radius:12px;overflow:hidden;}
 #quickPanel.open{display:flex;}
 body.modal-open #quickPanel,
-body.modal-open #quickPanelToggle{z-index:5100;}
+body.modal-open #quickPanelToggle{z-index:20050;}
+body.modal-open #quickPanel{z-index:20040;}
 .qp-header{display:flex;gap:0;border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;background:linear-gradient(180deg,rgba(255,255,255,.035) 0%,rgba(255,255,255,.01) 100%);}
 .qp-tab{flex:0 0 auto;min-width:4.4rem;background:transparent;border:none;border-right:1px solid var(--border);color:var(--muted2);font-family:'Cinzel',serif;font-size:.66rem;letter-spacing:.08em;padding:.46rem .3rem;cursor:pointer;text-transform:uppercase;transition:all .12s;line-height:1.25;}
 .qp-tab:last-child{border-right:none;}

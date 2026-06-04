@@ -769,12 +769,41 @@
       + "</div>"
       + "<div style='font-size:.77rem;color:var(--text2);margin-bottom:.4rem;'><strong>Push Luck:</strong> spend <strong>2 Teamwork</strong>, reroll at higher dread <strong>" + dreadLabel(pushDread) + "</strong>. Success grants a stat-based positive condition. Failure applies the consequence line above.</div>"
       + "<div style='display:flex;gap:.3rem;flex-wrap:wrap;justify-content:flex-end;'>"
+      + "<button class='btn btn-sm' onclick='wtwOpenEncounterFailureRecovery()'>Teamwork Recovery Options</button>"
       + "<button class='btn btn-sm btn-warn' onclick='wtwAcceptEncounterFailure()'>Accept Failure</button>"
       + "<button class='btn btn-sm btn-teal' " + (tmw >= 2 ? '' : "disabled title='Need 2 Teamwork'") + " onclick='wtwPushEncounterLuck()'>Push Luck (2 Teamwork)</button>"
       + "</div>"
       + "</div>";
     openModal('Encounter Failure', html);
     return true;
+  }
+
+  function openWtwEncounterFailureRecovery() {
+    const pending = window._pendingWtwEncounterRoll;
+    if (!pending || !pending.encounter || !pending.check) {
+      if (typeof showNotif === 'function') showNotif('No pending failure to recover.', 'warn');
+      return;
+    }
+    const statKey = String((pending.encounter && pending.encounter.stat) || 'valor');
+    const actionDie = Math.max(4, Number((pending.check && pending.check.vd) || getActionDie(statKey) || 4));
+    const dreadDie = Math.max(4, Number((pending.check && pending.check.dd) || (pending.encounter && pending.encounter.dread) || 8));
+    const failedBy = Math.max(1, Number((pending.check && pending.check.dreadTotal) || 0) - Number((pending.check && pending.check.actionTotal) || 0) || 1);
+    if (typeof addTMWOnFail !== 'function') return;
+    addTMWOnFail('wtw-encounter-failure', {
+      failedBy: failedBy,
+      actionDie: actionDie,
+      dreadDie: dreadDie,
+      actionLabel: statLabel(statKey) + ' Die',
+      onConvert: function () {
+        resolveDistrictEncounter('success', {
+          skipPrompt: true,
+          manual: true,
+          checkOverride: Object.assign({}, pending.check, { success: true })
+        });
+        if (typeof showNotif === 'function') showNotif('Teamwork conversion applied: encounter recovered to success.', 'good');
+        return true;
+      }
+    });
   }
 
   function putLootInBackpack(lootName) {
@@ -4381,6 +4410,7 @@
   window.wtwResolveCelebration = resolveWorldCelebrationEvent;
   window.wtwResolveEncounter = resolveDistrictEncounterWithJoin;
   window.wtwResolveEncounterAs = resolveDistrictEncounterAs;
+    window.wtwOpenEncounterFailureRecovery = openWtwEncounterFailureRecovery;
   window.wtwResolvePendingCombatOutcome = resolveWtwPendingCombatOutcome;
   window.wtwWinCombatEvent = completeCombatEventVictory;
   window.wtwFailCombatEvent = completeCombatEventFailure;

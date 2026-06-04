@@ -7273,6 +7273,7 @@ function applySolarCycleQuestChallengeOutcome(quest, rollResult, misled) {
     if (typeof startCombat === 'function') startCombat();
     var btn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('combat'\"]");
     if (typeof switchTab === 'function') switchTab('combat', btn || null);
+    if (typeof openQuickPanelTab === 'function') openQuickPanelTab('combat');
     if (typeof showNotif === 'function') {
       showNotif(foeName + ' engages: DD' + foeDread + ' | ' + foeHealth + ' Health | Death Number ' + deathNumber + '. ' + foeDesc, 'warn');
     }
@@ -14899,6 +14900,7 @@ function resolvePlanetSkirmishChoice(choice, groupA, groupB, factionA, factionB,
   if (typeof renderEnemies === 'function') renderEnemies();
   const btn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('combat'\"]");
   if (typeof switchTab === 'function') switchTab('combat', btn || null);
+  if (typeof openQuickPanelTab === 'function') openQuickPanelTab('combat');
   showNotif('Planet skirmish seeded in Combat tab. Resolve and mark outcome.', 'warn');
   openPlanetSkirmishOutcomeModal();
   renderPlanetExplorationPanel();
@@ -16646,6 +16648,7 @@ function yessodEngageMonster() {
   showNotif(`Combat started: ${count} × ${monster.name}. Check Combat tab or Quick Panel.`, 'warn');
   const combatBtn = document.getElementById('tabnav-combat') || document.querySelector('#mainNav .tab-btn[data-tab="combat"]');
   if (typeof switchTab === 'function' && combatBtn) switchTab('combat', combatBtn);
+  if (typeof openQuickPanelTab === 'function') openQuickPanelTab('combat');
 }
 
 function yessodAvoidMonster() {
@@ -16700,6 +16703,7 @@ function enterYessodBossTower(towerId) {
   showNotif(`Entering ${bossData.name}. ${bossData.label} Raid encounter started. This is a Gate Endgame Mission.`, 'warn');
   const combatBtn = document.getElementById('tabnav-combat') || document.querySelector('#mainNav .tab-btn[data-tab="combat"]');
   if (typeof switchTab === 'function' && combatBtn) switchTab('combat', combatBtn);
+  if (typeof openQuickPanelTab === 'function') openQuickPanelTab('combat');
 }
 
 // ── YESSOD TASKS & MISSIONS ───────────────────────────────────────────────────

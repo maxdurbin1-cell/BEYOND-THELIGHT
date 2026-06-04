@@ -3271,6 +3271,7 @@
     if (dreadDisplay) dreadDisplay.textContent = "d" + combatDread;
     const btn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('combat'\"]");
     if (typeof switchTab === "function") switchTab("combat", btn || null);
+    if (typeof openQuickPanelTab === 'function') openQuickPanelTab('combat');
     if (config && typeof showNotif === 'function') {
       showNotif('World combat seeded: ' + (seeded ? seeded.count : Math.max(1, Number(config.enemies || 2))) + ' enemies in Combat tab.', 'warn');
     }

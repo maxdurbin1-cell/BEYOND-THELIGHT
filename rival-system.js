@@ -457,6 +457,7 @@
     if(typeof updateCombatUI==='function')updateCombatUI();
     if(typeof renderEnemies==='function')renderEnemies();
     if(typeof renderQP==='function')renderQP('combat');
+    if(typeof openQuickPanelTab==='function')openQuickPanelTab('combat');
     if(typeof switchTab==='function')switchTab('combat',null);
     if(typeof showNotif==='function')showNotif('Rival combat started. Resolve the scene, then record outcome after combat ends.', 'warn');
   }

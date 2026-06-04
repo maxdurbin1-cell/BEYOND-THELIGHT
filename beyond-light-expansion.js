@@ -2381,6 +2381,7 @@
     if (typeof setEnemyDread === 'function') setEnemyDread(dd);
     if (typeof renderEnemies === 'function') renderEnemies();
     if (typeof renderQP === 'function') renderQP('combat');
+    if (typeof openQuickPanelTab === 'function') openQuickPanelTab('combat');
     return { count: count, dread: dd, hp: hp, name: baseName };
   }
 

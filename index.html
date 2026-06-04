@@ -27186,6 +27186,7 @@ function runWhenIdle(fn, timeoutMs){
     }
     if(typeof renderEnemies==='function')renderEnemies();
     if(typeof renderQP==='function')renderQP('combat');
+    if(typeof openQuickPanelTab==='function')openQuickPanelTab('combat');
     const resultEl = document.getElementById(`hexEnc-${col}-${row}`);
     if (resultEl) resultEl.innerHTML = `<div style="background:rgba(200,50,50,.08); padding:.5rem;"><div style="font-family:Cinzel,serif; color:var(--red2);">⚔ Combat Ready: ${enemyCount} ${typeStr}</div><div style="font-size:.75rem; margin-top:.2rem;">DD${dd} · ${hpEach} Stress each. Open Combat Tab to resolve.</div><div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-teal" onclick="resolveProvinceMonsterCombatOutcome(${col},${row},true)">Success</button><button class="btn btn-xs btn-red" onclick="resolveProvinceMonsterCombatOutcome(${col},${row},false)">Failed</button></div></div>`;
     if (typeof switchTab === 'function') {

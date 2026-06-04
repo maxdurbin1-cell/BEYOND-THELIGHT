@@ -13,6 +13,24 @@ Build Focus: Province rules consistency, manual-roll reliability, and dungeon/pu
 - Valor is now the single canonical stat key across Character Sheet, Soul Array/Dice readouts, combat prompts, and rules-driven roll systems.
 - Space context sub-tabs now keep a stable grouped order after World That Was, preventing drifted or awkward tab positions in the nav row.
 
+## Cross-System Refinements (Single-Site Consistency)
+
+- Canonical text contract now appears consistently in active combat resolution copy:
+  - "VDx vs DDy" format for check summaries
+  - "HP each" and "Death Number z" in enemy summaries
+  - "Choose outcome to resolve encounter" for post-combat closure
+- Canonical combat seed contract is now reinforced in Sea, Galaxy/Planet, World That Was, and Yessod flows:
+  - Seed enemies
+  - Auto-open Combat + Quick Access
+  - Show outcome modal/panel
+  - Require explicit resolve (Victory/Defeat)
+- Canonical manual-roll contract remains aligned on shared manual prompts:
+  - Compare, Success, Failure, Push Luck + Success, Push Luck + Failure
+  - Shared push-luck cost wording (2 Teamwork, higher Dread)
+  - Shared summary style for manual outcomes
+- Canonical fail-recovery messaging now favors explicit context over generic fallback copy in updated combat-outcome paths.
+- Canonical reward/failure structure remains region-flavored while preserving the same deterministic math pattern per encounter type.
+
 ## Upcoming June 7 Additions
 
 - Fixed a Soul Array mismatch where Valor could display as d4 in Dice/Soul Array views even when Character Sheet showed a higher die (for example d8).

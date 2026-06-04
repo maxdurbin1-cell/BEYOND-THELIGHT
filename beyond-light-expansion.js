@@ -2845,7 +2845,7 @@
     var foe = getSeaNamedEnemyProfile('pirate');
     seedSeaEncounterCombat(foe.name, 2, foe.dread || 4, foe.health || 8);
     var death = Math.max(1, Math.ceil(Number((foe && foe.health) || 8) / 2));
-    hex.resultHtml = `<div class="sea-result-title">Land Encounter - ${foe.name}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">2 ${foe.name}s haunt the path inland. ${foe.desc || ''} DD${Number((foe && foe.dread) || 4)} | ${Number((foe && foe.health) || 8)} HP each · Death Number ${death}. Combat roster seeded. Choose Victory or Defeat to close this encounter.</div><div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-warn" onclick="if(typeof switchTab==='function'){const b=document.querySelector(\"#mainNav .tab-btn[onclick*=\\\"switchTab('combat'\\\"]\");switchTab('combat',b||null);}if(typeof openQuickPanelTab==='function'){openQuickPanelTab('combat');}">Open Combat + Quick Access</button><button class="btn btn-xs btn-primary" onclick="resolveSeaPirateLandOutcome(${col},${row},true)">✓ Victory</button><button class="btn btn-xs btn-red" onclick="resolveSeaPirateLandOutcome(${col},${row},false)">✗ Defeat</button></div>`;
+    hex.resultHtml = `<div class="sea-result-title">Land Encounter - ${foe.name}</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">2 ${foe.name}s haunt the path inland. ${foe.desc || ''} DD${Number((foe && foe.dread) || 4)} | ${Number((foe && foe.health) || 8)} HP each · Death Number ${death}. Combat roster seeded. Choose outcome to resolve encounter.</div><div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-warn" onclick="if(typeof switchTab==='function'){const b=document.querySelector(\"#mainNav .tab-btn[onclick*=\\\"switchTab('combat'\\\"]\");switchTab('combat',b||null);}if(typeof openQuickPanelTab==='function'){openQuickPanelTab('combat');}">Open Combat + Quick Access</button><button class="btn btn-xs btn-primary" onclick="resolveSeaPirateLandOutcome(${col},${row},true)">✓ Victory</button><button class="btn btn-xs btn-red" onclick="resolveSeaPirateLandOutcome(${col},${row},false)">✗ Defeat</button></div>`;
     renderLastSeaInfo(hex);
     showNotif('Pirate encounter staged: 2 foes seeded in Combat + Quick Access. Choose outcome after the fight.', 'warn');
   }
@@ -2882,9 +2882,14 @@
     if (!hex) return;
     if (typeof spawnEnemyShip === 'function') spawnEnemyShip();
     if (typeof startNavalCombat === 'function') startNavalCombat();
-    hex.resultHtml = '<div class="sea-result-title">Open Sea Ship Combat</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Ship battle initiated on the Sea Region tab. Resolve with naval controls, then choose Victory or Defeat here to close this encounter.</div><div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-success" onclick="resolveSeaShipCombatOutcome(true)">✓ Victory</button><button class="btn btn-xs btn-red" onclick="resolveSeaShipCombatOutcome(false)">✗ Defeat</button></div>';
+    if (typeof switchTab === 'function') {
+      var combatBtn = document.querySelector('#mainNav .tab-btn[onclick*="switchTab(\'combat\'"]');
+      switchTab('combat', combatBtn || null);
+    }
+    if (typeof openQuickPanelTab === 'function') openQuickPanelTab('combat');
+    hex.resultHtml = '<div class="sea-result-title">Open Sea Ship Combat</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">Ship battle seeded from Sea lanes. Resolve with naval controls and Combat + Quick Access, then choose outcome to resolve encounter.</div><div style="margin-top:.32rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-warn" onclick="if(typeof switchTab===\'function\'){var b=document.querySelector(\'#mainNav .tab-btn[onclick*=\\\"switchTab(\\\'combat\\\'\\\"]\');switchTab(\'combat\',b||null);}if(typeof openQuickPanelTab===\'function\'){openQuickPanelTab(\'combat\');}">Open Combat + Quick Access</button><button class="btn btn-xs btn-success" onclick="resolveSeaShipCombatOutcome(true)">✓ Victory</button><button class="btn btn-xs btn-red" onclick="resolveSeaShipCombatOutcome(false)">✗ Defeat</button></div>';
     renderLastSeaInfo(hex);
-    showNotif('Ship combat started. Use Naval controls then confirm outcome.', 'warn');
+    showNotif('Ship combat started. Use Combat + Quick Access and naval controls, then choose outcome to resolve encounter.', 'warn');
   }
 
   function resolveSeaShipCombatOutcome(success) {
@@ -3527,7 +3532,7 @@
         if (hexKey && S.lastSea && S.lastSea.map) {
           const hex = S.lastSea.map.find(h => h.key === hexKey);
           if (hex) {
-            hex.resultHtml = `<div class="sea-result-title">Combat Outcome</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You engage ${target}. +${stressApplied || 0} Mental Stress applied. Enemies were added to Combat and Quick Access. Choose Victory or Defeat to close this encounter.</div><div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-warn" onclick="if(typeof switchTab==='function'){const b=document.querySelector(\"#mainNav .tab-btn[onclick*=\\\"switchTab('combat'\\\"]\");switchTab('combat',b||null);}if(typeof openQuickPanelTab==='function'){openQuickPanelTab('combat');}">Open Combat + Quick Access</button><button class="btn btn-xs btn-success" onclick="resolveSeaEncounter('fightOutcome','${String(target).replace(/'/g, "&#39;")}',{won:true})">✓ Victory</button><button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('fightOutcome','${String(target).replace(/'/g, "&#39;")}',{won:false})">✗ Defeat</button></div>`;
+            hex.resultHtml = `<div class="sea-result-title">Combat Outcome</div><div style="font-size:.82rem;color:var(--muted3);line-height:1.55;">You engage ${target}. +${stressApplied || 0} Mental Stress applied. Enemies were added to Combat and Quick Access. Choose outcome to resolve encounter.</div><div style="margin-top:.35rem;display:flex;gap:.25rem;flex-wrap:wrap;"><button class="btn btn-xs btn-warn" onclick="if(typeof switchTab==='function'){const b=document.querySelector(\"#mainNav .tab-btn[onclick*=\\\"switchTab('combat'\\\"]\");switchTab('combat',b||null);}if(typeof openQuickPanelTab==='function'){openQuickPanelTab('combat');}">Open Combat + Quick Access</button><button class="btn btn-xs btn-success" onclick="resolveSeaEncounter('fightOutcome','${String(target).replace(/'/g, "&#39;")}',{won:true})">✓ Victory</button><button class="btn btn-xs btn-red" onclick="resolveSeaEncounter('fightOutcome','${String(target).replace(/'/g, "&#39;")}',{won:false})">✗ Defeat</button></div>`;
           }
         }
         renderLastSeaInfo();
@@ -4490,7 +4495,7 @@
     var room = data.generatedRooms[roomIndex];
     if (!room || room.cleared || room.type !== 'Boss Chamber') return false;
     seedSeaEncounterCombat('Sea Ruin Warden', 1, 8, 8);
-    room.result = 'Boss combat seeded in Combat + Quick Access (DD8 | 8 HP). Choose Victory or Defeat to close this encounter.'
+    room.result = 'Boss combat seeded in Combat + Quick Access (DD8 | 8 HP). Choose outcome to resolve encounter.'
       + '<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'
       + '<button class="btn btn-xs btn-warn" onclick="if(typeof switchTab===\'function\'){const b=document.querySelector(\"#mainNav .tab-btn[onclick*=\\\"switchTab(\\\'combat\\\'\\\"]\");switchTab(\'combat\',b||null);}if(typeof openQuickPanelTab===\'function\'){openQuickPanelTab(\'combat\');}">Open Combat + Quick Access</button>'
       + '<button class="btn btn-xs btn-primary" onclick="resolveSeaDungeonBossOutcome(' + Number(roomIndex || 0) + ',true)">Victory</button>'

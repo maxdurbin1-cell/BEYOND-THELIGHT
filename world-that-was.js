@@ -3303,7 +3303,7 @@
       + "<strong style='color:var(--gold2);'>" + label + "</strong><br>"
       + locationLabel + "<br>"
       + enemyCount + " " + enemyName + (enemyCount > 1 ? "s" : "") + " (DD" + dread + " | " + enemyHealth + " HP each | Death Number " + deathNumber + ")<br><br>"
-      + "After resolving the fight in Combat + Quick Access, choose the explicit result to close this combat:\n"
+      + "After resolving the fight in Combat + Quick Access, choose outcome to resolve encounter.\n"
       + "<div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;'>"
       + "<button class='btn btn-xs btn-teal' onclick='wtwResolvePendingCombatOutcome(\"success\")'>Victory</button>"
       + "<button class='btn btn-xs btn-red' onclick='wtwResolvePendingCombatOutcome(\"failure\")'>Defeat</button>"
@@ -3346,7 +3346,7 @@
     if (typeof switchTab === "function") switchTab("combat", btn || null);
     if (typeof openQuickPanelTab === 'function') openQuickPanelTab('combat');
     if (config && typeof showNotif === 'function') {
-      showNotif('World combat seeded: ' + (seeded ? seeded.count : Math.max(1, Number(config.enemies || 2))) + ' enemies in Combat + Quick Access. Choose Victory or Defeat to close this combat.', 'warn');
+      showNotif('World combat seeded: ' + (seeded ? seeded.count : Math.max(1, Number(config.enemies || 2))) + ' enemies in Combat + Quick Access. Choose outcome to resolve encounter.', 'warn');
       openWtwCombatOutcomeModal();
     }
   }

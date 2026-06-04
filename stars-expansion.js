@@ -14668,7 +14668,7 @@ function rollPlanetHexEncounter() {
     title = 'Skirmish';
     text = `${groupA} ${factionA} clash with ${groupB} ${factionB}. Gunfire and distress pings saturate the district.`;
     if (typeof openModal === 'function') {
-      openModal('Skirmish', `<div style='font-size:.84rem;color:var(--text2);line-height:1.55;'><strong style='color:var(--gold2);'>Skirmish</strong><br>${text}<br><br>Pick which side you back, then resolve combat in Combat + Quick Access and record Victory or Defeat.<div style='display:grid;grid-template-columns:1fr 1fr;gap:.3rem;margin-top:.45rem;'><button class='btn btn-xs btn-warn' onclick='resolvePlanetSkirmishChoice("intervene",${groupA},${groupB},"${factionA}","${factionB}","A")'>Back ${factionA}</button><button class='btn btn-xs btn-red' onclick='resolvePlanetSkirmishChoice("intervene",${groupA},${groupB},"${factionA}","${factionB}","B")'>Back ${factionB}</button></div><div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;'><button class='btn btn-xs' onclick='resolvePlanetSkirmishChoice("avoid",${groupA},${groupB},"${factionA}","${factionB}")'>Avoid</button></div></div>`);
+      openModal('Skirmish', `<div style='font-size:.84rem;color:var(--text2);line-height:1.55;'><strong style='color:var(--gold2);'>Skirmish</strong><br>${text}<br><br>Pick which side you back, then resolve combat in Combat + Quick Access and choose outcome to resolve encounter.<div style='display:grid;grid-template-columns:1fr 1fr;gap:.3rem;margin-top:.45rem;'><button class='btn btn-xs btn-warn' onclick='resolvePlanetSkirmishChoice("intervene",${groupA},${groupB},"${factionA}","${factionB}","A")'>Back ${factionA}</button><button class='btn btn-xs btn-red' onclick='resolvePlanetSkirmishChoice("intervene",${groupA},${groupB},"${factionA}","${factionB}","B")'>Back ${factionB}</button></div><div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;'><button class='btn btn-xs' onclick='resolvePlanetSkirmishChoice("avoid",${groupA},${groupB},"${factionA}","${factionB}")'>Avoid</button></div></div>`);
     }
   } else if (d10 === 6) {
     title = 'Merchant Caravan';
@@ -14911,7 +14911,7 @@ function resolvePlanetSkirmishChoice(choice, groupA, groupB, factionA, factionB,
   const btn = document.querySelector("#mainNav .tab-btn[onclick*=\"switchTab('combat'\"]");
   if (typeof switchTab === 'function') switchTab('combat', btn || null);
   if (typeof openQuickPanelTab === 'function') openQuickPanelTab('combat');
-  showNotif('Planet skirmish seeded in Combat + Quick Access. Resolve and record Victory or Defeat.', 'warn');
+  showNotif('Planet skirmish seeded in Combat + Quick Access. Choose outcome to resolve encounter.', 'warn');
   openPlanetSkirmishOutcomeModal();
   renderPlanetExplorationPanel();
 }
@@ -14921,7 +14921,7 @@ function openPlanetSkirmishOutcomeModal() {
   const state = ensurePlanetSurfaceState(hex);
   const pending = state && state.pendingSkirmishCombat ? state.pendingSkirmishCombat : null;
   if (!pending || typeof openModal !== 'function') return;
-  openModal('Planet Skirmish Outcome', `<div style='font-size:.84rem;color:var(--text2);line-height:1.55;'><strong style='color:var(--gold2);'>Combat Outcome</strong><br>${pending.factionA} vs ${pending.factionB}.<br><strong style='color:var(--teal);'>You backed: ${pending.joinedFaction}</strong><br><em>After finishing the fight in Combat + Quick Access, record the result for your chosen side:</em><div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;'><button class='btn btn-xs btn-teal' onclick='resolvePlanetSkirmishCombatOutcome("success")'>${pending.joinedFaction} Victory</button><button class='btn btn-xs btn-red' onclick='resolvePlanetSkirmishCombatOutcome("failure")'>${pending.joinedFaction} Defeat</button></div></div>`);
+  openModal('Planet Skirmish Outcome', `<div style='font-size:.84rem;color:var(--text2);line-height:1.55;'><strong style='color:var(--gold2);'>Combat Outcome</strong><br>${pending.factionA} vs ${pending.factionB}.<br><strong style='color:var(--teal);'>You backed: ${pending.joinedFaction}</strong><br><em>After finishing the fight in Combat + Quick Access, choose outcome to resolve encounter for your side:</em><div style='display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.45rem;'><button class='btn btn-xs btn-teal' onclick='resolvePlanetSkirmishCombatOutcome("success")'>${pending.joinedFaction} Victory</button><button class='btn btn-xs btn-red' onclick='resolvePlanetSkirmishCombatOutcome("failure")'>${pending.joinedFaction} Defeat</button></div></div>`);
 }
 
 function resolvePlanetSkirmishCombatOutcome(outcome) {
@@ -16673,7 +16673,7 @@ function yessodOpenPendingCombatOutcomeModal() {
   const html = `<div style="font-size:.84rem;color:var(--text2);line-height:1.58;">
     <strong style="color:var(--gold2);">${title}</strong><br>
     ${pending.enemyCount} ${pending.enemyName}${pending.enemyCount > 1 ? 's' : ''} (DD${pending.dread} | ${pending.enemyHealth} HP each | Death Number ${pending.deathNumber})<br>
-    <em>After resolving combat in Combat + Quick Access, choose Victory or Defeat to close this encounter.</em><br>
+    <em>After resolving combat in Combat + Quick Access, choose outcome to resolve encounter.</em><br>
     <div style="font-size:.76rem;color:var(--muted2);margin-top:.28rem;">Outcome Contract: Victory +${contract.victoryCredits} Cr${contract.renownOnVictory ? `, +${contract.renownOnVictory} Renown` : ''}. Defeat +${contract.defeatHealth} Health damage and +${contract.defeatStress} Stress.</div>
     <div style="display:flex;gap:.28rem;flex-wrap:wrap;margin-top:.4rem;">
       <button class="btn btn-xs btn-warn" onclick="yessodOpenCombatAndQuickAccess()">Open Combat + Quick Access</button>
@@ -16744,7 +16744,7 @@ function yessodEngageMonster() {
   };
   state.pendingMonster.combatStarted = true;
   state.pendingMonster.resolving = true;
-  showNotif(`Combat started: ${count} × ${monster.name}. Open Combat + Quick Access, then choose Victory or Defeat to close this encounter.`, 'warn');
+  showNotif(`Combat started: ${count} × ${monster.name}. Open Combat + Quick Access, then choose outcome to resolve encounter.`, 'warn');
   yessodOpenCombatAndQuickAccess();
   yessodOpenPendingCombatOutcomeModal();
 }
@@ -16826,7 +16826,7 @@ function enterYessodBossTower(towerId) {
     resolutionPending: true,
     startedAt: Date.now()
   };
-  showNotif(`Entering ${bossData.name}. Raid seeded in Combat + Quick Access. Choose Victory or Defeat to close this encounter.`, 'warn');
+  showNotif(`Entering ${bossData.name}. Raid seeded in Combat + Quick Access. Choose outcome to resolve encounter.`, 'warn');
   yessodOpenCombatAndQuickAccess();
   yessodOpenPendingCombatOutcomeModal();
 }
@@ -17198,7 +17198,7 @@ function renderYessodHexInfo(cell) {
     const contract = pendingCombatOutcome.contract || yessodBuildCombatOutcomeContract(pendingCombatOutcome.type, pendingCombatOutcome.dread, pendingCombatOutcome.enemyCount);
     featureHtml += `<div class="sea-site" style="margin-bottom:.35rem;border-color:var(--gold2);background:rgba(201,162,39,.08);">
       <div class="ss-title" style="color:var(--gold2);">⚖ Combat Outcome Pending — ${pendingCombatOutcome.enemyName}</div>
-      <div class="ss-text">Resolve combat in Combat + Quick Access, then record Victory or Defeat to close this encounter.</div>
+      <div class="ss-text">Resolve combat in Combat + Quick Access, then choose outcome to resolve encounter.</div>
       <div style="font-size:.74rem;color:var(--muted2);margin-top:.2rem;">Outcome Contract: Victory +${contract.victoryCredits} Cr${contract.renownOnVictory ? `, +${contract.renownOnVictory} Renown` : ''}. Defeat +${contract.defeatHealth} Health damage, +${contract.defeatStress} Stress.</div>
       <div style="margin-top:.32rem;display:flex;gap:.28rem;flex-wrap:wrap;">
         <button class="btn btn-sm btn-warn" onclick="yessodOpenCombatAndQuickAccess()">Open Combat + Quick Access</button>
@@ -18396,7 +18396,7 @@ function buildGalaxySkirmishDetail() {
       Suggested battlefield: <strong>${zone.name}</strong> (${zone.desc})
     </div>
     <div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.35rem;">
-      <button class="btn btn-xs btn-teal" onclick="switchTab('combat', document.querySelector(\".tab-btn[onclick*=\\\"combat\\\"]\"))">Go To Combat Tab</button>
+      <button class="btn btn-xs btn-teal" onclick="switchTab('combat', document.querySelector(\".tab-btn[onclick*=\\\"combat\\\"]\"));if(typeof openQuickPanelTab==='function')openQuickPanelTab('combat');">Open Combat + Quick Access</button>
     </div>`;
 }
 

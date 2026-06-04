@@ -20483,9 +20483,14 @@ function buildWorldStateEncounterAddon(col,row,mode){
   }
   if(!pool.length)return null;
   var pickEntry=pick(pool);
+  var hasNegotiateAction=typeof pickEntry.actions==='string'&&pickEntry.actions.indexOf("'negotiate'")>=0;
+  var negotiateModifier=Number(overlay.safety||0)-Number(overlay.tension||0);
+  var negotiateDebugLine=hasNegotiateAction
+    ?('<div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Negotiate preview: LEAD '+(negotiateModifier>=0?'+':'')+negotiateModifier+' (Safety '+Number(overlay.safety||0)+' - Tension '+Number(overlay.tension||0)+')</div>')
+    :'';
   return {
     title:pickEntry.title,
-    html:'<div class="encounter-block" style="margin-top:.35rem;border-color:rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><strong style="color:#d7b0ff;">'+pickEntry.title+'</strong><br>'+pickEntry.desc+'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'+pickEntry.actions+'</div><div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Trigger: '+rollGate+' / '+triggerChance+'% · '+(mode==='trade'?'Trade Route':'Province')+' overlay · Tension '+tension+', Safety '+Number(overlay.safety||0)+(rate.note?(' · '+rate.note):'')+(regime&&regime.encounterNote?(' · '+regime.encounterNote):'')+' · Policy: Patrol '+patrolPolicy+', Tariff '+tariffPolicy+', Route '+routePolicy+'</div>'+(policyNotes.length?('<div style="font-size:.66rem;color:var(--muted3);margin-top:.15rem;">Policy impact: '+policyNotes.join(' ')+'</div>'):'')+'</div>'
+    html:'<div class="encounter-block" style="margin-top:.35rem;border-color:rgba(176,96,208,.45);background:rgba(176,96,208,.08);"><strong style="color:#d7b0ff;">'+pickEntry.title+'</strong><br>'+pickEntry.desc+negotiateDebugLine+'<div style="margin-top:.3rem;display:flex;gap:.25rem;flex-wrap:wrap;">'+pickEntry.actions+'</div><div style="font-size:.68rem;color:var(--muted2);margin-top:.2rem;">Trigger: '+rollGate+' / '+triggerChance+'% · '+(mode==='trade'?'Trade Route':'Province')+' overlay · Tension '+tension+', Safety '+Number(overlay.safety||0)+(rate.note?(' · '+rate.note):'')+(regime&&regime.encounterNote?(' · '+regime.encounterNote):'')+' · Policy: Patrol '+patrolPolicy+', Tariff '+tariffPolicy+', Route '+routePolicy+'</div>'+(policyNotes.length?('<div style="font-size:.66rem;color:var(--muted3);margin-top:.15rem;">Policy impact: '+policyNotes.join(' ')+'</div>'):'')+'</div>'
   };
 }
 

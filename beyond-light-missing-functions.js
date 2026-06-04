@@ -1157,6 +1157,9 @@ function addSuccessRoll() {
 var _tmwFailGuard = { key: '', at: 0 };
 var _tmwFailPromptGuard = { at: 0 };
 var _failedRollContext = null;
+var _tmwQueuedPrompt = null;
+var _tmwQueuedPromptTimer = 0;
+var _tmwQueuedPromptAttempts = 0;
 
 function isModalCurrentlyOpen() {
   try {
@@ -1165,6 +1168,32 @@ function isModalCurrentlyOpen() {
   } catch (_err) {
     return false;
   }
+}
+
+function scheduleQueuedFailedRollPrompt() {
+  if (_tmwQueuedPromptTimer) return;
+  _tmwQueuedPromptAttempts = 0;
+  var tick = function () {
+    _tmwQueuedPromptTimer = 0;
+    if (!_tmwQueuedPrompt) return;
+    if (_tmwQueuedPromptAttempts >= 80) {
+      _tmwQueuedPrompt = null;
+      return;
+    }
+    _tmwQueuedPromptAttempts += 1;
+    if (isModalCurrentlyOpen() || window._pendingStoryRoll || window._pendingWtwTaskRoll) {
+      _tmwQueuedPromptTimer = setTimeout(tick, 120);
+      return;
+    }
+    var pending = _tmwQueuedPrompt;
+    _tmwQueuedPrompt = null;
+    if (pending && pending.context) {
+      _failedRollContext = pending.context;
+    }
+    _tmwFailPromptGuard.at = 0;
+    openFailedRollFollowup((pending && pending.reason) || 'failed-roll');
+  };
+  _tmwQueuedPromptTimer = setTimeout(tick, 120);
 }
 
 function inferFailedRollContextFromCore(reason, cfg) {
@@ -1224,8 +1253,14 @@ function openFailedRollFollowup(reason) {
   if (typeof openModal !== 'function' || typeof S === 'undefined' || !S) return;
   if (window._pendingStoryRoll || window._pendingWtwTaskRoll) return;
   if (isModalCurrentlyOpen()) {
+    _tmwQueuedPrompt = {
+      reason: String(reason || 'failed-roll'),
+      context: _failedRollContext ? Object.assign({}, _failedRollContext) : null,
+      queuedAt: Date.now()
+    };
+    scheduleQueuedFailedRollPrompt();
     if (typeof showNotif === 'function') {
-      showNotif('Failed roll: +Teamwork applied. Use the next failure prompt to convert or reroll.', 'info');
+      showNotif('Failed roll: +Teamwork applied. Recovery prompt will open when this window closes.', 'info');
     }
     return;
   }

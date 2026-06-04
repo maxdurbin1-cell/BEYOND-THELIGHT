@@ -19804,6 +19804,12 @@ function resolveWorldStateActionAtKeyForRegion(region,key,action){
         deltas:{factionHeat:1,tension:1,stability:-1},
         tags:['faction-operation','negotiation-failed']
       });
+      if(typeof addTMWOnFail==='function')addTMWOnFail('world-state-negotiate-failure',{
+        failedBy:Math.max(1,ddRoll.total-adjustedLead),
+        actionDie:Math.max(4,Number(leadDie)||4),
+        dreadDie:8,
+        actionLabel:'Lead Die'
+      });
       showNotif('Negotiate Control failed: '+leadSummary+' vs DD8 '+ddRoll.total+'.'+modifierSource,'warn');
     }
   }
@@ -20319,6 +20325,14 @@ function resolveWorldEventOption(col,row,option){
   if(success&&choice==='intel'&&control==='scholars'&&typeof changeCounter==='function'){
     changeCounter('pathTokens',1);
     outcomeText+=' Scholar survey records turn the lead into an extra Path Token.';
+  }
+  if(!success&&typeof addTMWOnFail==='function'){
+    addTMWOnFail('world-event-option-failure',{
+      failedBy:Math.max(1,Number(oppose.total||0)-Number(actor.total||0)),
+      actionDie:Math.max(4,Number(die)||4),
+      dreadDie:Math.max(4,Number(p.dd)||6),
+      actionLabel:String(p.stat||'action').toUpperCase()+' Die'
+    });
   }
   if(!success&&typeof changeMentalStress==='function')changeMentalStress(1);
   var failConsequence='';

@@ -1161,7 +1161,12 @@
           result += '<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">No hex in that direction</div></div>';
         }
       } else {
-        if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+        if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure', {
+          failedBy: Math.max(1, dreadTotal - actionTotal),
+          actionDie: Math.max(4, Number(leadDie) || 4),
+          dreadDie: 6,
+          actionLabel: 'Lead Die'
+        });
         result += '<div style="font-size:.82rem;color:var(--red2);">✗ Observation fails. Fog and spray obscure the route.</div>';
       }
       if (typeof openModal === 'function') openModal('Observe Adjacent Sea Hex', result);
@@ -4461,7 +4466,12 @@
     } else {
       const diff = Math.max(1, dreadRoll.total - actionRoll.total);
       if (typeof changeStress === 'function') changeStress(diff);
-      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure', {
+        failedBy: diff,
+        actionDie: Math.max(4, Number(actionDie) || 4),
+        dreadDie: Math.max(4, Number(dreadDie) || 6),
+        actionLabel: 'Valor Die'
+      });
       if (room.type === 'Trap' && S && S.conditions) S.conditions.distracted = true;
       room.result = `${result}Failure. Suffer ${diff} Damage.`;
       data.unlockedRooms = Math.min(Number(data.rooms || data.generatedRooms.length || 1), Number(data.unlockedRooms || 1) + 1);
@@ -4516,7 +4526,12 @@
       showNotif('Boss defeated: named weapon drop secured.', 'good');
     } else {
       if (typeof changeStress === 'function') changeStress(2);
-      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure', {
+        failedBy: 2,
+        actionDie: Math.max(4, Number((typeof getEffectiveDie === 'function') ? getEffectiveDie('valor') : ((S.stats && S.stats.valor) || 4)) || 4),
+        dreadDie: 8,
+        actionLabel: 'Valor Die'
+      });
       room.result = '✕ Boss encounter failed — take 2 Damage and regroup.';
       room.cleared = true;
       showNotif('Boss outcome marked as failure.', 'warn');
@@ -4571,7 +4586,12 @@
           if (result === 'partial' && typeof changeStress === 'function') changeStress(1);
         } else {
           if (typeof changeStress === 'function') changeStress(2);
-          if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+          if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure', {
+            failedBy: 2,
+            actionDie: 6,
+            dreadDie: 6,
+            actionLabel: 'Puzzle Check'
+          });
           room.cleared = false;
           room.result = '🧩 Failed — lock backlash inflicts 2 Damage. This room blocks progress until solved.';
         }

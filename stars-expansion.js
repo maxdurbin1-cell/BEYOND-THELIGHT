@@ -11418,7 +11418,19 @@ function resolveGalaxyPerilTraversal() {
   const consequence = pick(STAR_PERIL_FAILURES);
   const consequenceText = consequence.apply(check.delta);
   loseGamePhases(1);
-  if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+  if (typeof addTMWOnFail === 'function') {
+    var perilActionDie = Math.max(
+      4,
+      Number((typeof getEffectiveDie === 'function') ? getEffectiveDie(peril.check[0]) : ((S.stats && S.stats[peril.check[0]]) || 4)) || 4,
+      Number((typeof getEffectiveDie === 'function') ? getEffectiveDie(peril.check[1]) : ((S.stats && S.stats[peril.check[1]]) || 4)) || 4
+    );
+    addTMWOnFail('general-failure', {
+      failedBy: Math.max(1, Number(check.delta || 1)),
+      actionDie: perilActionDie,
+      dreadDie: Math.max(4, Number(peril.dd) || 6),
+      actionLabel: 'Traversal Die'
+    });
+  }
   if (out) {
     out.innerHTML = `<div style="font-size:.75rem;color:var(--gold2);">⚠ ${peril.title}</div>
     <div style="font-size:.74rem;color:var(--muted2);line-height:1.55;">${peril.text}<br>${check.text}<br><span style="color:var(--red2);">Failure:</span> ${consequenceText} You cannot pass this phase.</div>
@@ -13370,7 +13382,12 @@ function resolvePlanetRuinRoom(cellId, roomId) {
         S.conditions.distracted = true;
         if (typeof updateConditionButtons === 'function') updateConditionButtons();
       }
-      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure', {
+        failedBy: Math.max(1, Number((outcome && outcome.dreadDie) || dread || 8) - Math.max(1, Number(vdDie) || 4)),
+        actionDie: Math.max(4, Number(vdDie) || 4),
+        dreadDie: Math.max(4, Number((outcome && outcome.dreadDie) || dread || 8) || 8),
+        actionLabel: 'Valor Die'
+      });
       if (outcome && outcome.manual) {
         room.result = 'Manual FAILURE: Valor d' + vdDie + ' vs Dread d' + Number(outcome.dreadDie || dread) + (outcome.pushLuck ? ' (Push Luck)' : '') + '. Take ' + loss + ' Stress.';
       } else {
@@ -13421,7 +13438,12 @@ function resolvePlanetRuinRoom(cellId, roomId) {
       S.conditions.distracted = true;
       if (typeof updateConditionButtons === 'function') updateConditionButtons();
     }
-    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure', {
+      failedBy: loss,
+      actionDie: Math.max(4, Number(vdDie) || 4),
+      dreadDie: Math.max(4, Number(dread) || 8),
+      actionLabel: 'Valor Die'
+    });
     room.result = 'VD d' + vdDie + ' ' + a.total + ' vs DD' + dread + ' ' + d.total + ' - Failure. Take ' + loss + ' Stress.';
     room.cleared = true;
     showNotif('Room ' + room.id + ' failed.', 'warn');
@@ -13885,7 +13907,12 @@ function resolvePlanetCelebrationEvent(statKey) {
   } else {
     if (evt.name === 'Convoy Joust' && typeof changeHealth === 'function') changeHealth(1);
     else if (typeof changeMentalStress === 'function') changeMentalStress(1);
-    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure', {
+      failedBy: Math.max(1, Number(d.total || 0) - Number(a.total || 0)),
+      actionDie: Math.max(4, Number(die) || 4),
+      dreadDie: Math.max(4, Number(evt.dd) || 6),
+      actionLabel: key.toUpperCase() + ' Die'
+    });
   }
   const out = document.getElementById('planetCelebrationResult');
   if (out) out.innerHTML = key.toUpperCase()+' d'+die+'='+a.total+' vs DD'+evt.dd+'='+d.total+' — '+(success?evt.success:evt.failure);
@@ -14458,7 +14485,12 @@ function observePlanetAdjacentDirection(directionKey) {
     } else {
       body += `<div style="font-size:.8rem;color:var(--red2);">Observation failed. The horizon blurs and no clear routes are revealed.</div>`;
       selected.note = `[Observe Adjacent] Lead vs DD6 (${dir.label}): failure.`;
-      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure', {
+        failedBy: Math.max(1, Number((outcome && outcome.dreadTotal) || 0) - Number((outcome && outcome.actionTotal) || 0)),
+        actionDie: Math.max(4, Number(leadDie) || 4),
+        dreadDie: 6,
+        actionLabel: 'Lead Die'
+      });
     }
     if (typeof openModal === 'function') openModal('Observation — Adjacent Hex', body);
   };
@@ -17953,7 +17985,16 @@ function resolveDeadMoonSiteOption(optionId) {
     cell.note = `${check.text}. ${option.successText}`;
   } else {
     cell.note = `${check.text}. ${option.failText}`;
-    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure', {
+      failedBy: Math.max(1, Number(check.delta || 1)),
+      actionDie: Math.max(
+        4,
+        Number((typeof getEffectiveDie === 'function') ? getEffectiveDie(option.stat) : ((S.stats && S.stats[option.stat]) || 4)) || 4,
+        Number((typeof getEffectiveDie === 'function') ? getEffectiveDie(option.stat === 'lead' ? 'mind' : 'lead') : ((S.stats && S.stats[option.stat === 'lead' ? 'mind' : 'lead']) || 4)) || 4
+      ),
+      dreadDie: Math.max(4, Number(option.dd) || 6),
+      actionLabel: String(option.label || option.stat || 'Action') + ' Check'
+    });
   }
   renderDeadMoonMapPanel();
 }
@@ -18246,7 +18287,12 @@ function resolveGalaxyDowntimeAction(actionId) {
     success = actionRoll.total >= dreadRoll.total;
     actionResult = success ? action.success() : action.failure();
     if (success && typeof addSuccessRoll === 'function') addSuccessRoll();
-    if (!success && typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+    if (!success && typeof addTMWOnFail === 'function') addTMWOnFail('general-failure', {
+      failedBy: Math.max(1, Number(dreadRoll.total || 0) - Number(actionRoll.total || 0)),
+      actionDie: Math.max(4, Number(die) || 4),
+      dreadDie: actionId === 'salvage' ? 8 : 6,
+      actionLabel: statKey.toUpperCase() + ' Die'
+    });
     actionResult = `${action.check}: d${die}=${actionRoll.total} vs DD${actionId === 'salvage' ? 8 : 6}=${dreadRoll.total}. ${actionResult}`;
   }
 
@@ -18608,7 +18654,12 @@ function performGalaxyObservation(directionKey) {
         html += '<div style="background:rgba(200,50,50,.06);border:1px solid rgba(200,50,50,.35);padding:.4rem;"><div style="font-size:.72rem;color:var(--red2);font-weight:700;margin-bottom:.2rem;">No hex in that direction</div></div>';
       }
     } else {
-      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure', {
+        failedBy: Math.max(1, dreadTotal - actionTotal),
+        actionDie: Math.max(4, Number(mindDie) || 4),
+        dreadDie: 6,
+        actionLabel: 'Mind Die'
+      });
       html += '<div style="font-size:.82rem;color:var(--red2);">✗ Observation failed. Sensor noise obscures the signal.</div>';
     }
     if (typeof openModal === 'function') openModal('Observe Adjacent Galaxy Hex', html);
@@ -19330,7 +19381,12 @@ function runSystemAnalysisCheck() {
       if (typeof addSuccessRoll === 'function') addSuccessRoll();
     } else {
       if (el) el.innerHTML = `<span style="color:var(--red2);">Failure</span>: Lead d${die}=${actionTotal} vs DD8=${dreadTotal}. Data remains noisy.`;
-      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+      if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure', {
+        failedBy: Math.max(1, dreadTotal - actionTotal),
+        actionDie: Math.max(4, Number(die) || 4),
+        dreadDie: 8,
+        actionLabel: 'Lead Die'
+      });
     }
     updateStarSystemReadouts();
     renderStarSystemMap();
@@ -19521,7 +19577,12 @@ function resolveGalaxyRadioTaskWithRoll() {
     (S.starSystem.radioTaskMarkers || []).forEach((m) => {
       if (m.hexId === current.id) m.resolved = true;
     });
-    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure');
+    if (typeof addTMWOnFail === 'function') addTMWOnFail('general-failure', {
+      failedBy: Math.max(1, Number(ddRoll.total || 0) - Number(vdRoll.total || 0)),
+      actionDie: Math.max(4, Number(valorDie) || 4),
+      dreadDie: 8,
+      actionLabel: 'Valor Die'
+    });
     showNotif('Radio task failed. Contacts disappointed.', 'warn');
     resultHtml += `<div style="background:rgba(201,64,64,.08);border:1px solid rgba(201,64,64,.4);padding:.4rem;color:var(--red2);"><strong>✗ Failed</strong> — Contract cancelled. Local reputation suffers.</div>`;
   }

@@ -54,6 +54,7 @@
     lastAutoRebroadcastAt: 0,
     lastAutoRebroadcastOk: null,
     lastAutoRebroadcastError: "",
+    lastGuardrailRejectAt: 0,
     localEconomyLedger: [],
     suppressEconomyLedgerAuto: false,
     applyingSharedState: false,
@@ -1689,8 +1690,7 @@
       factionWayfarerTasks: deepCloneJson(window.S.factionWayfarerTasks || []),
       factionNarrative: deepCloneJson(window.S.factionNarrative || {}),
       factionRenown: deepCloneJson(window.S.factionRenown || {}),
-      factionBases: deepCloneJson(window.S.factionBases || {}),
-      worldState: deepCloneJson(window.S.worldState || {})
+      factionBases: deepCloneJson(window.S.factionBases || {})
     };
   }
 
@@ -2704,8 +2704,12 @@
     if (!patch || typeof patch !== "object") return { ok: false, error: "Invalid patch." };
     var safePatch = sanitizePlayerSharedPatch(patch);
     if (!Object.keys(safePatch).length) {
-      safeNotif("Player patch rejected by client guardrails.", "warn");
-      return { ok: false, error: "No permitted player patch keys." };
+      var now = Date.now();
+      if (now - Number(state.lastGuardrailRejectAt || 0) > 8000) {
+        state.lastGuardrailRejectAt = now;
+        safeNotif("Skipped unsyncable player patch fields.", "info");
+      }
+      return { ok: true, skipped: true, reason: "No permitted player patch keys." };
     }
     var gmSettings = ensureGmSettings();
     if (String(gmSettings.mode || "passive") === "active") {

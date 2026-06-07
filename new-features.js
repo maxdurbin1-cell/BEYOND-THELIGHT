@@ -11362,6 +11362,7 @@
       bonus: 0,
       infoFeature: null,
       additionalDanger: null,
+      lastAutoRoll: null,
       siteRooms: null,
       securityCount: 0,
       rewardCredits: 250,
@@ -11635,15 +11636,60 @@
       securityRows += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.74rem;color:var(--muted3);padding:.15rem 0;border-bottom:1px solid var(--border);"><span>Security Unit ' + (si + 1) + '</span><span style="color:var(--red2);font-family:\'Rajdhani\',sans-serif;font-weight:700;">DD8 | 16 HP</span></div>';
     }
     var securitySection = '<div style="margin-bottom:.4rem;"><div style="font-family:\'Cinzel\',serif;font-size:.56rem;letter-spacing:.1em;color:var(--red2);text-transform:uppercase;margin-bottom:.15rem;">Security (' + q.securityCount + ' Units)</div>' + securityRows + '</div>';
-    var rollInstr = '<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .55rem;margin-bottom:.45rem;"><div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Confrontation: 2 Security + Roll Valor d8 + 5 vs Dread d8 — then click your outcome Success or Failure.</div><div style="font-size:.7rem;color:var(--muted);">Use the Dice tab or physical dice, then choose Success/Failure below.</div></div>';
+    var informerBonus = Math.max(0, Number(q.bonus || 0));
+    var lastAuto = q.lastAutoRoll && typeof q.lastAutoRoll === 'object' ? q.lastAutoRoll : null;
+    var autoBreakdown = lastAuto
+      ? '<div style="font-size:.7rem;color:var(--muted2);margin-top:.25rem;">Last auto-roll: Valor ' + Number(lastAuto.actionRaw || 0) + ' + bonus ' + Number(lastAuto.bonus || 0) + ' = ' + Number(lastAuto.actionTotal || 0) + ' vs Dread ' + Number(lastAuto.dreadTotal || 0) + ' -> ' + (lastAuto.success ? 'Success' : 'Failure') + '</div>'
+      : '';
+    var rollInstr = '<div style="background:var(--surface);border:1px solid var(--border2);padding:.4rem .55rem;margin-bottom:.45rem;"><div style="font-size:.8rem;color:var(--text2);margin-bottom:.2rem;">Confrontation: 2 Security + Roll Valor d8 + ' + informerBonus + ' vs Dread d8 — then click your outcome Success or Failure.</div><div style="font-size:.7rem;color:var(--muted);">Use the Dice tab, physical dice, or Auto Roll below.</div>' + autoBreakdown + '</div>';
 
     var html = dangerBanner + featureBadge + securitySection + rollInstr
       + buildNestedModalActionRow(
-        '<button class="btn btn-sm btn-red" onclick="openHoldingQuestFailureOutcomeModal()">\u2717 Failure — Roll Failed</button>'
+        '<button class="btn btn-sm" onclick="autoRollHoldingQuestConfrontation()">Auto Roll Outcome</button>'
+        + '<button class="btn btn-sm btn-red" onclick="openHoldingQuestFailureOutcomeModal()">\u2717 Failure — Roll Failed</button>'
         + '<button class="btn btn-sm btn-primary" onclick="resolveHoldingQuestOutcome(true)">\u2713 Success — Roll Succeeded</button>',
         { cancelLabel: 'Close', cancelUsesClose: true }
       );
     openModal('Step 3 — Confrontation', html, null, { preventScroll: true, focusTrap: true });
+  }
+
+  function autoRollHoldingQuestConfrontation() {
+    ensureNewFeatureState();
+    var q = S.holdingQuest;
+    if (!q || !q.active) { return; }
+
+    var bonus = Math.max(0, Number(q.bonus || 0));
+    var action = explodingRoll(8, { type: 'action', major: true, label: 'Holding Step 3 Valor d8' });
+    var dread = explodingRoll(8, { type: 'dread', major: true, label: 'Holding Step 3 Dread d8' });
+    var actionTotal = Number(action.total || 0) + bonus;
+    var dreadTotal = Number(dread.total || 0);
+    var success = actionTotal >= dreadTotal;
+    q.lastAutoRoll = {
+      actionRaw: Number(action.total || 0),
+      bonus: bonus,
+      actionTotal: actionTotal,
+      dreadTotal: dreadTotal,
+      success: !!success,
+      at: Date.now()
+    };
+
+    if (success) {
+      if (typeof showNotif === 'function') {
+        showNotif('Auto roll succeeded: Valor ' + action.total + ' + bonus ' + bonus + ' = ' + actionTotal + ' vs Dread ' + dreadTotal + '.', 'good');
+      }
+      resolveHoldingQuestOutcome(true);
+      return;
+    }
+
+    window._pendingHoldingQuestFailure = {
+      actionTotal: actionTotal,
+      dreadTotal: dreadTotal,
+      pushDread: stepHoldingQuestDreadDie(dreadTotal || 8, 1)
+    };
+    if (typeof showNotif === 'function') {
+      showNotif('Auto roll failed: Valor ' + action.total + ' + bonus ' + bonus + ' = ' + actionTotal + ' vs Dread ' + dreadTotal + '.', 'warn');
+    }
+    openHoldingQuestFailureOutcomeModal();
   }
 
   function stepHoldingQuestDreadDie(current, dir) {
@@ -11968,8 +12014,8 @@
     var s2Done = !!q.step2Completed;
     var s3Done = !!q.step3Completed;
     var btn1 = s1Done
-      ? '<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Info</button>'
-      : '<button class="btn btn-xs btn-teal" onclick="holdingQuestStartStep1()">\u25B6 Info</button><button class="btn btn-xs" onclick="skipHoldingQuestStep1()" style="font-size:.62rem;">Skip</button>';
+      ? '<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Intel</button>'
+      : '<button class="btn btn-xs btn-teal" onclick="holdingQuestStartStep1()">\u25B6 Gather Intel</button><button class="btn btn-xs" onclick="skipHoldingQuestStep1()" style="font-size:.62rem;">Skip</button>';
     var btn2 = s2Done
       ? '<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Site</button>'
       : '<button class="btn btn-xs btn-teal" onclick="holdingQuestStartStep2()"' + (!s1Done ? ' disabled style="opacity:.45;"' : '') + '>\u25B6 Site</button>';
@@ -12010,8 +12056,8 @@
     }).join('');
 
     var btn1 = s1.completed
-      ? '<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Info</button>'
-      : '<button class="btn btn-xs btn-teal" onclick="holdingQuestStartStep1()">\u25B6 Info</button><button class="btn btn-xs" onclick="skipHoldingQuestStep1()" style="font-size:.62rem;">Skip</button>';
+      ? '<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Intel</button>'
+      : '<button class="btn btn-xs btn-teal" onclick="holdingQuestStartStep1()">\u25B6 Gather Intel</button><button class="btn btn-xs" onclick="skipHoldingQuestStep1()" style="font-size:.62rem;">Skip</button>';
     var btn2 = s2.completed
       ? '<button class="btn btn-xs" style="opacity:.45;cursor:default;" disabled>\u2713 Site</button>'
       : '<button class="btn btn-xs btn-teal" onclick="holdingQuestStartStep2()"' + (!s1.completed ? ' disabled style="opacity:.45;"' : '') + '>\u25B6 Site</button>';
@@ -13376,6 +13422,7 @@
   window.holdingQuestResolveRoomConfrontation = holdingQuestResolveRoomConfrontation;
   window.completeHoldingQuestStep2 = completeHoldingQuestStep2;
   window.holdingQuestStartStep3 = holdingQuestStartStep3;
+  window.autoRollHoldingQuestConfrontation = autoRollHoldingQuestConfrontation;
   window.openHoldingQuestFailureOutcomeModal = openHoldingQuestFailureOutcomeModal;
   window.acceptHoldingQuestFailureOutcome = acceptHoldingQuestFailureOutcome;
   window.pushHoldingQuestLuckOutcome = pushHoldingQuestLuckOutcome;

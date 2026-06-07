@@ -1008,6 +1008,14 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
   border-bottom: 1px solid var(--border);
 }
 
+.campaign-dock-live,
+.campaign-dock-mechanics,
+.campaign-dock-lock,
+.campaign-dock-trigger {
+  max-height: 7.2rem;
+  overflow: auto;
+}
+
 .campaign-dock-roll-line {
   display: flex;
   align-items: center;
@@ -1104,6 +1112,7 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
 
 .campaign-dock-timeline {
   overflow: auto;
+  min-height: 7.6rem;
   padding: 0.42rem 0.58rem;
   display: flex;
   flex-direction: column;
@@ -1145,6 +1154,13 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
   color: var(--teal);
 }
 
+.campaign-dock-line.chat {
+  background: rgba(46, 196, 182, 0.08);
+  border: 1px solid rgba(46, 196, 182, 0.22);
+  border-radius: 4px;
+  padding: 0.2rem 0.3rem;
+}
+
 .campaign-dock-line.roll .campaign-dock-kind {
   color: var(--gold2);
 }
@@ -1170,16 +1186,17 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 0.35rem;
+  background: rgba(7, 11, 16, 0.92);
 }
 
 .campaign-dock-input {
   width: 100%;
   background: var(--surface);
-  color: var(--text2);
+  color: var(--text);
   border: 1px solid var(--border2);
   border-radius: 3px;
   padding: 0.33rem 0.4rem;
-  font-size: 0.77rem;
+  font-size: 0.82rem;
 }
 
 .campaign-dock-chat-helper {

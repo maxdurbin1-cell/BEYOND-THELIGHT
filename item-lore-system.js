@@ -266,7 +266,7 @@ var ITEM_LORE_DATA = {
     type: 'Concrete-Reinforced Combat Vest',
     lore: 'Constructed from the building material of the Nine Bell Hollow ruins, rebar vests are worn by the district\'s defenders as a statement: we are built from this place, and this place does not fall easily.'
   },
-  'Vault-Tech Shield': {
+  'Bunker-Tech Shield': {
     flavorName: 'Door Without a Room',
     type: 'Repurposed Vault-Door Shield',
     lore: 'The Machine Vault\'s outer doors were rated to withstand atmospheric compression events. Whoever first decided to carry one into combat understood something essential about the relationship between survival and absurdity.'

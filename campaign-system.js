@@ -83,7 +83,6 @@
     dockTimelinePinned: false,
     dockTimelineUnseen: 0,
     lastDockTimelineEntryKey: "",
-    dockSceneExpanded: false,
     dockRenderInProgress: false,
     dockRenderQueued: false,
     dockRenderTimer: null,
@@ -443,25 +442,16 @@
     renderDockPanel();
   }
 
-  function setDockSceneExpanded(expanded) {
-    state.dockSceneExpanded = !!expanded;
-    renderDockPanel();
-  }
-
   function applyGlobalSceneFocus(sceneMode) {
     var body = document.body;
     if (!body) return;
-    var active = !!state.code && (body.classList.contains("campaign-mode") || body.classList.contains("gm-mode"));
+    var active = false;
     var modes = ["narrative", "exploration", "combat"];
     modes.forEach(function (key) {
-      body.classList.toggle("table-scene-" + key, !!(active && sceneMode === key));
+      body.classList.remove("table-scene-" + key);
     });
-    body.classList.toggle("table-scene-active", !!active);
-    if (active && sceneMode) {
-      body.setAttribute("data-table-scene", String(sceneMode));
-    } else {
-      body.removeAttribute("data-table-scene");
-    }
+    body.classList.remove("table-scene-active");
+    body.removeAttribute("data-table-scene");
   }
 
   function refreshSceneFocusState() {
@@ -4668,7 +4658,6 @@
       + '<div id="campaignDockBadge" class="campaign-dock-badge offline">Offline</div>'
       + "</div>"
       + '<div id="campaignDockMeta" class="campaign-dock-meta">No campaign connected.</div>'
-      + '<div id="campaignDockScene" class="campaign-dock-scene"></div>'
       + '<div id="campaignDockLiveStatus" class="campaign-dock-roll campaign-dock-live"></div>'
       + '<div id="campaignDockRoll" class="campaign-dock-roll campaign-dock-mechanics"></div>'
       + '<div id="campaignDockLock" class="campaign-dock-roll campaign-dock-lock"></div>'
@@ -4768,7 +4757,6 @@
     syncDockOffset(root);
 
     var badge = document.getElementById("campaignDockBadge");
-    var scene = document.getElementById("campaignDockScene");
     var meta = document.getElementById("campaignDockMeta");
     var liveStatus = document.getElementById("campaignDockLiveStatus");
     var timeline = document.getElementById("campaignDockTimeline");
@@ -4792,62 +4780,20 @@
     var sceneMode = String(sceneState && sceneState.effective || "exploration");
     var sceneDescriptor = sceneState && sceneState.descriptor ? sceneState.descriptor : getTableSceneDescriptor(sceneMode);
 
-    root.classList.toggle("campaign-scene-narrative", sceneMode === "narrative");
-    root.classList.toggle("campaign-scene-exploration", sceneMode === "exploration");
-    root.classList.toggle("campaign-scene-combat", sceneMode === "combat");
-    applyGlobalSceneFocus(sceneMode);
+    root.classList.remove("campaign-scene-narrative");
+    root.classList.remove("campaign-scene-exploration");
+    root.classList.remove("campaign-scene-combat");
+    applyGlobalSceneFocus("");
     state.effectiveTableSceneMode = sceneMode;
-    if (state.tableSceneMode === "auto") {
-      applySceneTimelinePreset(sceneMode, false);
-    }
 
     var dockToggle = document.getElementById("campaignDockToggle");
     if (dockToggle) {
-      dockToggle.textContent = "Campaign · " + String(sceneDescriptor.shortLabel || "Table");
-      dockToggle.title = "Table focus: " + String(sceneDescriptor.label || sceneMode);
+      dockToggle.textContent = "Campaign";
+      dockToggle.title = "Campaign dock";
     }
 
     if (!state.dockOpen) {
       return;
-    }
-
-    if (scene) {
-      var sceneButtons = [
-        { id: "auto", label: "Auto" },
-        { id: "narrative", label: "Narrative" },
-        { id: "exploration", label: "Explore" },
-        { id: "combat", label: "Combat" }
-      ].map(function (item) {
-        var on = normalizeTableSceneMode(state.tableSceneMode) === item.id;
-        return '<button class="btn btn-xs ' + (on ? 'btn-teal' : '') + '" onclick="window.campaignSystem.setTableSceneMode(\'' + item.id + '\')">' + item.label + '</button>';
-      }).join("");
-      var modeLine = sceneState.preferred === "auto"
-        ? ('Auto from state · ' + String(tableState && tableState.label || "Exploration"))
-        : ('Manual override · ' + String(sceneDescriptor.label || "Exploration"));
-
-      if (state.dockSceneExpanded) {
-        scene.classList.remove("collapsed");
-        scene.innerHTML = ''
-          + '<div class="campaign-dock-scene-top">'
-          + '<div class="campaign-dock-scene-title">Table Focus</div>'
-          + '<div class="campaign-dock-scene-badge">' + escapeHtml(String(sceneDescriptor.label || "Exploration")) + '</div>'
-          + '</div>'
-          + '<div class="campaign-dock-scene-copy">' + escapeHtml(String(sceneDescriptor.copy || "")) + '</div>'
-          + '<div class="campaign-dock-scene-spotlight">Spotlight: <strong style="color:var(--gold2);">' + escapeHtml(String(sceneDescriptor.spotlight || "")) + '</strong></div>'
-          + '<div class="campaign-dock-scene-muted">' + escapeHtml(modeLine) + '</div>'
-          + '<div class="campaign-dock-scene-actions"><button class="btn btn-xs" onclick="window.campaignSystem.setDockSceneExpanded(false)">Hide Focus</button></div>'
-          + '<div class="campaign-dock-scene-modes">' + sceneButtons + '</div>';
-      } else {
-        scene.classList.add("collapsed");
-        scene.innerHTML = ''
-          + '<div class="campaign-dock-scene-top">'
-          + '<div class="campaign-dock-scene-title">Table Focus</div>'
-          + '<div class="campaign-dock-scene-badge">' + escapeHtml(String(sceneDescriptor.label || "Exploration")) + '</div>'
-          + '</div>'
-          + '<div class="campaign-dock-scene-muted">Focus details hidden to prioritize chat readability.</div>'
-          + '<div class="campaign-dock-scene-actions"><button class="btn btn-xs btn-teal" onclick="window.campaignSystem.setDockSceneExpanded(true)">Show Focus</button></div>'
-          + '<div class="campaign-dock-scene-modes">' + sceneButtons + '</div>';
-      }
     }
 
     if (badge) {
@@ -6398,7 +6344,6 @@
     deleteCampaign: deleteCampaign,
     setTimelineFilter: setTimelineFilter,
     setTableSceneMode: setTableSceneMode,
-    setDockSceneExpanded: setDockSceneExpanded,
     refreshSceneFocusState: refreshSceneFocusState,
     requestSharedConsent: requestSharedConsent,
     syncProvinceEncounterResult: syncProvinceEncounterResult,

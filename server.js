@@ -106,6 +106,7 @@ const AUDIO_PROXY_ALLOWED_HOSTS = new Set([
   "ia200000.us.archive.org",
   "ia100000.us.archive.org"
 ]);
+const CAMPAIGN_SNAPSHOT_EMIT_INTERVAL_MS = Math.max(20, Number(process.env.CAMPAIGN_SNAPSHOT_EMIT_INTERVAL_MS) || 60);
 
 const campaigns = new Map();
 let persistTimer = null;
@@ -934,12 +935,97 @@ function snapshotCampaign(campaign, requesterToken) {
   };
 }
 
-function emitCampaignState(code) {
+function ensureCampaignRuntime(campaign) {
+  if (!campaign || typeof campaign !== "object") return null;
+  if (!campaign._runtime || typeof campaign._runtime !== "object") {
+    campaign._runtime = {
+      emitTimer: null,
+      emitPending: false,
+      lastEmitAt: 0,
+      lastSnapshotKeyBySocket: new Map()
+    };
+  }
+  if (!(campaign._runtime.lastSnapshotKeyBySocket instanceof Map)) {
+    campaign._runtime.lastSnapshotKeyBySocket = new Map();
+  }
+  return campaign._runtime;
+}
+
+function buildSnapshotEmitKey(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") return "";
+  const logList = Array.isArray(snapshot.log) ? snapshot.log : [];
+  const tail = logList.length ? logList[logList.length - 1] : null;
+  const active = snapshot.activeRollRequest && typeof snapshot.activeRollRequest === "object"
+    ? snapshot.activeRollRequest
+    : null;
+  return [
+    String(snapshot.code || ""),
+    String(!!snapshot.archived),
+    String(snapshot.shared && Number(snapshot.shared.stateVersion || 0) || 0),
+    String(snapshot.shared && Number(snapshot.shared.updatedAt || 0) || 0),
+    String(logList.length),
+    String(tail && tail.id || ""),
+    String(tail && tail.at || 0),
+    String(active && (active.id || active.createdAt || "") || ""),
+    String(active && Array.isArray(active.responses) ? active.responses.length : 0),
+    String(Array.isArray(snapshot.roster) ? snapshot.roster.length : 0)
+  ].join("|");
+}
+
+function flushCampaignState(code) {
   const campaign = campaigns.get(code);
   if (!campaign) return;
+  const runtime = ensureCampaignRuntime(campaign);
+  if (!runtime) return;
+
+  runtime.emitTimer = null;
+  runtime.emitPending = false;
+  runtime.lastEmitAt = Date.now();
+
+  const activeSocketIds = new Set();
   campaign.sessions.forEach((token, socketId) => {
-    io.to(socketId).emit("campaign:state", snapshotCampaign(campaign, token));
+    activeSocketIds.add(socketId);
+    const snapshot = snapshotCampaign(campaign, token);
+    const nextKey = buildSnapshotEmitKey(snapshot);
+    const prevKey = runtime.lastSnapshotKeyBySocket.get(socketId);
+    if (nextKey && prevKey === nextKey) return;
+    runtime.lastSnapshotKeyBySocket.set(socketId, nextKey);
+    io.to(socketId).emit("campaign:state", snapshot);
   });
+
+  runtime.lastSnapshotKeyBySocket.forEach((_value, socketId) => {
+    if (!activeSocketIds.has(socketId)) {
+      runtime.lastSnapshotKeyBySocket.delete(socketId);
+    }
+  });
+}
+
+function emitCampaignState(code, options) {
+  const campaign = campaigns.get(code);
+  if (!campaign) return;
+  const opts = options && typeof options === "object" ? options : {};
+  const runtime = ensureCampaignRuntime(campaign);
+  if (!runtime) return;
+
+  if (opts.immediate) {
+    if (runtime.emitTimer) {
+      clearTimeout(runtime.emitTimer);
+      runtime.emitTimer = null;
+    }
+    runtime.emitPending = false;
+    flushCampaignState(code);
+    return;
+  }
+
+  if (runtime.emitPending) return;
+  runtime.emitPending = true;
+  const elapsed = Date.now() - Number(runtime.lastEmitAt || 0);
+  const waitMs = elapsed >= CAMPAIGN_SNAPSHOT_EMIT_INTERVAL_MS
+    ? 0
+    : (CAMPAIGN_SNAPSHOT_EMIT_INTERVAL_MS - elapsed);
+  runtime.emitTimer = setTimeout(() => {
+    flushCampaignState(code);
+  }, waitMs);
 }
 
 function emitCampaignNotice(campaign, notice) {
@@ -1279,7 +1365,7 @@ function detachSocket(socket, opts) {
     }
   }
 
-  emitCampaignState(campaign.code);
+  emitCampaignState(campaign.code, { immediate: true });
 }
 
 app.get("/access", (_req, res) => {
@@ -1671,7 +1757,7 @@ io.on("connection", (socket) => {
       attachSocketToCampaign(socket, campaign, token);
       addLog(campaign, "system", `${name} created the campaign.`);
 
-      emitCampaignState(code);
+      emitCampaignState(code, { immediate: true });
       if (typeof ack === "function") {
         ack({
           ok: true,
@@ -1729,7 +1815,7 @@ io.on("connection", (socket) => {
       `${participant.name} ${resolved.restored ? "reconnected" : "joined"} as ${participant.role === "gm" ? "GM" : "Player"}.`
     );
 
-    emitCampaignState(code);
+    emitCampaignState(code, { immediate: true });
     if (typeof ack === "function") {
       ack({
         ok: true,

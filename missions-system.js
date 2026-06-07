@@ -74,6 +74,28 @@
     return stat + ' vs Dread d' + die;
   }
 
+  function parseMissionCheckSpecFromText(checkText, fallbackStatKey, fallbackDd) {
+    var text = String(checkText || '');
+    var statKeyFallback = String(fallbackStatKey || 'valor').toLowerCase();
+    var ddFallback = Math.max(4, Number(fallbackDd || 6) || 6);
+    var match = text.match(/^\s*([A-Za-z]+)\s+vs\s+(?:Dread\s+d|DD)(\d+)/i);
+    var statLabel = match && match[1] ? String(match[1]) : (statKeyFallback.charAt(0).toUpperCase() + statKeyFallback.slice(1));
+    var dreadDie = match && match[2] ? Math.max(4, Number(match[2]) || ddFallback) : ddFallback;
+    var byLabel = {
+      valor: 'valor',
+      lead: 'lead',
+      control: 'control',
+      agility: 'agility',
+      body: 'body',
+      notice: 'notice',
+      sneak: 'sneak',
+      spirit: 'spirit',
+      mind: 'mind'
+    };
+    var statKey = byLabel[String(statLabel).toLowerCase()] || statKeyFallback;
+    return { statKey: statKey, statLabel: statLabel, dreadDie: dreadDie };
+  }
+
   var LOOT_COUNT_DIVISOR      = 6;
   var MAX_COMPLETED_MISSIONS  = 10;
   var MISSION_DEADLINE_DAYS   = 30;
@@ -113,13 +135,33 @@
   ];
 
   var ROOM_TRAPS = [
-    'TRAP \u2014 Tripwire: Control vs DD6 or take 3 Stress.',
-    'TRAP \u2014 Pressure Plate: Agility vs DD4 or take 4 Stress.',
+    'TRAP \u2014 Tripwire: Control vs DD6 or take Damage equal to the failed difference.',
+    'TRAP \u2014 Pressure Plate: Agility vs DD4 or take Damage equal to the failed difference.',
     'TRAP \u2014 Poison Canister: Body vs DD6 or gain Distracted Condition.',
     'TRAP \u2014 Alarm Wire: Sneak vs DD6 or guards in adjacent rooms are alerted.',
-    'TRAP \u2014 Electrified Floor Plate: Notice vs DD4 to spot it; failure = 5 Stress.',
-    'TRAP \u2014 Collapsing Shelf: Lead vs DD6 to escape or take 3 Stress and lose 1 Action.'
+    'TRAP \u2014 Electrified Floor Plate: Notice vs DD4 to spot it; failure = Damage equal to the failed difference.',
+    'TRAP \u2014 Collapsing Shelf: Lead vs DD6 to escape or take Damage equal to the failed difference and lose 1 Action.'
   ];
+
+  function parseRoomTrapCheckSpec(room) {
+    var fallbackDd = Math.max(4, Number(room && room.find && room.find.dd) || 6);
+    var text = String((room && room.find && room.find.text) || '');
+    var match = text.match(/:\s*([A-Za-z]+)\s+vs\s+DD(\d+)/i);
+    var statLabel = match && match[1] ? String(match[1]) : 'Valor';
+    var dreadDie = match && match[2] ? Math.max(4, Number(match[2]) || fallbackDd) : fallbackDd;
+    var byLabel = {
+      valor: 'valor',
+      lead: 'lead',
+      control: 'control',
+      agility: 'agility',
+      body: 'body',
+      notice: 'notice',
+      sneak: 'sneak',
+      spirit: 'spirit'
+    };
+    var statKey = byLabel[String(statLabel).toLowerCase()] || 'valor';
+    return { statKey: statKey, statLabel: statLabel, dreadDie: dreadDie };
+  }
 
   var ROOM_PUZZLES = [
     'PUZZLE \u2014 Locked Access Panel: Mind vs DD6 to bypass; failure costs 1 Action.',
@@ -14651,6 +14693,7 @@
     var logHtml = Array.isArray(puzzle.log) && puzzle.log.length
       ? puzzle.log.slice(-4).map(function (line) { return '<div style="font-size:.67rem;color:var(--muted2);padding:.08rem 0;border-bottom:1px solid var(--border2);">' + line + '</div>'; }).join('')
       : '<div style="font-size:.67rem;color:var(--muted2);">No attempts yet.</div>';
+    var bypassSpec = parseMissionCheckSpecFromText(getLegacyRaidRoomCheckLine('puzzle', 6), 'mind', 6);
     openModal('Puzzle Room — ' + room.label,
       '<div style="font-size:.9rem;color:var(--text);line-height:1.62;">'
       + '<div style="margin-bottom:.24rem;"><strong style="color:var(--gold2);">Puzzle Type:</strong> ' + (puzzle.mode === 'symbol_match' ? 'symbol match' : String(puzzle.mode).replace(/_/g, ' ')) + ' · Attempts left: <strong style="color:var(--teal2);">' + Number(puzzle.attemptsLeft || 0) + '</strong></div>'
@@ -14662,7 +14705,7 @@
       + '<div style="font-size:.74rem;color:var(--gold2);margin-bottom:.1rem;">Attempt Log</div>'
       + '<div style="max-height:120px;overflow:auto;border:1px solid var(--border2);padding:.24rem .28rem;background:rgba(0,0,0,.16);margin-bottom:.24rem;">' + logHtml + '</div>'
       + '<div style="display:flex;justify-content:space-between;gap:.24rem;flex-wrap:wrap;">'
-      + '<button class="btn btn-xs btn-warn" onclick="resolveLegacyRaidPuzzleBypass(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Bypass Puzzle (VD vs DD6)</button>'
+      + '<button class="btn btn-xs btn-warn" onclick="resolveLegacyRaidPuzzleBypass(' + mission.id + ',' + wingNum + ',' + roomIdx + ',\'' + bypassSpec.statKey + '\',' + bypassSpec.dreadDie + ')">Bypass Puzzle (' + bypassSpec.statLabel + ' vs DD' + bypassSpec.dreadDie + ')</button>'
       + '<button class="btn btn-xs" onclick="resetLegacyRaidPuzzleRoom(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Reconfigure Puzzle</button>'
       + '<button class="btn btn-xs" onclick="openRaidWingPopup(' + mission.id + ',' + wingNum + ',' + roomIdx + ')">Back To Room</button>'
       + '</div>'
@@ -14835,18 +14878,20 @@
     return openLegacyRaidLockDialPuzzle(missionId, wingNum, roomIdx);
   };
 
-  window.resolveLegacyRaidPuzzleBypass = function (missionId, wingNum, roomIdx) {
+  window.resolveLegacyRaidPuzzleBypass = function (missionId, wingNum, roomIdx, statKey, dreadDie) {
     var mission = getMission(missionId);
     if (!mission) return false;
     var map = ensureRaidHexMap(mission);
     var room = map && map.wings && map.wings[wingNum] ? map.wings[wingNum][roomIdx] : null;
     if (!room || room.type !== 'Puzzle') return false;
-    var check = resolveLegacyRaidContest(6, 6, 0);
+    var spec = parseMissionCheckSpecFromText(getLegacyRaidRoomCheckLine('puzzle', Number(dreadDie || 6)), statKey || 'mind', Number(dreadDie || 6));
+    var actionDie = typeof getStat === 'function' ? Number(getStat(spec.statKey) || 8) : 8;
+    var check = resolveLegacyRaidContest(actionDie, spec.dreadDie, 0);
     if (check.success) {
-      room.result = '🧩 Bypass success (VD d' + check.actionDie + ' ' + check.actionRoll + ' vs DD6 ' + check.dreadRoll + '). Route forced open.';
+      room.result = '🧩 Bypass success (' + spec.statLabel + ' d' + check.actionDie + ' ' + check.actionRoll + ' vs DD' + check.dreadDie + ' ' + check.dreadRoll + '). Route forced open.';
       return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, true);
     }
-    room.result = '🧩 Bypass failed (VD d' + check.actionDie + ' ' + check.actionRoll + ' vs DD6 ' + check.dreadRoll + '). Pressure spikes.';
+    room.result = '🧩 Bypass failed (' + spec.statLabel + ' d' + check.actionDie + ' ' + check.actionRoll + ' vs DD' + check.dreadDie + ' ' + check.dreadRoll + '). Pressure spikes.';
     return window._resolveRaidRoomOutcome(missionId, wingNum, roomIdx, false);
   };
 
@@ -15668,7 +15713,8 @@
       } else if (room.find&&room.find.type==='enemy'&&!room.find.resolved) {
         actionBtn='<div style="margin-top:.2rem;display:flex;gap:.25rem;flex-wrap:wrap;align-items:center;"><div style="font-size:.7rem;color:var(--red2);font-weight:700;">\u2694 '+room.find.count+' enemies \u00b7 DD'+room.find.dd+' \u00b7 '+room.find.hp+' HP each</div><button class="btn btn-xs" onclick="openMissionRoomCombat('+missionId+','+idx+')">Open Combat</button><button class="btn btn-xs btn-red" onclick="resolveMissionRoomEnemy('+missionId+','+idx+',false)">Failure</button><button class="btn btn-xs btn-primary" onclick="resolveMissionRoomEnemy('+missionId+','+idx+',true)">Success</button></div>';
       } else if (room.find&&room.find.type==='trap'&&!room.find.resolved) {
-        actionBtn='<div style="margin-top:.2rem;"><button class="btn btn-xs btn-teal" onclick="resolveMissionRoomTrap('+missionId+','+idx+')">'+(isMissionManualRollMode()?'Resolve Trap (Valor vs DD'+(room.find.dd||6)+' • Success/Failure)':'Resolve Trap (Valor vs DD'+(room.find.dd||6)+')')+'</button></div>';
+        var trapSpec=parseRoomTrapCheckSpec(room);
+        actionBtn='<div style="margin-top:.2rem;"><button class="btn btn-xs btn-teal" onclick="resolveMissionRoomTrap('+missionId+','+idx+')">'+(isMissionManualRollMode()?'Resolve Trap ('+trapSpec.statLabel+' vs DD'+trapSpec.dreadDie+' • Success/Failure)':'Resolve Trap ('+trapSpec.statLabel+' vs DD'+trapSpec.dreadDie+')')+'</button></div>';
       } else if (room.find&&room.find.type==='puzzle'&&!room.find.resolved) {
         actionBtn='<div style="margin-top:.2rem;"><button class="btn btn-xs btn-teal" onclick="startMissionRoomPuzzle('+missionId+','+idx+')">Solve Puzzle</button></div>';
       } else if (confrontActive) {
@@ -15739,26 +15785,31 @@
   function resolveMissionRoomTrap(missionId,roomIdx) {
     var mission=getMission(missionId); if (!mission) return;
     var room=mission.rooms[roomIdx]; if (!room||!room.find||room.find.type!=='trap'||room.find.resolved) return;
+    var trapSpec=parseRoomTrapCheckSpec(room);
+    var statKey=trapSpec.statKey;
+    var statLabel=trapSpec.statLabel;
+    var dreadDie=trapSpec.dreadDie;
     if (isMissionManualRollMode()) {
       openModal('Room Trap','<div style="font-size:.84rem;color:var(--muted3);line-height:1.55;margin-bottom:.5rem;">'
-        +room.find.text+'<br><br>Roll Valor d'+getStat('valor')+' vs Dread d'+(room.find.dd||6)+' and choose the outcome.</div>'
+        +room.find.text+'<br><br>Roll '+statLabel+' d'+getStat(statKey)+' vs Dread d'+dreadDie+' and choose the outcome.</div>'
         +'<div style="display:flex;gap:.35rem;justify-content:flex-end;flex-wrap:wrap;">'
           +'<button class="btn btn-sm btn-red" onclick="window.resolveMissionRoomTrapOutcome('+missionId+','+roomIdx+',false)">Failure</button>'
           +'<button class="btn btn-sm btn-primary" onclick="window.resolveMissionRoomTrapOutcome('+missionId+','+roomIdx+',true)">Success</button>'
         +'</div>');
       return;
     }
-    var statDie=getStat('valor');
-    var a=explodingRoll(statDie,{type:'action',major:true,label:'Mission Room '+String(room.find.stat||'VD').toUpperCase()+' d'+statDie}), d=explodingRoll(room.find.dd||6,{type:'dread',major:true,label:'Mission Room DD'+(room.find.dd||6)});
+    var statDie=getStat(statKey);
+    var statCode=String(statKey||'valor').slice(0,2).toUpperCase();
+    var a=explodingRoll(statDie,{type:'action',major:true,label:'Mission Room '+statCode+' d'+statDie}), d=explodingRoll(dreadDie,{type:'dread',major:true,label:'Mission Room DD'+dreadDie});
     room.find.resolved=true;
     if (a.total>=d.total) {
-      room.find.text='TRAP DISARMED \u2014 VD d'+statDie+'='+a.total+' vs DD'+(room.find.dd||6)+'='+d.total+'.';
+      room.find.text='TRAP DISARMED \u2014 '+statLabel+' d'+statDie+'='+a.total+' vs DD'+dreadDie+'='+d.total+'.';
       if (typeof addSuccessRoll==='function') addSuccessRoll();
     } else {
       var failedBy=Math.max(1,Number(d.total||0)-Number(a.total||0));
       if (typeof changeStress==='function') changeStress(failedBy);
-      if (typeof addTMWOnFail==='function') addTMWOnFail('mission-room-trap-failure',{failedBy:failedBy,actionDie:statDie,dreadDie:Number(room.find.dd||6)});
-      room.find.text='TRAP TRIGGERED \u2014 VD d'+statDie+'='+a.total+' vs DD'+(room.find.dd||6)+'='+d.total+'. +'+failedBy+' Stress.';
+      if (typeof addTMWOnFail==='function') addTMWOnFail('mission-room-trap-failure',{failedBy:failedBy,actionDie:statDie,dreadDie:dreadDie});
+      room.find.text='TRAP TRIGGERED \u2014 '+statLabel+' d'+statDie+'='+a.total+' vs DD'+dreadDie+'='+d.total+'. +'+failedBy+' Damage (margin of failure).';
     }
     renderSiteModal(missionId);
   }
@@ -15766,14 +15817,15 @@
   function resolveMissionRoomTrapOutcome(missionId,roomIdx,success) {
     var mission=getMission(missionId); if (!mission) return;
     var room=mission.rooms[roomIdx]; if (!room||!room.find||room.find.type!=='trap'||room.find.resolved) return;
+    var trapSpec=parseRoomTrapCheckSpec(room);
     room.find.resolved=true;
     if (success) {
-      room.find.text='TRAP DISARMED — manual success against DD'+(room.find.dd||6)+'.';
+      room.find.text='TRAP DISARMED — manual success with '+trapSpec.statLabel+' vs DD'+trapSpec.dreadDie+'.';
       if (typeof addSuccessRoll==='function') addSuccessRoll();
     } else {
       if (typeof changeStress==='function') changeStress(1);
       if (typeof addTMWOnFail==='function') addTMWOnFail();
-      room.find.text='TRAP TRIGGERED — manual failure against DD'+(room.find.dd||6)+'. +1 Stress.';
+      room.find.text='TRAP TRIGGERED — manual failure with '+trapSpec.statLabel+' vs DD'+trapSpec.dreadDie+'. +1 Damage (minimum margin of failure).';
     }
     renderSiteModal(missionId);
   }

@@ -87,6 +87,12 @@
     dockRenderQueued: false,
     dockRenderTimer: null,
     lastDockRenderAt: 0,
+    uiRefreshTimer: null,
+    uiRefreshNeedsSettings: false,
+    uiRefreshNeedsDock: false,
+    uiRefreshNeedsMapBars: false,
+    uiRefreshForceSettings: false,
+    lastCampaignSnapshotKey: "",
     tableSceneMode: "auto",
     effectiveTableSceneMode: "exploration",
     timelineFilterManual: false
@@ -1007,6 +1013,10 @@
 
   function syncCombatSceneHeartbeat(reason) {
     if (state.role !== "gm" || !state.socket || !state.connected || !state.code || state.applyingSharedState) return;
+    var combatActive = !!(window.S && window.S.combat && window.S.combat.active);
+    var navalActive = !!(window.S && window.S.naval && window.S.naval.active);
+    var chaseActive = !!(window.S && window.S.caravan && window.S.caravan.chaseActive);
+    if (!combatActive && !navalActive && !chaseActive) return;
     var scene = collectCombatSceneState();
     var hash = hashCombatSceneState(scene);
     if (!hash || hash === state.lastCombatSceneHash) return;
@@ -3962,6 +3972,42 @@
     });
   }
 
+  function isSettingsPanelOpen() {
+    var panel = document.getElementById("settingsPanel");
+    return !!(panel && panel.classList.contains("open"));
+  }
+
+  function scheduleUiRefresh(options) {
+    var opts = options && typeof options === "object" ? options : {};
+    state.uiRefreshNeedsSettings = state.uiRefreshNeedsSettings || !!opts.settings;
+    state.uiRefreshNeedsDock = state.uiRefreshNeedsDock || !!opts.dock;
+    state.uiRefreshNeedsMapBars = state.uiRefreshNeedsMapBars || !!opts.mapBars;
+    state.uiRefreshForceSettings = state.uiRefreshForceSettings || !!opts.forceSettings;
+    if (state.uiRefreshTimer) return;
+    state.uiRefreshTimer = setTimeout(function () {
+      var wantsSettings = !!state.uiRefreshNeedsSettings;
+      var wantsDock = !!state.uiRefreshNeedsDock;
+      var wantsMapBars = !!state.uiRefreshNeedsMapBars;
+      var forceSettings = !!state.uiRefreshForceSettings;
+
+      state.uiRefreshTimer = null;
+      state.uiRefreshNeedsSettings = false;
+      state.uiRefreshNeedsDock = false;
+      state.uiRefreshNeedsMapBars = false;
+      state.uiRefreshForceSettings = false;
+
+      if (wantsSettings && (forceSettings || isSettingsPanelOpen())) {
+        renderSettingsSection();
+      }
+      if (wantsDock) {
+        renderDockPanel();
+      }
+      if (wantsMapBars) {
+        ensureMapSyncStatusBars();
+      }
+    }, 48);
+  }
+
   function renderSettingsSection() {
     var section = document.getElementById("campaignSettingsSection");
     if (!section) return;
@@ -5060,8 +5106,7 @@
     if (!res.ok) {
       clearSession();
       safeNotif("Saved campaign session could not be restored.", "warn");
-      renderSettingsSection();
-      renderDockPanel();
+      scheduleUiRefresh({ settings: true, dock: true, mapBars: true, forceSettings: true });
       return;
     }
 
@@ -5076,8 +5121,7 @@
     maybePrimePlayerDock();
 
     safeNotif("Restored campaign " + res.code + " as " + (res.role === "gm" ? "GM" : "Player") + ".", "good");
-    renderSettingsSection();
-    renderDockPanel();
+    scheduleUiRefresh({ settings: true, dock: true, mapBars: true, forceSettings: true });
   }
 
   function ensureSocket() {
@@ -5097,8 +5141,7 @@
         if (!state.reconnectGraceUntil) state.reconnectGraceUntil = Date.now() + STALE_SYNC_MS;
       }
       setSyncHealth("online", "Connected");
-      renderSettingsSection();
-      renderDockPanel();
+      scheduleUiRefresh({ settings: true, dock: true, mapBars: true, forceSettings: true });
       attemptAutoRestore();
       syncCharacterToCampaign(true);
     });
@@ -5109,15 +5152,31 @@
       state.reconnectGraceUntil = state.lastDisconnectAt + STALE_SYNC_MS;
       if (state.code) state.waitingReconnectSnapshot = true;
       setSyncHealth(state.code ? "stale" : "offline", state.code ? "Reconnecting (" + Math.max(0, Math.ceil(STALE_SYNC_MS / 1000)) + "s)" : "Offline");
-      renderSettingsSection();
-      renderDockPanel();
+      scheduleUiRefresh({ settings: true, dock: true, mapBars: true, forceSettings: true });
     });
 
     state.socket.on("campaign:state", function (snapshot) {
+      var now = Date.now();
+      var logList = snapshot && Array.isArray(snapshot.log) ? snapshot.log : [];
+      var logTail = logList.length ? logList[logList.length - 1] : null;
+      var snapshotKey = [
+        String(snapshot && snapshot.code || ""),
+        String(snapshot && snapshot.shared ? Number(snapshot.shared.stateVersion || 0) : 0),
+        String(snapshot && snapshot.shared ? Number(snapshot.shared.updatedAt || 0) : 0),
+        String(logList.length),
+        String(logTail && logTail.at || 0),
+        String(snapshot && snapshot.activeRollRequest ? (snapshot.activeRollRequest.id || snapshot.activeRollRequest.createdAt || "") : ""),
+        String(snapshot && Array.isArray(snapshot.participants) ? snapshot.participants.length : 0)
+      ].join("|");
+      if (snapshotKey && snapshotKey === state.lastCampaignSnapshotKey) {
+        return;
+      }
+      state.lastCampaignSnapshotKey = snapshotKey;
+
       syncWindowStateAlias();
       state.campaign = snapshot || null;
       state.code = snapshot && snapshot.code ? String(snapshot.code) : "";
-      state.lastCampaignStateAt = Date.now();
+      state.lastCampaignStateAt = now;
       state.waitingReconnectSnapshot = false;
       state.reconnectGraceUntil = 0;
 
@@ -5163,8 +5222,7 @@
       }
 
       maybePromptActiveRoll(snapshot && snapshot.activeRollRequest ? snapshot.activeRollRequest : null);
-      renderSettingsSection();
-      renderDockPanel();
+      scheduleUiRefresh({ settings: true, dock: true, mapBars: true });
       syncCharacterToCampaign(false);
       showOnboarding(false);
     });
@@ -5180,7 +5238,7 @@
         state.lastAutoRebroadcastError = (res && res.ok)
           ? ""
           : String((res && res.error) || "rebroadcast failed");
-        renderSettingsSection();
+        scheduleUiRefresh({ settings: true, dock: true, mapBars: true });
         if (!res || !res.ok) {
           safeNotif("Auto-rebroadcast failed: " + state.lastAutoRebroadcastError + ".", "warn");
           return;
@@ -5188,7 +5246,7 @@
         var requester = payload && payload.requesterName ? String(payload.requesterName) : "Player";
         safeNotif("Authoritative resync sent for " + requester + ".", "good");
       }).catch(function () {});
-      renderSettingsSection();
+      scheduleUiRefresh({ settings: true, dock: true, mapBars: true });
     });
 
     state.socket.on("campaign:notice", function (payload) {
@@ -6293,9 +6351,7 @@
     hydrateCampaignUIIfNeeded();
     var syncStateChanged = refreshSyncHealth();
     if (syncStateChanged) {
-      renderSettingsSection();
-      renderDockPanel();
-      ensureMapSyncStatusBars();
+      scheduleUiRefresh({ settings: true, dock: true, mapBars: true });
     }
     syncCharacterToCampaign(false);
     if (state.connected && state.code && !state.applyingSharedState) {
@@ -6323,7 +6379,7 @@
         applyCampaignTravelState(travel, { force: true });
       }
     }
-  }, 2200);
+  }, 3000);
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", scheduleInit);

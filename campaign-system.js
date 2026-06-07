@@ -5288,9 +5288,24 @@
   function showOnboarding(force) {
     if (!state.code || !state.connected || typeof window.openModal !== "function") return;
     var key = "beyond-light-campaign-onboarding-v2:" + String(state.code || "") + ":" + String(state.token || "");
+    var overlay = document.getElementById("rollModal");
+    var titleEl = document.getElementById("modalTitle");
+    var onboardingOpen = !!(overlay && overlay.classList && overlay.classList.contains("open")
+      && titleEl && String(titleEl.textContent || "") === "Campaign Onboarding");
+
+    // GM role should not be blocked by the auto-open onboarding flow.
+    if (!force && state.role === "gm") {
+      if (onboardingOpen && typeof window.closeModal === "function") {
+        window.closeModal();
+      }
+      try { localStorage.setItem(key, "1"); } catch (_err) {}
+      return;
+    }
+
     var seen = "";
     try { seen = localStorage.getItem(key) || ""; } catch (_err) {}
     if (!force && seen === "1") return;
+    if (!force && onboardingOpen) return;
     window.openModal("Campaign Onboarding", renderOnboardingHtml());
     try { localStorage.setItem(key, "1"); } catch (_err) {}
   }

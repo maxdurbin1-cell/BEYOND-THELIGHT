@@ -83,6 +83,11 @@
     dockTimelinePinned: false,
     dockTimelineUnseen: 0,
     lastDockTimelineEntryKey: "",
+    dockSceneExpanded: false,
+    dockRenderInProgress: false,
+    dockRenderQueued: false,
+    dockRenderTimer: null,
+    lastDockRenderAt: 0,
     tableSceneMode: "auto",
     effectiveTableSceneMode: "exploration",
     timelineFilterManual: false
@@ -435,6 +440,11 @@
         applySceneTimelinePreset(next, true);
       }
     }
+    renderDockPanel();
+  }
+
+  function setDockSceneExpanded(expanded) {
+    state.dockSceneExpanded = !!expanded;
     renderDockPanel();
   }
 
@@ -1002,7 +1012,7 @@
       state.lastCombatSceneHash = hash;
       var out = syncSharedPatch({ combatScene: scene }, reason || "combat-scene");
       if (out && typeof out.catch === "function") out.catch(function () {});
-    }, 0);
+    }, 120);
   }
 
   function syncCombatSceneHeartbeat(reason) {
@@ -1035,8 +1045,7 @@
     wrap("endCombat", "combat-end");
     wrap("nextRound", "combat-next-round");
     wrap("setEnemyDread", "combat-dread");
-    wrap("renderEnemies", "combat-enemies");
-    wrap("updateCombatUI", "combat-ui");
+    // Render paths are intentionally excluded to avoid sync storms from pure UI redraws.
     wrap("rollArmyStress", "skirmish-roll");
     wrap("skirmishAction", "skirmish-action");
     wrap("enemyPip", "combat-enemy-stress");
@@ -1712,12 +1721,23 @@
     if (nextVersion && nextVersion < state.lastSharedVersion) return;
     if (typeof window.S === "undefined" || !window.S) return;
 
+    var incomingHash = "";
+    try {
+      incomingHash = JSON.stringify(sharedState);
+    } catch (_err) {
+      incomingHash = "";
+    }
+    if (incomingHash && incomingHash === state.lastSharedHash && (!nextVersion || nextVersion === state.lastSharedVersion)) {
+      return;
+    }
+
     var localStarState = cloneClientLocalStarState();
     var localWorldState = cloneClientLocalWorldState();
     var localSeaState = cloneClientLocalSeaState();
     var localProvinceState = cloneClientLocalProvinceState();
     var nextProvinceSelectionsHash = safeJsonHash(sharedState.provinceSelections || {});
     var provinceSelectionsChanged = nextProvinceSelectionsHash !== state.lastProvinceSelectionsHash;
+    var combatSceneChanged = false;
 
     state.applyingSharedState = true;
     try {
@@ -1794,6 +1814,7 @@
         window.S.gameDate = deepCloneJson(sharedState.gameDate) || {};
       }
       if (sharedState.combatScene && typeof sharedState.combatScene === "object") {
+        combatSceneChanged = true;
         window.S.combat = deepCloneJson(sharedState.combatScene.combat || {}) || {};
         window.S.enemies = Array.isArray(sharedState.combatScene.enemies) ? (deepCloneJson(sharedState.combatScene.enemies) || []) : [];
         if (sharedState.combatScene.naval && typeof sharedState.combatScene.naval === "object") {
@@ -1900,7 +1921,9 @@
     if (typeof window.updateCreditsUI === "function") window.updateCreditsUI();
     if (typeof window.updateRenown === "function") window.updateRenown();
     if (typeof window.updateMentalStressUI === "function") window.updateMentalStressUI();
-    refreshSharedCombatSceneUI();
+    if (combatSceneChanged) {
+      refreshSharedCombatSceneUI();
+    }
     if (typeof window.renderLastSeaMap === "function") window.renderLastSeaMap();
     if (typeof window.renderLastSeaInfo === "function") window.renderLastSeaInfo();
     if (typeof window.renderStarSystemMap === "function") window.renderStarSystemMap();
@@ -1939,7 +1962,7 @@
     } catch (_err) {}
 
     state.lastSharedVersion = nextVersion || state.lastSharedVersion;
-    state.lastSharedHash = JSON.stringify(sharedState);
+    state.lastSharedHash = incomingHash || JSON.stringify(sharedState);
     refreshProgressHash();
   }
 
@@ -4713,6 +4736,29 @@
   }
 
   function renderDockPanel() {
+    if (state.dockRenderInProgress) {
+      state.dockRenderQueued = true;
+      return;
+    }
+
+    var now = Date.now();
+    if (state.lastDockRenderAt && (now - state.lastDockRenderAt) < 48) {
+      state.dockRenderQueued = true;
+      if (!state.dockRenderTimer) {
+        state.dockRenderTimer = setTimeout(function () {
+          state.dockRenderTimer = null;
+          if (!state.dockRenderQueued) return;
+          state.dockRenderQueued = false;
+          renderDockPanel();
+        }, 56);
+      }
+      return;
+    }
+
+    state.dockRenderInProgress = true;
+    state.lastDockRenderAt = now;
+
+    try {
     var root = document.getElementById("campaignDock");
     if (!root) {
       applyGlobalSceneFocus("");
@@ -4761,6 +4807,10 @@
       dockToggle.title = "Table focus: " + String(sceneDescriptor.label || sceneMode);
     }
 
+    if (!state.dockOpen) {
+      return;
+    }
+
     if (scene) {
       var sceneButtons = [
         { id: "auto", label: "Auto" },
@@ -4775,15 +4825,29 @@
         ? ('Auto from state · ' + String(tableState && tableState.label || "Exploration"))
         : ('Manual override · ' + String(sceneDescriptor.label || "Exploration"));
 
-      scene.innerHTML = ''
-        + '<div class="campaign-dock-scene-top">'
-        + '<div class="campaign-dock-scene-title">Table Focus</div>'
-        + '<div class="campaign-dock-scene-badge">' + escapeHtml(String(sceneDescriptor.label || "Exploration")) + '</div>'
-        + '</div>'
-        + '<div class="campaign-dock-scene-copy">' + escapeHtml(String(sceneDescriptor.copy || "")) + '</div>'
-        + '<div class="campaign-dock-scene-spotlight">Spotlight: <strong style="color:var(--gold2);">' + escapeHtml(String(sceneDescriptor.spotlight || "")) + '</strong></div>'
-        + '<div class="campaign-dock-scene-muted">' + escapeHtml(modeLine) + '</div>'
-        + '<div class="campaign-dock-scene-modes">' + sceneButtons + '</div>';
+      if (state.dockSceneExpanded) {
+        scene.classList.remove("collapsed");
+        scene.innerHTML = ''
+          + '<div class="campaign-dock-scene-top">'
+          + '<div class="campaign-dock-scene-title">Table Focus</div>'
+          + '<div class="campaign-dock-scene-badge">' + escapeHtml(String(sceneDescriptor.label || "Exploration")) + '</div>'
+          + '</div>'
+          + '<div class="campaign-dock-scene-copy">' + escapeHtml(String(sceneDescriptor.copy || "")) + '</div>'
+          + '<div class="campaign-dock-scene-spotlight">Spotlight: <strong style="color:var(--gold2);">' + escapeHtml(String(sceneDescriptor.spotlight || "")) + '</strong></div>'
+          + '<div class="campaign-dock-scene-muted">' + escapeHtml(modeLine) + '</div>'
+          + '<div class="campaign-dock-scene-actions"><button class="btn btn-xs" onclick="window.campaignSystem.setDockSceneExpanded(false)">Hide Focus</button></div>'
+          + '<div class="campaign-dock-scene-modes">' + sceneButtons + '</div>';
+      } else {
+        scene.classList.add("collapsed");
+        scene.innerHTML = ''
+          + '<div class="campaign-dock-scene-top">'
+          + '<div class="campaign-dock-scene-title">Table Focus</div>'
+          + '<div class="campaign-dock-scene-badge">' + escapeHtml(String(sceneDescriptor.label || "Exploration")) + '</div>'
+          + '</div>'
+          + '<div class="campaign-dock-scene-muted">Focus details hidden to prioritize chat readability.</div>'
+          + '<div class="campaign-dock-scene-actions"><button class="btn btn-xs btn-teal" onclick="window.campaignSystem.setDockSceneExpanded(true)">Show Focus</button></div>'
+          + '<div class="campaign-dock-scene-modes">' + sceneButtons + '</div>';
+      }
     }
 
     if (badge) {
@@ -4992,6 +5056,13 @@
         + (state.dockTimelinePinned ? 'Auto-scroll Off' : 'Auto-scroll On')
         + '</button>'
         + '<button class="btn btn-xs" onclick="window.campaignSystem.jumpDockTimelineLatest()">Jump To Latest' + badge + '</button>';
+    }
+    } finally {
+      state.dockRenderInProgress = false;
+      if (state.dockRenderQueued && !state.dockRenderTimer) {
+        state.dockRenderQueued = false;
+        renderDockPanel();
+      }
     }
   }
 
@@ -6327,6 +6398,7 @@
     deleteCampaign: deleteCampaign,
     setTimelineFilter: setTimelineFilter,
     setTableSceneMode: setTableSceneMode,
+    setDockSceneExpanded: setDockSceneExpanded,
     refreshSceneFocusState: refreshSceneFocusState,
     requestSharedConsent: requestSharedConsent,
     syncProvinceEncounterResult: syncProvinceEncounterResult,

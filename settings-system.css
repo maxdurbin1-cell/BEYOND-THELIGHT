@@ -946,6 +946,13 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
   padding: 0.4rem 0.58rem;
   border-bottom: 1px solid var(--border);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+  max-height: 9.5rem;
+  overflow: auto;
+}
+
+.campaign-dock-scene.collapsed {
+  padding: 0.34rem 0.58rem;
+  max-height: none;
 }
 
 .campaign-dock-scene-top {
@@ -999,6 +1006,12 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
   gap: 0.25rem;
 }
 
+.campaign-dock-scene-actions {
+  margin-top: 0.24rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .campaign-dock-scene-modes .btn {
   min-width: 64px;
 }
@@ -1012,7 +1025,7 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
 .campaign-dock-mechanics,
 .campaign-dock-lock,
 .campaign-dock-trigger {
-  max-height: 7.2rem;
+  max-height: 6rem;
   overflow: auto;
 }
 
@@ -1112,7 +1125,7 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
 
 .campaign-dock-timeline {
   overflow: auto;
-  min-height: 7.6rem;
+  min-height: 8.8rem;
   padding: 0.42rem 0.58rem;
   display: flex;
   flex-direction: column;
@@ -1155,8 +1168,8 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
 }
 
 .campaign-dock-line.chat {
-  background: rgba(46, 196, 182, 0.08);
-  border: 1px solid rgba(46, 196, 182, 0.22);
+  background: rgba(46, 196, 182, 0.14);
+  border: 1px solid rgba(46, 196, 182, 0.34);
   border-radius: 4px;
   padding: 0.2rem 0.3rem;
 }
@@ -1186,7 +1199,9 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 0.35rem;
-  background: rgba(7, 11, 16, 0.92);
+  background: rgba(7, 11, 16, 0.97);
+  position: relative;
+  z-index: 1;
 }
 
 .campaign-dock-input {

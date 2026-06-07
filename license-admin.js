@@ -5,6 +5,25 @@
   var KEY_STORAGE_KEY = "btl_paywall_admin_key";
   var KEY_STORAGE_MODE = "btl_paywall_admin_key_mode";
 
+  function resolveApiUrl(pathname) {
+    var path = String(pathname || "").trim();
+    if (!path) path = "/";
+    if (/^https?:\/\//i.test(path)) return path;
+    if (path.charAt(0) !== "/") path = "/" + path;
+    if (typeof window === "undefined" || !window.location) return path;
+
+    var forcedBase = String(window.__BTL_API_BASE || "").trim();
+    if (forcedBase) {
+      return forcedBase.replace(/\/$/, "") + path;
+    }
+
+    var currentPath = String(window.location.pathname || "/");
+    var base = currentPath.replace(/\/[^/]*$/, "");
+    if (!base) base = "/";
+    if (base === "/") return path;
+    return base.replace(/\/$/, "") + path;
+  }
+
   function byId(id) {
     return document.getElementById(id);
   }
@@ -70,7 +89,7 @@
     };
     if (key) headers["x-admin-key"] = key;
 
-    var response = await fetch(url, {
+    var response = await fetch(resolveApiUrl(url), {
       method: "POST",
       headers: headers,
       body: JSON.stringify(payload || {})
@@ -88,7 +107,7 @@
   async function loadAdminConfigStatus() {
     var result;
     try {
-      result = await fetch("/api/license/admin/config", { method: "GET" });
+      result = await fetch(resolveApiUrl("/api/license/admin/config"), { method: "GET" });
     } catch (_err) {
       setStatus("admin-config-status", "Could not reach admin config endpoint.", "error");
       return;

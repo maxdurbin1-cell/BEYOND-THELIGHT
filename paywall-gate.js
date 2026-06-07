@@ -1,6 +1,33 @@
 (function () {
   "use strict";
 
+  function resolveApiUrl(pathname) {
+    var path = String(pathname || "").trim();
+    if (!path) path = "/";
+    if (/^https?:\/\//i.test(path)) return path;
+    if (path.charAt(0) !== "/") path = "/" + path;
+    if (typeof window === "undefined" || !window.location) return path;
+
+    var forcedBase = String(window.__BTL_API_BASE || "").trim();
+    if (forcedBase) {
+      return forcedBase.replace(/\/$/, "") + path;
+    }
+
+    var currentPath = String(window.location.pathname || "/");
+    var base = currentPath.replace(/\/[^/]*$/, "");
+    if (!base) base = "/";
+    if (base === "/") return path;
+    return base.replace(/\/$/, "") + path;
+  }
+
+  function resolveAppRoot() {
+    if (typeof window === "undefined" || !window.location) return "/";
+    var path = String(window.location.pathname || "/");
+    var base = path.replace(/\/[^/]*$/, "");
+    if (!base) base = "/";
+    return base.endsWith("/") ? base : (base + "/");
+  }
+
   function setStatus(message, type) {
     var el = document.getElementById("status");
     if (!el) return;
@@ -24,9 +51,9 @@
   }
 
   async function init() {
-    var status = await fetchJson("/api/license/status", { method: "GET" });
+    var status = await fetchJson(resolveApiUrl("/api/license/status"), { method: "GET" });
     if (status.ok && status.body && status.body.authorized) {
-      window.location.replace("/");
+      window.location.replace(resolveAppRoot());
       return;
     }
 
@@ -47,7 +74,7 @@
         return;
       }
 
-      var result = await fetchJson("/api/license/login", {
+      var result = await fetchJson(resolveApiUrl("/api/license/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email, code: code })
@@ -60,7 +87,7 @@
       }
 
       setStatus("Access granted. Entering website...", "ok");
-      window.location.replace("/");
+      window.location.replace(resolveAppRoot());
     });
   }
 

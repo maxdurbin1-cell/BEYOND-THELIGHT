@@ -164,6 +164,21 @@
     return typeof window.io === "function";
   }
 
+  function resolveSocketPath() {
+    if (typeof window === "undefined" || !window.location) return "/socket.io";
+    var forced = String(window.__BTL_SOCKET_PATH || "").trim();
+    if (forced) return forced;
+
+    var path = String(window.location.pathname || "/");
+    var base = path.replace(/\/index\.html$/i, "");
+    if (!base.endsWith("/")) {
+      var cut = base.lastIndexOf("/");
+      base = cut >= 0 ? base.slice(0, cut + 1) : "/";
+    }
+    if (!base) base = "/";
+    return (base === "/" ? "" : base.replace(/\/$/, "")) + "/socket.io";
+  }
+
   function resolveGameState() {
     try {
       if (typeof S !== "undefined" && S) {
@@ -5130,7 +5145,10 @@
     }
     if (state.socket) return true;
 
-    state.socket = window.io({ transports: ["websocket", "polling"] });
+    state.socket = window.io({
+      transports: ["websocket", "polling"],
+      path: resolveSocketPath()
+    });
 
     state.socket.on("connect", function () {
       state.connected = true;

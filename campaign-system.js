@@ -596,12 +596,48 @@
     return "province";
   }
 
+  function isCameraLockManagedTab(tabId) {
+    var key = String(tabId || "").toLowerCase();
+    return key === "map"
+      || key === "lastsea"
+      || key === "galaxy"
+      || key === "worldthatwas"
+      || key === "planet"
+      || key === "naval";
+  }
+
+  function isPlayerFreeNavigationTab(tabId) {
+    var key = String(tabId || "").toLowerCase();
+    return key === "character"
+      || key === "backstory"
+      || key === "dice"
+      || key === "codex"
+      || key === "rules"
+      || key === "howto"
+      || key === "storyline"
+      || key === "factions"
+      || key === "trophies"
+      || key === "missions"
+      || key === "shop"
+      || key === "oracle";
+  }
+
   function isStrictGmCameraLockEnabled(sharedState) {
     var shared = sharedState || getCampaignSharedState();
     var settings = shared && shared.gmSettings && typeof shared.gmSettings === "object"
       ? shared.gmSettings
       : null;
     return !!(settings && settings.cameraLock === true);
+  }
+
+  function isPlayerFreeTabsUnderCameraLockEnabled(sharedState) {
+    var shared = sharedState || getCampaignSharedState();
+    var settings = shared && shared.gmSettings && typeof shared.gmSettings === "object"
+      ? shared.gmSettings
+      : null;
+    if (!settings) return true;
+    if (typeof settings.allowPlayerFreeTabsUnderCameraLock !== "boolean") return true;
+    return !!settings.allowPlayerFreeTabsUnderCameraLock;
   }
 
   function buildCameraViewSnapshot() {
@@ -633,9 +669,13 @@
     if (!travel || typeof travel !== "object") return false;
     var activeContext = getActiveContextId();
     var activeTab = getActiveTabId();
-    if (activeTab === "character") return false;
+    if (isPlayerFreeTabsUnderCameraLockEnabled() && isPlayerFreeNavigationTab(activeTab)) return false;
     var expectedContext = String(travel.context || "");
     var expectedTab = String(travel.tab || "");
+
+    // Respect player-owned reference tabs while preserving lock on world navigation tabs.
+    if (!isCameraLockManagedTab(expectedTab) || !isCameraLockManagedTab(activeTab)) return false;
+
     if (expectedContext && activeContext && expectedContext !== activeContext) return true;
     if (expectedTab && activeTab && expectedTab !== activeTab) return true;
     if (expectedTab === "map") {
@@ -818,6 +858,14 @@
     var tab = String(travel.tab || "");
     var provinceKey = String(travel.provinceKey || "");
     var handledWorldThatWas = false;
+
+    if (state.role === "player"
+      && isStrictGmCameraLockEnabled()
+      && isPlayerFreeTabsUnderCameraLockEnabled()
+      && isPlayerFreeNavigationTab(getActiveTabId())) {
+      if (travelAt) state.lastCampaignTravelAppliedAt = travelAt;
+      return;
+    }
 
     if (context && typeof window.setContext === "function") {
       try {
@@ -2502,11 +2550,15 @@
         mode: "passive", // "passive" | "active" | "facilitative"
         travelMode: "gm-led", // who can initiate travel
         combatMode: "turn-based", // combat style
-        cameraLock: true
+        cameraLock: true,
+        allowPlayerFreeTabsUnderCameraLock: true
       };
     }
     if (typeof sharedState.gmSettings.cameraLock !== "boolean") {
       sharedState.gmSettings.cameraLock = true;
+    }
+    if (typeof sharedState.gmSettings.allowPlayerFreeTabsUnderCameraLock !== "boolean") {
+      sharedState.gmSettings.allowPlayerFreeTabsUnderCameraLock = true;
     }
     return sharedState.gmSettings;
   }
@@ -2920,7 +2972,7 @@
       var settings = ensureGmSettings(shared);
       settings.cameraLock = !!enabled;
       if (state.code && state.connected) {
-        syncSharedPatch({ gmSettings: { cameraLock: !!enabled } }, "set-gm-camera-lock").then(function (res) {
+        syncSharedPatch({ gmSettings: deepCloneJson(settings) || settings }, "set-gm-camera-lock").then(function (res) {
           if (res && res.ok && enabled) {
             syncGmCameraView("enable-camera-lock", { force: true, includeWorldSync: true }).catch(function () {});
           }
@@ -2932,6 +2984,31 @@
         callback({ ok: true, cameraLock: !!enabled, local: true });
       }
       safeNotif("GM Camera Lock " + (enabled ? "enabled" : "disabled") + ".", enabled ? "good" : "info");
+      renderSettingsSection();
+    } catch (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    }
+  }
+
+  function setGmPlayerFreeTabsUnderCameraLock(enabled, callback) {
+    if (!state.role || state.role !== "gm") {
+      if (callback) callback({ ok: false, error: "Only GM can set player free tabs mode" });
+      return;
+    }
+    try {
+      var shared = getMutableCampaignSharedState();
+      var settings = ensureGmSettings(shared);
+      settings.allowPlayerFreeTabsUnderCameraLock = !!enabled;
+      if (state.code && state.connected) {
+        syncSharedPatch({ gmSettings: deepCloneJson(settings) || settings }, "set-gm-player-free-tabs").then(function (res) {
+          if (callback) callback(res || { ok: false });
+        }).catch(function (err) {
+          if (callback) callback({ ok: false, error: String(err) });
+        });
+      } else if (callback) {
+        callback({ ok: true, allowPlayerFreeTabsUnderCameraLock: !!enabled, local: true });
+      }
+      safeNotif("Player free tabs under camera lock " + (enabled ? "enabled" : "disabled") + ".", "info");
       renderSettingsSection();
     } catch (err) {
       if (callback) callback({ ok: false, error: String(err) });
@@ -4275,6 +4352,7 @@
       : ensureCampaignTravelState(sharedState);
     var gmSettings = ensureGmSettings(sharedState);
     var strictCameraLock = !!(gmSettings && gmSettings.cameraLock);
+    var allowPlayerFreeTabsUnderCameraLock = !!(gmSettings && gmSettings.allowPlayerFreeTabsUnderCameraLock);
     var isGm = state.role === "gm";
     var sessionTimeline = Array.isArray(sharedState.sessionTimeline)
       ? sharedState.sessionTimeline
@@ -4383,8 +4461,10 @@
     var playerCameraLockBannerHtml = (!isGm && strictCameraLock)
       ? ('<div class="campaign-card" style="border-color:rgba(232,192,80,.45);background:rgba(232,192,80,.08);">'
         + '<div class="campaign-card-title">GM Camera Lock Active</div>'
-        + '<div class="campaign-muted">Your map tabs auto-follow the GM for a unified table view.</div>'
-        + '<div class="campaign-muted" style="margin-top:.22rem;">You can still open <strong style="color:var(--gold2);">Character</strong> any time to review stats, weapons, and inventory.</div>'
+        + '<div class="campaign-muted">Your world/navigation tabs auto-follow the GM for a unified table view.</div>'
+        + (allowPlayerFreeTabsUnderCameraLock
+          ? '<div class="campaign-muted" style="margin-top:.22rem;">Player free tabs are enabled: <strong style="color:var(--gold2);">Character, Dice, Backstory, Rules/Codex</strong> remain available while lock is on.</div>'
+          : '<div class="campaign-muted" style="margin-top:.22rem;">Player free tabs are disabled by GM for this table style. Use <strong style="color:var(--gold2);">Request Resync</strong> if your view desyncs.</div>')
         + '</div>')
       : '';
 
@@ -4505,8 +4585,9 @@
           + '</div>'
           + '<div class="campaign-actions" style="margin-top:.35rem;gap:.2rem;">'
           + '<button class="btn btn-xs ' + (strictCameraLock ? 'btn-teal' : '') + '" onclick="window.campaignSystem.setGmCameraLock(' + (strictCameraLock ? 'false' : 'true') + ')">Strict GM Camera Lock ' + (strictCameraLock ? 'ON' : 'OFF') + '</button>'
+          + '<button class="btn btn-xs ' + (allowPlayerFreeTabsUnderCameraLock ? 'btn-teal' : '') + '" onclick="window.campaignSystem.setGmPlayerFreeTabsUnderCameraLock(' + (allowPlayerFreeTabsUnderCameraLock ? 'false' : 'true') + ')">Allow Player Free Tabs Under Camera Lock ' + (allowPlayerFreeTabsUnderCameraLock ? 'ON' : 'OFF') + '</button>'
           + '</div>'
-          + '<div class="campaign-muted" style="margin-top:.22rem;font-size:.78rem;">When ON, players auto-follow GM context/tab/province focus for a unified table view.</div>'
+          + '<div class="campaign-muted" style="margin-top:.22rem;font-size:.78rem;">Strict lock keeps player world tabs synced to GM. Free Tabs lets players keep Character/Dice/Rules/Backstory open while world tabs still follow GM.</div>'
           + '</div>')
         : "")
       + (isGm
@@ -6741,6 +6822,7 @@
     // Phase 1: GM modes and campaign combat
     setGmMode: setGmMode,
     setGmCameraLock: setGmCameraLock,
+    setGmPlayerFreeTabsUnderCameraLock: setGmPlayerFreeTabsUnderCameraLock,
     startCampaignCombat: startCampaignCombat,
     nextCombatActor: nextCombatActor,
     endCampaignCombat: endCampaignCombat,

@@ -884,7 +884,7 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
 
 .campaign-dock.open .campaign-dock-panel {
   display: grid;
-  grid-template-rows: auto auto auto auto auto auto auto auto 1fr auto auto;
+  grid-template-rows: auto auto auto auto auto auto auto 1fr auto auto;
 }
 
 .campaign-dock-head {
@@ -1027,6 +1027,13 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
 .campaign-dock-trigger {
   max-height: 6rem;
   overflow: auto;
+}
+
+.campaign-dock-roll:empty,
+.campaign-dock-filters:empty {
+  display: none;
+  padding: 0;
+  border-bottom: none;
 }
 
 .campaign-dock-roll-line {
@@ -1196,12 +1203,18 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
 .campaign-dock-chat {
   border-top: 1px solid var(--border);
   padding: 0.44rem 0.58rem;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
   background: rgba(7, 11, 16, 0.97);
   position: relative;
   z-index: 1;
+}
+
+.campaign-dock-chat-btns {
+  display: flex;
+  gap: 0.28rem;
+  flex-wrap: wrap;
 }
 
 .campaign-dock-input {
@@ -1215,7 +1228,6 @@ body.lowcolor-mode .campaign-dock-badge.idle::before {
 }
 
 .campaign-dock-chat-helper {
-  grid-column: 1 / -1;
   font-size: 0.64rem;
   line-height: 1.35;
   color: var(--muted2);

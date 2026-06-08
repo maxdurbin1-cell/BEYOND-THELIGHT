@@ -33,6 +33,8 @@
     gmWayfarerSort: "online",
     lastSharedHash: "",
     lastSharedVersion: 0,
+    lastAppliedSharedVersion: 0,
+    lastAppliedSharedUpdatedAt: 0,
     lastProgressHash: "",
     syncHealth: "idle",
     lastSyncAt: 0,
@@ -95,7 +97,18 @@
     lastCampaignSnapshotKey: "",
     tableSceneMode: "auto",
     effectiveTableSceneMode: "exploration",
-    timelineFilterManual: false
+    timelineFilterManual: false,
+    syncTelemetry: {
+      scopedReceived: 0,
+      scopedApplied: 0,
+      sharedApplyAttempts: 0,
+      sharedApplied: 0,
+      sharedSkipped: 0,
+      sharedApplyTotalMs: 0,
+      sharedApplyAvgMs: 0,
+      lastSharedApplyMs: 0,
+      lastScopedAt: 0
+    }
   };
 
   var readyCheckCallbacks = {};
@@ -249,6 +262,33 @@
     } catch (_err) {
       return null;
     }
+  }
+
+  function recordSharedApplyDuration(ms) {
+    var dt = Math.max(0, Number(ms || 0));
+    var t = state.syncTelemetry;
+    if (!t || typeof t !== "object") return;
+    t.lastSharedApplyMs = dt;
+    t.sharedApplyTotalMs = Math.max(0, Number(t.sharedApplyTotalMs || 0)) + dt;
+    var count = Math.max(0, Number(t.sharedApplied || 0));
+    t.sharedApplyAvgMs = count > 0
+      ? Math.round((t.sharedApplyTotalMs / count) * 100) / 100
+      : 0;
+  }
+
+  function resetSyncTelemetry() {
+    state.syncTelemetry = {
+      scopedReceived: 0,
+      scopedApplied: 0,
+      sharedApplyAttempts: 0,
+      sharedApplied: 0,
+      sharedSkipped: 0,
+      sharedApplyTotalMs: 0,
+      sharedApplyAvgMs: 0,
+      lastSharedApplyMs: 0,
+      lastScopedAt: 0
+    };
+    scheduleUiRefresh({ settings: true, dock: false, mapBars: false });
   }
 
   function setSyncHealth(mode, text) {
@@ -1730,11 +1770,24 @@
     state.lastProgressHash = getProgressHash();
   }
 
-  function applySharedState(sharedState, sharedVersion) {
-    if (!sharedState || typeof sharedState !== "object") return;
+  function applySharedState(sharedState, sharedVersion, sharedUpdatedAt) {
+    var t = state.syncTelemetry;
+    if (t && typeof t === "object") {
+      t.sharedApplyAttempts = Math.max(0, Number(t.sharedApplyAttempts || 0)) + 1;
+    }
+    if (!sharedState || typeof sharedState !== "object") {
+      if (t && typeof t === "object") t.sharedSkipped = Math.max(0, Number(t.sharedSkipped || 0)) + 1;
+      return;
+    }
     var nextVersion = Math.max(0, Number(sharedVersion || 0) || 0);
-    if (nextVersion && nextVersion < state.lastSharedVersion) return;
-    if (typeof window.S === "undefined" || !window.S) return;
+    if (nextVersion && nextVersion < state.lastSharedVersion) {
+      if (t && typeof t === "object") t.sharedSkipped = Math.max(0, Number(t.sharedSkipped || 0)) + 1;
+      return;
+    }
+    if (typeof window.S === "undefined" || !window.S) {
+      if (t && typeof t === "object") t.sharedSkipped = Math.max(0, Number(t.sharedSkipped || 0)) + 1;
+      return;
+    }
 
     var incomingHash = "";
     try {
@@ -1743,8 +1796,13 @@
       incomingHash = "";
     }
     if (incomingHash && incomingHash === state.lastSharedHash && (!nextVersion || nextVersion === state.lastSharedVersion)) {
+      if (t && typeof t === "object") t.sharedSkipped = Math.max(0, Number(t.sharedSkipped || 0)) + 1;
       return;
     }
+
+    var applyStartedAt = (typeof performance !== "undefined" && performance && typeof performance.now === "function")
+      ? performance.now()
+      : Date.now();
 
     var localStarState = cloneClientLocalStarState();
     var localWorldState = cloneClientLocalWorldState();
@@ -1977,8 +2035,162 @@
     } catch (_err) {}
 
     state.lastSharedVersion = nextVersion || state.lastSharedVersion;
+    state.lastAppliedSharedVersion = Math.max(Number(state.lastAppliedSharedVersion || 0), nextVersion || 0);
+    state.lastAppliedSharedUpdatedAt = Math.max(Number(state.lastAppliedSharedUpdatedAt || 0), Number(sharedUpdatedAt || 0) || 0);
     state.lastSharedHash = incomingHash || JSON.stringify(sharedState);
+    if (t && typeof t === "object") {
+      t.sharedApplied = Math.max(0, Number(t.sharedApplied || 0)) + 1;
+      var applyEndedAt = (typeof performance !== "undefined" && performance && typeof performance.now === "function")
+        ? performance.now()
+        : Date.now();
+      recordSharedApplyDuration(applyEndedAt - applyStartedAt);
+    }
     refreshProgressHash();
+  }
+
+  function ensureCampaignSnapshotState() {
+    if (!state.campaign || typeof state.campaign !== "object") {
+      state.campaign = {
+        code: String(state.code || ""),
+        archived: false,
+        hasPassword: false,
+        shared: {
+          tmw: Number(getTmwValue() || 0),
+          state: {},
+          stateVersion: 0,
+          updatedAt: 0
+        },
+        members: [],
+        roster: [],
+        me: null,
+        notesSummary: [],
+        activeRollRequest: null,
+        log: []
+      };
+    }
+    if (!state.campaign.shared || typeof state.campaign.shared !== "object") {
+      state.campaign.shared = { tmw: Number(getTmwValue() || 0), state: {}, stateVersion: 0, updatedAt: 0 };
+    }
+    if (!Array.isArray(state.campaign.roster)) state.campaign.roster = [];
+    if (!Array.isArray(state.campaign.members)) state.campaign.members = [];
+    if (!Array.isArray(state.campaign.notesSummary)) state.campaign.notesSummary = [];
+    if (!Array.isArray(state.campaign.log)) state.campaign.log = [];
+    return state.campaign;
+  }
+
+  function appendCampaignLogEntry(entry) {
+    if (!entry || typeof entry !== "object") return;
+    var id = String(entry.id || "").trim();
+    if (!id) return;
+    var campaign = ensureCampaignSnapshotState();
+    var log = Array.isArray(campaign.log) ? campaign.log.slice() : [];
+    var normalized = {
+      id: id,
+      kind: String(entry.kind || "system"),
+      text: String(entry.text || ""),
+      meta: entry.meta && typeof entry.meta === "object" ? (deepCloneJson(entry.meta) || null) : null,
+      at: Number(entry.at || Date.now()) || Date.now()
+    };
+    var replaced = false;
+    for (var i = 0; i < log.length; i += 1) {
+      if (String(log[i] && log[i].id || "") !== id) continue;
+      log[i] = normalized;
+      replaced = true;
+      break;
+    }
+    if (!replaced) log.push(normalized);
+    if (log.length > 80) log = log.slice(-80);
+    campaign.log = log;
+  }
+
+  function applyCampaignScopedUpdate(payload) {
+    if (!payload || typeof payload !== "object") return;
+    var t = state.syncTelemetry;
+    if (t && typeof t === "object") {
+      t.scopedReceived = Math.max(0, Number(t.scopedReceived || 0)) + 1;
+      t.lastScopedAt = Date.now();
+    }
+    var waitingSnapshot = !!state.waitingReconnectSnapshot;
+    var campaign = ensureCampaignSnapshotState();
+
+    if (payload.code) {
+      state.code = String(payload.code);
+      campaign.code = state.code;
+    }
+    if (typeof payload.archived === "boolean") campaign.archived = !!payload.archived;
+    if (typeof payload.hasPassword === "boolean") campaign.hasPassword = !!payload.hasPassword;
+    if (Array.isArray(payload.roster)) campaign.roster = payload.roster;
+    if (Array.isArray(payload.members)) campaign.members = payload.members;
+    if (Array.isArray(payload.notesSummary)) campaign.notesSummary = payload.notesSummary;
+    if (Object.prototype.hasOwnProperty.call(payload, "activeRollRequest")) {
+      campaign.activeRollRequest = payload.activeRollRequest || null;
+    }
+    if (payload.me && typeof payload.me === "object") {
+      campaign.me = payload.me;
+      state.role = payload.me.role === "gm" ? "gm" : "player";
+      if (payload.me.token) {
+        state.token = String(payload.me.token);
+        persistSession();
+      }
+    }
+
+    if (Array.isArray(payload.log)) {
+      payload.log.forEach(function (entry) { appendCampaignLogEntry(entry); });
+    }
+
+    if (payload.shared && typeof payload.shared === "object") {
+      campaign.shared.tmw = Number(payload.shared.tmw || campaign.shared.tmw || 0);
+      campaign.shared.stateVersion = Math.max(0, Number(payload.shared.stateVersion || campaign.shared.stateVersion || 0) || 0);
+      campaign.shared.updatedAt = Math.max(0, Number(payload.shared.updatedAt || campaign.shared.updatedAt || 0) || 0);
+
+      if (typeof payload.shared.tmw === "number" && Number(payload.shared.tmw) !== getTmwValue()) {
+        setLocalTmw(Number(payload.shared.tmw));
+      }
+
+      var incomingVersion = Number(payload.shared.stateVersion || 0);
+      var incomingSharedUpdatedAt = Number(payload.shared.updatedAt || 0);
+      state.lastServerStateVersion = Math.max(state.lastServerStateVersion, incomingVersion);
+      state.lastAuthoritativeAt = Math.max(Number(state.lastAuthoritativeAt || 0), incomingSharedUpdatedAt);
+
+      if (payload.shared.state && typeof payload.shared.state === "object") {
+        var lastAppliedVersion = Number(state.lastAppliedSharedVersion || 0);
+        var lastAppliedUpdatedAt = Number(state.lastAppliedSharedUpdatedAt || 0);
+        var shouldApplyShared = false;
+        if (waitingSnapshot || !lastAppliedVersion) {
+          shouldApplyShared = true;
+        } else if (incomingVersion > lastAppliedVersion) {
+          shouldApplyShared = true;
+        } else if (incomingVersion === lastAppliedVersion && incomingSharedUpdatedAt > lastAppliedUpdatedAt) {
+          shouldApplyShared = true;
+        }
+        if (shouldApplyShared) {
+          applySharedState(payload.shared.state, incomingVersion, incomingSharedUpdatedAt);
+          campaign.shared.state = payload.shared.state;
+        } else if (t && typeof t === "object") {
+          t.sharedSkipped = Math.max(0, Number(t.sharedSkipped || 0)) + 1;
+        }
+      }
+    }
+
+    if (t && typeof t === "object") {
+      t.scopedApplied = Math.max(0, Number(t.scopedApplied || 0)) + 1;
+    }
+
+    state.lastCampaignStateAt = Date.now();
+    state.waitingReconnectSnapshot = false;
+    state.reconnectGraceUntil = 0;
+
+    refreshSettingsModeFromCampaign();
+    maybePrimePlayerDock();
+    if (state.connected) {
+      state.lastSyncAt = Date.now();
+      refreshSyncHealth();
+    }
+
+    maybePromptActiveRoll(campaign.activeRollRequest || null);
+    scheduleUiRefresh({ settings: true, dock: true, mapBars: true });
+    syncCharacterToCampaign(false);
+    showOnboarding(false);
   }
 
   async function syncSharedState(reason) {
@@ -4164,6 +4376,10 @@
           return escapeHtml(n.name + (n.hasNote ? stamp : " (no note)"));
         }).join(" · ") + '</div>')
       : '';
+    var telemetry = state.syncTelemetry && typeof state.syncTelemetry === "object"
+      ? state.syncTelemetry
+      : { scopedReceived: 0, scopedApplied: 0, sharedApplied: 0, sharedSkipped: 0, sharedApplyAvgMs: 0, lastSharedApplyMs: 0, lastScopedAt: 0 };
+    var telemetryLastScopedText = telemetry.lastScopedAt ? (formatTimestamp(telemetry.lastScopedAt) || "-") : "-";
     var playerCameraLockBannerHtml = (!isGm && strictCameraLock)
       ? ('<div class="campaign-card" style="border-color:rgba(232,192,80,.45);background:rgba(232,192,80,.08);">'
         + '<div class="campaign-card-title">GM Camera Lock Active</div>'
@@ -4222,6 +4438,16 @@
       + (campaign && campaign.hasPassword ? ' · Password Protected' : '')
       + '</div>'
       + "</div>"
+      + '<div class="campaign-card">'
+      + '<div class="campaign-card-title">Sync Telemetry</div>'
+      + '<div class="campaign-muted">Scoped recv/applied: <strong style="color:var(--text2);">' + Number(telemetry.scopedReceived || 0) + '</strong> / <strong style="color:var(--text2);">' + Number(telemetry.scopedApplied || 0) + '</strong></div>'
+      + '<div class="campaign-muted" style="margin-top:.18rem;">Shared applied/skipped: <strong style="color:var(--teal);">' + Number(telemetry.sharedApplied || 0) + '</strong> / <strong style="color:var(--gold2);">' + Number(telemetry.sharedSkipped || 0) + '</strong></div>'
+      + '<div class="campaign-muted" style="margin-top:.18rem;">Shared apply avg: <strong style="color:var(--text2);">' + Number(telemetry.sharedApplyAvgMs || 0).toFixed(2) + 'ms</strong> · last <strong style="color:var(--text2);">' + Number(telemetry.lastSharedApplyMs || 0).toFixed(2) + 'ms</strong></div>'
+      + '<div class="campaign-muted" style="margin-top:.18rem;">Last scoped update: <strong style="color:var(--text2);">' + escapeHtml(telemetryLastScopedText) + '</strong></div>'
+      + '<div class="campaign-actions" style="margin-top:.35rem;">'
+      + '<button class="btn btn-xs" onclick="window.campaignSystem.resetSyncTelemetry()">Reset Telemetry</button>'
+      + '</div>'
+      + '</div>'
       + (isGm
         ? (""
           + '<div class="campaign-card">'
@@ -5176,6 +5402,7 @@
     });
 
     state.socket.on("campaign:state", function (snapshot) {
+      var waitingSnapshot = !!state.waitingReconnectSnapshot;
       var now = Date.now();
       var logList = snapshot && Array.isArray(snapshot.log) ? snapshot.log : [];
       var logTail = logList.length ? logList[logList.length - 1] : null;
@@ -5224,10 +5451,25 @@
         maybeDeterministicReconcile("version-drift");
       }
 
-      applySharedState(
-        snapshot && snapshot.shared ? snapshot.shared.state : null,
-        snapshot && snapshot.shared ? snapshot.shared.stateVersion : 0
-      );
+      var incomingSharedUpdatedAt = snapshot && snapshot.shared ? Number(snapshot.shared.updatedAt || 0) : 0;
+      var lastAppliedVersion = Number(state.lastAppliedSharedVersion || 0);
+      var lastAppliedUpdatedAt = Number(state.lastAppliedSharedUpdatedAt || 0);
+      var shouldApplyShared = false;
+      if (waitingSnapshot || !lastAppliedVersion) {
+        shouldApplyShared = true;
+      } else if (incomingVersion > lastAppliedVersion) {
+        shouldApplyShared = true;
+      } else if (incomingVersion === lastAppliedVersion && incomingSharedUpdatedAt > lastAppliedUpdatedAt) {
+        shouldApplyShared = true;
+      }
+
+      if (shouldApplyShared) {
+        applySharedState(
+          snapshot && snapshot.shared ? snapshot.shared.state : null,
+          snapshot && snapshot.shared ? snapshot.shared.stateVersion : 0,
+          incomingSharedUpdatedAt
+        );
+      }
 
       if (incomingVersion >= state.lastSharedVersion) {
         state.syncConflictCount = 0;
@@ -5245,6 +5487,10 @@
       scheduleUiRefresh({ settings: true, dock: true, mapBars: true });
       syncCharacterToCampaign(false);
       showOnboarding(false);
+    });
+
+    state.socket.on("campaign:update", function (payload) {
+      applyCampaignScopedUpdate(payload || null);
     });
 
     state.socket.on("campaign:resyncRequested", function (payload) {
@@ -5278,15 +5524,24 @@
         || text.indexOf("hex-enter") >= 0;
       if (isTriggerDebug) return;
       var sourceToken = String(payload.sourceToken || "");
-      if (sourceToken && state.token && sourceToken === state.token) return;
+      var isSelfSource = !!(sourceToken && state.token && sourceToken === state.token);
 
       var kind = String(payload.kind || "system");
+      appendCampaignLogEntry({
+        id: String(payload.id || "notice-" + Date.now() + "-" + Math.floor(Math.random() * 100000)),
+        kind: kind,
+        text: text,
+        meta: payload.meta && typeof payload.meta === "object" ? payload.meta : null,
+        at: Number(payload.at || Date.now()) || Date.now()
+      });
       var tone = "info";
       if (kind === "roll" || kind === "roll-result") tone = "good";
       else if (kind === "tmw") tone = "good";
       else if (kind === "chat") tone = "info";
       else if (kind === "system") tone = "info";
 
+      scheduleUiRefresh({ settings: false, dock: true, mapBars: false });
+      if (isSelfSource) return;
       safeNotif("Campaign: " + text, tone);
     });
 
@@ -5300,6 +5555,10 @@
       state.uiDraft.code = "";
       state.uiDraft.joinPassword = "";
       state.lastPlayerDockSeed = "";
+      state.lastAppliedSharedVersion = 0;
+      state.lastAppliedSharedUpdatedAt = 0;
+      state.lastSharedVersion = 0;
+      state.lastSharedHash = "";
       clearSession();
       refreshSettingsModeFromCampaign();
       safeNotif((code ? ("Campaign " + code + " was deleted by GM.") : "Campaign deleted by GM."), "warn");
@@ -5533,6 +5792,10 @@
     state.activePromptId = "";
     state.uiDraft.joinPassword = "";
     state.lastPlayerDockSeed = "";
+    state.lastAppliedSharedVersion = 0;
+    state.lastAppliedSharedUpdatedAt = 0;
+    state.lastSharedVersion = 0;
+    state.lastSharedHash = "";
     clearSession();
     refreshSettingsModeFromCampaign();
 
@@ -5798,6 +6061,10 @@
     state.uiDraft.code = "";
     state.uiDraft.joinPassword = "";
     state.lastPlayerDockSeed = "";
+    state.lastAppliedSharedVersion = 0;
+    state.lastAppliedSharedUpdatedAt = 0;
+    state.lastSharedVersion = 0;
+    state.lastSharedHash = "";
     clearSession();
     safeNotif("Deleted campaign " + oldCode + ".", "warn");
     renderSettingsSection();
@@ -6435,6 +6702,7 @@
     clearProvinceSelections: clearProvinceSelections,
     syncProvinceFocus: syncProvinceFocus,
     showOnboarding: showOnboarding,
+    resetSyncTelemetry: resetSyncTelemetry,
     requestResync: requestResync,
     requestRollPrompt: requestRollPrompt,
     getRollPromptTargets: getRollPromptTargets,

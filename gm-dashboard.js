@@ -39,11 +39,79 @@
   var _activeTab = 'reference';
   var _missionDraft = {};
   var _isOpen = false;
+  var _campaignPatchTimer = 0;
+  var _campaignPatchReason = 'gm-dashboard';
+  var _pendingCampaignPatch = null;
 
   /* ── HELPERS ── */
   function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
   function isGM() { return !!(window.settingsSystem && window.settingsSystem.isGMMode()); }
   function getS() { return (typeof S !== 'undefined') ? S : null; }
+
+  function safeClone(v) {
+    try { return JSON.parse(JSON.stringify(v)); } catch (_err) { return null; }
+  }
+
+  function isPlainObject(v) {
+    return !!v && typeof v === 'object' && !Array.isArray(v);
+  }
+
+  function mergeInto(target, src) {
+    if (!isPlainObject(target) || !isPlainObject(src)) return target;
+    Object.keys(src).forEach(function(key) {
+      var next = src[key];
+      if (isPlainObject(next)) {
+        if (!isPlainObject(target[key])) target[key] = {};
+        mergeInto(target[key], next);
+      } else {
+        target[key] = next;
+      }
+    });
+    return target;
+  }
+
+  function canSyncCampaignShared() {
+    if (!window.campaignSystem || typeof window.campaignSystem.getState !== 'function' || typeof window.campaignSystem.syncSharedPatch !== 'function') {
+      return false;
+    }
+    var snap = window.campaignSystem.getState() || {};
+    return !!(snap.code && snap.role === 'gm');
+  }
+
+  function queueCampaignSharedPatch(patch, reason) {
+    if (!canSyncCampaignShared() || !patch || typeof patch !== 'object') return;
+    if (!_pendingCampaignPatch || typeof _pendingCampaignPatch !== 'object') _pendingCampaignPatch = {};
+    mergeInto(_pendingCampaignPatch, safeClone(patch) || patch);
+    _campaignPatchReason = String(reason || _campaignPatchReason || 'gm-dashboard');
+    if (_campaignPatchTimer) clearTimeout(_campaignPatchTimer);
+    _campaignPatchTimer = setTimeout(function() {
+      _campaignPatchTimer = 0;
+      var outbound = _pendingCampaignPatch;
+      _pendingCampaignPatch = null;
+      if (!outbound || !canSyncCampaignShared()) return;
+      window.campaignSystem.syncSharedPatch(outbound, _campaignPatchReason).then(function(res) {
+        if (res && res.ok) return;
+        if (typeof showNotif === 'function') showNotif((res && res.error) || 'Campaign sync failed (GM Dashboard).', 'warn');
+      }).catch(function() {
+        if (typeof showNotif === 'function') showNotif('Campaign sync failed (GM Dashboard).', 'warn');
+      });
+    }, 120);
+  }
+
+  function getStressValue(s) {
+    if (!s) return 0;
+    var mental = Number(s.mentalStress);
+    if (Number.isFinite(mental)) return Math.max(0, mental);
+    var legacy = Number(s.stress);
+    return Number.isFinite(legacy) ? Math.max(0, legacy) : 0;
+  }
+
+  function setStressValue(s, value) {
+    if (!s) return;
+    var next = Math.max(0, Number(value || 0));
+    s.mentalStress = next;
+    s.stress = next;
+  }
 
   /* ── REFERENCE CONTENT ── */
   var REFERENCE_SECTIONS = [
@@ -403,6 +471,7 @@
     if (el) el.textContent = s.credits + ' ₵';
     var inp = document.getElementById('gmdCreditsInput');
     if (inp) inp.value = s.credits;
+    queueCampaignSharedPatch({ credits: s.credits }, 'gm-dashboard-credits');
     if (typeof showNotif === 'function') showNotif('Credits: ' + s.credits + ' ₵', 'good');
   }
 
@@ -418,27 +487,43 @@
     if (typeof updateHeaderCredits === 'function') updateHeaderCredits();
     var el = document.getElementById('gmdCredits');
     if (el) el.textContent = val + ' ₵';
+    queueCampaignSharedPatch({ credits: val }, 'gm-dashboard-credits-exact');
     if (typeof showNotif === 'function') showNotif('Credits set to ' + val + ' ₵', 'good');
   }
 
   function adjustStress(delta) {
+    var s = getS();
+    if (!s) return;
+    var before = getStressValue(s);
+    var next = Math.max(0, before + Number(delta || 0));
     if (typeof setStress === 'function') {
-      var s = getS();
-      if (!s) return;
-      setStress((s.stress || 0) + delta);
+      setStress(next);
+      next = getStressValue(s);
+    } else {
+      setStressValue(s, next);
+      if (typeof updateMentalStressUI === 'function') updateMentalStressUI();
     }
     var el = document.getElementById('gmdStress');
-    var s2 = getS();
-    if (el && s2) el.textContent = s2.stress || 0;
+    if (el) el.textContent = next;
+    queueCampaignSharedPatch({ mentalStress: next }, 'gm-dashboard-stress');
     if (typeof showNotif === 'function') showNotif('Stress adjusted.', 'info');
   }
 
   function setStressTo(val) {
-    if (typeof setStress === 'function') { setStress(val); }
-    var el = document.getElementById('gmdStress');
     var s = getS();
-    if (el && s) el.textContent = s.stress || 0;
-    if (typeof showNotif === 'function') showNotif('Stress set to ' + val, val === 0 ? 'good' : 'bad');
+    if (!s) return;
+    var next = Math.max(0, Number(val || 0));
+    if (typeof setStress === 'function') {
+      setStress(next);
+      next = getStressValue(s);
+    } else {
+      setStressValue(s, next);
+      if (typeof updateMentalStressUI === 'function') updateMentalStressUI();
+    }
+    var el = document.getElementById('gmdStress');
+    if (el) el.textContent = next;
+    queueCampaignSharedPatch({ mentalStress: next }, 'gm-dashboard-stress-exact');
+    if (typeof showNotif === 'function') showNotif('Stress set to ' + next, next === 0 ? 'good' : 'bad');
   }
 
   function adjustGuildRenown(f, delta) {
@@ -451,6 +536,7 @@
     s.factionStanding[f] = s.factionRenown[f];
     if (typeof saveState === 'function') saveState();
     if (typeof renderFactionPanel === 'function') renderFactionPanel();
+    queueCampaignSharedPatch({ factionRenown: s.factionRenown }, 'gm-dashboard-faction-renown');
     switchTab('controls');
   }
 
@@ -465,6 +551,7 @@
     });
     if (typeof saveState === 'function') saveState();
     if (typeof renderFactionPanel === 'function') renderFactionPanel();
+    queueCampaignSharedPatch({ factionRenown: s.factionRenown }, 'gm-dashboard-faction-renown-reset');
     switchTab('controls');
   }
 

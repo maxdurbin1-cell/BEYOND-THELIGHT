@@ -2953,10 +2953,19 @@
       settings.mode = mode;
 
       if (state.code && state.connected) {
-        syncSharedState("set-gm-mode");
+        syncSharedPatch({ gmSettings: deepCloneJson(settings) || settings }, "set-gm-mode").then(function (res) {
+          if (!res || !res.ok) {
+            safeNotif((res && res.error) || "Could not sync GM mode.", "warn");
+          }
+          if (callback) callback(res || { ok: false });
+        }).catch(function (err) {
+          if (callback) callback({ ok: false, error: String(err) });
+        });
+      } else if (callback) {
+        callback({ ok: true, mode: mode, local: true });
       }
       safeNotif("GM Mode: " + mode.charAt(0).toUpperCase() + mode.slice(1));
-      if (callback) callback({ ok: true, mode: mode });
+      renderSettingsSection();
     } catch (err) {
       if (callback) callback({ ok: false, error: String(err) });
     }

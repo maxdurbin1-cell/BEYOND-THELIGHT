@@ -17432,6 +17432,7 @@
   window.pushMissionLuckOutcome=pushMissionLuckOutcome;
   window.resolveMissionPushLuck=resolveMissionPushLuck;
   window.renderMissionBoard=renderMissionBoard; window.renderMissionTracker=renderMissionTracker; window.renderCompletedMissions=renderCompletedMissions;
+  window.syncMissionUIs=syncMissionUIs;
   window.createMission=createMission;
   window.spawnRandomSoulForgeMissionEvent=spawnRandomSoulForgeMissionEvent;
   window.spawnRandomColosseumMissionEvent=spawnRandomColosseumMissionEvent;

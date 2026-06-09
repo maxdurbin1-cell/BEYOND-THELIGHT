@@ -1730,23 +1730,43 @@
     var mySelection = (typeof window.getProvinceSelectedKey === "function") ? String(window.getProvinceSelectedKey() || "") : "";
     if (state.token) {
       if (mySelection) {
+        var existingMine = existingSelections[state.token] && typeof existingSelections[state.token] === "object"
+          ? existingSelections[state.token]
+          : null;
+        var nextName = state.playerName || ensureName();
+        var existingAt = existingMine ? Number(existingMine.at || 0) : 0;
+        var unchangedSelection = !!(existingMine
+          && String(existingMine.key || "") === mySelection
+          && String(existingMine.name || "") === String(nextName || ""));
         existingSelections[state.token] = {
           key: mySelection,
-          name: state.playerName || ensureName(),
-          at: Date.now()
+          name: nextName,
+          at: unchangedSelection && existingAt ? existingAt : Date.now()
         };
       } else if (existingSelections[state.token]) {
         delete existingSelections[state.token];
       }
     }
+    var localMissionTokens = (window.S.missionTokens && typeof window.S.missionTokens === "object")
+      ? deepCloneJson(window.S.missionTokens)
+      : deepCloneJson((current && current.missionTokens) || {});
+    var localActiveMissions = Array.isArray(window.S.activeMissions)
+      ? (deepCloneJson(window.S.activeMissions) || [])
+      : (Array.isArray(current && current.activeMissions) ? (deepCloneJson(current.activeMissions) || []) : []);
+    var localCompletedMissions = Array.isArray(window.S.completedMissions)
+      ? (deepCloneJson(window.S.completedMissions) || [])
+      : (Array.isArray(current && current.completedMissions) ? (deepCloneJson(current.completedMissions) || []) : []);
+    var localAvailableJobs = Array.isArray(window.S.availableJobs)
+      ? (deepCloneJson(window.S.availableJobs) || [])
+      : (Array.isArray(current && current.availableJobs) ? (deepCloneJson(current.availableJobs) || []) : []);
     var shared = {
       credits: Math.max(0, Number(window.S.credits || 0)),
       renown: Math.max(0, Number(window.S.renown || 0)),
       mentalStress: Math.max(0, Number((typeof current.mentalStress === "number" ? current.mentalStress : window.S.mentalStress) || 0)),
-      missionTokens: deepCloneJson(window.S.missionTokens || {}),
-      activeMissions: deepCloneJson(window.S.activeMissions || []),
-      completedMissions: deepCloneJson(window.S.completedMissions || []),
-      availableJobs: deepCloneJson(window.S.availableJobs || []),
+      missionTokens: localMissionTokens || {},
+      activeMissions: localActiveMissions,
+      completedMissions: localCompletedMissions,
+      availableJobs: localAvailableJobs,
       storyline: deepCloneJson(window.S.storyline || {}),
       caravan: deepCloneJson(window.S.caravan || {}),
       holding: deepCloneJson(window.S.holding || {}),
@@ -2073,9 +2093,13 @@
     if (typeof window.updateStarshipUI === "function") {
       try { window.updateStarshipUI(); } catch (_err) {}
     }
-    if (typeof window.renderMissionBoard === "function") window.renderMissionBoard();
-    if (typeof window.renderMissionTracker === "function") window.renderMissionTracker();
-    if (typeof window.renderCompletedMissions === "function") window.renderCompletedMissions();
+    if (typeof window.syncMissionUIs === "function") {
+      try { window.syncMissionUIs(); } catch (_err) {}
+    } else {
+      if (typeof window.renderMissionBoard === "function") window.renderMissionBoard();
+      if (typeof window.renderMissionTracker === "function") window.renderMissionTracker();
+      if (typeof window.renderCompletedMissions === "function") window.renderCompletedMissions();
+    }
     if (typeof window.renderCampaignInitiativePanel === "function") {
       try { window.renderCampaignInitiativePanel(); } catch (_err) {}
     }
@@ -7007,7 +7031,18 @@
       }
     }
     if (state.role !== "player") {
-      syncSharedState("tick");
+      var tickHash = "";
+      try {
+        tickHash = safeJsonHash(collectSharedState());
+      } catch (_err) {
+        tickHash = "";
+      }
+      if (!tickHash || tickHash !== state.lastSharedHash) {
+        var tickSync = syncSharedState("tick");
+        if (tickSync && typeof tickSync.catch === "function") {
+          tickSync.catch(function () {});
+        }
+      }
     }
     syncCombatSceneHeartbeat("combat-heartbeat");
     if (state.role === "gm" && isStrictGmCameraLockEnabled()) {

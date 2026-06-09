@@ -116,6 +116,25 @@
     return !!window.settingsSystem.isManualRollMode();
   }
 
+  function getRivalCampaignAuthority(){
+    var snap=(typeof window!=='undefined'&&window.campaignSystem&&typeof window.campaignSystem.getState==='function')
+      ? window.campaignSystem.getState()
+      : null;
+    var active=!!(snap&&snap.code&&snap.connected);
+    var role=snap&&snap.role?String(snap.role):'';
+    return { active:active, role:role, canResolve:!active||role==='gm' };
+  }
+
+  function queueRivalCampaignCheckRequest(spec){
+    if(typeof window==='undefined'||!window.campaignSystem||typeof window.campaignSystem.queueCampaignCheckRequest!=='function')return;
+    window.campaignSystem.queueCampaignCheckRequest(spec||{}).catch(function(_err){});
+  }
+
+  function recordRivalCampaignCheckResolution(spec){
+    if(typeof window==='undefined'||!window.campaignSystem||typeof window.campaignSystem.recordCampaignCheckResolution!=='function')return;
+    window.campaignSystem.recordCampaignCheckResolution(spec||{}).catch(function(_err){});
+  }
+
   function buildRivalManualModifierSummary(stat){
     if(typeof window!=='undefined'&&typeof window.buildManualRollModifierLines==='function'){
       var lines=window.buildManualRollModifierLines(stat,(typeof getEffectiveDie==='function')?getEffectiveDie(stat||'lead'):6,{extraLines:['Enter final totals after applying all listed modifiers.']})||[];
@@ -363,6 +382,21 @@
   function resolveRivalInteraction(action,stat,intent,mapKey,key,manualOutcome){
     var r=ensureRivalState();
     if(!r||!r.alive)return;
+    var auth=getRivalCampaignAuthority();
+    if(auth.active&&!auth.canResolve){
+      queueRivalCampaignCheckRequest({
+        type:'rival-interaction',
+        map:String(mapKey||'province'),
+        context:String(key||''),
+        stat:String(stat||'lead'),
+        dd:snapRivalDreadDie(r.dread + Math.max(0,Math.floor((r.threatTier-1)/2))),
+        title:'Rival Interaction',
+        detail:'Requested GM rival interaction resolution for '+String(action||'interaction')+'.',
+        meta:{ action:String(action||'interaction'), intent:String(intent||'neutral') }
+      });
+      if(typeof showNotif==='function')showNotif('GM must resolve this rival interaction in campaign mode.', 'info');
+      return;
+    }
     var dread=snapRivalDreadDie(r.dread + Math.max(0,Math.floor((r.threatTier-1)/2)));
     if(isRivalManualRollMode()&&(!manualOutcome||typeof manualOutcome.success!=='boolean')){
       openRivalManualDecision(action,stat,intent,mapKey,key,dread);
@@ -427,6 +461,23 @@
     if(typeof showNotif==='function'){
       showNotif('Rival '+label+': '+(success?'success':'failure')+(rollOut.manual?' (manual)':'')+'. '+drift,success?'good':'warn');
     }
+    recordRivalCampaignCheckResolution({
+      type:'rival-interaction',
+      map:String(mapKey||'province'),
+      context:String(key||''),
+      stat:String(stat||'lead'),
+      dd:Number(dread||8),
+      title:'Rival Interaction',
+      detail:String(label||'interaction'),
+      meta:{ intent:String(intent||'neutral') },
+      resolution:{
+        success:!!success,
+        manual:!!(rollOut&&rollOut.manual),
+        pushLuck:!!(rollOut&&rollOut.pushLuck),
+        actorTotal:Number(rollOut&&rollOut.actorTotal||0),
+        dreadTotal:Number(rollOut&&rollOut.dreadTotal||0)
+      }
+    });
     if(typeof renderQP==='function')renderQP('combat');
   }
 
@@ -481,6 +532,20 @@
   function finalizeRivalCombat(success){
     var r=ensureRivalState();
     if(!r)return;
+    var auth=getRivalCampaignAuthority();
+    if(auth.active&&!auth.canResolve){
+      queueRivalCampaignCheckRequest({
+        type:'rival-combat-outcome',
+        map:String((r.activeCombat&&r.activeCombat.mapKey)||r.lastMap||'province'),
+        context:String((r.activeCombat&&r.activeCombat.key)||''),
+        stat:'combat',
+        dd:Number((r.activeCombat&&r.activeCombat.dread)||r.dread||8),
+        title:'Rival Combat Outcome',
+        detail:'Requested GM rival combat outcome: '+(success?'success':'failure')+'.'
+      });
+      if(typeof showNotif==='function')showNotif('GM must resolve this rival combat outcome in campaign mode.', 'info');
+      return;
+    }
     if(success){
       r.defeatCount=(r.defeatCount||0)+1;
       r.combatWins=(r.combatWins||0)+1;
@@ -509,6 +574,16 @@
     }
     syncRivalStatus();
     renderRivalCombatStatus();
+    recordRivalCampaignCheckResolution({
+      type:'rival-combat-outcome',
+      map:String((r.activeCombat&&r.activeCombat.mapKey)||r.lastMap||'province'),
+      context:String((r.activeCombat&&r.activeCombat.key)||''),
+      stat:'combat',
+      dd:Number((r.activeCombat&&r.activeCombat.dread)||r.dread||8),
+      title:'Rival Combat Outcome',
+      detail:'Rival combat result',
+      resolution:{ success:!!success, defeatCount:Number(r.defeatCount||0), alive:!!r.alive }
+    });
     r.activeCombat=null;
     if(typeof closeModal==='function')closeModal();
     if(typeof renderQP==='function')renderQP('combat');

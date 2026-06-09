@@ -1775,6 +1775,8 @@
       shared.campaignCombat = deepCloneJson(current.campaignCombat || ensureCampaignCombatState());
       shared.campaignTravel = deepCloneJson(current.campaignTravel || ensureCampaignTravelState());
       shared.actionQueue = deepCloneJson(current.actionQueue || ensureActionQueue());
+      shared.pendingChecks = deepCloneJson(current.pendingChecks || ensurePendingChecks());
+      shared.checkResolutionLog = deepCloneJson(current.checkResolutionLog || ensureCheckResolutionLog());
       shared.characterInventories = deepCloneJson(current.characterInventories || ensureCharacterInventories());
       shared.characterDeathStates = deepCloneJson(current.characterDeathStates || ensureCharacterDeathStates());
       shared.contestedRolls = deepCloneJson(current.contestedRolls || ensureContestedRolls());
@@ -2006,6 +2008,14 @@
       if (Array.isArray(sharedState.actionQueue)) {
         var current = getCampaignSharedState() || {};
         current.actionQueue = deepCloneJson(sharedState.actionQueue);
+      }
+      if (Array.isArray(sharedState.pendingChecks)) {
+        var current = getCampaignSharedState() || {};
+        current.pendingChecks = deepCloneJson(sharedState.pendingChecks) || [];
+      }
+      if (Array.isArray(sharedState.checkResolutionLog)) {
+        var current = getCampaignSharedState() || {};
+        current.checkResolutionLog = deepCloneJson(sharedState.checkResolutionLog) || [];
       }
       if (sharedState.characterInventories && typeof sharedState.characterInventories === "object") {
         var current = getCampaignSharedState() || {};
@@ -3035,6 +3045,169 @@
     return sharedState.actionQueue;
   }
 
+  function ensurePendingChecks(sharedState) {
+    if (!sharedState) sharedState = getMutableCampaignSharedState();
+    if (!sharedState.pendingChecks || !Array.isArray(sharedState.pendingChecks)) {
+      sharedState.pendingChecks = [];
+    }
+    return sharedState.pendingChecks;
+  }
+
+  function ensureCheckResolutionLog(sharedState) {
+    if (!sharedState) sharedState = getMutableCampaignSharedState();
+    if (!sharedState.checkResolutionLog || !Array.isArray(sharedState.checkResolutionLog)) {
+      sharedState.checkResolutionLog = [];
+    }
+    return sharedState.checkResolutionLog;
+  }
+
+  function canResolveCampaignChecks() {
+    if (!state.code) return true;
+    if (!state.connected) return false;
+    return state.role === "gm";
+  }
+
+  function buildCampaignCheckRecord(spec) {
+    var data = spec && typeof spec === "object" ? spec : {};
+    return {
+      id: String(data.id || ("chk-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8))),
+      type: String(data.type || "check"),
+      map: String(data.map || data.scope || "world"),
+      context: String(data.context || data.key || ""),
+      stat: String(data.stat || ""),
+      dd: Math.max(0, Number(data.dd || 0) || 0),
+      title: String(data.title || "Campaign check"),
+      detail: String(data.detail || ""),
+      meta: deepCloneJson(data.meta || {}) || {},
+      requestedByToken: String(state.token || ""),
+      requestedByName: String(state.playerName || ensureName() || "Player"),
+      requestedAt: Date.now(),
+      status: "pending"
+    };
+  }
+
+  async function queueCampaignCheckRequest(spec, callback) {
+    if (!state.code || !state.connected || !state.socket) {
+      var local = { ok: false, local: true, error: "Not connected to a campaign." };
+      if (callback) callback(local);
+      return local;
+    }
+    var check = buildCampaignCheckRecord(spec || {});
+    if (state.role === "gm") {
+      var pendingForGm = ensurePendingChecks();
+      pendingForGm.push(check);
+      var gmOut = await syncSharedPatch({ pendingChecks: deepCloneJson(pendingForGm) || pendingForGm }, "gm-queue-check-request");
+      if (!gmOut || !gmOut.ok) {
+        if (callback) callback(gmOut || { ok: false });
+        return gmOut || { ok: false };
+      }
+      safeNotif("Check request recorded.", "info");
+      if (callback) callback({ ok: true, requestId: check.id, local: false });
+      return { ok: true, requestId: check.id, local: false };
+    }
+
+    var queue = ensureActionQueue();
+    queue.push({
+      id: String(Math.random()).slice(2, 10),
+      token: state.token,
+      playerName: state.playerName || ensureName(),
+      type: "campaign-check-request",
+      data: { check: deepCloneJson(check) || check },
+      submittedAt: Date.now(),
+      status: "pending"
+    });
+
+    var queued = await emitWithAck("campaign:syncState", {
+      state: { actionQueue: queue },
+      reason: "queue-campaign-check-request"
+    });
+    if (!queued || !queued.ok) {
+      safeNotif((queued && queued.error) || "Could not queue check request for GM.", "warn");
+      if (callback) callback(queued || { ok: false });
+      return queued || { ok: false };
+    }
+    safeNotif("Check request queued for GM resolution.", "info");
+    if (callback) callback({ ok: true, requestId: check.id, local: false });
+    return { ok: true, requestId: check.id, local: false };
+  }
+
+  async function resolveCampaignCheck(requestId, resolution, callback) {
+    if (!canResolveCampaignChecks()) {
+      var denied = { ok: false, error: "Only GM can resolve campaign checks." };
+      if (callback) callback(denied);
+      return denied;
+    }
+    if (!state.code || !state.connected) {
+      var localOut = { ok: true, local: true };
+      if (callback) callback(localOut);
+      return localOut;
+    }
+
+    var pending = ensurePendingChecks();
+    var index = -1;
+    for (var i = 0; i < pending.length; i++) {
+      if (pending[i] && String(pending[i].id) === String(requestId)) {
+        index = i;
+        break;
+      }
+    }
+    if (index === -1) {
+      var missing = { ok: false, error: "Check request not found." };
+      if (callback) callback(missing);
+      return missing;
+    }
+
+    var record = deepCloneJson(pending[index]) || pending[index];
+    pending.splice(index, 1);
+    record.status = "resolved";
+    record.resolvedAt = Date.now();
+    record.resolvedByToken = String(state.token || "");
+    record.resolvedByName = String(state.playerName || ensureName() || "GM");
+    record.resolution = deepCloneJson(resolution || {}) || {};
+
+    var log = ensureCheckResolutionLog();
+    log.push(record);
+    if (log.length > 120) {
+      log.splice(0, log.length - 120);
+    }
+
+    var out = await syncSharedPatch({
+      pendingChecks: deepCloneJson(pending) || pending,
+      checkResolutionLog: deepCloneJson(log) || log
+    }, "resolve-campaign-check");
+    if (callback) callback(out || { ok: false });
+    return out || { ok: false };
+  }
+
+  async function recordCampaignCheckResolution(spec, callback) {
+    if (!canResolveCampaignChecks()) {
+      var denied = { ok: false, error: "Only GM can record campaign check outcomes." };
+      if (callback) callback(denied);
+      return denied;
+    }
+    if (!state.code || !state.connected) {
+      var localOut = { ok: true, local: true };
+      if (callback) callback(localOut);
+      return localOut;
+    }
+
+    var record = buildCampaignCheckRecord(spec || {});
+    record.status = "resolved";
+    record.resolvedAt = Date.now();
+    record.resolvedByToken = String(state.token || "");
+    record.resolvedByName = String(state.playerName || ensureName() || "GM");
+    record.resolution = deepCloneJson((spec && spec.resolution) || {}) || {};
+
+    var log = ensureCheckResolutionLog();
+    log.push(record);
+    if (log.length > 120) {
+      log.splice(0, log.length - 120);
+    }
+    var out = await syncSharedPatch({ checkResolutionLog: deepCloneJson(log) || log }, "record-campaign-check-resolution");
+    if (callback) callback(out || { ok: false });
+    return out || { ok: false };
+  }
+
   async function syncPlayerSharedPatch(patch, reason) {
     if (!state.socket || !state.connected || !state.code) return { ok: false, error: "Not connected." };
     if (!patch || typeof patch !== "object") return { ok: false, error: "Invalid patch." };
@@ -3153,6 +3326,17 @@
           });
         }
         break;
+      case "campaign-check-request":
+        if (action.data && action.data.check && typeof action.data.check === "object") {
+          var current = getMutableCampaignSharedState();
+          var pending = ensurePendingChecks(current);
+          var incoming = deepCloneJson(action.data.check) || action.data.check;
+          var exists = pending.some(function (entry) {
+            return entry && String(entry.id) === String(incoming.id || "");
+          });
+          if (!exists) pending.push(incoming);
+        }
+        break;
       case "use-item":
         // Example: action.data = { itemIndex: number }
         break;
@@ -3246,6 +3430,38 @@
   function getPendingActions() {
     var queue = ensureActionQueue();
     return queue.filter(function(a) { return a && a.status === "pending"; });
+  }
+
+  function getPendingChecks() {
+    var checks = ensurePendingChecks();
+    return checks.filter(function (c) { return c && String(c.status || "pending") === "pending"; });
+  }
+
+  function getCheckResolutionLog(limit) {
+    var log = ensureCheckResolutionLog();
+    var n = Math.max(1, Number(limit || 20) || 20);
+    return log.slice(Math.max(0, log.length - n)).reverse();
+  }
+
+  function gmResolvePendingCheck(requestId, success, callback) {
+    if (!state.role || state.role !== "gm") {
+      var denied = { ok: false, error: "Only GM can resolve pending checks." };
+      if (callback) callback(denied);
+      return;
+    }
+    resolveCampaignCheck(requestId, {
+      success: !!success,
+      mode: "gm-click"
+    }).then(function (res) {
+      if (!res || !res.ok) {
+        safeNotif((res && res.error) || "Could not resolve pending check.", "warn");
+      } else {
+        safeNotif("Pending check resolved.", success ? "good" : "warn");
+      }
+      if (callback) callback(res || { ok: false });
+    }).catch(function (err) {
+      if (callback) callback({ ok: false, error: String(err) });
+    });
   }
 
   // Get character's current status (health, stress, conditions)
@@ -4693,6 +4909,56 @@
                 + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.gmApproveAction(\'' + escapeHtml(action.id) + '\')">Approve</button>'
                 + '<button class="btn btn-xs btn-red" onclick="window.campaignSystem.gmRejectAction(\'' + escapeHtml(action.id) + '\', \'denied\')">Reject</button>'
                 + '</div>'
+                + '</div>';
+            }).join('');
+          })()
+          + '</div>'
+          + '</div>')
+        : "")
+      + (isGm && state.code
+        ? (""
+          + '<div class="campaign-card">'
+          + '<div class="campaign-card-title">Phase 2: Pending Check Resolution</div>'
+          + '<div class="campaign-muted" style="margin-bottom:.35rem;">Campaign check requests waiting for GM decision</div>'
+          + '<div id="pendingChecksContainer" style="display:flex;flex-direction:column;gap:.5rem;">'
+          + (function() {
+            var checks = getPendingChecks();
+            if (!checks.length) return '<div class="campaign-muted">No pending campaign checks.</div>';
+            return checks.map(function(check) {
+              var title = String(check.title || check.type || 'Campaign Check');
+              var requestedBy = String(check.requestedByName || 'Player');
+              var stat = String(check.stat || '-');
+              var dd = Math.max(0, Number(check.dd || 0) || 0);
+              var detail = String(check.detail || '');
+              var contextText = String(check.map || 'world') + (check.context ? (' · ' + String(check.context)) : '');
+              return '<div style="padding:.5rem;background:var(--bg3);border-radius:.3rem;border-left:3px solid var(--teal);">'
+                + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;">'
+                + '<strong>' + escapeHtml(title) + '</strong>'
+                + '<span class="campaign-muted" style="font-size:.82rem;">' + escapeHtml(requestedBy) + '</span>'
+                + '</div>'
+                + '<div class="campaign-muted" style="margin-top:.16rem;font-size:.78rem;">' + escapeHtml(contextText) + '</div>'
+                + '<div class="campaign-muted" style="margin-top:.14rem;font-size:.78rem;">' + escapeHtml(stat.toUpperCase()) + ' vs d' + dd + '</div>'
+                + (detail ? ('<div class="campaign-muted" style="margin-top:.14rem;font-size:.78rem;">' + escapeHtml(detail) + '</div>') : '')
+                + '<div class="campaign-actions" style="margin-top:.22rem;gap:.1rem;">'
+                + '<button class="btn btn-xs btn-teal" onclick="window.campaignSystem.gmResolvePendingCheck(\'' + escapeHtml(String(check.id || '')) + '\', true)">Resolve Success</button>'
+                + '<button class="btn btn-xs btn-red" onclick="window.campaignSystem.gmResolvePendingCheck(\'' + escapeHtml(String(check.id || '')) + '\', false)">Resolve Failure</button>'
+                + '</div>'
+                + '</div>';
+            }).join('');
+          })()
+          + '</div>'
+          + '<div class="campaign-muted" style="margin-top:.35rem;">Recent check outcomes</div>'
+          + '<div style="display:flex;flex-direction:column;gap:.35rem;margin-top:.2rem;">'
+          + (function() {
+            var log = getCheckResolutionLog(6);
+            if (!log.length) return '<div class="campaign-muted">No resolved checks yet.</div>';
+            return log.map(function(entry) {
+              var title = String(entry.title || entry.type || 'Check');
+              var by = String(entry.resolvedByName || 'GM');
+              var ok = !!(entry.resolution && entry.resolution.success);
+              return '<div class="campaign-muted" style="font-size:.76rem;">'
+                + '<strong style="color:' + (ok ? 'var(--teal)' : 'var(--red2)') + ';">' + (ok ? 'Success' : 'Failure') + '</strong> '
+                + escapeHtml(title) + ' · ' + escapeHtml(by)
                 + '</div>';
             }).join('');
           })()
@@ -6847,6 +7113,13 @@
     gmApproveAction: gmApproveAction,
     gmRejectAction: gmRejectAction,
     getPendingActions: getPendingActions,
+    getPendingChecks: getPendingChecks,
+    getCheckResolutionLog: getCheckResolutionLog,
+    gmResolvePendingCheck: gmResolvePendingCheck,
+    canResolveCampaignChecks: canResolveCampaignChecks,
+    queueCampaignCheckRequest: queueCampaignCheckRequest,
+    resolveCampaignCheck: resolveCampaignCheck,
+    recordCampaignCheckResolution: recordCampaignCheckResolution,
     getCharacterStatus: getCharacterStatus,
     getPartyStatus: getPartyStatus,
     addItemToCharacterInventory: addItemToCharacterInventory,

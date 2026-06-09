@@ -1149,11 +1149,49 @@
     if (!found) return null;
     return {hex: found, label: d.label};
   }
+
+  function getCampaignCheckAuthority() {
+    var snap = (window.campaignSystem && typeof window.campaignSystem.getState === 'function')
+      ? window.campaignSystem.getState()
+      : null;
+    var active = !!(snap && snap.code && snap.connected);
+    var role = snap && snap.role ? String(snap.role) : '';
+    return {
+      active: active,
+      role: role,
+      canResolve: !active || role === 'gm'
+    };
+  }
+
+  function queueCampaignCheckRequestFromModule(spec) {
+    if (!window.campaignSystem || typeof window.campaignSystem.queueCampaignCheckRequest !== 'function') return;
+    window.campaignSystem.queueCampaignCheckRequest(spec || {}).catch(function (_err) {});
+  }
+
+  function recordCampaignCheckResolutionFromModule(spec) {
+    if (!window.campaignSystem || typeof window.campaignSystem.recordCampaignCheckResolution !== 'function') return;
+    window.campaignSystem.recordCampaignCheckResolution(spec || {}).catch(function (_err) {});
+  }
+
   function performSeaObservation(directionKey) {
     const hex = (Array.isArray(S.lastSea.map) ? S.lastSea.map : []).find(e => e && e.key === S.lastSea.selectedKey);
     if (!hex) { showNotif('Select a sea hex first.', 'warn'); return; }
     const leadDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie('lead') : ((S.stats && S.stats.lead) || 4);
     const target = getSeaHexByDirection(hex, directionKey);
+    var auth = getCampaignCheckAuthority();
+    if (auth.active && !auth.canResolve) {
+      queueCampaignCheckRequestFromModule({
+        type: 'observation',
+        map: 'sea',
+        context: String((hex && hex.key) || '') + '->' + String(directionKey || ''),
+        stat: 'lead',
+        dd: 6,
+        title: 'Sea Observation Check',
+        detail: 'Requested observation resolution for ' + String(target && target.label || directionKey || 'adjacent hex') + '.'
+      });
+      showNotif('GM must resolve this campaign check.', 'info');
+      return;
+    }
     const finalizeObservation = function(outcome) {
       const actionTotal = Number((outcome && outcome.actionTotal) || 0);
       const dreadTotal = Number((outcome && outcome.dreadTotal) || 0);
@@ -1190,6 +1228,22 @@
         });
         result += '<div style="font-size:.82rem;color:var(--red2);">✗ Observation fails. Fog and spray obscure the route.</div>';
       }
+      recordCampaignCheckResolutionFromModule({
+        type: 'observation',
+        map: 'sea',
+        context: String((hex && hex.key) || '') + '->' + String(directionKey || ''),
+        stat: 'lead',
+        dd: 6,
+        title: 'Sea Observation Check',
+        detail: String(target && target.label ? ('Direction ' + target.label) : 'Adjacent sea observation'),
+        resolution: {
+          success: success,
+          actionTotal: actionTotal,
+          dreadTotal: dreadTotal,
+          targetKey: String(target && target.hex && target.hex.key || ''),
+          manual: !!(outcome && outcome.manual)
+        }
+      });
       if (typeof openModal === 'function') openModal('Observe Adjacent Sea Hex', result);
       renderLastSeaMap();
       renderLastSeaInfo();
@@ -1204,6 +1258,7 @@
         statLabel: 'Lead',
         actionDie: leadDie,
         dreadDie: 6,
+        disableAutoCampaignCheckRecord: true,
         onResolve: finalizeObservation
       });
       return;
@@ -1671,13 +1726,32 @@
     var currentTMW = Math.max(0, Number((S && S.tmw) || 0));
     var pushDread = stepSeaManualDreadDie(dreadDie);
     var modifiersHtml = buildSeaManualModifierSummary(statKey);
+    var checkSpec = cfg.campaignCheck && typeof cfg.campaignCheck === 'object'
+      ? deepClone(cfg.campaignCheck)
+      : {
+          type: 'manual-check',
+          map: 'sea',
+          context: context,
+          stat: statKey,
+          dd: dreadDie,
+          title: title,
+          detail: context
+        };
+    var checkAuth = getCampaignCheckAuthority();
+    if (checkAuth.active && !checkAuth.canResolve) {
+      queueCampaignCheckRequestFromModule(checkSpec);
+      if (typeof showNotif === 'function') showNotif('GM must resolve this campaign check.', 'info');
+      return false;
+    }
 
     window._pendingSeaManualActionCheck = {
       statKey: statKey,
       statLabel: statLabel,
       actionDie: actionDie,
       dreadDie: dreadDie,
-      resolver: (typeof cfg.onResolve === 'function') ? cfg.onResolve : null
+      resolver: (typeof cfg.onResolve === 'function') ? cfg.onResolve : null,
+      checkSpec: checkSpec,
+      disableAutoCampaignCheckRecord: !!cfg.disableAutoCampaignCheckRecord
     };
 
     var html = '<div style="font-size:.84rem;color:var(--text2);line-height:1.6;">'
@@ -1748,6 +1822,26 @@
         manual: true
       });
     }
+    if (!pending.disableAutoCampaignCheckRecord) {
+      recordCampaignCheckResolutionFromModule({
+        type: String((pending.checkSpec && pending.checkSpec.type) || 'manual-check'),
+        map: String((pending.checkSpec && pending.checkSpec.map) || 'sea'),
+        context: String((pending.checkSpec && pending.checkSpec.context) || ''),
+        stat: String((pending.checkSpec && pending.checkSpec.stat) || pending.statKey || 'lead'),
+        dd: Math.max(0, Number((pending.checkSpec && pending.checkSpec.dd) || pending.dreadDie || 6) || 6),
+        title: String((pending.checkSpec && pending.checkSpec.title) || 'Manual Roll'),
+        detail: String((pending.checkSpec && pending.checkSpec.detail) || ''),
+        meta: deepClone((pending.checkSpec && pending.checkSpec.meta) || {}) || {},
+        resolution: {
+          success: !!resolvedSuccess,
+          manual: true,
+          mode: modeKey,
+          pushLuck: usedPush,
+          actionTotal: Number(actionValue || 0),
+          dreadTotal: Number(dreadValue || 0)
+        }
+      });
+    }
   }
   window.resolveSeaManualActionCheck = resolveSeaManualActionCheck;
 
@@ -1771,6 +1865,20 @@
     const checkStat = allowed.indexOf(chosen) >= 0 ? chosen : allowed[0];
     const statDie = (typeof getEffectiveDie === 'function') ? getEffectiveDie(checkStat) : ((S.stats && S.stats[checkStat]) || 4);
     const dd = Number(weather.check.dd) || 8;
+    var auth = getCampaignCheckAuthority();
+    if (auth.active && !auth.canResolve) {
+      queueCampaignCheckRequestFromModule({
+        type: 'weather',
+        map: 'sea',
+        context: String(weather.label || 'weather'),
+        stat: checkStat,
+        dd: dd,
+        title: 'Sea Weather Check',
+        detail: 'Requested weather resolution for ' + String(weather.label || 'current weather') + '.'
+      });
+      showNotif('GM must resolve this weather check.', 'info');
+      return;
+    }
     if (isSeaManualRollMode()) {
       openSeaManualActionDreadPrompt({
         title: 'Manual Roll - Sea Weather Check',
@@ -1779,6 +1887,7 @@
         statLabel: capitalize(checkStat),
         actionDie: statDie,
         dreadDie: dd,
+        disableAutoCampaignCheckRecord: true,
         onResolve: function(outcome) {
           const success = !!(outcome && outcome.success);
           const actionTotal = Number((outcome && outcome.actionTotal) || 0);
@@ -1807,6 +1916,21 @@
             `${capitalize(checkStat)} ${actionTotal} vs Dread ${dreadTotal} (manual). ${success ? 'Sea lane stabilized.' : 'You push through under strain.'}`,
             success ? 'good' : 'warn'
           );
+          recordCampaignCheckResolutionFromModule({
+            type: 'weather',
+            map: 'sea',
+            context: String(weather.label || 'weather'),
+            stat: checkStat,
+            dd: dd,
+            title: 'Sea Weather Check',
+            detail: String(weather.label || 'Sea weather pressure'),
+            resolution: {
+              success: success,
+              actionTotal: actionTotal,
+              dreadTotal: dreadTotal,
+              manual: true
+            }
+          });
           renderLastSeaMap();
           renderLastSeaInfo();
         }
@@ -1844,6 +1968,21 @@
       `${capitalize(checkStat)} d${statDie}=${statRoll} vs Dread d${dd}=${dreadRoll}. ${success ? 'Sea lane stabilized.' : 'You push through under strain (+' + Math.max(1, dreadRoll - statRoll) + ' Mental Stress).'}`,
       success ? 'good' : 'warn'
     );
+    recordCampaignCheckResolutionFromModule({
+      type: 'weather',
+      map: 'sea',
+      context: String(weather.label || 'weather'),
+      stat: checkStat,
+      dd: dd,
+      title: 'Sea Weather Check',
+      detail: String(weather.label || 'Sea weather pressure'),
+      resolution: {
+        success: success,
+        actionTotal: statRoll,
+        dreadTotal: dreadRoll,
+        manual: false
+      }
+    });
     renderLastSeaMap();
     renderLastSeaInfo();
   }
@@ -4590,6 +4729,20 @@
 
   function resolveSeaDungeonBossOutcome(roomIndex, success) {
     if (!S.lastSea || !S.lastSea.activeDungeon) return false;
+    var auth = getCampaignCheckAuthority();
+    if (auth.active && !auth.canResolve) {
+      queueCampaignCheckRequestFromModule({
+        type: 'sea-dungeon-boss',
+        map: 'sea-dungeon',
+        context: String(S.lastSea.activeDungeon.col) + ',' + String(S.lastSea.activeDungeon.row) + '#room-' + String(roomIndex || 0),
+        stat: 'valor',
+        dd: 8,
+        title: 'Sea Dungeon Boss Outcome',
+        detail: 'Requested GM boss outcome: ' + (success ? 'victory' : 'defeat') + '.'
+      });
+      showNotif('GM must resolve this boss outcome in campaign mode.', 'info');
+      return false;
+    }
     const hex = getSeaCell(S.lastSea.activeDungeon.col, S.lastSea.activeDungeon.row);
     const data = hex && hex.encounter && hex.encounter.type === 'dungeon' ? hex.encounter.data : hex && hex.siteType === 'dungeon' ? hex.siteData : null;
     if (!data || !Array.isArray(data.generatedRooms) || !data.generatedRooms[roomIndex]) return false;
@@ -4625,12 +4778,39 @@
       room.cleared = true;
       showNotif('Boss outcome marked as failure.', 'warn');
     }
+    recordCampaignCheckResolutionFromModule({
+      type: 'sea-dungeon-boss',
+      map: 'sea-dungeon',
+      context: String(S.lastSea.activeDungeon.col) + ',' + String(S.lastSea.activeDungeon.row) + '#room-' + String(roomIndex || 0),
+      stat: 'valor',
+      dd: 8,
+      title: 'Sea Dungeon Boss Outcome',
+      detail: String(room && room.type || 'Boss Chamber'),
+      resolution: {
+        success: !!success,
+        roomIndex: Number(roomIndex || 0)
+      }
+    });
     syncSeaDungeonState('sea-dungeon-boss-outcome');
     return openModal(data.name, buildDungeonModal(data));
   }
 
   function startSeaDungeonPuzzle(roomIndex) {
     if (!S.lastSea || !S.lastSea.activeDungeon) return false;
+    var auth = getCampaignCheckAuthority();
+    if (auth.active && !auth.canResolve) {
+      queueCampaignCheckRequestFromModule({
+        type: 'sea-dungeon-puzzle',
+        map: 'sea-dungeon',
+        context: String(S.lastSea.activeDungeon.col) + ',' + String(S.lastSea.activeDungeon.row) + '#room-' + String(roomIndex || 0),
+        stat: 'puzzle',
+        dd: 6,
+        title: 'Sea Dungeon Puzzle Resolution',
+        detail: 'Requested GM puzzle resolution for room ' + String(roomIndex || 0) + '.'
+      });
+      showNotif('GM must resolve this puzzle in campaign mode.', 'info');
+      return false;
+    }
     const hex = getSeaCell(S.lastSea.activeDungeon.col, S.lastSea.activeDungeon.row);
     const data = hex && hex.encounter && hex.encounter.type === 'dungeon' ? hex.encounter.data : hex && hex.siteType === 'dungeon' ? hex.siteData : null;
     if (!data || !Array.isArray(data.generatedRooms) || !data.generatedRooms[roomIndex]) return false;
@@ -4684,6 +4864,19 @@
           room.cleared = false;
           room.result = '🧩 Failed — lock backlash inflicts 2 Damage. This room blocks progress until solved.';
         }
+        recordCampaignCheckResolutionFromModule({
+          type: 'sea-dungeon-puzzle',
+          map: 'sea-dungeon',
+          context: String(S.lastSea.activeDungeon.col) + ',' + String(S.lastSea.activeDungeon.row) + '#room-' + String(roomIndex || 0),
+          stat: 'puzzle',
+          dd: 6,
+          title: 'Sea Dungeon Puzzle Resolution',
+          detail: String(spec && spec.title || 'Sea Ruin Puzzle'),
+          resolution: {
+            success: result === 'success' || result === 'partial',
+            mode: String(result || 'failure')
+          }
+        });
         syncSeaDungeonState('sea-dungeon-puzzle');
         openModal(data.name, buildDungeonModal(data));
       }
@@ -4692,6 +4885,20 @@
   }
 
   function checkSeaDungeonPuzzle(col, row, roomIndex, inputId) {
+    var auth = getCampaignCheckAuthority();
+    if (auth.active && !auth.canResolve) {
+      queueCampaignCheckRequestFromModule({
+        type: 'sea-dungeon-puzzle',
+        map: 'sea-dungeon',
+        context: String(col) + ',' + String(row) + '#room-' + String(roomIndex || 0),
+        stat: 'puzzle',
+        dd: 6,
+        title: 'Sea Dungeon Puzzle Resolution',
+        detail: 'Requested GM puzzle resolution for room ' + String(roomIndex || 0) + '.'
+      });
+      showNotif('GM must resolve this puzzle in campaign mode.', 'info');
+      return;
+    }
     const hex = getSeaCell(col, row);
     const data = hex && hex.encounter && hex.encounter.type === 'dungeon' ? hex.encounter.data : hex && hex.siteType === 'dungeon' ? hex.siteData : null;
     if (!data || !Array.isArray(data.generatedRooms) || !data.generatedRooms[roomIndex]) return;
@@ -4723,6 +4930,19 @@
       if (typeof changeMentalStress === 'function') changeMentalStress(1);
       if (typeof showNotif === 'function') showNotif('Puzzle failed: +1 Mental Stress.', 'warn');
     }
+    recordCampaignCheckResolutionFromModule({
+      type: 'sea-dungeon-puzzle',
+      map: 'sea-dungeon',
+      context: String(col) + ',' + String(row) + '#room-' + String(roomIndex || 0),
+      stat: 'puzzle',
+      dd: 6,
+      title: 'Sea Dungeon Puzzle Resolution',
+      detail: String(spec && spec.title || 'Sea Ruin Puzzle'),
+      resolution: {
+        success: !!solved,
+        mode: solved ? 'success' : 'failure'
+      }
+    });
     openModal(data.name, buildDungeonModal(data));
   }
 

@@ -23,6 +23,10 @@ const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const TOKEN_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789abcdefghijkmnopqrstuvwxyz";
 const BTL_DATA_DIR = path.resolve(process.env.BTL_DATA_DIR || path.join(os.homedir(), ".beyond-the-light"));
 const STORE_PATH = path.resolve(process.env.CAMPAIGN_STORE_PATH || path.join(__dirname, "campaign-data.json"));
+const CAMPAIGN_STORE_BACKUP_PATH = `${STORE_PATH}.bak`;
+const CAMPAIGN_SNAPSHOT_DIR = path.resolve(process.env.CAMPAIGN_SNAPSHOT_DIR || path.join(path.dirname(STORE_PATH), "campaign-snapshots"));
+const CAMPAIGN_SNAPSHOT_INTERVAL_MS = Math.max(0, Number(process.env.CAMPAIGN_SNAPSHOT_INTERVAL_MS) || (10 * 60 * 1000));
+const CAMPAIGN_SNAPSHOT_RETENTION = Math.max(3, Number(process.env.CAMPAIGN_SNAPSHOT_RETENTION) || 36);
 const LEGACY_LICENSE_STORE_PATH = path.join(BTL_DATA_DIR, "license-data.json");
 const LICENSE_STORE_PATH = path.resolve(process.env.LICENSE_STORE_PATH || "/opt/render/project/src/license-data.json");
 const LICENSE_STORE_BACKUP_PATH = `${LICENSE_STORE_PATH}.bak`;
@@ -107,10 +111,22 @@ const AUDIO_PROXY_ALLOWED_HOSTS = new Set([
   "ia100000.us.archive.org"
 ]);
 const CAMPAIGN_SNAPSHOT_EMIT_INTERVAL_MS = Math.max(20, Number(process.env.CAMPAIGN_SNAPSHOT_EMIT_INTERVAL_MS) || 60);
+const PROCESS_STARTED_AT = Date.now();
 
 const campaigns = new Map();
 let persistTimer = null;
 let persistQueued = false;
+let persistQueuedAt = 0;
+let lastCampaignPersistAt = 0;
+let lastCampaignPersistDurationMs = 0;
+let lastCampaignPersistQueueLagMs = 0;
+let lastCampaignPersistError = "";
+let lastCampaignStoreLoadedFrom = "";
+let lastCampaignStoreRecoveredFrom = "";
+let campaignSnapshotTimer = null;
+let lastCampaignSnapshotAt = 0;
+let lastCampaignSnapshotPath = "";
+let lastCampaignSnapshotError = "";
 const licenseStore = {
   version: 1,
   updatedAt: Date.now(),
@@ -764,43 +780,184 @@ function serializeCampaign(campaign) {
   };
 }
 
-function persistCampaignsNow() {
-  const data = {
+function buildCampaignStoreData() {
+  return {
     version: 1,
     savedAt: Date.now(),
     campaigns: Array.from(campaigns.values()).map(serializeCampaign)
   };
-  fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
-  fs.writeFileSync(STORE_PATH, JSON.stringify(data, null, 2), "utf8");
+}
+
+function writeTextFileAtomic(targetPath, text) {
+  const tmpPath = `${targetPath}.tmp`;
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  fs.writeFileSync(tmpPath, text, "utf8");
+  fs.renameSync(tmpPath, targetPath);
+}
+
+function listCampaignSnapshotCandidates() {
+  try {
+    if (!fs.existsSync(CAMPAIGN_SNAPSHOT_DIR)) return [];
+    const rows = fs.readdirSync(CAMPAIGN_SNAPSHOT_DIR)
+      .filter((name) => /^campaign-data-snapshot-.*\.json$/i.test(String(name || "")))
+      .map((name) => {
+        const filePath = path.join(CAMPAIGN_SNAPSHOT_DIR, name);
+        let mtimeMs = 0;
+        try {
+          mtimeMs = Number(fs.statSync(filePath).mtimeMs || 0);
+        } catch (_err) {
+          mtimeMs = 0;
+        }
+        return { filePath, mtimeMs };
+      })
+      .sort((a, b) => b.mtimeMs - a.mtimeMs)
+      .map((entry) => entry.filePath);
+    return rows;
+  } catch (_err) {
+    return [];
+  }
+}
+
+function listCampaignStoreCandidates() {
+  const candidates = [STORE_PATH, CAMPAIGN_STORE_BACKUP_PATH].concat(listCampaignSnapshotCandidates());
+  const out = [];
+  const seen = new Set();
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = path.resolve(String(candidates[i] || ""));
+    if (!candidate || seen.has(candidate)) continue;
+    seen.add(candidate);
+    out.push(candidate);
+  }
+  return out;
+}
+
+function parseCampaignStoreRaw(raw) {
+  if (!raw || !String(raw).trim()) return null;
+  const parsed = JSON.parse(raw);
+  if (!parsed || !Array.isArray(parsed.campaigns)) {
+    throw new Error("Campaign store missing campaigns array.");
+  }
+  return parsed;
+}
+
+function restoreCampaignStoreFrom(candidatePath, reason) {
+  if (!candidatePath || !fs.existsSync(candidatePath)) return false;
+  const raw = fs.readFileSync(candidatePath, "utf8");
+  if (!String(raw || "").trim()) return false;
+  writeTextFileAtomic(STORE_PATH, raw);
+  writeTextFileAtomic(CAMPAIGN_STORE_BACKUP_PATH, raw);
+  lastCampaignStoreRecoveredFrom = `${candidatePath} (${String(reason || "recovered")})`;
+  return true;
+}
+
+function persistCampaignSnapshotNow(reason) {
+  try {
+    const data = buildCampaignStoreData();
+    const serialized = JSON.stringify(data, null, 2);
+    const stamp = new Date().toISOString().replace(/[.:]/g, "-");
+    const snapshotPath = path.join(CAMPAIGN_SNAPSHOT_DIR, `campaign-data-snapshot-${stamp}.json`);
+
+    writeTextFileAtomic(snapshotPath, serialized);
+    lastCampaignSnapshotAt = Date.now();
+    lastCampaignSnapshotPath = snapshotPath;
+    lastCampaignSnapshotError = "";
+
+    const snapshots = listCampaignSnapshotCandidates();
+    for (let i = CAMPAIGN_SNAPSHOT_RETENTION; i < snapshots.length; i += 1) {
+      try {
+        fs.unlinkSync(snapshots[i]);
+      } catch (_err) {}
+    }
+
+    return true;
+  } catch (err) {
+    lastCampaignSnapshotError = err && err.message ? err.message : String(err);
+    console.warn("Could not write campaign snapshot backup:", lastCampaignSnapshotError, reason ? `(${reason})` : "");
+    return false;
+  }
+}
+
+function startCampaignSnapshotBackups() {
+  if (campaignSnapshotTimer) {
+    clearInterval(campaignSnapshotTimer);
+    campaignSnapshotTimer = null;
+  }
+  if (!CAMPAIGN_SNAPSHOT_INTERVAL_MS) return;
+  campaignSnapshotTimer = setInterval(() => {
+    persistCampaignSnapshotNow("interval");
+  }, CAMPAIGN_SNAPSHOT_INTERVAL_MS);
+  if (campaignSnapshotTimer && typeof campaignSnapshotTimer.unref === "function") {
+    campaignSnapshotTimer.unref();
+  }
+}
+
+function persistCampaignsNow() {
+  const startedAt = Date.now();
+  const data = buildCampaignStoreData();
+  const serialized = JSON.stringify(data, null, 2);
+  writeTextFileAtomic(STORE_PATH, serialized);
+  writeTextFileAtomic(CAMPAIGN_STORE_BACKUP_PATH, serialized);
+  lastCampaignPersistAt = Date.now();
+  lastCampaignPersistDurationMs = Math.max(0, lastCampaignPersistAt - startedAt);
+  lastCampaignPersistError = "";
 }
 
 function schedulePersist() {
+  if (!persistQueuedAt) persistQueuedAt = Date.now();
   persistQueued = true;
   if (persistTimer) return;
   persistTimer = setTimeout(() => {
     persistTimer = null;
     if (!persistQueued) return;
+    const queuedAt = Number(persistQueuedAt || Date.now());
+    lastCampaignPersistQueueLagMs = Math.max(0, Date.now() - queuedAt);
+    persistQueuedAt = 0;
     persistQueued = false;
     try {
       persistCampaignsNow();
     } catch (err) {
-      console.warn("Could not persist campaigns:", err && err.message ? err.message : err);
+      lastCampaignPersistError = err && err.message ? err.message : String(err);
+      console.warn("Could not persist campaigns:", lastCampaignPersistError);
     }
   }, 250);
 }
 
 function loadCampaignsFromDisk() {
   try {
-    if (!fs.existsSync(STORE_PATH)) return;
-    const raw = fs.readFileSync(STORE_PATH, "utf8");
-    if (!raw.trim()) return;
-    const parsed = JSON.parse(raw);
+    const candidates = listCampaignStoreCandidates();
+    let parsed = null;
+    let loadedFrom = "";
+    for (let i = 0; i < candidates.length; i += 1) {
+      const candidate = candidates[i];
+      if (!fs.existsSync(candidate)) continue;
+      try {
+        const raw = fs.readFileSync(candidate, "utf8");
+        parsed = parseCampaignStoreRaw(raw);
+        loadedFrom = candidate;
+        break;
+      } catch (candidateErr) {
+        const msg = candidateErr && candidateErr.message ? candidateErr.message : candidateErr;
+        console.warn(`Could not parse campaign store candidate ${candidate}:`, msg);
+      }
+    }
+
+    if (!parsed) return;
+
     const list = Array.isArray(parsed && parsed.campaigns) ? parsed.campaigns : [];
+    campaigns.clear();
 
     for (let i = 0; i < list.length; i += 1) {
       const normalized = ensureCampaignShape(list[i]);
       if (!normalized.code) continue;
       campaigns.set(normalized.code, normalized);
+    }
+
+    lastCampaignStoreLoadedFrom = loadedFrom;
+    if (loadedFrom && path.resolve(loadedFrom) !== path.resolve(STORE_PATH)) {
+      const restored = restoreCampaignStoreFrom(loadedFrom, "startup-integrity-auto-restore");
+      if (restored) {
+        console.log(`Recovered campaign store from ${loadedFrom}.`);
+      }
     }
 
     if (campaigns.size > 0) {
@@ -1628,6 +1785,44 @@ app.post("/api/license/admin/test", (req, res) => {
   });
 });
 
+app.get("/api/health", (_req, res) => {
+  const campaignSocketCount = Array.from(campaigns.values()).reduce((sum, campaign) => {
+    return sum + Number(campaign && campaign.sessions ? campaign.sessions.size : 0);
+  }, 0);
+  const now = Date.now();
+  const queuedForMs = persistQueued && persistQueuedAt ? Math.max(0, now - Number(persistQueuedAt || now)) : 0;
+  res.json({
+    ok: true,
+    now,
+    startedAt: PROCESS_STARTED_AT,
+    uptimeSec: Math.max(0, Math.floor(process.uptime())),
+    campaigns: {
+      count: campaigns.size,
+      connectedSessions: campaignSocketCount
+    },
+    persistence: {
+      queued: !!persistQueued,
+      queueLagMs: queuedForMs,
+      lastQueueLagMs: Number(lastCampaignPersistQueueLagMs || 0),
+      lastPersistAt: Number(lastCampaignPersistAt || 0),
+      lastPersistDurationMs: Number(lastCampaignPersistDurationMs || 0),
+      lastPersistError: String(lastCampaignPersistError || ""),
+      storePath: STORE_PATH,
+      backupPath: CAMPAIGN_STORE_BACKUP_PATH,
+      lastLoadedFrom: String(lastCampaignStoreLoadedFrom || ""),
+      lastRecoveredFrom: String(lastCampaignStoreRecoveredFrom || "")
+    },
+    snapshots: {
+      directory: CAMPAIGN_SNAPSHOT_DIR,
+      intervalMs: CAMPAIGN_SNAPSHOT_INTERVAL_MS,
+      retention: CAMPAIGN_SNAPSHOT_RETENTION,
+      lastSnapshotAt: Number(lastCampaignSnapshotAt || 0),
+      lastSnapshotPath: String(lastCampaignSnapshotPath || ""),
+      lastSnapshotError: String(lastCampaignSnapshotError || "")
+    }
+  });
+});
+
 app.post("/api/license/login", (req, res) => {
   const email = normalizeEmail(req.body && req.body.email);
   const submittedCode = normalizeLicenseCode(req.body && req.body.code);
@@ -1792,6 +1987,8 @@ app.use(express.static(path.join(__dirname)));
 
 loadLicenseStoreFromDisk();
 loadCampaignsFromDisk();
+startCampaignSnapshotBackups();
+persistCampaignSnapshotNow("startup");
 
 io.on("connection", (socket) => {
   socket.on("campaign:create", (payload, ack) => {
@@ -2682,6 +2879,7 @@ process.on("SIGINT", () => {
   persistLicenseStoreSafe();
   try {
     persistCampaignsNow();
+    persistCampaignSnapshotNow("shutdown-sigint");
   } catch (_err) { console.error(_err); }
   process.exit(0);
 });
@@ -2690,6 +2888,7 @@ process.on("SIGTERM", () => {
   persistLicenseStoreSafe();
   try {
     persistCampaignsNow();
+    persistCampaignSnapshotNow("shutdown-sigterm");
   } catch (_err) { console.error(_err); }
   process.exit(0);
 });
